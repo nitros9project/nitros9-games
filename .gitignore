@@ -1,0 +1,11 @@
+*.dsk
+*.list
+*.map
+*.o
+bootfile
+kernelfile
+buildinfo
+recipes/coco3/sierra/tOC
+recipes/coco3/sierra/obj/
+recipes/coco3/sierra/lib/
+recipes/coco3/sierra/modules/
