@@ -5,13 +5,11 @@ KERNELTRACK	= kerneltrack
 OS9BOOT		= OS9Boot
 
 NITROS_MODULE_DIR = $(NITROS9DIR)/level2/coco3/modules
-NITROS_CMD_DIR    = $(NITROS9DIR)/level2/coco3/cmds
-
 KERNEL_MODULES = rel_40 boot_1773_6ms krn
 BOOT_MODULES = krnp2 ioman init \
 		rbf.mn rb1773.dr ddd0_40d.dd \
 		scf.mn vtio.dr joydrv_joy.sb snddrv_cc3.sb \
-		cogrf.io term_win40.dt w.dw w1.dw w2.dw w3.dw \
+		cowin.io term_win40.dt w.dw w1.dw w2.dw w3.dw \
 		w4.dw w5.dw w6.dw w7.dw \
 		clock_60hz clock2_soft sysgo_dd
 BASECMDS = shell grfdrv
@@ -35,8 +33,8 @@ games:
 	$(MAKE) -C shanghai
 
 nitros9-files:
-	$(MAKE) -C $(NITROS_MODULE_DIR) $(KERNEL_MODULES) $(BOOT_MODULES)
-	$(MAKE) -C $(NITROS_CMD_DIR) $(BASECMDS)
+	$(MAKE) -C $(NITROS9DIR)/recipes/coco3/floppy MODDIR=$(NITROS_MODULE_DIR) \
+		$(addprefix $(NITROS_MODULE_DIR)/,$(KERNEL_MODULES) $(BOOT_MODULES) $(BASECMDS))
 
 $(KERNELTRACK): nitros9-files
 	$(MERGE) $(addprefix $(NITROS_MODULE_DIR)/,$(KERNEL_MODULES)) >$@
@@ -50,7 +48,7 @@ $(DISK): games $(KERNELTRACK) $(OS9BOOT) startup
 	$(OS9GEN) $@ -b=$(OS9BOOT) -t=$(KERNELTRACK)
 	$(RM) $(OS9BOOT) $(KERNELTRACK)
 	$(MAKDIR) $@,CMDS
-	$(OS9COPY) $(addprefix $(NITROS_CMD_DIR)/,$(BASECMDS)) $@,CMDS
+	$(OS9COPY) $(addprefix $(NITROS_MODULE_DIR)/,$(BASECMDS)) $@,CMDS
 	$(OS9COPY) -r $(GAMECMDS) $@,CMDS
 	$(OS9ATTR_EXEC) $(foreach file,$(BASECMDS) $(notdir $(GAMECMDS)),$@,CMDS/$(file))
 	$(MAKDIR) $@,SYS

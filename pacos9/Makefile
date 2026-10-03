@@ -13,7 +13,7 @@ BOOTFILE = $(MD)/krnp2 $(MD)/ioman $(MD)/init \
 	$(MD)/rbf.mn $(MD)/rb1773.dr $(MD)/ddd0_40d.dd \
 	$(MD)/scf.mn $(MD)/vtio.dr $(MD)/co3hires.sb \
 	$(MD)/joydrv_joy.sb $(MD)/snddrv_cc3.sb \
-	$(MD)/cogrf.io $(MD)/term_win40.dt $(MD)/w.dw $(MD)/w1.dw $(MD)/w2.dw \
+	$(MD)/cowin.io $(MD)/term_win40.dt $(MD)/w.dw $(MD)/w1.dw $(MD)/w2.dw \
 	$(MD)/clock_60hz $(MD)/clock2_soft
 KERNELTRACK = kerneltrack
 OS9BOOT = OS9Boot
@@ -31,8 +31,8 @@ $(TARGET): $(OBJS)
 	$(LINKER) $(LFLAGS) $^ -o$@
 
 nitros9-files:
-	$(MAKE) -C $(MD) $(notdir $(KERNEL) $(BOOTFILE) $(SYSGO))
-	$(MAKE) -C $(LEVEL2)/coco3/cmds shell_21 grfdrv
+	$(MAKE) -C $(NITROS9DIR)/recipes/coco3/floppy MODDIR=$(MD) \
+		$(addprefix $(MD)/,$(notdir $(KERNEL) $(BOOTFILE) $(SYSGO))) $(MD)/shell $(MD)/grfdrv
 
 $(KERNELTRACK): nitros9-files
 	$(MERGE) $(KERNEL) >$@
@@ -48,9 +48,9 @@ $(DISK): $(TARGET) $(KERNELTRACK) $(OS9BOOT) startup
 	$(OS9COPY) $(SYSGO) $@,sysgo
 	$(OS9ATTR_EXEC) $@,sysgo
 	$(MAKDIR) $@,CMDS
-	$(OS9COPY) $(LEVEL2)/coco3/cmds/shell_21 $@,CMDS/shell
+	$(OS9COPY) $(MD)/shell $@,CMDS/shell
 	$(OS9ATTR_EXEC) $@,CMDS/shell
-	$(OS9COPY) $(LEVEL2)/coco3/cmds/grfdrv $@,CMDS/grfdrv
+	$(OS9COPY) $(MD)/grfdrv $@,CMDS/grfdrv
 	$(OS9ATTR_EXEC) $@,CMDS/grfdrv
 	$(OS9COPY) -r $(TARGET) $@,CMDS
 	$(OS9ATTR_EXEC) $@,CMDS/$(TARGET)

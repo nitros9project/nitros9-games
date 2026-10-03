@@ -16,7 +16,7 @@ BOOTFILE	= $(MD)/krnp2 $(MD)/ioman $(MD)/init \
 		$(MD)/rb1773.dr $(MD)/ddd0_40d.dd \
 		$(MD)/scf.mn $(MD)/vtio.dr $(MD)/co3hires.sb \
 		$(MD)/joydrv_joy.sb $(MD)/snddrv_cc3.sb \
-		$(MD)/covdg_small.io $(MD)/term_vdg.dt \
+		$(MD)/covdg.io $(MD)/term_vdg.dt \
 		$(MD)/clock_60hz $(MD)/clock2_soft
 
 SUPPORTFILES	= backgnd.dat backgnd2.dat bigblocks.dat blakguy.dat \
@@ -39,8 +39,8 @@ clean:
 	$(RM) $(DISK) $(ALLOBJS) $(KERNELTRACK) $(OS9BOOT) *.list *.map
 
 nitros9-files:
-	$(MAKE) -C $(MD) $(notdir $(KERNEL) $(BOOTFILE) $(SYSGO))
-	$(MAKE) -C $(LEVEL2)/coco3/cmds shell_21
+	$(MAKE) -C $(NITROS9DIR)/recipes/coco3/floppy MODDIR=$(MD) \
+		$(addprefix $(MD)/,$(notdir $(KERNEL) $(BOOTFILE) $(SYSGO))) $(MD)/shell
 
 $(KERNELTRACK): nitros9-files
 	$(MERGE) $(KERNEL) >$@
@@ -56,7 +56,7 @@ $(DISK): $(ALLOBJS) $(KERNELTRACK) $(OS9BOOT)
 	$(OS9COPY) $(SYSGO) $@,sysgo
 	$(OS9ATTR_EXEC) $@,sysgo
 	$(MAKDIR) $@,CMDS
-	$(OS9COPY) -r $(LEVEL2)/coco3/cmds/shell_21 $@,CMDS/shell
+	$(OS9COPY) -r $(MD)/shell $@,CMDS/shell
 	$(OS9ATTR_EXEC) $@,CMDS/shell
 	$(OS9COPY) -r $(CMDS) $@,CMDS
 	$(OS9ATTR_EXEC) $(foreach file,$(CMDS),$@,CMDS/$(file))

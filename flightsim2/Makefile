@@ -22,7 +22,7 @@ BOOTFILE_FLOPPY	= $(MD)/krnp2 $(MD)/ioman $(MD)/init \
 		$(MD)/rb1773.dr $(MD)/ddd0_40d.dd \
 		$(MD)/scf.mn $(MD)/vtio.dr $(MD)/co3hires.sb \
 		$(MD)/joydrv_joy.sb $(MD)/snddrv_cc3.sb \
-		$(MD)/covdg_small.io $(MD)/term_vdg.dt \
+		$(MD)/covdg.io $(MD)/term_vdg.dt \
 		$(MD)/vrn.dr $(MD)/ftdd.dd \
 		$(MD)/clock_60hz $(MD)/clock2_soft
 
@@ -31,7 +31,7 @@ BOOTFILE_DW	= $(MD)/krnp2 $(MD)/ioman $(MD)/init \
 		$(MD)/rbdw.dr $(MD)/dwio.sb $(MD)/ddx0.dd \
 		$(MD)/scf.mn $(MD)/vtio.dr $(MD)/co3hires.sb \
 		$(MD)/joydrv_joy.sb $(MD)/snddrv_cc3.sb \
-		$(MD)/covdg_small.io $(MD)/term_vdg.dt \
+		$(MD)/covdg.io $(MD)/term_vdg.dt \
 		$(MD)/vrn.dr $(MD)/ftdd.dd \
 		$(MD)/clock_60hz $(MD)/clock2_dw
 
@@ -40,7 +40,7 @@ BOOTFILE_DW_BECKER	= $(MD)/krnp2 $(MD)/ioman $(MD)/init \
 		$(MD)/rbdw.dr $(MD)/dwio_becker.sb $(MD)/ddx0.dd \
 		$(MD)/scf.mn $(MD)/vtio.dr $(MD)/co3hires.sb \
 		$(MD)/joydrv_joy.sb $(MD)/snddrv_cc3.sb \
-		$(MD)/covdg_small.io $(MD)/term_vdg.dt \
+		$(MD)/covdg.io $(MD)/term_vdg.dt \
 		$(MD)/vrn.dr $(MD)/ftdd.dd \
 		$(MD)/clock_60hz $(MD)/clock2_dw
 
@@ -59,7 +59,8 @@ clean:
 
 $(DSK_DW):
 	$(RM) $@
-	$(CD) $(LEVEL2)/coco3; make
+	$(MAKE) -C $(NITROS9DIR)/recipes/coco3/dw MODDIR=$(MD) \
+		$(addprefix $(MD)/,$(notdir $(KERNEL_DW) $(BOOTFILE_DW) $(SYSGO))) $(MD)/shell
 	$(OS9FORMAT_DW) -q $@ -n"Flight Simulator 2"
 	$(MERGE) $(BOOTFILE_DW)>os9boot
 	$(MERGE) $(KERNEL_DW)>kernel
@@ -68,7 +69,7 @@ $(DSK_DW):
 	$(OS9COPY) $(SYSGO) $@,sysgo
 	$(OS9ATTR_EXEC) $@,sysgo
 	$(MAKDIR) $@,CMDS
-	$(OS9COPY) $(LEVEL2)/coco3/cmds/shell_21 $@,CMDS/shell
+	$(OS9COPY) $(MD)/shell $@,CMDS/shell
 	$(OS9ATTR_EXEC) $@,CMDS/shell
 	$(OS9COPY) $(CMDS) $@,CMDS
 	$(OS9ATTR_EXEC) $(foreach file,$(CMDS),$@,CMDS/$(file))
@@ -78,7 +79,9 @@ $(DSK_DW):
 
 $(DSK_DW_BECKER):
 	$(RM) $@
-	$(CD) $(LEVEL2)/coco3; make
+	$(MAKE) -C $(NITROS9DIR)/recipes/coco3/dw MODDIR=$(MD) \
+		DW_BOOT_MODULE=boot_dw_becker DWIO_MODULE=dwio_becker.sb \
+		$(addprefix $(MD)/,$(notdir $(KERNEL_DW_BECKER) $(BOOTFILE_DW_BECKER) $(SYSGO))) $(MD)/shell
 	$(OS9FORMAT_DW) -q $@ -n"Flight Simulator 2"
 	$(MERGE) $(BOOTFILE_DW_BECKER)>os9boot
 	$(MERGE) $(KERNEL_DW_BECKER)>kernel
@@ -87,7 +90,7 @@ $(DSK_DW_BECKER):
 	$(OS9COPY) $(SYSGO) $@,sysgo
 	$(OS9ATTR_EXEC) $@,sysgo
 	$(MAKDIR) $@,CMDS
-	$(OS9COPY) $(LEVEL2)/coco3/cmds/shell_21 $@,CMDS/shell
+	$(OS9COPY) $(MD)/shell $@,CMDS/shell
 	$(OS9ATTR_EXEC) $@,CMDS/shell
 	$(OS9COPY) $(CMDS) $@,CMDS
 	$(OS9ATTR_EXEC) $(foreach file,$(CMDS),$@,CMDS/$(file))
@@ -96,8 +99,8 @@ $(DSK_DW_BECKER):
 	$(OS9ATTR_TEXT) $(foreach file,$(SUPPORTFILES),$@,$(file))
 
 nitros9-floppy-files:
-	$(MAKE) -C $(MD) $(notdir $(KERNEL_FLOPPY) $(BOOTFILE_FLOPPY) $(SYSGO))
-	$(MAKE) -C $(LEVEL2)/coco3/cmds shell_21
+	$(MAKE) -C $(NITROS9DIR)/recipes/coco3/floppy MODDIR=$(MD) \
+		$(addprefix $(MD)/,$(notdir $(KERNEL_FLOPPY) $(BOOTFILE_FLOPPY) $(SYSGO))) $(MD)/shell
 
 $(KERNELTRACK): nitros9-floppy-files
 	$(MERGE) $(KERNEL_FLOPPY) >$@
@@ -113,7 +116,7 @@ $(DSK_FLOPPY): $(ALLOBJS) $(KERNELTRACK) $(OS9BOOT)
 	$(OS9COPY) $(SYSGO) $@,sysgo
 	$(OS9ATTR_EXEC) $@,sysgo
 	$(MAKDIR) $@,CMDS
-	$(OS9COPY) -r $(LEVEL2)/coco3/cmds/shell_21 $@,CMDS/shell
+	$(OS9COPY) -r $(MD)/shell $@,CMDS/shell
 	$(OS9ATTR_EXEC) $@,CMDS/shell
 	$(OS9COPY) -r $(CMDS) $@,CMDS
 	$(OS9ATTR_EXEC) $(foreach file,$(CMDS),$@,CMDS/$(file))

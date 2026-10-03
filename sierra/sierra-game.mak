@@ -28,13 +28,11 @@ BOOTFILE	= $(MD)/krnp2 $(MD)/ioman $(MD)/init \
 		$(MD)/rb1773.dr $(MD)/$(DISK_DESCRIPTOR) \
 		$(MD)/scf.mn $(MD)/vtio.dr $(MD)/co3hires.sb \
 		$(MD)/joydrv_joy.sb $(MD)/snddrv_cc3.sb \
-		$(MD)/covdg_small.io $(MD)/term_vdg.dt \
+		$(MD)/covdg.io $(MD)/term_vdg.dt \
 		$(MD)/vrn.dr $(MD)/vi.dd \
 		$(MD)/clock_60hz $(MD)/clock2_soft
 
-BOOTCMDS	= $(LEVEL2)/coco3/cmds/shell_21 $(LEVEL2)/coco3/cmds/date \
-		$(LEVEL2)/coco3/cmds/echo $(LEVEL2)/coco3/cmds/link \
-		$(LEVEL2)/coco3/cmds/setime
+BOOTCMDS	= $(MD)/shell $(MD)/setime
 
 STARTUP		?= ../startup
 DISKS		= $(strip $(DISK1) $(DISK2) $(DISK3))
@@ -43,17 +41,27 @@ KERNELTRACK	= kerneltrack
 OS9BOOT		= OS9Boot
 SIERRASHELL	= shell
 
-.PHONY: all clean nitros9-files
+MAME_BINARY	?= mame
+MAME_MACHINE	?= coco3
+MAME_FLAGS	?= -rompath $(MAME_ROM_PATH) -window -nothrottle -skip_gameinfo \
+		-autoboot_delay 5 -autoboot_command "DOS\n" \
+		-ext fdc -ext:fdc:wd17xx:0 525qd
+
+.PHONY: all clean nitros9-files run
 
 all:	$(DISKS)
+
+run:	$(DISKS)
+	$(MAME_BINARY) $(MAME_MACHINE) $(MAME_FLAGS) \
+		-flop1 $(DISK1) $(if $(DISK2),-flop2 $(DISK2))
 
 clean:
 	$(RM) $(DISKS) $(ALLOBJS) $(KERNELTRACK) $(OS9BOOT) $(SIERRASHELL) \
 		toctmp *.list *.map
 
 nitros9-files:
-	$(MAKE) -C $(MD) $(notdir $(KERNEL) $(BOOTFILE) $(SYSGO))
-	$(MAKE) -C $(LEVEL2)/coco3/cmds $(notdir $(BOOTCMDS))
+	$(MAKE) -C $(NITROS9DIR)/recipes/coco3/floppy MODDIR=$(MD) \
+		$(addprefix $(MD)/,$(notdir $(KERNEL) $(BOOTFILE) $(SYSGO) $(BOOTCMDS)))
 
 $(KERNELTRACK): nitros9-files
 	$(MERGE) $(KERNEL) >$@
