@@ -171,15 +171,108 @@ the four modules failed with the intended missing-memory-backend diagnostic.
 Consequently this extraction adds no CoCo runtime overhead or address changes.
 
 This is a source boundary around the central mapping mechanisms, not a
-portable allocator. Startup, private-engine copying, and cleanup in
-`sierra.asm` still contain inline CoCo mapping operations. Fixed-address
+portable allocator. At this first extraction stage, startup, private-engine copying, and cleanup
+still contained inline CoCo mapping operations; the loader extraction below
+moves those operations into backends. Fixed-address
 buffers, direct-page fields, process-descriptor access, embedded writable
 state, and assumptions in the callers also remain. Implementing Wild Bits
 requires redesigning these contracts around owned buffers and OS-managed
 mapping windows, followed by adapting their callers; substituting different
 MMU register addresses is insufficient.
 
-The next memory phase should separate CoCo loader/copy/cleanup operations and
-make buffer ownership and mapping lifetime explicit. Keep the working CoCo
+The subsequent loader extraction separates CoCo loader/copy/cleanup operations
+and documents their ownership and mapping lifetime. Keep the working CoCo
 backend as the reference while determining the packed Wild Bits module's code,
 data, and mapping-window budget.
+
+
+## Loader, private copies, and cleanup
+
+The next extraction moves the remaining executable MMU-register accesses out
+of the top-level `sierra.asm`. These includes preserve the existing loader
+implementation and its placement; they do not yet provide a new allocation
+scheme.
+
+| Selector under `objs/platform/` | Entry points | Responsibility |
+| --- | --- | --- |
+| `process-map.asm` | `SetupProcMap` | Find the current process's DAT image and alias its first data block into two working windows. |
+| `runtime-copy.asm` | `CopySubsToData` | Copy the bank-switch routine and signal handler into private data memory. |
+| `engine-load.asm` | `LoadModules` | Set up game-resource block pairs and load the three engine templates into private blocks. |
+| `map-restore.asm` | `RestoreMmu` | Restore the original working-window DAT entries and hardware mappings. |
+| `address-blocks.asm` | `TwiddleAddr` | Convert a logical address into its slot index and physical block pair using the saved map. |
+| `private-load.asm` | `NMLoadModule`, `CopyPrivatePage` | Link/load a template, copy occupied pages into this instance's allocation, then unlink it. |
+| `private-allocate.asm` | `SetupVirq` | Install the signal intercept, attach/open `/VI`, allocate private RAM, and register the timer. |
+| `private-release.asm` | `CloseVirqPath` | Clear the timer registration, release path-owned RAM, close `/VI`, and detach the device. |
+
+### Allocation and template ownership
+
+`SetupVirq` requests 21 contiguous 8 KB blocks through `/VI`: 13 for game
+storage and eight reserved for private engine pages. It rejects physical block
+numbers outside the existing 8-bit MMU representation, or a range that would
+wrap it. `PrivateNext` marks the next engine destination and `PrivateLimit`
+marks the allocation's exclusive end. The path owns the allocation, and its
+path/device fields record how far startup progressed for cleanup.
+
+`NMLoadModule` takes X pointing to the module name and U identifying the
+runtime remap-table base. It first tries `F$Link`, then `F$Load`. It validates
+the occupied logical page range, checks destination capacity, and copies whole
+8 KB pages into that instance's allocated blocks. It balances its own template
+reference with `F$UnLink` on both the successful-copy and invalid-size paths.
+On failure the existing carry/B error convention is retained; partially copied
+pages remain part of the same path-owned allocation for shutdown to release.
+On success the caller uses the retained logical header address to construct
+its relocated dispatch address; it must not dereference an unlinked template.
+
+`CopyPrivatePage` takes X as the source page and A as the destination physical
+block. It saves CC, D, X, Y, and U, masks interrupts, borrows only the hardware
+`$4000` window, and copies 4096 words. It restores the window to its private-data
+alias and restores the saved registers and interrupt mask before returning.
+The process DAT image is unchanged during the borrow, and there are no OS
+calls while that temporary hardware mapping is active. This distinction from
+the persistent resource mappings is essential to preserve.
+
+### Setup, copied code, and restoration
+
+`SetupProcMap` saves the original second and third DAT entries before replacing
+them with aliases of the private data block. It records the descriptor's
+physical block and DAT-image pointer for subsequent mapping operations.
+`ProcMapReady` records completion; `RestoreMmu` skips restoration if setup did
+not reach that point. Restoration updates both DAT entries and hardware slots.
+These routines retain the original interrupt behavior and process-descriptor
+layout assumptions.
+
+`CopySubsToData` copies `MmuSwitch..MmuSwitchEnd` to `sub659` and
+`SigIntercept..CloseVirqPath` to `int5EE`. Although the labels now cross include
+files, their byte ranges remain exactly the same. No selector emits bytes.
+The interrupt handler itself remains in `sierra.asm`; moving the allocation
+backend does not change its timing or direct-page setup.
+
+`TwiddleAddr` returns A as the logical 8 KB slot index and U as the physical
+block pair from `mmubuf+8`; the adjacent slot wraps modulo eight. D and
+condition codes are not preserved. This is a CoCo map-snapshot helper, not a
+general owned-buffer lookup API.
+
+`CloseVirqPath` releases only the recorded instance path and device reference.
+Its position still serves as the exclusive end marker for the copied signal
+handler. `ShutdownFull` retains its existing order: restore the screen, close
+and release the VIRQ resources, then restore the original process mappings.
+This extraction preserves the existing failure handling; it does not add a
+new cleanup policy or change what happens on forced termination.
+
+### Validation and remaining work
+
+All 56 engine binaries were rebuilt and compared with the previously verified
+pre-extraction binaries. Every byte matched, including the copied routines,
+branch displacements, module headers, and CRCs. A Wild Bits assembly was
+checked to fail with the explicit missing-loader-backend diagnostic. The
+normal King's Quest I make targets also rebuilt successfully.
+
+The source split now covers the central mappings and loader-side memory
+operations. Hardware addresses can still appear in historical comments and
+equates. Graphics, input, timer registration, fixed data offsets, and engine
+callers retain CoCo-specific assumptions. A Wild Bits implementation must
+replace the private-copy/bank-dispatch model with an appropriate packed,
+position-independent layout and OS-managed buffer mappings; it must also
+preserve per-instance ownership and balanced cleanup. The next useful
+extraction is screen setup/presentation/restoration, followed by a deliberate
+buffer-layout design rather than a mechanical register substitution.

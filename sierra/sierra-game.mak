@@ -20,6 +20,15 @@ mnln: ../objs/platform/logic-map.asm ../objs/platform/coco-logic-map.asm \
 scrn: ../objs/platform/screen-map.asm ../objs/platform/coco-screen-map.asm
 shdw: ../objs/platform/picture-map.asm ../objs/platform/coco-picture-map.asm
 
+sierra: ../objs/platform/process-map.asm ../objs/platform/coco-process-map.asm
+sierra: ../objs/platform/runtime-copy.asm ../objs/platform/coco-runtime-copy.asm
+sierra: ../objs/platform/engine-load.asm ../objs/platform/coco-engine-load.asm
+sierra: ../objs/platform/map-restore.asm ../objs/platform/coco-map-restore.asm
+sierra: ../objs/platform/address-blocks.asm ../objs/platform/coco-address-blocks.asm
+sierra: ../objs/platform/private-load.asm ../objs/platform/coco-private-load.asm
+sierra: ../objs/platform/private-allocate.asm ../objs/platform/coco-private-allocate.asm
+sierra: ../objs/platform/private-release.asm ../objs/platform/coco-private-release.asm
+
 CMDS		= sierra mnln scrn shdw tocgen
 MD		= $(LEVEL2)/coco3/modules
 SYSGO		= $(MD)/sysgo_dd
