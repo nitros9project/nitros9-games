@@ -95,3 +95,91 @@ and terminal-switching interfaces in the
 [Wild Bits porting guide](https://github.com/jfed6000/f256_porting).
 Every boundary should first retain the working CoCo behavior, with binary
 comparison where an extraction is intended to leave generated code unchanged.
+
+## Memory boundary: first extraction
+
+The following routines now live in CoCo backend includes, selected at assembly
+time and included at their original locations. The existing labels remain the
+entry points, so neither call sites nor dispatch instructions change.
+
+| Selector under `objs/platform/` | Entry points | Current responsibility |
+| --- | --- | --- |
+| `logic-map.asm` | `SetLogicPage` | Map the two-block resource window used by logic, view, and sound resources. |
+| `priority-map.asm` | `MapShdwPage` | Map the priority buffer block into the `$6000` window. |
+| `screen-map.asm` | `SetMapBlock` | Map a pair of blocks for screen-module buffer access. |
+| `picture-map.asm` | `TwiddleMmu` | Map a pair of blocks for picture-module buffer access. |
+| `engine-switch.asm` | `MmuSwitch` | Switch engine module banks, call the selected entry, and restore the caller's banks. |
+| `map-snapshot.asm` | `mmuini1`, `mmuini2` | Obtain system and current-process mapping snapshots. |
+
+Each selector includes a matching `coco-*.asm` implementation. A nonzero
+`WILDBITS` setting rejects all four engine modules with a missing-memory-backend
+error. The makefile explicitly tracks each selector and implementation as a
+dependency of its containing module.
+
+### Resource and drawing mappings
+
+`SetLogicPage`, `SetMapBlock`, and `TwiddleMmu` receive a pair of physical block
+numbers in A and B. They map adjacent 8 KB windows at `$2000` and `$4000` by
+updating both the process's DAT image and hardware registers. The DAT image
+is reached by temporarily mapping the process-descriptor block. These are
+persistent mappings: the routines do not restore the previous resource window
+on return. The existing callers control when to select another pair.
+
+All three routines compare only A against their cached block number and skip
+the switch if it matches. Existing code therefore relies on a stable pairing:
+changing only B will not remap the second window. This behavior is preserved,
+not generalized into a new portable mapping API.
+
+The resource routine uses cache `$000A`, descriptor block `$0042`, and DAT-image
+pointer `$0043`. Screen mapping uses the corresponding named equates and cache
+`MmuBlkNum`; picture mapping uses `ShdwMmuBlock`. The implementations overwrite
+X (resource/screen) or U (picture) when a switch occurs. Registers and condition
+codes must not be assumed preserved. On a switch, IRQ/FIRQ are masked during
+the DAT/hardware update and enabled afterward; the original incoming interrupt
+mask is not restored. The cache-hit path retains the existing compare/return
+behavior.
+
+`MapShdwPage` takes no explicit argument. It selects physical block
+`[$005F] + 8` into the `$6000` window, using `$0042` and `$0043` to reach the
+DAT image. It restores the temporarily borrowed `$2000` hardware slot but
+leaves the priority mapping in place. A, B, X, and condition codes are
+clobbered. These direct-page fields and fixed window addresses are existing
+CoCo layout dependencies.
+
+### Engine switching and snapshots
+
+`MmuSwitch` is special: startup copies the bytes between `MmuSwitch` and
+`MmuSwitchEnd` into the private process area beginning at `$0659`. The routine
+switches banks around an engine dispatch and returns through the saved caller
+address. Moving its source into an include leaves that copy range, its size,
+and its placement unchanged. It must not acquire an ordinary subroutine call
+to code that would disappear when its own mapping changes.
+
+`mmuini1` fills the system-map portion of `mmubuf`, after first capturing the
+current process map through `mmuini2`. It borrows the `$2000` slot while
+interrupts are masked and restores that slot and the saved registers.
+`mmuini2` uses `F$ID` and `F$GPrDsc` to populate `gprbuf`, then copies the eight
+physical block low bytes into `mmubuf+8`. Its process-descriptor offsets and
+8-bit block representation are CoCo assumptions. This extraction preserves
+the existing register behavior and error handling rather than redesigning it.
+
+### What this does and does not establish
+
+Fresh before/after builds again produced identical bytes for all 56 engine
+modules across fourteen titles. Separate `WILDBITS=1` assemblies of each of
+the four modules failed with the intended missing-memory-backend diagnostic.
+Consequently this extraction adds no CoCo runtime overhead or address changes.
+
+This is a source boundary around the central mapping mechanisms, not a
+portable allocator. Startup, private-engine copying, and cleanup in
+`sierra.asm` still contain inline CoCo mapping operations. Fixed-address
+buffers, direct-page fields, process-descriptor access, embedded writable
+state, and assumptions in the callers also remain. Implementing Wild Bits
+requires redesigning these contracts around owned buffers and OS-managed
+mapping windows, followed by adapting their callers; substituting different
+MMU register addresses is insufficient.
+
+The next memory phase should separate CoCo loader/copy/cleanup operations and
+make buffer ownership and mapping lifetime explicit. Keep the working CoCo
+backend as the reference while determining the packed Wild Bits module's code,
+data, and mapping-window budget.

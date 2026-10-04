@@ -3,4 +3,4 @@ Shared Sierra AGI interpreter sources
 All fourteen Sierra game builds use these sources through sierra-game.mak.
 The annotated interpreter derives from the original Sierra disassemblies.
 See ../README.md for concurrent-instance requirements and verification.
-See ../PORTABILITY.md for platform boundaries and the sound backend contract.
+See ../PORTABILITY.md for platform boundaries and sound/memory backend contracts.

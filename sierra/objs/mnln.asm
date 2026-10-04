@@ -4383,19 +4383,9 @@ CalcPriCoord        tfr       u,d       transfer priority address to D
                     tfr       a,b       copy row to B
                     incb                increment for 1-based row
                     rts
-SetLogicPage        cmpa      <$000A    check if page already set
-                    beq       SetLogicPageRet skip if no change needed
-                    orcc      #$50      disable interrupts during switch
-                    std       <$000A    save new page number
-                    lda       <$0042    load current MMU shadow byte
-                    sta       >$FFA9    write to MMU slot 9
-                    ldx       <$0043    load MMU control register ptr
-                    lda       <$000A    load new page high byte
-                    sta       ,x        set MMU slot high
-                    stb       $02,x     set MMU slot low
-                    std       >$FFA9    commit page change to MMU
-                    andcc     #$AF      re-enable interrupts
-SetLogicPageRet     rts
+* Platform mapping implementation; retained at its original location.
+                    use       platform/logic-map.asm
+
 MenuExtraFlag       fcb       1
 MenuItemCurrent     fcb       0,0
 MenuCurrent         fcb       0,0
@@ -5084,18 +5074,9 @@ PicStorePixel       stb       ,x+       store pixel byte to output buffer
 PicStripDone        tfr       x,d       transfer output ptr to D
                     subd      $04,s     compute bytes written
                     rts
-MapShdwPage         orcc      #$50      disable interrupts for MMU access
-                    lda       >$FFA9    read current MMU slot 9
-                    ldb       <$0042    load shadow page number
-                    stb       >$FFA9    map shadow page to slot 9
-                    ldx       <$0043    load MMU control ptr
-                    ldb       <$005F    load base priority page
-                    addb      #$08      advance 8 pages into shadow
-                    stb       $04,x     update MMU slot 4
-                    stb       >$FFAB    write to MMU hardware
-                    sta       >$FFA9    restore original slot 9
-                    andcc     #$AF      re-enable interrupts
-                    rts
+* Platform mapping implementation; retained at its original location.
+                    use       platform/priority-map.asm
+
 ReadPicPixel        stx       <$00B7    save X across buffer reads
                     ldd       <$00BA    load current bit position
                     cmpd      #$1FF0    check if near buffer end

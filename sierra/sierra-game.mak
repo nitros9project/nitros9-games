@@ -12,6 +12,14 @@ sierra mnln: ../objs/instance.d
 mnln: ../objs/platform/sound-data.asm ../objs/platform/sound-code.asm \
 	../objs/platform/coco-sound-data.asm ../objs/platform/coco-sound-code.asm
 
+# Mapping backends are included in place, without runtime dispatch.
+sierra: ../objs/platform/engine-switch.asm ../objs/platform/coco-engine-switch.asm \
+	../objs/platform/map-snapshot.asm ../objs/platform/coco-map-snapshot.asm
+mnln: ../objs/platform/logic-map.asm ../objs/platform/coco-logic-map.asm \
+	../objs/platform/priority-map.asm ../objs/platform/coco-priority-map.asm
+scrn: ../objs/platform/screen-map.asm ../objs/platform/coco-screen-map.asm
+shdw: ../objs/platform/picture-map.asm ../objs/platform/coco-picture-map.asm
+
 CMDS		= sierra mnln scrn shdw tocgen
 MD		= $(LEVEL2)/coco3/modules
 SYSGO		= $(MD)/sysgo_dd
