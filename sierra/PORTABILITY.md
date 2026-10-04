@@ -358,3 +358,71 @@ The next boundary is the renderer's packed-pixel and fixed-window contract:
 strip/span drawing, text-color packing, palette-index interpretation, and
 framebuffer mapping lifetime. Preserve AGI picture/priority semantics while
 allowing each backend to keep its optimized drawing loops.
+
+## Packed-pixel renderer boundary
+
+The renderer is now selected at assembly time through four additional includes:
+
+| Selector | Implementation boundary |
+| --- | --- |
+| `render-spans.asm` | `CocoViewPal`, screen clears, rectangle/border fills, picture-strip drawing, and screen-strip copying. |
+| `render-view.asm` | `DrawView` and its clipped view/cel drawing loops. |
+| `render-glyphs.asm` | `DrawSprites`, the existing software 8-by-8 glyph renderer. |
+| `text-packing.asm` | `text_color`, which converts foreground/background indices into repeated-nibble bytes. |
+
+Each selects its `coco-*.asm` counterpart; Wild Bits assembly reports a missing
+renderer backend. No per-pixel dispatch or new subroutine call is introduced.
+The ten-entry `scrn` dispatch table remains unchanged. `UpdateViewList` remains
+shared because it traverses game objects and updates their coordinate/flag
+bookkeeping around calls to `DrawView`. `BitmapFont` also remains shared: its
+one-bit glyph data is independent of the destination framebuffer format.
+
+### Existing rendering contract
+
+This is an extraction of the current drawing interface, not a new portable
+pixel API. Entry points retain their stack arguments, direct-page scratch,
+register behavior, and mapping dependencies. The comments within each backend
+retain the individual routines' existing argument descriptions.
+
+The CoCo renderer assumes a fixed framebuffer beginning at `$6000`, a
+160-byte physical row stride for a 320-pixel display, and two four-bit color
+indices per destination byte. `CocoViewPal` expands each sixteen-color index
+into a repeated-nibble byte (`$00`, `$11`, ... `$FF`). The software loops retain
+their current clipping, transparent-pixel handling, and byte merging.
+`DrawView` uses `SetMapBlock` to select resource block pairs; those mappings
+persist until another operation selects a different pair. Rendering and
+mapping therefore remain coordinated through the existing fixed windows.
+
+`text_color` receives the foreground index in A and background index in B.
+It masks both to four bits, duplicates each nibble, and stores the resulting
+bytes at `$024C` and `$024D`. A and B contain those packed bytes on return;
+condition codes are not preserved. A Wild Bits renderer using one byte per
+pixel must change this representation together with every consumer of those
+fields. Merely replacing this routine would leave existing fills and text
+paths interpreting the fields incorrectly.
+
+`DrawSprites` is a font-glyph renderer, not a hardware sprite API. A Wild Bits
+backend can initially draw the same shared font into its bitmap. Likewise,
+AGI view objects need not become hardware sprites to preserve the game's
+priority and composition behavior.
+
+The picture decoder and priority-buffer algorithms in `shdw.asm` remain
+shared for this phase, including their current fixed addresses and CoCo
+mapping dependency. They are not yet a position-independent, arbitrary-buffer
+implementation. The engine's text/graphics commands and renderer call sites
+also retain their banked dispatch convention.
+
+### Verification and remaining design work
+
+All 56 engine modules were rebuilt and compared with the previous verified
+screen-extraction binaries; every byte matched. The normal King's Quest I
+make targets rebuilt the affected modules. Separate Wild Bits assemblies of
+`mnln` and `scrn` failed with the intended missing-renderer diagnostic. The
+makefile tracks the new selectors and implementations.
+
+The next substantive design step is to specify owned picture, priority, and
+framebuffer buffers with explicit dimensions, formats, and mapping lifetimes.
+Audit the callers and scratch fields against that design before implementing
+Wild Bits routines. The current includes make the optimized CoCo implementation
+replaceable at build time; they do not by themselves make its fixed-address
+calling convention portable.
