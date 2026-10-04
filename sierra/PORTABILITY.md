@@ -598,3 +598,59 @@ Before introducing mapped-buffer calls into these algorithms:
 The audit changes no game behavior. All 56 modules are compared against the
 previous verified binaries; this establishes equivalence of the named-size
 changes, not correctness of a new portable buffer API or Wild Bits runtime.
+
+## Nibble-swap call chain and pointer lifetimes
+
+`gfx_picbuff_update` in `mnln.asm` tests `GfxPicBufRotate` (`$0550`). When
+nonzero it writes dispatch offset zero to `$0021`, obtains the shadow remap
+table through `$0028`, and calls the copied dispatcher at `$0701`. Shadow
+entry zero is `PicBufUpdateRemap`: it swaps the nibbles in every combined
+picture byte **in place**, without copying the buffer. Then the update routine
+always dispatches screen entry zero (`DrawStrip`) through `$0019`/`$0026`.
+`DrawStrip` selects the low nibble and translates it through `CocoViewPal`.
+
+Thus presentation normally uses the low-nibble color, while a swap makes the
+other nibble available to that same renderer. The original "shadow copy"
+comment at this call site was misleading and has been corrected. The code
+now uses the existing `GfxPicBufRotate` name instead of its literal address.
+
+`CmdSaveGame` increments that byte, calls `gfx_picbuff_update`, runs
+`BooleanPoll`, calls the update routine again, and clears the byte. Two swaps
+restore the original bytes because swapping is an involution. Other update
+call sites also exist in `mnln`; any invoked while the flag is nonzero also
+perform a swap. Consequently a future presentation routine must model this
+explicitly rather than assume the flag means "dirty" or "copy required".
+The observed outer pair is not proof that every UI/error/nested path is safe
+under a replacement implementation. Trace those paths before eliminating the
+mutation or changing the UI's displayed content.
+
+### Pointer classes established by the audit
+
+| Pointer/reference | Current validity | Portable replacement requirement |
+| --- | --- | --- |
+| `GivenPicDataPtr` | Input command stream in the resource mapping selected by `PicCmdLoop`. | Retain resource identity plus offset; keep its mapping alive while commands read it. |
+| `gfx_picbuff + y*160 + x` | Combined destination in the legacy engine's fixed/banked address layout. | Logical combined-buffer offset; obtain a mapped address only for the accessible span. |
+| Object `$08` block pair and `$10` cel pointer | `ObjBlit` maps the pair before dereferencing the cel pointer. | Keep the backing resource identity associated with the cel offset; a pointer alone is insufficient. |
+| Blit record `$0C` pair and `$0A` saved-background pointer | `BlitSave`/`BlitRestore` select the pair and copy complete combined bytes. | Associate background identity/offset with its mapping and preserve both nibbles. |
+| `ScratchA8`, `ScratchAD`, X/U traversal pointers | Temporaries inside fill/blit operations that may traverse rows. | Never retain them across reuse of their mapping window. |
+| Screen renderer source X and destination Y | Source may be remapped in `DrawStrip`; destination remains in the current screen layout. | Separate source/destination mapping lifetimes and split spans at both boundaries. |
+
+The field meanings above are taken from these routines' actual loads. They
+are not a universal description of every structure using the same numeric
+offset. CoCo routines obtain simultaneous access through their existing
+banked engine layout; source extraction has not removed that dependency.
+
+### First portable implementation boundary
+
+Start with presentation of a combined buffer to a framebuffer: input should
+be buffer identity, source offset/rectangle, and an explicit choice of color
+or priority nibble; output is a framebuffer span. A Wild Bits implementation
+can select the nibble during conversion without mutating the source, provided
+the current save/UI behavior is reproduced deliberately. Keep CoCo's existing
+implementation as the reference until that equivalence is checked.
+
+Presentation is a narrower first implementation than converting flood-fill
+or sprite save/restore: those operations need additional live storage and
+traversal state. This audit establishes their dependencies but does not yet
+implement their mapped-buffer replacements. The comment/symbol changes leave
+all 56 generated engine binaries byte-for-byte identical.

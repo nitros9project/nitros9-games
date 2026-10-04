@@ -1643,11 +1643,11 @@ GotMotionStr        pshs      x         push motion string pointer
                     lbsr      message_box
                     leas      >$0194,s  release local stack frame
                     rts
-CmdSaveGame         inc       >$0550    set save-game-in-progress flag
+CmdSaveGame         inc       >GfxPicBufRotate enable in-place nibble swap for UI
                     lbsr      gfx_picbuff_update update graphics buffer before UI
                     lbsr      BooleanPoll run save/restore selection UI
                     lbsr      gfx_picbuff_update restore graphics after UI
-                    clr       >$0550    clear save-game-in-progress flag
+                    clr       >GfxPicBufRotate disable UI nibble swapping
                     rts
 CmdShowAgiInfo      leau      >StrAgiVersion,pcr load address of version string
                     lbsr      message_box
@@ -5157,12 +5157,12 @@ ReadPicChunkRead    tfr       d,y       transfer byte count to Y
                     lda       <$00B9    load file descriptor
                     lbsr      ReadFile  read D bytes from file into X
 ReadPicChunkRet     rts
-gfx_picbuff_update  tst       >$0550    check if gfx-update-needed flag set
-                    beq       GfxUpdateBlit branch if no shadow update needed
-                    lda       #$00      MMU twiddle opcode $00 = shadow copy
+gfx_picbuff_update  tst       >GfxPicBufRotate test UI nibble-swap mode
+                    beq       GfxUpdateBlit skip swap in normal picture mode
+                    lda       #$00      shdw dispatch 0: swap combined-byte nibbles in place
                     sta       <$0021    store twiddle opcode
                     ldx       <$0028    load shadow copy context ptr
-                    jsr       >$0701    execute shadow-page copy
+                    jsr       >$0701    execute in-place nibble swap; not a buffer copy
 *
 *======================================================================
 * SCREEN BLIT
