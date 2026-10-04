@@ -1,6 +1,6 @@
 # Validation status — 2026-10-04
 
-Validated DONALD: **7,781 bytes**, OS-9 CRC **$28B97E**, private data **$6C00**.
+Validated DONALD: **7,777 bytes**, OS-9 CRC **$A21D32**, private data **$6C00**.
 Code, data, activity, and two mapping windows fit the eight logical blocks.
 The local validated 2 MiB Jr2 image contained this module and the combined
 assets. Boot firmware and the base OS disk must be supplied separately.
@@ -15,6 +15,9 @@ assets. Boot firmware and the base OS disk must be supplied separately.
 - Actual assembled 6809 execution: bitmap initialization and refusal to adopt
   an existing bitmap, reserved upper window, private signal state with an
   arbitrary interrupted DP and the original intercept U convention.
+- All four arrow directions executed through Sierra’s original direction reader,
+  including corrected inverted joystick Y; input polls avoid redundant display
+  copies and frame commits yield for one tick.
 - Held arrows, original joystick scaling and buttons, Space in both K2/Jr2
   representations, preservation of the original auxiliary-stack U.
 - Every output pixel of both packed screens at two code/data placements,

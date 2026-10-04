@@ -133,7 +133,7 @@ NativeFlip
         lbsr PollQuit
         lbsr Present
         puls cc,d,x,y,u
-        ldx #3
+        ldx #1
         syscall F$Sleep
         rts
 
@@ -385,9 +385,7 @@ cdone   puls d,x,y,u,pc
 
 * Legacy CoCo joystick range 0..63, fire=$FF; native range 0..255.
 NativeJoy
-        pshs d,x,y,u
-        lbsr Present
-        puls d,x,y,u
+* Frame commits and blocking reads present graphics; polling does not redraw.
         syscall I$GetStt
         bcs joydone
         pshs a
@@ -399,6 +397,9 @@ NativeJoy
         tfr y,d
         lsrb
         lsrb
+* Sierra uses increasing joystick Y for up, opposite the native axis.
+        negb
+        addb #63
         clra
         tfr d,y
         puls a
@@ -436,10 +437,10 @@ kright  bita #$40
         ldx #63
 kup     bita #$08
         beq kdown
-        ldy #0
+        ldy #63
 kdown   bita #$10
         beq kfire
-        ldy #63
+        ldy #0
 kfire   bita #$80
         beq kdone
         lda #$ff

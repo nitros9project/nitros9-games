@@ -97,11 +97,16 @@ try:
    assert d.read(db+address,1)==bytes([value]);assert d.read(db+10,1)==b'\x77'
   d.breakpoint(stop,False)
  signals();print('PASS intercept U rebasing, arbitrary DP, private signal state')
- def joystick(sense,slots=b'\0'*6,button=0):
+ def joystick(sense,slots=b'\0'*6,button=0,reader=False):
   base=0x100;db=0x2200;stop=0x2100;stack=0xbff0
   d.write(base,code);d.write(db,bytes(0x6c00));d.write(db+8,db.to_bytes(2,'big'));d.write(stack,stop.to_bytes(2,'big'))
   for i in calls:d.breakpoint(base+i)
-  d.breakpoint(stop);d.regs(pc=base+syms['NativeJoy'],u=db+0x374c,dp=db>>8,s=stack,a=1,b=0x13,x=0,y=0,cc=0x50)
+  d.write(db+0xaf,(48).to_bytes(2,'big')+(16).to_bytes(2,'big')+(48).to_bytes(2,'big')+(16).to_bytes(2,'big'))
+  # Start before the adapter's first service, so GDB stops at its breakpoint.
+  entry=base+(0x306 if reader else syms['NativeJoy'])
+  trampoline=stop-16
+  d.write(trampoline,b'\x16'+((entry-trampoline-3)&65535).to_bytes(2,'big'))
+  d.breakpoint(stop);d.regs(pc=trampoline,u=db+0x374c,dp=db>>8,s=stack,a=1,b=0x13,x=0,y=0,cc=0x50)
   for _ in range(15):
    d.call('c');r=d.regs()
    if r['pc']==stop:break
@@ -117,13 +122,18 @@ try:
   for i in calls:d.breakpoint(base+i,False)
   d.breakpoint(stop,False)
   return r['a'],r['x'],r['y']
- assert joystick(0)==(0,32,32)
- assert joystick(0x28)==(0,0,0)
- assert joystick(0x50)==(0,63,63)
- assert joystick(0x80)==(255,32,32)
- assert joystick(0,b' '+b'\0'*5)==(255,32,32)
- assert joystick(0,b'\0'*5+b' ')==(255,32,32)
- assert joystick(0,button=1)==(255,32,32)
+ assert joystick(0)==(0,32,31)
+ assert joystick(0x28)==(0,0,63)
+ assert joystick(0x50)==(0,63,0)
+ # Execute Sierra's original direction reader, not just the axis adapter.
+ assert joystick(0x08,reader=True)[0]==1, 'Up must select Sierra up'
+ assert joystick(0x10,reader=True)[0]==2, 'Down must select Sierra down'
+ assert joystick(0x20,reader=True)[0]==4, 'Left must select Sierra left'
+ assert joystick(0x40,reader=True)[0]==8, 'Right must select Sierra right'
+ assert joystick(0x80)==(255,32,31)
+ assert joystick(0,b' '+b'\0'*5)==(255,32,31)
+ assert joystick(0,b'\0'*5+b' ')==(255,32,31)
+ assert joystick(0,button=1)==(255,32,31)
  print('PASS joystick, held arrows, both space representations, original U')
  def sound():
   base=0x100;db=0x2200;stop=0x2100;stack=0xbff0
