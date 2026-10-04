@@ -187,12 +187,12 @@ allocation and checks that it is an SCF device before allocation. A startup
 script's disk-file stdin is rejected: RBF SetStt codes are not graphics calls.
 It does not define a bitmap or change a terminal's palette or display layers.
 
-Commands `$F0` through `$F8` and the `$FF` terminator are supported: color and
-priority controls, corner/absolute/relative lines, and flood fill. Pen commands
-`$F9`/`$FA` and unknown commands are rejected before buffer output begins.
+Commands `$F0` through `$FA` and the `$FF` terminator are supported: color and
+priority controls, corner/absolute/relative lines, flood fill, and solid/splatter circle/rectangle pens. Unknown commands
+are rejected before buffer output begins.
 Incomplete coordinates, invalid colors and bytes after the terminator also
-fail. Ordinary game pictures still need pen conversion; this is a decoder
-probe, not a playable interpreter.
+fail. King’s Quest I picture 1 now decodes natively with the exact CoCo reference
+buffer. This is still a decoder probe, not a playable interpreter.
 
 `picture-memory.asm` allocates four consecutive physical blocks through
 `SS.GfxAlloc` and maps one block at a time through `F$MapBlk`. The current page
@@ -210,7 +210,7 @@ It matches white color when color drawing is enabled, otherwise default
 priority 4 when only priority drawing is enabled, preserving CoCo semantics.
 The CPU stack stays in normal private process storage.
 
-The module is 2,085 bytes and requests 14,073 bytes of process data (two 8 KB
+The module is 2,507 bytes and requests 14,076 bytes of process data (two 8 KB
 blocks), plus four owned picture blocks. Reserving one mapping window and
 the Wild Bits I/O region leaves a 40,192-byte code budget. The command buffer
 and bounded fill stack remain private resident data; this is still a probe
@@ -231,10 +231,46 @@ errors, immutable code and the fill-stack boundary. The MAME diagnostic runs
 on `/term` and `/vt1`, compares both outputs and requires an unchanged
 free-memory map. See [MAME.md](MAME.md) for reproduction.
 
-Next are pen commands, real game picture comparisons and direct native
-presentation, followed by interpreter integration. Performance optimization
+Pen commands and direct native presentation now exist. The next engine
+dependencies are compressed resources and interpreter integration. Performance optimization
 of mapped spans and fill remains to be measured; correctness does not prove
 performance parity with the original CoCo routines.
+
+## Integrated native resource presentation
+
+`wbrun` loads, decodes and displays a picture from a game directory in one
+native process, without an exported combined file or a host renderer:
+
+```text
+wbrun /s0/kingsquest1 1
+```
+
+Input and output must be the same Wild Bits terminal; any key exits this
+integration test. `presentation-data.asm`, `presentation-buffers.asm`,
+`presentation-helpers.asm`, `presentation-palette.asm` and `presentation.d`
+are shared with `wbpic`. Splitting these includes left `wbpic` byte-for-byte
+unchanged. `presentation-code.asm` copies source spans into private row staging,
+unmaps them, then maps the framebuffer. Source and destination never require
+two simultaneous service windows. The integrated module is 3,294 bytes and
+requests 14,646 bytes of private data.
+
+The MAME integration test passed with simultaneous gradient and King’s Quest I
+castle instances on `/term` and `/vt1`: every displayed pixel, terminal
+restoration, independent quit, relaunch and an unchanged free-memory map.
+It uses host rendering only to calculate the expected test pixels; the native
+program reads the game files itself. See [MAME.md](MAME.md).
+
+`decoder-pen.asm` retains the original CoCo circle tables, edge clamping and
+splatter sequence. CPU tests cover every pen size and style at edges and
+mapping boundaries, relocated code/data, and malformed input. Native MAME
+picture 1 output matched SHA256
+`d1ddfc805018b2c8f4e5fac32b6ce17489154499479fca8ec41194c306b0a757` on both
+terminal paths, with no allocation leak.
+
+This is not yet gameplay: the logic interpreter, object animation and game
+input still need integration. King’s Quest I logic 0 is compressed (5,941
+stored bytes, 8,950 expanded bytes), so the existing plain 8 KB loader cannot
+run it. Native decompression and mapped resource storage are prerequisites.
 
 ## Real game picture reference bridge
 
@@ -264,8 +300,8 @@ buffers are committed to the repository.
 Resource extraction validates the directory entry, volume header, stored
 length, and end marker. This first bridge supports plain resources up to one
 8 KB command window. Nibble-packed and LZW resources fail explicitly; they
-are not silently treated as plain bytes. Native resource loading and F0-F8 mapped command decoding now exist.
-Compression and pen decoding remain unimplemented.
+are not silently treated as plain bytes. Native resource loading and F0-FA mapped command decoding now exist.
+Compression and interpreter integration remain unimplemented.
 The viewer still takes a raw combined buffer, not a game directory.
 
 Validation includes visual inspection of the castle reference and execution

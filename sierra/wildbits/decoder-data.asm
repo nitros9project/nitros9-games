@@ -16,6 +16,8 @@ ScratchA9           rmb       1
 ScratchAA           rmb       1
 ScratchAB           rmb       1
 ScratchAC           rmb       1
+ScratchAD           rmb       2
+PenStatus           rmb       1
 picturefirst        rmb       2
 pictureowned        rmb       1
 picturemapped       rmb       1

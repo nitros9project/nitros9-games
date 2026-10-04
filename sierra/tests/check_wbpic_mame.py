@@ -65,6 +65,8 @@ def main():
     parser.add_argument('--output', required=True, type=Path, help='new directory for copied disk, screenshots and log')
     parser.add_argument('--os9', default='os9')
     parser.add_argument('--picture', type=Path, help='optional 26880-byte real reference picture for /vt1')
+    parser.add_argument('--native-game', type=Path, help='test integrated native loading/decoding/presentation using this game directory')
+    parser.add_argument('--picture-number', type=int, default=1)
     args = parser.parse_args()
     mame, out = args.mame.resolve(), args.output.resolve()
     out.mkdir(parents=True, exist_ok=False)
@@ -86,26 +88,54 @@ def main():
         source.write_bytes(data)
         os9('copy', '-r', *(['-l'] if text else []), source, f'{disk},{target or name}')
 
-    install('wbpic', (VIEWER / 'wbpic').read_bytes(), 'CMDS/wbpic')
-    os9('attr', f'{disk},CMDS/wbpic', '-e', '-pe')
+    module = 'wbrun' if args.native_game else 'wbpic'
+    install(module, (VIEWER / module).read_bytes(), 'CMDS/' + module)
+    os9('attr', f'{disk},CMDS/{module}', '-e', '-pe')
     bars = bytes((((4 + y // 14) & 15) << 4) | (x // 10) for y in range(168) for x in range(160))
     picture = args.picture.read_bytes() if args.picture else bytes(
         ((y // 14) << 4) | ((x // 10 + y // 7) & 15) for y in range(168) for x in range(160))
     assert len(picture) == 26880, 'reference picture must be exactly 26880 bytes'
-    install('bars.bin', bars)
-    install('picture.bin', picture)
-    install('startup', b'load utilpak1\nload vt\nlink shell\nload wbpic\nload grfdrv256\n', text=True)
+    if args.native_game:
+        from check_wbres import fixture
+        import sys
+        sys.path.insert(0, str(VIEWER))
+        from export_picture import resource, render
+        payload, volume, offset = resource(args.native_game, args.picture_number)
+        picture = render(args.native_game, payload, shutil.which('lwasm.orig') or shutil.which('lwasm'), VIEWER.parents[2] / 'nitros9/defs')
+        os9('makdir', f'{disk},game')
+        install('picDir', (args.native_game / 'picDir').read_bytes(), 'game/picDir')
+        install(f'vol.{volume}', (args.native_game / f'vol.{volume}').read_bytes(), f'game/vol.{volume}')
+        commands_bytes = bytearray()
+        for x in range(160):
+            commands_bytes.extend([0xF0, x // 10, 0xF6, x, 0, x, 167])
+        commands_bytes.append(255)
+        os9('makdir', f'{disk},bars-game')
+        for filename, data in fixture(bytes(commands_bytes)).items():
+            basename = Path(filename).name
+            install('bars-' + basename, data, 'bars-game/' + basename)
+        first_command, second_command = 'wbrun /s0/bars-game 1', f'wbrun /s0/game {args.picture_number}'
+    else:
+        install('bars.bin', bars)
+        install('picture.bin', picture)
+        first_command, second_command = 'wbpic /s0/bars.bin', 'wbpic /s0/picture.bin'
+    install('startup', f'load utilpak1\nload vt\nlink shell\nload {module}\nload grfdrv256\n'.encode(), text=True)
     install('feu.startup', b'bootos9 /s0/OS9Boot\n', 'FEU/startup', text=True)
-
+    # Asset installation may extend a sparse disk: pad after all copies.
+    with disk.open('ab') as stream:
+        stream.truncate(1 << (disk.stat().st_size - 1).bit_length())
     commands = {600: 'iniz /vt1\n', 720: 'shell i=/vt1&\n', 800: 'mfree >/s0/free-before\n',
-                900: 'wbpic /s0/bars.bin\n', 1500: 'wbpic /s0/picture.bin\n',
-                2600: 'x\n', 3300: 'x\n', 4000: 'wbpic /s0/bars.bin\n',
-                4500: 'wbpic /s0/picture.bin\n', 4900: 'x\n', 5700: 'x\n',
+                900: first_command + '\n', 1500: second_command + '\n',
+                2600: 'x\n', 3300: 'x\n', 4000: first_command + '\n',
+                4500: second_command + '\n', 4900: 'x\n', 5700: 'x\n',
                 6000: 'mfree >/s0/free-after\n', 6200: 'echo WBTEST-DONE >/s0/wbtest-done\n'}
     switches = {1200: 'Right', 1950: 'Left', 2300: 'Right', 3000: 'Left', 4300: 'Right', 5200: 'Left'}
     shots = {1150: 'bars-initial', 1800: 'picture-initial', 2200: 'bars-restored',
              2500: 'picture-restored', 2850: 'picture-closed', 3200: 'bars-survives', 3750: 'both-closed',
              4200: 'bars-relaunch', 4800: 'picture-relaunch', 5500: 'bars-survives-again'}
+    factor = 2 if args.native_game else 1
+    commands = {frame * factor: command for frame, command in commands.items()}
+    switches = {frame * factor: direction for frame, direction in switches.items()}
+    shots = {frame * factor: name for frame, name in shots.items()}
     table = lambda values: '{' + ','.join(f'[{key}]={json.dumps(value)}' for key, value in values.items()) + '}'
     script = f'''frames = 0
 local keys = manager.machine.ioport.ports[":KEY3"].fields
@@ -125,14 +155,14 @@ sub = emu.add_machine_frame_notifier(function()
  if shots[frames] then
    manager.machine.screens[":screen"]:snapshot({json.dumps(str(out) + '/')} .. shots[frames] .. ".png")
  end
- if frames == 6500 then manager.machine:exit() end
+ if frames == {6500 * factor} then manager.machine:exit() end
 end)
 '''
     lua = out / 'drive.lua'
     lua.write_text(script)
     command = [str(mame), 'wbjr2', '-bios', 'turbo', '-rompath', str(roms.parent),
                '-hard', str(disk), '-skip_gameinfo', '-video', 'none', '-sound', 'none',
-               '-nothrottle', '-autoboot_script', str(lua), '-seconds_to_run', '120',
+               '-nothrottle', '-autoboot_script', str(lua), '-seconds_to_run', str(120 * factor),
                '-nvram_directory', str(out / 'nvram'), '-cfg_directory', str(out / 'cfg')]
     (out / 'command.json').write_text(json.dumps(command, indent=2) + '\n')
     with (out / 'mame.log').open('w') as log:

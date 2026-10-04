@@ -6,7 +6,12 @@ start               stu       <resourcebase
                     clr       <picturemapped
                     clr       <decodeerror
                     pshs      x
+                    ifne      PRESENT_PICTURE
+                    lbsr      PresentationInitialize
+                    leax      intercept,pcr
+                    else
                     leax      DecodeIntercept,pcr
+                    endc
                     os9       F$Icpt
                     lbcs      Exit
                     puls      x
@@ -58,7 +63,11 @@ LoadResource        ldx       <argdirectory
                     ifne      DECODE_PICTURE
                     lbsr      DecodeLines
                     bcs       Exit
+                    ifne      PRESENT_PICTURE
+                    lbsr      PresentPicture
+                    else
                     lbsr      PictureWrite
+                    endc
                     bra       Exit
                     endc
                     stx       <resourcepointer
@@ -90,7 +99,16 @@ Exit                equ       *
                     bne       PictureExitRetry
                     stb       <pictureexiterror
 PictureExitRetry    lbsr      PictureRelease
-PictureExitResult   ldb       <pictureexiterror
+PictureExitResult   equ       *
+                    ifne      PRESENT_PICTURE
+                    lbsr      PresentationRelease
+                    bcc       PresentationExitResult
+                    tst       <pictureexiterror
+                    bne       PresentationExitResult
+                    stb       <pictureexiterror
+PresentationExitResult equ    *
+                    endc
+                    ldb       <pictureexiterror
                     endc
                     os9       F$Exit
 WriteBad            ldb       #E$BMode

@@ -64,8 +64,8 @@ The current flow is:
 ```text
 Native resource step: picDir + vol.N -> LoadPicture -> AGI command bytes
 Presentation step:   combined color/priority buffer -> wbpic -> terminal bitmap
-Native decoder:     F0-F8 command bytes -> owned physical buffer, one mapped window
-Still to convert:    pen commands, compression, direct presentation and interpreter integration
+Native decoder:     F0-FA command bytes -> owned physical buffer, one mapped window
+Still to convert:    compression, mapped logic/view resources and interpreter integration
 ```
 
 The host renderer supplies the reference while the native decoder is converted.
@@ -73,5 +73,12 @@ The decoder has private state, bounded reads and immutable relative dispatch.
 Mapped picture storage and bounded scanline fill now replace fixed CoCo buffer
 and stack addresses. The private command buffer and fill stack still consume
 two process blocks; integration must budget interpreter state alongside them.
-Pen conversion and direct presentation remain before a full picture path.
+Pen conversion and direct presentation now work together in `wbrun`.
+The interpreter must next gain compressed logic/view storage.
 The old fixed-address `shdw` body cannot simply be linked into the new module.
+
+`wbrun.asm` now owns one module and includes the resource loader, decoder and
+shared presentation routines directly. It does not fork the probes. The same
+small presentation includes are used by the existing viewer, whose binary is
+unchanged. This proves the single-program source structure before bringing in
+the main interpreter; it does not claim that displaying a resource is gameplay.

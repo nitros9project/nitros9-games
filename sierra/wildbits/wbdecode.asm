@@ -24,6 +24,7 @@ name                fcs       /wbdecode/
                     use       decoder-lines.asm
                     use       picture-memory.asm
                     use       decoder-fill.asm
+                    use       decoder-pen.asm
 help                fcc       /Usage: wbdecode game-directory picture-number >combined-file/
                     fcb       C$CR
                     emod

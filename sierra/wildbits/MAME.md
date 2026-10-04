@@ -152,3 +152,19 @@ passed independently through the actual Wild Bits MAME drivers.
 The fixture remains diagnostic: pen commands and
 compression are unsupported, and the full game interpreter is not running.
 Physical hardware and performance validation remain outstanding.
+
+## Integrated native game-resource presentation
+
+Add `--native-game /path/to/kingsquest1` to the viewer test command to exercise
+`wbrun` instead of `wbpic`. The test installs plain gradient picture commands
+and the selected real game's directory/volume. The native program loads and
+decodes both resources itself. The host CoCo renderer is only the pixel oracle.
+The test allows extra startup time for native resource decoding and otherwise
+checks concurrent terminal presentation, every displayed pixel, restoration,
+independent exit, relaunch and the free-memory map as above.
+
+This passed for picture 1 with 3,294-byte `wbrun` and 14,646 bytes requested
+private data; artifacts are `/tmp/sierra-native-present-kq1-v2`. The real-OS
+`wbdecode --game ... --picture-number 1 --decode` run also matched every CoCo
+combined byte on both terminal paths, with unchanged free memory; artifacts
+are `/tmp/sierra-native-kq1-pen`. The full game interpreter is still outstanding.

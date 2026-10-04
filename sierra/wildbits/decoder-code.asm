@@ -18,6 +18,8 @@ DecodeInitFailed    puls      x
                     lda       #$FF
                     sta       <DrawColor
                     clr       <DrawMask
+                    clr       <PenStatus
+                    clr       <ScratchA6
                     lbsr      ReadNext
 DecodeCommand       tst       <decodeerror
                     bne       DecodeFailed
@@ -25,7 +27,7 @@ DecodeCommand       tst       <decodeerror
                     beq       DecodeFinished
                     suba      #$F0
                     blo       DecodeInvalid
-                    cmpa      #8
+                    cmpa      #10
                     bhi       DecodeInvalid
                     asla
                     leau      DecodeDispatch,pcr
@@ -55,6 +57,8 @@ DecodeDispatch      fdb       EnablePicDraw-DecodeDispatch
                     fdb       AbsoluteLine-DecodeDispatch
                     fdb       RelativeLine-DecodeDispatch
                     fdb       PicFill-DecodeDispatch
+                    fdb       ReadPenStatus-DecodeDispatch
+                    fdb       PlotWithPen-DecodeDispatch
 
 * Preserve B: color/mask routines and coordinate helpers use it across reads.
 ReadNext            tst       <decodeerror

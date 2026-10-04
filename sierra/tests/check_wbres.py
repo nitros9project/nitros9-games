@@ -22,6 +22,32 @@ def idle_rom(path):
     return str(path)
 
 
+def start_cpu(bootrom, timeout=300):
+    for attempt in range(4):
+        with socket.socket() as reservation:
+            reservation.bind(('127.0.0.1', 0))
+            port = reservation.getsockname()[1]
+        emulator = subprocess.Popen(['xroar', '-machine', 'coco3', '-ui', 'null', '-ao', 'null',
+            '-ram', '2048', '-no-ratelimit', '-gdb', '-gdb-port', str(port), '-timeout', str(timeout),
+            '-no-bas', '-extbas', str(bootrom), '-no-altbas'],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        try:
+            for _ in range(100):
+                try:
+                    return Debugger(port), emulator
+                except ConnectionRefusedError:
+                    time.sleep(.005)
+        except socket.timeout:
+            pass
+        emulator.terminate()
+        try:
+            emulator.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            emulator.kill()
+            emulator.wait(timeout=2)
+    raise RuntimeError('XRoar debugger did not attach after four fresh starts')
+
+
 def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zero_read=False, seek_error=False, write_error=False, module='wbres', map_failure=0, allocation_error=False, unmap_error=False, window=0x8000, terminal=True):
     syms = symbols(ROOT / (module + '.map'))
     calls = {base + int(m[1], 16): int(m[2], 16) for m in re.finditer(

@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
-"""Compare native F0-F8 mapped decoding against the existing actual 6809 renderer."""
+"""Compare native F0-FA mapped decoding against the existing actual 6809 renderer."""
 from pathlib import Path
 import random
 import shutil
-import socket
 import subprocess
 import sys
-import time
 import tempfile
-from check_instances import Debugger, symbols
-from check_wbres import exercise, fixture, idle_rom
+from check_instances import symbols
+from check_wbres import exercise, fixture, idle_rom, start_cpu
 
 SIERRA = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SIERRA / 'wildbits'))
@@ -36,28 +34,28 @@ def pictures():
     yield bytes(data)
 
 
+    data = bytearray([0xF0, 3, 0xF2, 11])
+    for style in (0, 0x10, 0x20, 0x30):
+        for size in range(8):
+            data.extend([0xF9, style | size, 0xFA])
+            for x, y in ((0, 0), (159, 167), (80, 51), (80, 102), (35 + size * 12, 75)):
+                if style & 0x20:
+                    data.append((size * 17 + x) % 240)
+                data.extend([x, y])
+    data.append(255)
+    yield bytes(data)
+
+
 def main():
     assembler = shutil.which('lwasm.orig') or shutil.which('lwasm')
     defs = SIERRA.parents[1] / 'nitros9' / 'defs'
     references = [(payload, render(SIERRA / 'kingsquest1', payload, assembler, defs)) for payload in pictures()]
-    with socket.socket() as reservation:
-        reservation.bind(('127.0.0.1', 0))
-        port = reservation.getsockname()[1]
     bootrom = tempfile.NamedTemporaryFile(prefix='sierra-cpu-idle-', suffix='.rom')
     idle_rom(bootrom.name)
-    emulator = subprocess.Popen(['xroar', '-machine', 'coco3', '-ui', 'null', '-ao', 'null',
-        '-ram', '2048', '-no-ratelimit', '-gdb', '-gdb-port', str(port), '-timeout', '300',
-        '-no-bas', '-extbas', bootrom.name, '-no-altbas'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     d = None
+    emulator = None
     try:
-        time.sleep(.01)
-        for _ in range(50):
-            try:
-                d = Debugger(port)
-                break
-            except ConnectionRefusedError:
-                time.sleep(.1)
-        assert d is not None
+        d, emulator = start_cpu(bootrom.name)
         d.write(0xFFDF, b'\0')
         d.write(0xFF90, b'\x4c')
         d.write(0xFF91, b'\x01')
@@ -69,7 +67,7 @@ def main():
                 error, actual = exercise(d, fixture(payload), base=base, database=database, module='wbdecode', window=0x8000 if database == 0x2000 else 0xA000)
                 assert not error, (error, payload.hex(), base, database)
                 assert actual == reference, f'decoder pixels differ for {payload.hex()}'
-        for payload in (b'\xf9\x00\xff', b'\xfa\xff', b'\xfb\xff',
+        for payload in (b'\xf9\xff', b'\xfa\x01\xff', b'\xfb\xff',
                         b'\xf0\xff', b'\xf0\x10\xff', b'\xf2\x10\xff',
                         b'\xf6\x01\xff', b'\xf6\xff', b'\xff\xff', b'\x00\xff'):
             error, output = exercise(d, fixture(payload), module='wbdecode')
@@ -99,17 +97,18 @@ def main():
             assert d.read(guard, 5) == b'guard'
             assert d.read(guard - 2, 2) == bytes([159, 167])
             d.breakpoint(0x1D00, False)
-        print('PASS: native F0-F8 mapped decoding matches every CoCo reference pixel at two code/data locations; immutable code, bounded malformed/unsupported input')
+        print('PASS: native F0-FA mapped decoding matches every CoCo reference pixel at two code/data locations; immutable code, bounded malformed/unsupported input')
     finally:
         if d:
             d.s.close()
         bootrom.close()
-        emulator.terminate()
-        try:
-            emulator.wait(timeout=2)
-        except subprocess.TimeoutExpired:
-            emulator.kill()
-            emulator.wait(timeout=2)
+        if emulator is not None:
+            emulator.terminate()
+            try:
+                emulator.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                emulator.kill()
+                emulator.wait(timeout=2)
 
 
 if __name__ == '__main__':
