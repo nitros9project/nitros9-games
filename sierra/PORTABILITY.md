@@ -276,3 +276,85 @@ position-independent layout and OS-managed buffer mappings; it must also
 preserve per-instance ownership and balanced cleanup. The next useful
 extraction is screen setup/presentation/restoration, followed by a deliberate
 buffer-layout design rather than a mechanical register substitution.
+
+## Screen setup, presentation, and restoration
+
+The screen lifecycle and CoCo palette operations are now selected through
+these backend includes, at their original code/data locations:
+
+| Selector under `objs/platform/` | Entry points/data | Responsibility |
+| --- | --- | --- |
+| `screen-colors.asm` | `ColorTable` | Startup composite/RGB palettes using CoCo color codes. |
+| `monitor-select.asm` | `ConfigureMonitor` | Read the monitor preference, apply `-r`, and store the game's display type without changing the global monitor mode. |
+| `screen-setup.asm` | `SetupScreen` | Allocate, record, clear, display, and initialize the instance's screen and palette. |
+| `terminal-options.asm` | `DisableKbdInt` | Exchange saved echo/EOF/interrupt/quit options with the input path's options packet. |
+| `screen-restore.asm` | `RestoreScreen` | Restore options, reset the palette, select text screen zero, and free the recorded graphics screen. |
+| `game-palette-data.asm` | `PaletteData` | Interpreter composite/RGB palettes, separate from the startup table. |
+| `game-palette-set.asm` | `cmd_toggle_monitor` | Toggle the game's palette selection and write the sixteen palette commands. |
+
+### Screen ownership and layout
+
+`SetupScreen` uses standard output and CoCo `SS.AScrn` screen type 4
+(320 by 192, sixteen colors). It records the returned screen number in
+`HiResScrnNum` immediately after allocation, so later initialization failures
+still leave ownership information for shutdown. It preserves the returned
+mapping address across monitor selection, snapshots the process map, and
+uses `TwiddleAddr` to record the physical screen block pairs.
+
+The implementation then clears the fixed logical range `$6000..$D7FF`
+(30,720 packed-pixel bytes), displays the allocated screen with `SS.DScrn`,
+and writes sixteen four-byte `ESC $31 register color` palette sequences.
+Each byte of pixel data represents two sixteen-color pixels. This is an
+existing CoCo address/layout contract, not an arbitrary mapped-framebuffer
+interface. A Wild Bits backend cannot reuse the clearing range, packed-pixel
+format, palette codes, or screen-call arguments unchanged.
+
+The startup routine returns carry/B errors from the existing OS operations
+and balances its local stack frame. It sets `OptionsChanged` only after
+terminal-option changes succeed. Other registers are not a preserved API;
+callers rely on the existing routine's behavior.
+
+`RestoreScreen` skips work when no graphics screen is recorded. Otherwise it
+exchanges terminal options back when needed, writes the default-palette
+sequence, selects text screen zero, and requests `SS.FScrn` for the recorded
+screen number. It clears that number only when the free operation succeeds.
+The extraction preserves the original cleanup error handling, including its
+handling of earlier restoration errors; it does not make new guarantees
+about recovery from failing driver calls.
+
+### Terminal options and game palette commands
+
+`DisableKbdInt` is an exchange operation, not a one-way setter: the saved
+bytes start at zero during setup, and a later call swaps the original values
+back. It reads and writes `SS.OPT` on standard input, with a 32-byte temporary
+packet. Screen setup and cleanup both call this helper, so it is selected
+alongside the screen backend even though the packet operation belongs to SCF.
+
+`cmd_toggle_monitor` changes the game-local display-type byte and writes the
+selected palette to standard output. It does not change the global monitor
+setting. Both startup and game palette tables remain in their original
+locations, and the command's instruction sequence and existing error path
+are retained. This refactor does not repair unrelated palette-write failure
+behavior or introduce a new palette abstraction.
+
+The shared `cmd_text_screen`, `cmd_graphics`, and `SetGraphicsMode` routines
+remain in `mnln.asm`. Their current actions include game flags, renderer
+dispatch, and status/input redraws rather than direct OS screen selection.
+Likewise, `text_color` still creates packed foreground/background bytes for
+the existing renderer. These are dependencies for the forthcoming renderer
+interface and should not be confused with the OS screen lifecycle extracted
+here.
+
+### Verification and next boundary
+
+All four engine modules were rebuilt for all fourteen games and compared with
+the previously verified binaries: all 56 were byte-for-byte identical. The
+normal King's Quest I make targets were also rebuilt. Both affected modules
+were checked to reject `WILDBITS=1` with the missing-screen-backend diagnostic.
+The shared makefile tracks every new selector and implementation explicitly.
+
+There is no runtime platform dispatch or new per-pixel call in this change.
+The next boundary is the renderer's packed-pixel and fixed-window contract:
+strip/span drawing, text-color packing, palette-index interpretation, and
+framebuffer mapping lifetime. Preserve AGI picture/priority semantics while
+allowing each backend to keep its optimized drawing loops.

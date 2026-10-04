@@ -29,6 +29,14 @@ sierra: ../objs/platform/private-load.asm ../objs/platform/coco-private-load.asm
 sierra: ../objs/platform/private-allocate.asm ../objs/platform/coco-private-allocate.asm
 sierra: ../objs/platform/private-release.asm ../objs/platform/coco-private-release.asm
 
+sierra: ../objs/platform/screen-colors.asm ../objs/platform/coco-screen-colors.asm
+sierra: ../objs/platform/monitor-select.asm ../objs/platform/coco-monitor-select.asm
+sierra: ../objs/platform/screen-setup.asm ../objs/platform/coco-screen-setup.asm
+sierra: ../objs/platform/terminal-options.asm ../objs/platform/coco-terminal-options.asm
+sierra: ../objs/platform/screen-restore.asm ../objs/platform/coco-screen-restore.asm
+mnln: ../objs/platform/game-palette-data.asm ../objs/platform/coco-game-palette-data.asm
+mnln: ../objs/platform/game-palette-set.asm ../objs/platform/coco-game-palette-set.asm
+
 CMDS		= sierra mnln scrn shdw tocgen
 MD		= $(LEVEL2)/coco3/modules
 SYSGO		= $(MD)/sysgo_dd

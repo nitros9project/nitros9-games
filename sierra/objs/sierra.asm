@@ -247,39 +247,8 @@ ExitNow             os9       F$Exit    time to check out
 * ====== Static Data: Color Tables, MMU Slots, and Module Name Strings ======
 * same sequence of bytes at L454C in mnln
 
-ColorTable          fcb       $00       composite
-                    fcb       $0C
-                    fcb       $02
-                    fcb       $2E
-                    fcb       $06
-                    fcb       $09
-                    fcb       $04
-                    fcb       $20
-                    fcb       $10
-                    fcb       $1B
-                    fcb       $11
-                    fcb       $3D
-                    fcb       $17
-                    fcb       $29
-                    fcb       $33
-                    fcb       $3F
-
-                    fcb       $00       rgb
-                    fcb       $08
-                    fcb       $14
-                    fcb       $18
-                    fcb       $20
-                    fcb       $28
-                    fcb       $22
-                    fcb       $38
-                    fcb       $07
-                    fcb       $0B
-                    fcb       $16
-                    fcb       $1F
-                    fcb       $27
-                    fcb       $2D
-                    fcb       $37
-                    fcb       $3F
+* Platform screen implementation, selected during assembly.
+                    use       platform/screen-colors.asm
 
 * Name strings of other modules to load.
 
@@ -413,36 +382,8 @@ FillBytes           sta       ,x+       store fill byte and advance pointer
                     bne       FillBytes loop until count reaches zero
                     rts                 return from FillBytes/InitDataArea
 
-ConfigureMonitor
-*  get current montype
-*  GetStat Function Code $92
-*          Allocates and maps high res screen
-*          into application address space
-* entry:
-*       a -> path number
-*       b -> function code $92 (SS.Montr)
-*
-* exit:
-*       x -> monitor type
-*
-* error:
-*       CC -> Carry set on error
-*       b  -> error code (if any)
-*
-                    lda       #StdOut   $01 path number
-                    ldb       #SS.Montr monitor type code (not listed for getstat $92
-                    os9       I$GetStt  make the call
-                    bcs       ConfigureMonitorRet
-                    tfr       x,d       save in d appears he expects montype returned
-                    lda       >RgbRequested
-                    beq       UseOriginalMonitor
-                    ldb       #RGB
-UseOriginalMonitor  andb      #$01      mask out mono type only RGB or COMP
-                    stb       >$0553    save that value off as display_type
-
-                    clrb                success; global monitor mode is untouched
-
-ConfigureMonitorRet rts
+* Platform screen implementation, selected during assembly.
+                    use       platform/monitor-select.asm
 
 * ====== DisableKbdInt: Save and Suppress Keyboard Signals ======
 *  Raw disassembly of followin code
@@ -543,100 +484,8 @@ ConfigureMonitorRet rts
 *  See OS-9 Technical Reference 8-142 for more details
 *
 
-SetupScreen         leas      -$04,s    mamke room om stack 2 words
-                    lda       #$01      Std out
-                    ldb       #SS.AScrn Allocate & map in hi-res screen (VDGINT)
-                    ldx       #$0004    320x192x16 screen
-                    os9       I$SetStt  Map it in
-                    bcs       ScreenSetupRet Error, Restore stack & exit
-                    tfr       y,d       Move screen # returned to D
-*         stb   >$0174      Save screen #
-                    stb       >HiResScrnNum save allocated hi-res screen number
-                    pshs      x         preserve screen mapping across monitor calls
-                    lbsr      ConfigureMonitor
-                    puls      x
-                    bcs       ScreenSetupRet
-
-* call with application address of screen in x
-* returns with values in u
-                    lbsr      mmuini2   get current MMU values
-                    lbsr      TwiddleAddr twiddle addresses
-                    stu       <ScrStartAddr stow it two places
-                    stu       <ScrStart2 also save as second screen start reference
-
-                    leax      >$4000,x  end address ???
-                    lbsr      TwiddleAddr twiddle addresses
-                    stu       <ScrEndAddr stow it in two places
-                    stu       <ScrEnd2  also save as second screen end reference
-
-* TFM for 6309
-                    ldu       #$D800    Clear hi-res screen to color 0
-                    ldx       #$7800    Screen is from $6000 to $D800
-                    ldd       #$0000    (U will end up pointing to beginning of screen)
-ClearScreenLoop     std       ,--u      writes 0000 to screen address and decrements
-                    leax      -2,x      decrement x loop counter
-                    bne       ClearScreenLoop keep going till all of screen is cleared
-
-*  Display a screen allocated by SS.AScrn
-*  SetStat Function Code $8C
-*
-* entry:
-*       a -> path number
-*       b -> function code $8C (SS.DScrn)
-*       y -> screen numbe
-*            0 = text screen (32 x 16)
-*            1-3 = high resolution screen
-*
-* error:
-*       CC -> Carry set on error
-*       b  -> error code (if any)
-
-                    clra                Get screen # to display
-                    ldb       >HiResScrnNum load allocated screen number
-                    tfr       d,y       Y=screen # to display
-                    lda       #StdOut   $01  Std out path
-                    ldb       #SS.DScrn Display 320x192x16 screen
-                    os9       I$SetStt  make the call
-                    bcs       ScreenSetupRet bail on screen display error
-
-                    leax      >ColorTable,pc get color table values
-                    ldb       >$0553    display_type 0 = comp / 1 = rgb
-                    lda       #$10      16 palette entries per color table
-                    mul                 first sixteen comp, second rgb
-                    abx                 add b to x reset the pointer as required
-
-
-* This loads up the control sequence to set the pallete 1B 31 PRN CTN
-*  PRN palette register 0 - 15, CTN color table 0 - 63
-                    lda       #$1B      Escape code
-                    sta       ,s        push on stack
-                    lda       #$31      Palette code
-                    sta       $01,s     push on stack
-                    clra                make a zero palette reg value
-                    sta       $02,s     push it `
-                    ldy       #$0004    sets up # of bytes to write
-PaletteLoop         ldb       ,x+       get value computed above for color table and bump it
-                    stb       $03,s     push it
-                    pshs      x         save it
-                    lda       #StdOut   $01      Std Out path
-                    leax      $02,s     start of data to write
-                    os9       I$Write   write it
-                    puls      x         balance the palette-loop save on errors too
-                    bcs       ScreenSetupRet error during write clean up stack and leave
-*                   puls      x         retrieve our x
-                    inc       $02,s     this is our palette register value
-                    lda       $02,s     we bumped it by one
-                    cmpa      #$10      we loop 15 times to set them all
-                    blo       PaletteLoop loop
-
-                    clr       <PaletteFlag clear a flag in memory
-                    lbsr      DisableKbdInt go disable keyboard interrupts
-                    bcs       ScreenSetupRet
-                    inc       >OptionsChanged
-                    clrb
-ScreenSetupRet      leas      $04,s     clean up stack
-                    rts                 return
-
+* Platform screen implementation, selected during assembly.
+                    use       platform/screen-setup.asm
 
 *  Raw disassembly of following section
 *L02E9    leas  <-$20,s
@@ -682,59 +531,8 @@ ScreenSetupRet      leas      $04,s     clean up stack
 *       b  -> error code (if any)
 *
 
-DisableKbdInt       leas      <-$20,s   Make temp buffer to hold PD.OPT data
-                    lda       #StdIn    $00 Get 32 byte PD.OPT from Std In
-                    ldb       #SS.OPT   $00
-                    leax      ,s        point to our temp buffer
-                    os9       I$GetStt  make the call
-                    bcs       SetOptsDone error goto exit sub
-
-* NOTE: make sure following lines assemble into 5 bit, not 8 bit
-*       These appear to be loading the  echo EOF, INT and QUIT with
-*       null values and saving the original ones back to vars
-*       since L0115 - L0118 were initialized with $00
-
-                    lda       >EchoSave load saved echo value (initially 0)
-                    ldb       PD.EKO-PD.OPT,x Get echo option
-                    sta       PD.EKO-PD.OPT,x change echo option no echo
-                    stb       >EchoSave Save original echo option
-
-                    lda       >EofSave load saved EOF char value
-                    ldb       PD.EOF-PD.OPT,x Change EOF char
-                    sta       PD.EOF-PD.OPT,x disable EOF character
-                    stb       >EofSave save original EOF character
-
-                    lda       >IntSave load saved interrupt char value
-                    ldb       <PD.INT-PD.OPT,x Change INTerrupt char (normally CTRL-C)
-                    sta       <PD.INT-PD.OPT,x disable interrupt character
-                    stb       >IntSave save original interrupt character
-
-                    lda       >QuitSave load saved quit char value
-                    ldb       <PD.QUT-PD.OPT,x Change QUIT char (normally CTRL-E)
-                    sta       <PD.QUT-PD.OPT,x disable quit character
-                    stb       >QuitSave save original quit character
-
-*  set current options packet
-*  SetStat Function Code $00
-*          Writes the options section of the path descriptor
-*          from the 32 byte area pointed to by reg X`
-* entry:
-*       a -> path number
-*       b -> function code $00 (SS.OPT)
-*       x -> address holding the status packet
-*
-* error:
-*       CC -> Carry set on error
-*       b  -> error code (if any)
-*
-
-*                                x is still pointing to our temp buff
-                    lda       #StdIn    $00 Set VDG screen to new options
-                    ldb       #SS.OPT   $00
-                    os9       I$SetStt  set them to be our new values
-
-SetOptsDone         leas      <$20,s    Eat temp stack & return
-                    rts                 return from DisableKbdInt
+* Platform screen implementation, selected during assembly.
+                    use       platform/terminal-options.asm
 
 * ====== RestoreScreen: Return to Text Screen, Free Hi-Res Screen ======
 *  raw disassembly
@@ -768,68 +566,8 @@ SetOptsDone         leas      <$20,s    Eat temp stack & return
 *  Return the screen to default text sreen and its values
 *  deallocate and free memory of high res screen created
 
-RestoreScreen       leas      -2,s      Make temp buffer to hold write data
-*         tst   >$0174       Any hi-res screen # allocated?
-                    tst       >HiResScrnNum any hi-res screen number allocated?
-                    beq       RestoreScreenRet No, restore stack & return
-                    tst       >OptionsChanged
-                    beq       RestoreScreenDisplay
-                    lbsr      DisableKbdInt restore original keyboard options
-                    clr       >OptionsChanged
-RestoreScreenDisplay equ      *
-                    lda       #$1B      Setup DefColr sequence in temp buffer
-                    sta       ,s        store escape byte in write buffer
-                    lda       #$30      Sets palettes back to default color
-                    sta       1,s       store palette-reset code in buffer
-                    ldy       #$0002    number of bytes to write
-                    lda       #StdOut   path to write to $01
-                    leax      ,s        point x a buffer
-                    os9       I$Write   write
-
-*  Display a screen allocated by SS.AScrn
-*  SetStat Function Code $8C
-*
-* entry:
-*       a -> path number
-*       b -> function code $8C (SS.DScrn)
-*       y -> screen numbe
-*            0 = text screen (32 x 16)
-*            1-3 = high resolution screen
-*
-* error:
-*       CC -> Carry set on error
-*       b  -> error code (if any)
-
-*                           a is still set to stdout from above
-                    ldb       #SS.DScrn Display screen function code
-                    ldy       #$0000    Display screen #0 (lo-res or 32x16 text)
-                    os9       I$SetStt  make the call
-
-*  Frees the memory of a screen allocated by SS.AScrn
-*  SetStat Function Code $8C
-*
-* entry:
-*       a -> path number
-*       b -> function code $8D (SS.FScrn)
-*       y -> screen number 1-3 = high resolution screen
-*
-* error:
-*       CC -> Carry set on error
-*       b  -> error code (if any)
-
-                    clra                clear high byte
-                    ldb       >HiResScrnNum get hi-res screen number again
-                    tfr       d,y       move it to Y=screen #
-                    lda       #StdOut   set the path $01
-                    ldb       #SS.FSCrn Return screen memory to system
-                    os9       I$SetStt  amke the call
-                    bcs       RestoreScreenRet
-                    clr       >HiResScrnNum
-
-RestoreScreenRet    leas      2,s       Eat stack & return
-                    rts                 return from RestoreScreen
-
-
+* Platform screen implementation, selected during assembly.
+                    use       platform/screen-restore.asm
 
 * Templates are unlinked immediately after copying; no global unload at exit.
 *L0388    orcc  #$50
