@@ -27,6 +27,7 @@ concurrent instances.
 | Original module offset | Original purpose | Native replacement |
 |---|---|---|
 | $0679 | Obtain CoVDG buffers and second screen | Bitmap allocation, palette/layer setup, private software screens, window reservation |
+| $00BD | Draw initial town sprite | Run the original sprite draw, then commit the visible bitmap |
 | $054F | Display screen selected by DP:$77 | Convert selected private screen into bitmap zero; retain original sleep |
 | $0055, $0302 | CoCo joystick GetStat | Scale native stick 0..255 to legacy 0..63; add held keyboard controls |
 | $0AB5 | Blocking keyboard read | Present the current software screen before reading |

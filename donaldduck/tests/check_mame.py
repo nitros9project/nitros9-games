@@ -58,9 +58,20 @@ if frames==10500 then qfields["q  Q"]:set_value(1) end
 if frames==10700 then qfields["q  Q"]:clear_value() end
 if commands[frames] then manager.machine.natkeyboard:post(commands[frames]) end
 if shots[frames] then manager.machine.screens[":screen"]:snapshot(%s .. shots[frames] .. ".png") end
+if frames==8500 and %s then
+ local visible=0
+ for y=240,280 do
+  for x=308,336 do
+   if (manager.machine.screens[":screen"]:pixel(x,y) & 0xffffff) ~= 0 then
+    visible=visible+1
+   end
+  end
+ end
+ assert(visible>80, "Donald missing from initial town screen")
+end
 if frames==12500 then manager.machine:exit() end
 end)
-'''%('{' + ','.join('[%d]=%s'%(k,json.dumps(v).replace("\\u0005", "\\005")) for k,v in commands.items())+'}','{'+','.join('[%d]=%s'%(k,json.dumps(v).replace("\\u0005", "\\005")) for k,v in shots.items())+'}',json.dumps(str(out)+'/')))
+'''%('{' + ','.join('[%d]=%s'%(k,json.dumps(v).replace("\\u0005", "\\005")) for k,v in commands.items())+'}','{'+','.join('[%d]=%s'%(k,json.dumps(v).replace("\\u0005", "\\005")) for k,v in shots.items())+'}',json.dumps(str(out)+'/'), 'false' if args.activity else 'true'))
 cmd=[str(args.mame.resolve()),'wbjr2','-bios','turbo','-rompath',str(rom.parent),'-hard',str(disk),'-skip_gameinfo','-video','none','-sound','none','-nothrottle','-autoboot_script',str(lua),'-seconds_to_run','240','-nvram_directory',str(out/'nvram'),'-cfg_directory',str(out/'cfg')]
 if args.record_audio:cmd+=['-wavwrite',str(out/'game.wav')]
 with (out/'mame.log').open('w') as f:subprocess.run(cmd,cwd=out,stdout=f,stderr=subprocess.STDOUT,check=True,timeout=240)

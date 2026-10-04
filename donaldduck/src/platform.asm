@@ -128,6 +128,13 @@ SignalFg
         clr Hidden,u
         rti
 
+TownDraw
+* The initial town sprite is drawn without the original page-flip routine.
+        lbsr $0416
+        pshs cc,d,x,y,u
+        lbsr Present
+        puls cc,d,x,y,u,pc
+
 NativeFlip
         pshs cc,d,x,y,u
         lbsr PollQuit

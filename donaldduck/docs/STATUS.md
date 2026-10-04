@@ -1,6 +1,6 @@
 # Validation status — 2026-10-04
 
-Validated DONALD: **7,777 bytes**, OS-9 CRC **$A21D32**, private data **$6C00**.
+Validated DONALD: **7,787 bytes**, OS-9 CRC **$D0D4E2**, private data **$6C00**.
 Code, data, activity, and two mapping windows fit the eight logical blocks.
 The local validated 2 MiB Jr2 image contained this module and the combined
 assets. Boot firmware and the base OS disk must be supplied separately.
@@ -24,6 +24,8 @@ assets. Boot firmware and the base OS disk must be supplied separately.
   including every 8 KiB boundary and a mapping failure partway through output.
 - Execution of the first original sound script: 111 duration/pitch notes and
   302 PSG writes, with the caller’s registers restored.
+- Initial town sprite has an explicit display commit and a screen-pixel
+  regression assertion verifying Donald is visible before any movement.
 - Real NitrOS-9 in the Wildbits `wbjr2` MAME fork: title, difficulty selection,
   instruction dismissal, town with Donald displayed, ordinary Q exit and shell
   completion marker.

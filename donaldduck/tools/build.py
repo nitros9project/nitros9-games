@@ -25,6 +25,7 @@ def main():
  patch(0x13,'df0833','NativeStart',0x16)
  patch(0x679,'308d0c','NativeInit',0x16)
  patch(0x54f,'0d7727','NativeFlip',0x16)
+ patch(0xbd,'170356','TownDraw',0x17)
  patch(0x1f4,'170d09','NativeCleanup',0x17)
  patch(0x55,'103f8d','NativeJoy',0x17)
  patch(0x302,'103f8d','NativeJoy',0x17)
