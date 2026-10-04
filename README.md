@@ -42,5 +42,8 @@ Sierra games can likewise be built from their own directories:
 make -C sierra/kingsquest3
 ```
 
+See [Sierra instance support](sierra/README.md) for concurrent-game terminal,
+memory, and bootfile requirements.
+
 The imported sources retain their original notices and licensing terms where
 provided. No repository-wide license is asserted over third-party game data.
