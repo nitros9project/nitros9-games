@@ -3888,25 +3888,9 @@ JoyPushEvent        ldb       #$02      event type = joystick direction
                     lbsr      EventPush push direction event to queue
 JoyPollEnd          bsr       PollJoyButton poll joystick button state
 JoyPollRet          rts
-ReadJoystick        pshs      y         save Y register across system call
-                    lda       #$00      path number 0
-                    ldb       #$13      GetStt code $13 = read joystick
-                    ldx       <$0096    load joystick path descriptor
-                    os9       I$GetStt  read joystick position
-                    tfr       x,d       transfer result X to D
-                    leax      >JoystickData,pcr point to joystick-data buffer
-                    sty       $01,x     store Y-axis value
-                    std       ,x        store X and button bytes
-                    puls      y         restore Y register
-                    rts
-ReadJoyButton       pshs      y         save Y register across system call
-                    lda       #$00      path number 0
-                    ldb       #$13      GetStt code $13 = read joystick
-                    ldx       <$0096    load joystick path descriptor
-                    os9       I$GetStt  read joystick button state
-                    sta       >$0541    store button-pressed flag
-                    puls      y         restore Y register
-                    rts
+* Platform implementation; selection emits no dispatch code.
+                    use       platform/joystick-input.asm
+
 PollJoyButton       bsr       ReadJoyButton read raw joystick button state
                     lda       >$0542    load button state counter
                     cmpa      #$02      check if in debounce hold state
@@ -4358,33 +4342,9 @@ UpdateFreeSpace     ldd       #$FFFF    compute free space = $FFFF minus ptr
                     subd      <$004F    subtract current heap pointer
                     sta       >$0439    store high byte of free space
                     rts
-CalcPriAddr         suba      <$005F    subtract priority base row offset
-                    ldb       #$20      bytes per priority strip = 32
-                    mul                 A×32 = byte offset into strip
-                    exg       b,a       swap bytes (shift left 8)
-                    subd      #$2000    subtract $2000 for final addr
-                    leau      d,u       advance U by computed offset
-                    rts
-*
-*======================================================================
-* PRIORITY COORDINATE CALCULATION
-*   Converts a screen Y coordinate to a priority value and maps a view's
-*   logic page into the address space.
-*======================================================================
-*
-CalcPriCoord        tfr       u,d       transfer priority address to D
-                    anda      #$1F      isolate column within strip
-                    adda      #$20      add $20 base column
-                    exg       d,u       swap D and U
-                    lsra                shift right (divide by 2)
-                    lsra                shift right
-                    lsra                shift right
-                    lsra                shift right
-                    lsra                shift right (divide by 32)
-                    adda      <$005F    add priority base row to result
-                    tfr       a,b       copy row to B
-                    incb                increment for 1-based row
-                    rts
+* Platform implementation; selection emits no dispatch code.
+                    use       platform/priority-address.asm
+
 * Platform mapping implementation; retained at its original location.
                     use       platform/logic-map.asm
 
@@ -4857,36 +4817,9 @@ JoySpeedTable       fcb       1,$ff
 *   input into AGI key codes.
 *======================================================================
 *
-ReadStdinByte       leas      -$03,s    allocate three local bytes
-                    sty       ,s        save Y register
-                    lda       #$00      path 0 = stdin
-                    ldb       #$01      GetStt code 1 = check char avail
-                    os9       I$GetStt  check if char is available
-                    bcs       ReadStdinByteErr branch if error (no char)
-                    lda       #$00      path 0 = stdin
-                    ldy       #$0001    read 1 byte
-                    leax      $02,s     point X to local read buffer
-                    os9       I$Read    read one byte from stdin
-                    bcs       ReadStdinByteErr branch if read failed
-                    lda       $02,s     load the byte we just read
-                    bra       ReadStdinByteRet return with character in A
-                    cmpa      #$F4      (unreachable — dead code)
-                    bne       ReadStdinByteRet branch if not $F4
-                    lda       <$0068    load trace-mode flag
-                    bne       ReadStdinByteAlt branch if trace mode on
-                    lda       >$01AF    load misc-flags byte
-                    ora       #$20      set trace-active bit
-                    sta       >$01AF    store updated flags
-                    lbsr      TraceInit initialize trace display
-                    bra       ReadStdinByteErr return error
-ReadStdinByteAlt    lda       >$01AF    load misc-flags byte
-                    anda      #$DF      clear trace-active bit
-                    sta       >$01AF    store updated flags
-                    lbsr      TraceErase erase trace display
-ReadStdinByteErr    clra                return zero = no char / error
-ReadStdinByteRet    ldy       ,s        restore Y register
-                    leas      $03,s     release local frame
-                    rts
+* Platform implementation; selection emits no dispatch code.
+                    use       platform/keyboard-input.asm
+
 *
 *======================================================================
 * MEMORY FILL
@@ -5157,29 +5090,9 @@ ReadPicChunkRead    tfr       d,y       transfer byte count to Y
                     lda       <$00B9    load file descriptor
                     lbsr      ReadFile  read D bytes from file into X
 ReadPicChunkRet     rts
-gfx_picbuff_update  tst       >GfxPicBufRotate test UI nibble-swap mode
-                    beq       GfxUpdateBlit skip swap in normal picture mode
-                    lda       #$00      shdw dispatch 0: swap combined-byte nibbles in place
-                    sta       <$0021    store twiddle opcode
-                    ldx       <$0028    load shadow copy context ptr
-                    jsr       >$0701    execute in-place nibble swap; not a buffer copy
-*
-*======================================================================
-* SCREEN BLIT
-*   Triggers a full-screen blit from the shadow buffer to the display by
-*   calling the scrn module's update routine.
-*======================================================================
-*
-GfxUpdateBlit       ldd       #$A8A0    blit destination row/col
-                    pshs      b,a       push destination argument
-                    ldd       #$00A7    blit source descriptor
-                    pshs      b,a       push source argument
-                    lda       #$00      MMU twiddle opcode $00 = blit
-                    sta       <$0019    store twiddle opcode
-                    ldx       <$0026    load blit context pointer
-                    jsr       >$0701    execute screen blit
-                    leas      $04,s     discard two arguments
-                    rts
+* Platform implementation; selection emits no dispatch code.
+                    use       platform/presentation.asm
+
 *
 *======================================================================
 * OBJECT MOTION COMMANDS
@@ -9327,87 +9240,9 @@ SoundCheckFlags     lda       >$01AF    ; game flags byte
                     os9       F$Time    ; get current system time
                     ldu       $01,s     ; restore sound node pointer
                     lbsr      PlaySound ; play the sound (returns duration in D)
-                    cmpd      #$0000    ; any elapsed time returned?
-                    lbeq      TimeRestorePage ; skip time update if zero
-                    pshs      b,a       ; save elapsed time
-                    addb      $0C,s     ; add seconds field
-                    bcc       TimeSecCarry ; branch if no second overflow
-                    inca                ; carry into minutes
-TimeSecCarry        ldu       #$003C    ; 60 seconds per minute
-                    lbsr      UIntDivide ; divide to get minute carry
-                    stb       $0C,s     ; store updated seconds
-                    tfr       u,d       ; D = minute carry
-                    cmpd      #$0000    ; any minutes to add?
-                    beq       TimeSetSys ; skip if none
-                    addb      $0B,s     ; add to minutes field
-                    bcc       TimeMinCarry ; branch if no minute overflow
-                    inca                ; carry into hours
-TimeMinCarry        ldu       #$003C    ; 60 minutes per hour
-                    lbsr      UIntDivide ; divide to get hour carry
-                    stb       $0B,s     ; store updated minutes
-                    tfr       u,d       ; D = hour carry
-                    tstb                ; any hours to add?
-                    beq       TimeSetSys ; skip if none
-                    addb      $0A,s     ; add to hours field
-                    lda       #$17      ; 24 hours per day
-                    lbsr      Div8      ; divide to get day carry
-                    sta       $0A,s     ; store updated hours
-                    tstb                ; any days to add?
-                    beq       TimeSetSys ; skip if none
-                    inc       $09,s     ; increment day of month
-                    ldd       $08,s     ; load month and year
-                    leax      >MonthDayTable,pcr ; days-per-month table
-                    cmpb      a,x       ; past end of month?
-                    bls       TimeSetSys ; branch if still in month
-                    ldb       a,x       ; days in this month
-                    cmpa      #$02      ; is it February?
-                    bne       TimeDayIncr ; branch if not Feb
-                    ldb       $07,s     ; year value
-                    beq       TimeDayIncr ; not a leap year
-                    bitb      #$03      ; leap year check (divisible by 4)
-                    bne       TimeDayIncr ; not divisible by 4
-                    ldb       $09,s     ; current day
-                    cmpb      #$1D      ; day 29?
-                    beq       TimeSetSys ; allow Feb 29 on leap year
-TimeDayIncr         ldb       #$01      ; reset to day 1
-                    stb       $09,s     ; store day = 1
-                    inca                ; advance month
-                    cmpa      #$0C      ; past December?
-                    bls       TimeMonthAdv ; branch if still in year
-                    stb       $08,s     ; month = 1
-                    inc       $07,s     ; increment year
-                    bra       TimeSetSys ; apply to system
-TimeMonthAdv        sta       $08,s     ; store updated month
-TimeSetSys          leax      $07,s     ; point to updated time struct
-                    os9       F$STime   ; set system time
-                    puls      b,a       ; restore elapsed time
-                    addb      >$043C    ; add to timer seconds field
-                    bcc       TimeSec2Carry ; branch if no overflow
-                    inca                ; carry into timer minutes
-TimeSec2Carry       ldu       #$003C    ; 60 seconds per minute
-                    lbsr      UIntDivide ; divide to get carry
-                    stb       >$043C    ; store timer seconds
-                    tfr       u,d       ; D = minute carry
-                    cmpd      #$0000    ; any minutes?
-                    beq       TimeRestorePage ; skip if none
-                    addb      >$043D    ; add to timer minutes field
-                    bcc       TimeMin2Carry ; branch if no overflow
-                    inca                ; carry into hours
-TimeMin2Carry       ldu       #$003C    ; 60 minutes per hour
-                    lbsr      UIntDivide ; divide to get carry
-                    stb       >$043D    ; store timer minutes
-                    tfr       u,d       ; D = hour carry
-                    tstb                ; any hours?
-                    beq       TimeRestorePage ; skip if none
-                    addb      >$043E    ; add to timer hours
-                    lda       #$17      ; 24 hours per day
-                    lbsr      Div8      ; get day carry in B
-                    sta       >$043E    ; store timer hours
-                    tstb                ; any day overflow?
-                    beq       TimeRestorePage ; skip if none
-                    inc       >$043F    ; increment timer day counter
-TimeRestorePage     ldd       $03,s     ; saved logic page
-                    lbsr      SetLogicPage ; restore logic page
+* Platform implementation; selection emits no dispatch code.
+                    use       platform/sound-elapsed.asm
+
 SoundSetFlagDone    lda       ,y+       ; fetch flag number to set
                     lbsr      SetFlag   ; set the completion flag
                     leas      $0B,s     ; release local frame

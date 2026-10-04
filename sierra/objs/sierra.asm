@@ -285,41 +285,8 @@ SetupModuleRet      rts                 startup error is handled by InitEntry
 
 * Require matching input/output terminals and the ownership-aware screen
 * service. Reject old bootfiles before changing any device or MMU state.
-CheckInstanceServices lda     #StdIn
-                    ldb       #SS.DevNm
-                    ldx       #gprbuf
-                    os9       I$GetStt
-                    bcs       InstanceServiceRet
-                    lda       #StdOut
-                    ldb       #SS.DevNm
-                    ldx       #gprbuf+32
-                    os9       I$GetStt
-                    bcs       InstanceServiceRet
-                    ldx       #gprbuf
-                    ldy       #gprbuf+32
-                    ldb       #32
-InstanceNameLoop    lda       ,x+
-                    cmpa      ,y+
-                    bne       InstanceServiceBad
-                    tsta
-                    beq       InstanceNamesMatch
-                    bmi       InstanceNamesMatch
-                    decb
-                    bne       InstanceNameLoop
-InstanceServiceBad  comb
-                    ldb       #E$IllArg
-                    rts
-InstanceNamesMatch  lda       #StdOut
-                    ldb       #SS.AScrn
-                    os9       I$GetStt  query the ownership-aware application-screen ABI
-                    bcs       InstanceServiceRet
-                    cmpx      #2
-                    bcc       InstanceServiceOK
-                    comb
-                    ldb       #E$UnkSvc
-InstanceServiceRet  rts
-InstanceServiceOK   clrb
-                    rts
+* Platform implementation; selection emits no dispatch code.
+                    use       platform/service-check.asm
 
 * clean up and shut down
 agi_shutdown
@@ -662,16 +629,8 @@ ViDevPathEnd        fcb       C$CR
 
 * ====== SigIntercept / SigHandlerCore: VIRQ Timer and Game Clock ======
 * Signal Intercept processing gets copied to int5EE mem slot
-SigIntercept        cmpb      #$80      b gets the signal code if not $80 ignore
-                    bne       SigInterceptRet $80 is user defined
-                    tfr       u,d       copy U (data area ptr) into D
-                    tfr       a,dp      set direct page register to data area base
-                    dec       <IrqCountdown decrement IRQ countdown counter
-                    bne       SigInterceptRet not yet time — return
-                    bsr       SigHandlerCore call timer and game-clock handler
-                    lda       #$03      reload countdown to 3 intervals
-                    sta       <IrqCountdown reset IRQ countdown
-SigInterceptRet     rti                 return from interrupt
+* Platform implementation; selection emits no dispatch code.
+                    use       platform/timer-intercept.asm
 
 SigHandlerCore      inc       >GameTimerB0,u increment low byte of 32-bit game timer
                     bne       TimerUpdate no carry — skip upper bytes

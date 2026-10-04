@@ -1,5 +1,26 @@
 # Sierra platform separation
 
+
+## CoCo portability groundwork status
+
+The source-separation phase is complete: assembly-time CoCo backends now own
+hardware I/O, platform service checks, memory mapping and private loading,
+screen lifecycle/palettes, input sampling, timer interception, presentation,
+and storage-dependent picture/object loops. Shared engine logic, parsing,
+resource/file handling, logical clock updates, and font/table data remain
+outside those implementations where appropriate.
+
+This is a replaceable CoCo backend with documented legacy contracts. It is
+not yet a platform-neutral, position-independent interpreter. The fixed-address
+ABI and banked call sites deliberately remain intact to preserve behavior.
+Converting that ABI, selecting a packed memory budget, implementing owned-buffer
+mappings, and adding an actual Wild Bits backend are port implementation work
+and are intentionally excluded from this phase.
+
+The sections below document the successive extractions; statements about the
+"next" boundary describe the stage when that section was written. The final
+section records the completed boundary inventory and current validation.
+
 ## Purpose and current scope
 
 The interpreter is being separated from its CoCo hardware implementation so
@@ -654,3 +675,102 @@ or sprite save/restore: those operations need additional live storage and
 traversal state. This audit establishes their dependencies but does not yet
 implement their mapped-buffer replacements. The comment/symbol changes leave
 all 56 generated engine binaries byte-for-byte identical.
+
+
+## Remaining platform boundaries and completion checks
+
+The final extraction adds these selectors and matching CoCo implementations:
+
+| Selector | Boundary and retained contract |
+| --- | --- |
+| `joystick-input.asm` | `ReadJoystick`/`ReadJoyButton`: standard-input `SS.Joy` sampling, existing result layout and button field, Y preserved. |
+| `keyboard-input.asm` | `ReadStdinByte`: availability check followed by one-byte read; A returns the byte or zero on unavailable/error, Y preserved. |
+| `timer-intercept.asm` | Signal `$80`, direct-page setup from intercepted U, divide-by-three countdown, and dispatch to the shared clock update. |
+| `service-check.asm` | Matching terminal names and CoCo ownership-aware screen-service version check before startup changes state. |
+| `presentation.asm` | Existing nibble-swap mode followed by full-picture strip dispatch; preserves the save/UI behavior. |
+| `priority-address.asm` | Legacy priority-pointer coordinate conversions (`CalcPriAddr`, `CalcPriCoord`). |
+| `picture-storage.asm` | Combined-buffer fill, plotting, line drawing, and flood-fill loops using the legacy fixed window. |
+| `picture-orientation.asm` | In-place combined-byte nibble swapping. |
+| `object-storage.asm` | Priority/control contact checks, cel composition/mirroring, background save/restore, and related fixed-buffer operations. |
+| `sound-elapsed.asm` | CoCo elapsed-time compensation after synchronous interrupt-masked sound, including page restoration. |
+
+Some of these algorithms are logically reusable, but their current
+implementations directly depend on storage addresses, masks, or mapping
+lifetimes. Keeping them in the backend prevents treating that implementation
+as already portable. A later port may reuse or move their logical portions
+once it supplies the new buffer contract. CoCo rendering loops and dispatch
+addresses remain unchanged.
+
+### Input and timing responsibilities
+
+Event queues, key translation, joystick debounce/direction decisions, and AGI
+parser handling remain shared. The backend samples the device using the
+existing representation. The CoCo joystick routines retain their current
+error handling rather than introducing a new success/failure convention.
+A replacement must normalize results for their callers or adapt those callers
+explicitly. Keyboard sampling must continue to support typed command input,
+not only held movement keys.
+
+The signal interceptor remains inside the same copied byte range, now through
+an include. `SigHandlerCore` remains shared and advances the game timer and
+logical clock; its tick accumulation expects twenty logical ticks per second.
+The CoCo intercept reduces the existing VIRQ stream by three. A replacement
+must reproduce that cadence from its own timer source, not carry over the
+countdown independently of the source frequency. No OS calls were added to
+the handler, and its copied relative branches retain their original bytes.
+
+`CheckInstanceServices` belongs to the backend because its `SS.AScrn` version
+query is the CoCo ownership API, not a portable graphics-capability query.
+Generic OS-9 file/device operations remain shared; a matching service number
+alone is not evidence that a platform implements the same graphics semantics.
+
+Sound completion flags remain in the shared command handler. The elapsed-time
+compensation block is now platform-selected because CoCo DAC playback stops
+timer interrupts. It retains its existing system-time correction and game
+clock correction. A future interrupt-friendly audio backend must supply an
+appropriate replacement rather than increment clocks that already advanced.
+
+### Save/UI behavior and ownership
+
+The CoCo presentation implementation retains every existing swap and dispatch,
+so no save/UI behavior changes in this phase. The audit identified the outer
+swap pair and additional update callers; it did not prove a replacement
+presentation scheme for all nested UI and error paths. That proof is required
+when implementing a new scheme, not inferred from this extraction.
+
+Cel mirroring and writable dispatch tables still depend on the existing
+private copies/resources. Module code cannot become globally shared merely
+because its source is under `platform/`. Keep those mutations private until
+a subsequent layout conversion relocates writable state explicitly.
+
+### Reproducible verification
+
+Run the committed comparison from the repository with an installed assembler
+and the NitrOS-9 definition directory:
+
+```sh
+python3 sierra/tests/check_platform_equivalence.py \
+  --baseline 83e5fb4 --assembler /path/to/lwasm --defs /path/to/nitros9/defs
+```
+
+The checker obtains the baseline sources through `git archive` without changing
+the checkout, assembles each of four modules using each game's definitions,
+and compares complete module bytes. It builds in a temporary directory and
+leaves the game binaries alone. The baseline revision is explicit so later
+intentional behavior changes can choose their own reference. This verifies
+generated-code equivalence; it is not a substitute for runtime testing when
+new behavior is introduced.
+
+At completion, all 56 modules across fourteen games match pre-refactor commit
+`83e5fb4` byte-for-byte. Normal make builds were checked for every game's four
+engine targets. Wild Bits selections are checked to fail explicitly rather
+than emit CoCo code. There is no implemented Wild Bits layout, framebuffer,
+audio, or input backend, and none is claimed by this groundwork.
+
+
+The compilation/include paths and explicit backend dependencies now live in
+`sierra-engine.mak`. Both the standard `sierra-game.mak` and Black Cauldron's
+standalone makefile include it; Black Cauldron retains its existing disk recipe.
+This prevents a backend edit from being missed by that title and supplies the
+same source include path to every game. The comparison checker also verifies
+that all four module sources reject the unimplemented Wild Bits selection.

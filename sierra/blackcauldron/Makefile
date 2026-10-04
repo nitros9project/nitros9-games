@@ -1,8 +1,8 @@
 include $(NITROS9DIR)/rules.mak
 
-vpath %.asm ../objs
+.DEFAULT_GOAL := all
 
-AFLAGS		+= -I.
+include ../sierra-engine.mak
 DEPENDS		= ./Makefile
 
 DISK		= BlackCauldron.dsk
