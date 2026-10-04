@@ -149,8 +149,8 @@ first on PATH. It passed all differential, malformed-input, service-error and
 fill-stack boundary checks. The module output and OS-memory checks above
 passed independently through the actual Wild Bits MAME drivers.
 
-The fixture remains diagnostic: pen commands and
-compression are unsupported, and the full game interpreter is not running.
+That fill milestone used a diagnostic fixture. Pen commands and compression
+were added in subsequent milestones; the full game interpreter is not running.
 Physical hardware and performance validation remain outstanding.
 
 ## Integrated native game-resource presentation
@@ -168,3 +168,38 @@ private data; artifacts are `/tmp/sierra-native-present-kq1-v2`. The real-OS
 `wbdecode --game ... --picture-number 1 --decode` run also matched every CoCo
 combined byte on both terminal paths, with unchanged free memory; artifacts
 are `/tmp/sierra-native-kq1-pen`. The full game interpreter is still outstanding.
+
+
+## Expanded resources and mapped bytecode
+
+The existing resource driver harness now also accepts `--asset` and `--execute`:
+
+```sh
+python3 ../tests/check_wbres_mame.py \
+  --mame /path/to/mamed \
+  --disk /path/to/l2_wildbitsjr2.dsk \
+  --firmware /path/to/feu \
+  --output /tmp/wildbits-logic0 --asset
+
+python3 ../tests/check_wbres_mame.py \
+  --mame /path/to/mamed \
+  --disk /path/to/l2_wildbitsjr2.dsk \
+  --firmware /path/to/feu \
+  --output /tmp/wildbits-bytecode --execute
+```
+
+`--asset` defaults to local King's Quest I logic 0; `--game` and
+`--logic-number` select a different local logic resource. The native program
+reads its directory/volume through the real OS, allocates a two-block slab,
+expands LZW and exports all 8,950 bytes on both terminal paths. SHA256:
+`23d775c6e8fe69ff1dede5186ea86de1d83ed6a76674a62af6513c3c5e0e3677`.
+The successful run's artifacts are `/tmp/sierra-native-lzw-logic0`.
+
+`--execute` installs generated diagnostic logic files, not a game. A script
+jumps across an 8 KB boundary, loads a second logic, calls it twice through
+the cache, and exports its resulting variables/flags. Both terminal runs
+match the expected 512 bytes and restore free memory. SHA256:
+`5f89714fe7af154e95d837ed83af8fe7853ec6c63a64470bbc284d9104cbbd8f`.
+Artifacts are `/tmp/sierra-native-vm-cache`. This verifies the real mapping,
+resource ownership and nested-call path; it does not prove gameplay, physical
+hardware behavior or performance parity.

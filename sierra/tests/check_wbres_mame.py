@@ -24,7 +24,14 @@ def main():
     parser.add_argument('--game', type=Path, help='optional local game instead of generated diagnostic resource')
     parser.add_argument('--picture-number', type=int, default=1)
     parser.add_argument('--decode', action='store_true', help='test wbdecode F0-F8 mapped combined-buffer output instead of wbres commands')
+    parser.add_argument('--asset', action='store_true', help='test native expanded logic resources, including LZW')
+    parser.add_argument('--logic-number', type=int, default=0)
+    parser.add_argument('--execute', action='store_true', help='test mapped bytecode, cached/nested calls and terminal cleanup')
     args = parser.parse_args()
+    if args.execute:
+        args.asset = True
+    if args.asset and args.decode:
+        parser.error('--asset and --decode are mutually exclusive')
     out = args.output.resolve()
     out.mkdir(parents=True, exist_ok=False)
     disk = out / 'test.dsk'
@@ -42,11 +49,43 @@ def main():
         path.write_bytes(payload)
         os9('copy', '-r', *(['-l'] if text else []), path, f'{disk},{target or name}')
 
-    module = 'wbdecode' if args.decode else 'wbres'
+    module = 'wbexec' if args.execute else ('wbasset' if args.asset else ('wbdecode' if args.decode else 'wbres'))
     install(module, (ROOT / module).read_bytes(), 'CMDS/' + module)
     os9('attr', f'{disk},CMDS/{module}', '-e', '-pe')
     os9('makdir', f'{disk},game')
-    if args.game:
+    if args.execute:
+        assert args.game is None, 'execute mode currently tests a generated diagnostic'
+        script = b'\xfe' + (8192 - 5).to_bytes(2, 'little')
+        script += bytes(8192 - len(script) - 2)
+        script += bytes([20,1,22,1,22,1,3,250,99,0])
+        volume_data, entries = bytearray(), bytearray()
+        for body in [script, bytes([1,251,12,200,0])]:
+            entries += len(volume_data).to_bytes(3, 'big')
+            data = len(body).to_bytes(2, 'little') + body
+            length = len(data).to_bytes(2, 'little')
+            volume_data += b'\x12\x34\0' + length * 2 + data
+        files = {'logDir': bytes(entries), 'vol.0': bytes(volume_data)}
+        number, volume, offset = 0, 0, 0
+        payload = bytearray(512)
+        payload[250], payload[251], payload[256 + 200] = 99, 2, 1
+        payload = bytes(payload)
+    elif args.asset:
+        from check_lzw import expand
+        game = args.game or ROOT.parent / 'kingsquest1'
+        number = args.logic_number
+        entries = (game / 'logDir').read_bytes()
+        entry = int.from_bytes(entries[number * 3:number * 3 + 3], 'big')
+        assert entry != 0xffffff
+        volume, offset = entry >> 20, entry & 0xfffff
+        data = (game / f'vol.{volume}').read_bytes()
+        header = data[offset:offset + 7]
+        length = int.from_bytes(header[3:5], 'little')
+        stored = int.from_bytes(header[5:7], 'little')
+        payload = data[offset + 7:offset + 7 + stored]
+        payload = expand(payload) if length != stored else payload
+        assert len(payload) == length
+        files = {'logDir': entries, f'vol.{volume}': data}
+    elif args.game:
         payload, volume, offset = resource(args.game, args.picture_number)
         number = args.picture_number
         files = {'picDir': (args.game / 'picDir').read_bytes(),
@@ -66,11 +105,11 @@ def main():
     expected = payload
     if args.decode:
         expected = render(ROOT.parent / 'kingsquest1', payload, shutil.which('lwasm.orig') or shutil.which('lwasm'), ROOT.parents[2] / 'nitros9/defs')
-    if args.decode:
-        script = ('load utilpak1\nload wbdecode\nload grfdrv256\niniz /vt1\n'
+    if args.decode or args.asset:
+        script = (f'load utilpak1\nload {module}\nload grfdrv256\niniz /vt1\n'
                   'mfree >/s0/free-before\n'
-                  f'wbdecode /s0/game {number} </term >/s0/commands.bin\n'
-                  f'wbdecode /s0/game {number} </vt1 >/s0/commands-vt1.bin\n'
+                  f'{module} /s0/game {number} </term >/s0/commands.bin\n'
+                  f'{module} /s0/game {number} </vt1 >/s0/commands-vt1.bin\n'
                   'mfree >/s0/free-after\necho WBRES-DONE >/s0/wbres-done\n')
     else:
         script = f'load utilpak1\nload {module}\n{module} /s0/game {number} >/s0/commands.bin\necho WBRES-DONE >/s0/wbres-done\n'
@@ -97,12 +136,12 @@ end)
     result = out / 'commands.bin'
     os9('copy', f'{disk},commands.bin', result)
     assert result.read_bytes() == expected, 'native output differs from reference'
-    if args.decode:
+    if args.decode or args.asset:
         second = out / 'commands-vt1.bin'
         os9('copy', f'{disk},commands-vt1.bin', second)
         assert second.read_bytes() == expected, 'second terminal output differs'
-        assert os9('list', f'{disk},free-before') == os9('list', f'{disk},free-after'), 'picture blocks leaked after two terminal runs'
-    print(f'PASS: {module} with real Wild Bits OS/RBF, picture {number}, vol.{volume}@{offset:#x}, {len(expected)} output bytes')
+        assert os9('list', f'{disk},free-before') == os9('list', f'{disk},free-after'), 'owned blocks leaked after two terminal runs'
+    print(f'PASS: {module} with real Wild Bits OS/RBF, resource {number}, vol.{volume}@{offset:#x}, {len(expected)} output bytes')
     print(f'SHA256: {hashlib.sha256(expected).hexdigest()}; artifacts: {out}')
 
 

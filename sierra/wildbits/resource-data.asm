@@ -1,4 +1,8 @@
 * Private picture-resource state. Include once in the owning module's RMB area.
+                    ifne      AGI_ASSET
+resourcekind        rmb       1
+resourcestored      rmb       2
+                    endc
 resourcebase        rmb       2
 resourcepath        rmb       1
 resourceopen        rmb       1

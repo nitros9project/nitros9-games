@@ -31,6 +31,9 @@ def start_cpu(bootrom, timeout=300):
             '-ram', '2048', '-no-ratelimit', '-gdb', '-gdb-port', str(port), '-timeout', str(timeout),
             '-no-bas', '-extbas', str(bootrom), '-no-altbas'],
             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        # Let the emulator complete its queued power-on reset before attaching.
+        # An early debugger connection can otherwise reset DP after register setup.
+        time.sleep(.1)
         try:
             for _ in range(100):
                 try:
@@ -48,7 +51,7 @@ def start_cpu(bootrom, timeout=300):
     raise RuntimeError('XRoar debugger did not attach after four fresh starts')
 
 
-def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zero_read=False, seek_error=False, write_error=False, module='wbres', map_failure=0, allocation_error=False, unmap_error=False, window=0x8000, terminal=True):
+def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zero_read=False, seek_error=False, write_error=False, module='wbres', map_failure=0, allocation_error=False, unmap_error=False, window=0x8000, terminal=True, blocks=4, capture=False, multiple=False):
     syms = symbols(ROOT / (module + '.map'))
     calls = {base + int(m[1], 16): int(m[2], 16) for m in re.finditer(
         r'^([0-9A-F]{4}) 103F([0-9A-F]{2}).*os9', (ROOT / (module + '.list')).read_text(), re.M)}
@@ -62,7 +65,8 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
     d.regs(pc=base + syms['start'], s=database + syms['size'] - 256,
            dp=database >> 8, u=database, x=argv, cc=0x50)
     paths, output, nextpath = {}, bytearray(), 3
-    owned = mapped = False
+    owned, mapped = {}, False
+    nextblock = 0x30
     maps = 0
     unmap_failed = False
     for _ in range(20000):
@@ -76,22 +80,25 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
             assert d.read(base, len(code)) == code, 'native module modified its code/tables'
             for address in calls:
                 d.breakpoint(address, False)
+            if capture:
+                return r['b'], bytes(output), {name: d.read(database + syms[name], length) for name, length in [('vmopcode', 1), ('vmip', 2), ('vmvariables', 256), ('vmflags', 256), ('vmgameid', 8), ('messagebuffer', 512)]}
             return r['b'], bytes(output)
         elif service == syms['I$GetStt'] and r['b'] == syms['SS.Opt']:
             assert r['a'] == 0
             d.write(r['x'], bytes([0 if terminal else 1]) + bytes(31))
         elif service == syms['I$SetStt'] and r['b'] == 0xD4:
-            assert r['a'] == 0 and r['x'] == 4 and not owned
+            assert r['a'] == 0 and (blocks is None or r['x'] == blocks) and (multiple or not owned)
             if allocation_error:
                 updates.update(cc=r['cc'] | 1, b=syms['E$MemFul'])
             else:
-                owned = True
-                updates['x'] = 0x30
+                owned[nextblock] = r['x']
+                updates['x'] = nextblock
+                nextblock += r['x']
         elif service == syms['I$SetStt'] and r['b'] == 0xD5:
-            assert owned and not mapped and r['x'] == 0x30 and r['u'] == 4
-            owned = False
+            assert not mapped and owned.get(r['x']) == r['u'], (r, owned)
+            del owned[r['x']]
         elif service == syms['F$MapBlk']:
-            assert owned and not mapped and r['b'] == 1 and 0x30 <= r['x'] < 0x34
+            assert not mapped and r['b'] == 1 and any(first <= r['x'] < first + count for first, count in owned.items())
             maps += 1
             if maps == map_failure:
                 updates.update(cc=r['cc'] | 1, b=syms['E$MemFul'])
@@ -122,6 +129,7 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
             else:
                 paths[r['a']][1] = r['x'] * 65536 + r['u']
         elif service == syms['I$Read']:
+            assert not mapped or module not in ('wbasset', 'wbexec'), 'resource read with foreign mapping live'
             data, position = paths[r['a']]
             if zero_read:
                 updates['y'] = 0

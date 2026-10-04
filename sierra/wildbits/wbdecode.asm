@@ -1,4 +1,4 @@
-* Native mapped picture decoder probe, not the full AGI picture decoder.
+* Native mapped AGI picture decoder probe, not the game interpreter.
                     nam       wbdecode
                     use       defsfile
 DECODE_PICTURE      equ       1

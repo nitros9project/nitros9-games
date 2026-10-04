@@ -1,4 +1,4 @@
-# Wild Bits Sierra port: first presentation milestone
+# Wild Bits Sierra port
 
 `wbpic` is a native, position-independent 6809/NitrOS-9 Level 2 program that
 presents the Sierra engine's combined picture-buffer format. It is the first
@@ -231,8 +231,8 @@ errors, immutable code and the fill-stack boundary. The MAME diagnostic runs
 on `/term` and `/vt1`, compares both outputs and requires an unchanged
 free-memory map. See [MAME.md](MAME.md) for reproduction.
 
-Pen commands and direct native presentation now exist. The next engine
-dependencies are compressed resources and interpreter integration. Performance optimization
+Pen commands, direct native presentation, compressed-resource storage and the
+interpreter core now exist. Game command integration remains. Performance optimization
 of mapped spans and fill remains to be measured; correctness does not prove
 performance parity with the original CoCo routines.
 
@@ -312,3 +312,66 @@ also verified every displayed pixel of this buffer through the real Wild Bits
 driver on `/vt1`, including restoration after terminal switching. A playable
 game and physical hardware validation remain future milestones. The bridge
 establishes a concrete reference for comparing the eventual native decoder.
+
+## Expanded resources and native logic execution
+
+`wbasset` loads a logic resource from `logDir`/`vol.N`, expands it if necessary,
+and writes the exact expanded bytes. Run from a terminal or redirect terminal
+stdin explicitly in a script:
+
+```text
+wbasset /s0/kingsquest1 0 </term >/s0/logic0.bin
+```
+
+The reusable loader supports logic, picture, view and sound directory kinds;
+the probe CLI currently selects logic. Nibble-packed pictures remain unsupported.
+Plain resources and expanded LZW resources occupy owned physical slabs of one
+to eight blocks, rather than a fixed 8 KB output buffer. The LZW dictionary and
+string stack reuse the private 8 KB command-workspace buffer. Both disk input
+and output use private 512-byte staging with the mapping removed before I/O.
+
+The decoder preserves the CoCo algorithm's least-significant-bit-first stream,
+clear/end codes, and 9–11-bit dictionary widths. It additionally bounds the
+input stream, dictionary references, temporary string stack and exact output
+length. It uses callbacks for byte input/output, so compression code contains
+no terminal, filesystem or hardware assumptions. Dictionary/code tables never
+change in shared module memory; only private workspace changes.
+
+`wbexec` includes that loader plus the converted bytecode core, mapped fetch,
+logic cache, nested-call handling and message reader. On successful execution
+it exports 256 variables followed by 256 byte-valued flags for regression
+checks. It is a probe, **not yet a playable interpreter**. Unsupported game
+commands/tests return an error instead of silently being skipped.
+
+The core implements commands 1–17, relative jumps, return, comparisons,
+variable/flag tests and AND/OR/NOT expressions. Platform commands currently
+include loading/calling logic, scan-start management and `set.game.id`.
+`logic-code.asm` follows the existing CoCo operand-count table; argument
+staging and instruction/branch bounds prevent malformed scripts from reading
+messages as instructions. Script positions remain offsets across mapping
+changes. Messages use bounded relative offsets; plain logic strings are
+XOR-decoded with the original key, while compressed logic strings are plain.
+
+`logic-cache.asm` retains up to 32 owned logic slabs. Sixteen private call
+frames save the caller's cache slot, instruction offset, code end and remaining
+instruction budget. Loading a callee unmaps the caller first; return restores
+its descriptor. Exit frees temporary allocations and all cache-owned slabs,
+including failed loads and errors inside nested calls. Cache/call overflow
+fails explicitly. Forced termination and persistent cleanup failures retain
+the same program-owned allocation limitation described above.
+
+Actual 6809 tests match all 228 compressed King's Quest I logic/view/sound
+resources against an independent dictionary implementation. They also cover
+relocation, exact 16 KB plain and 65,535-byte expanded output, partial I/O, malformed LZW, service failures,
+encrypted/malformed messages, nested/cached calls and recursion bounds.
+MAME verified real logic 0's 8,950 expanded bytes and a diagnostic cross-page
+script with cached/nested calls on `/term` and `/vt1`, with unchanged free memory.
+See [MAME.md](MAME.md) for the commands and hashes.
+
+Current modules: `wbasset` is 1,748 bytes with 9,989 bytes of private data;
+`wbexec` is 3,584 bytes with 11,889 bytes of private data. Both need two private
+8 KB blocks and one mapping window, leaving 40,192 code bytes. These probe
+budgets are not a final game-engine memory budget. Object/view drawing and
+motion, text/input, remaining AGI commands, the game cycle and save/restore
+still need integration. King's Quest I logic 0 currently sets its game ID and
+stops at the unported `script.size` command; it does not run a game cycle yet.

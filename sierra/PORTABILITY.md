@@ -826,6 +826,9 @@ Solid/splatter pen conversion now passes differential CPU checks for all
 sizes/styles. `wbrun` integrates native resource loading, decoding and
 presentation through small shared includes; concurrent MAME instances passed
 all pixel, switching, exit/relaunch and memory checks with the real castle
-resource. Compression, mapped logic/view storage and interpreter integration
-remain. Performance
-parity has not been established. No existing CoCo engine source was changed.
+resource. Native LZW, mapped expanded resources and the bytecode core now
+exist as small shared includes. CPU checks cover all 228 compressed KQ1 assets,
+logic conditions/arithmetic and cached/nested calls. MAME checks cover logic 0
+and cross-page bytecode on both terminal paths with unchanged free memory.
+Object/view motion, text/input, game commands and the main game cycle remain;
+this is not yet playable. Performance parity has not been established. No existing CoCo engine source was changed.

@@ -65,7 +65,9 @@ The current flow is:
 Native resource step: picDir + vol.N -> LoadPicture -> AGI command bytes
 Presentation step:   combined color/priority buffer -> wbpic -> terminal bitmap
 Native decoder:     F0-FA command bytes -> owned physical buffer, one mapped window
-Still to convert:    compression, mapped logic/view resources and interpreter integration
+Native assets:       log/view/sound resources -> bounded LZW -> owned mapped slabs
+Native logic:        mapped byte fetch -> arithmetic/conditions -> cached/nested calls
+Still to convert:    game commands, object/view motion, text/input and game cycle
 ```
 
 The host renderer supplies the reference while the native decoder is converted.
@@ -74,7 +76,7 @@ Mapped picture storage and bounded scanline fill now replace fixed CoCo buffer
 and stack addresses. The private command buffer and fill stack still consume
 two process blocks; integration must budget interpreter state alongside them.
 Pen conversion and direct presentation now work together in `wbrun`.
-The interpreter must next gain compressed logic/view storage.
+Compressed logic/view storage now exists in the shared asset components.
 The old fixed-address `shdw` body cannot simply be linked into the new module.
 
 `wbrun.asm` now owns one module and includes the resource loader, decoder and
@@ -82,3 +84,13 @@ shared presentation routines directly. It does not fork the probes. The same
 small presentation includes are used by the existing viewer, whose binary is
 unchanged. This proves the single-program source structure before bringing in
 the main interpreter; it does not claim that displaying a resource is gameplay.
+
+
+The interpreter follows the same include structure. `wbexec.asm` owns its
+module header and private data, includes `lzw-*`, `asset-*`, `logic-*` and
+`message-*` routine bodies, and calls them directly. It never starts `wbasset`
+as a subprocess. The eventual main game owner can use these same components
+alongside the picture/presentation includes. `logic-platform.asm` is currently
+the command integration boundary, with explicit errors for unported behavior.
+The original CoCo `mnln.asm` remains the source/semantic reference; no complete
+CoCo module or fixed-address workspace is incorporated into the native owner.

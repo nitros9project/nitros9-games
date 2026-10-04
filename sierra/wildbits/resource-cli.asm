@@ -1,6 +1,22 @@
 * Shared probe argument/output body. Owning module supplies state and help.
 start               stu       <resourcebase
                     clr       <resourceopen
+                    ifne      AGI_ASSET
+                    clr       <assetowned
+                    clr       <assetmapped
+                    clr       <asseterror
+                    clr       <resourcekind
+                    ifne      AGI_VM
+                    pshs      x
+                    lbsr      VmClearCache
+                    puls      x
+                    endc
+                    pshs      x
+                    leax      AssetIntercept,pcr
+                    os9       F$Icpt
+                    puls      x
+                    lbcs      Exit
+                    endc
                     ifne      DECODE_PICTURE
                     clr       <pictureowned
                     clr       <picturemapped
@@ -58,8 +74,26 @@ NumberEnd           cmpa      #C$CR
 LoadResource        ldx       <argdirectory
                     ldy       <argnumber
                     ldu       <resourcebase
+                    ifne      AGI_ASSET
+                    lbsr      LoadAsset
+                    bcs       Exit
+                    ifne      AGI_VM
+                    lbsr      StartLogic
+                    bcs       Exit
+                    ldu       <resourcebase
+                    leax      vmvariables,u
+                    ldy       #512
+                    stx       <resourcepointer
+                    sty       <resourceremaining
+                    lbra      WriteMore
+                    else
+                    lbsr      AssetWrite
+                    endc
+                    bra       Exit
+                    else
                     lbsr      LoadPicture
                     bcs       Exit
+                    endc
                     ifne      DECODE_PICTURE
                     lbsr      DecodeLines
                     bcs       Exit
@@ -91,6 +125,20 @@ WriteMore           lda       #1
                     bne       WriteMore
                     clrb
 Exit                equ       *
+                    ifne      AGI_ASSET
+                    stb       <assetexiterror
+                    ifne      AGI_VM
+                    lbsr      VmReleaseResources
+                    else
+                    lbsr      AssetRelease
+                    endc
+                    bcc       AssetExitDone
+                    tst       <assetexiterror
+                    bne       AssetExitRetry
+                    stb       <assetexiterror
+AssetExitRetry      lbsr      AssetRelease
+AssetExitDone       ldb       <assetexiterror
+                    endc
                     ifne      DECODE_PICTURE
                     stb       <pictureexiterror
                     lbsr      PictureRelease

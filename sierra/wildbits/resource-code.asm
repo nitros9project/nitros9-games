@@ -5,7 +5,13 @@
 * carry clear. Failure: carry set, B = OS-9 error. All opened paths are closed
 * on normal success/error paths. No writable code, fixed buffers or hardware.
 * Header format here is the existing CoCo game's seven-byte resource format.
-LoadPicture         stu       <resourcebase
+                    ifne      AGI_ASSET
+* Generic header locator returns an open volume positioned at stored bytes.
+ResourceLocate      equ       *
+                    else
+LoadPicture         equ       *
+                    endc
+                    stu       <resourcebase
                     sty       <resourcenumber
                     clr       <resourceopen
                     cmpy      #255
@@ -33,7 +39,17 @@ ResourceDirEnd      leax      resourcefilename,u
                     lda       #'/
                     sta       ,y+
 ResourceDirSlash    sty       <resourcenameend
+                    ifne      AGI_ASSET
+                    ldb       <resourcekind
+                    cmpb      #3
+                    lbhi      ResourceArgument
+                    leax      ResourceDirectoryTable,pcr
+                    lslb
+                    ldd       b,x
+                    leax      d,x
+                    else
                     leax      ResourcePicDir,pcr
+                    endc
                     lbsr      ResourceSuffix
                     lbsr      OpenPicturePath
                     lbcs      ResourceFailed
@@ -115,6 +131,15 @@ ResourceVolumeDigit adda      #'0
                     lda       4,x
                     std       <resourcelength
                     lbeq      ResourceInvalid
+                    ifne      AGI_ASSET
+                    ldb       5,x
+                    lda       6,x
+                    std       <resourcestored
+                    lbeq      ResourceInvalid
+                    ldu       <resourcebase
+                    clrb
+                    rts
+                    else
                     cmpd      #8192
                     lbhi      ResourceInvalid
                     ldb       5,x               stored size is little endian
@@ -139,6 +164,7 @@ ResourceVolumeDigit adda      #'0
                     ldy       <resourcelength
                     clrb
                     rts
+                    endc
 ResourceArgument    ldb       #E$IllArg
                     bra       ResourceFailed
 ResourceInvalid     ldb       #E$BMode
@@ -200,3 +226,15 @@ ResourcePicDir      fcc       /picDir/
                     fcb       C$CR
 ResourceVol         fcc       /vol./
                     fcb       C$CR
+                    ifne      AGI_ASSET
+ResourceDirectoryTable fdb    ResourceLogDir-ResourceDirectoryTable
+                    fdb       ResourcePicDir-ResourceDirectoryTable
+                    fdb       ResourceViewDir-ResourceDirectoryTable
+                    fdb       ResourceSoundDir-ResourceDirectoryTable
+ResourceLogDir      fcc       /logDir/
+                    fcb       C$CR
+ResourceViewDir     fcc       /viewDir/
+                    fcb       C$CR
+ResourceSoundDir    fcc       /sndDir/
+                    fcb       C$CR
+                    endc
