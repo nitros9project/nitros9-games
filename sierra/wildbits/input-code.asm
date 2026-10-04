@@ -2,7 +2,7 @@ InputInitialize     clr       <vmkeycount
                     clr       <vmhavekey
                     ldu       <resourcebase
                     leax      vmcontrollers,u
-                    ldy       #256
+                    ldy       #32
                     clra
 InputClearController sta      ,x+
                     leay      -1,y
@@ -44,12 +44,28 @@ InputTest           ldb       <vmopcode
                     orcc      #1
                     rts
 InputControllerTest ldu       <resourcebase
-                    leax      vmcontrollers,u
-                    clra
                     ldb       vmarguments,u
-                    ldb       d,x
+                    lbsr      InputControllerAddress
+                    bita      ,x
+                    beq       InputTestFalse
+                    ldb       #1
                     andcc     #$FE
                     rts
+* B=controller (all 256 supported); X=private byte, A=one-bit mask.
+InputControllerAddress pshs   b
+                    andb      #7
+                    leax      InputControllerMasks,pcr
+                    lda       b,x
+                    puls      b
+                    lsrb
+                    lsrb
+                    lsrb
+                    pshs      a
+                    clra
+                    leax      vmcontrollers,u
+                    leax      d,x
+                    puls      a,pc
+InputControllerMasks fcb      1,2,4,8,16,32,64,128
 InputHaveKeyTest    ldb       <vmhavekey
                     andcc     #$FE
                     rts

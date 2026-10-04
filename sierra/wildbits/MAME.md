@@ -273,3 +273,18 @@ The font/scratch change also passed the existing two-terminal interpreter
 regression in `/tmp/sierra-native-game-inventory-terminals-final-v3`: exact picture pixels,
 visibility switching, independent controller exits, relaunch and free-memory
 recovery. Those scripts remain picture-only diagnostics, not two full games.
+
+## Packed text/controller memory checkpoint
+
+The 15,198-byte `wbgame` module with 24,328 private bytes passed the same
+unmodified King's Quest I inventory harness in
+`/tmp/sierra-kq1-packed-text-controllers`, using the normal module rather than
+an optional trace build. Castle graphics, shared-font inventory title pixels,
+dismissal, restored scene, interrupt exit and unchanged free memory all passed.
+The text cell colors are packed nibbles and controller state is a private bitset;
+these representations require no new driver or hardware access.
+
+The two-terminal interpreter diagnostic also passed with this layout in
+`/tmp/sierra-packed-two-terminals`: every displayed pixel, foreground switching,
+restoration, independent exit, relaunch and free-memory recovery. These remain
+picture-command diagnostics rather than two complete concurrent games.

@@ -67,14 +67,15 @@ GameTextStore       ldx       textpointer,u
                     mul
                     addb      textcolumn,u
                     adca      #0
-                    leax      textforegrounds,u
+                    leax      textcolors,u
                     leax      d,x
                     lda       <vmtextforeground
-                    inca
+                    lsla
+                    lsla
+                    lsla
+                    lsla
+                    ora       <vmtextbackground
                     sta       ,x
-                    lda       <vmtextbackground
-                    inca
-                    sta       1000,x
                     inc       textcolumn,u
                     lda       textcolumn,u
                     cmpa      #40
@@ -149,12 +150,19 @@ GameTextCell        ldd       textindex,x
                     leay      d,y
                     sty       textfontpointer,x
                     ldd       textindex,x
-                    leay      textforegrounds,x
+                    leay      textcolors,x
                     leay      d,y
                     lda       ,y
-                    sta       textforeground,x
-                    lda       1000,y
+                    anda      #$0F
+                    inca
                     sta       textbackground,x
+                    lda       ,y
+                    lsra
+                    lsra
+                    lsra
+                    lsra
+                    inca
+                    sta       textforeground,x
                     clr       textglyphrow,x
 GameTextGlyphRow    ldy       textfontpointer,x
                     lda       ,y+
@@ -254,14 +262,13 @@ GameClearLines      ldu       <resourcebase
                     mul
                     leax      textcharacters,u
                     leax      d,x
-                    lda       #1
+                    clra
                     tst       vmarguments+2,u
                     beq       GameClearCell
-                    lda       #16
+                    lda       #$FF
 GameClearCell       ldb       #32
                     stb       ,x
                     sta       1000,x
-                    sta       2000,x
                     leax      1,x
                     leay      -1,y
                     bne       GameClearCell

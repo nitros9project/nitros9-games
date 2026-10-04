@@ -210,7 +210,7 @@ Tests cover the file bounds, commands, predicates, scrolling logic, selection,
 cancellation and restoration. Only encrypted object files up to 2 KB are
 currently supported.
 
-The modal screen backs up all three text planes in `resourcecommands`. That
+The modal screen backs up the character plane and packed color plane in `resourcecommands`. That
 8 KB workspace normally holds the LZW dictionary or decoded picture commands.
 No asset loading or picture decoding occurs while inventory is modal. The
 4 KB fill stack supplies the temporary object-name buffer (first 2 KB) and the
@@ -243,3 +243,19 @@ and new rows. Only a visible-page change redraws all cells. The scrolling
 check selects item 22 and verifies the bitmap returns to its exact prior blank
 state. The input adapter also consumes recognized arrows during program
 control rather than exposing them as overlapping ASCII Tab/backspace keys.
+
+The text overlay uses 1,000 character bytes and 1,000 color bytes. Logical
+foreground/background values occupy the high/low nibbles. Glyph setup unpacks
+them and adds the palette offset; no color unpacking occurs per pixel. Blank
+cells are identified by the character plane, independently of color zero.
+Inventory normal rows use $0F (black on white), selected rows $F0, and modal
+backup/restore copies exactly 2,000 bytes. Controllers similarly use a private
+32-byte bitset; controller ID divided by eight selects the byte and its low
+three bits select the mask. This retains the full 0–255 script ABI.
+
+These changes reduce `wbgame` private storage to 24,328 bytes (three 8 KB
+blocks). Its 15,198-byte module fits the revised 23,808-byte code budget. Only
+248 private bytes remain before a fourth data block is needed, so parser
+state must remain bounded. CPU pixel checks and real-driver MAME inventory
+startup/restoration pass with the packed layout; performance parity has not
+been measured.

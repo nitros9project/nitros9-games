@@ -192,13 +192,13 @@ InventoryGetRoom    lda       ,x
                     rts
 
 * Modal status screen. Picture-command staging is dead after decoding and
-* supplies the 3000-byte text backup; no resource loads occur while modal.
+* supplies the 2000-byte text backup; no resource loads occur while modal.
 InventoryStatus     lbsr      InventoryLoadNames
                     lbcs      InventoryReturn
                     ldu       <resourcebase
                     leax      textcharacters,u
                     leay      resourcecommands,u
-                    ldd       #1500
+                    ldd       #1000
                     pshs      d
 InventorySaveText   ldd       ,x++
                     std       ,y++
@@ -234,10 +234,8 @@ InventoryRedraw     leax      textcharacters,u
                     ldy       #1000
 InventoryWhite      lda       #32
                     sta       ,x
-                    lda       #1
+                    lda       #$0F
                     sta       1000,x
-                    lda       #16
-                    sta       2000,x
                     leax      1,x
                     leay      -1,y
                     bne       InventoryWhite
@@ -288,13 +286,11 @@ InventoryDrawItem   ldd       ,s
                     lda       inventoryrow,u
                     ldb       #40
                     mul
-                    leay      textforegrounds,u
+                    leay      textcolors,u
                     leay      d,y
                     ldb       #40
-InventoryHighlight  lda       #16
+InventoryHighlight  lda       #$F0
                     sta       ,y
-                    lda       #1
-                    sta       1000,y
                     leay      1,y
                     decb
                     bne       InventoryHighlight
@@ -367,13 +363,13 @@ InventoryUp         ldd       inventoryselected,u
                     bhs       InventoryDrawAgain
                     std       inventorytop,u
 InventoryPageChange lbra      InventoryRedraw
-InventoryDrawAgain  lda       #1
+InventoryDrawAgain  lda       #$0F
                     sta       inventorypaint,u
                     ldd       inventoryprevious,u
                     lbsr      InventoryPaintRow
                     lbcs      InventoryRestoreError
                     ldu       <resourcebase
-                    lda       #16
+                    lda       #$F0
                     sta       inventorypaint,u
                     ldd       inventoryselected,u
                     lbsr      InventoryPaintRow
@@ -392,7 +388,7 @@ InventoryRestoreError pshs    cc,b
                     ldu       <resourcebase
                     leax      resourcecommands,u
                     leay      textcharacters,u
-                    ldd       #1500
+                    ldd       #1000
                     pshs      d
 InventoryRestoreText ldd      ,x++
                     std       ,y++
@@ -416,16 +412,13 @@ InventoryPaintRow   ldx       <resourcebase
                     lda       #40
                     mul
                     std       textindex,x
-                    leay      textforegrounds,x
+                    leay      textcolors,x
                     leay      d,y
                     addd      #40
                     std       textend,x
                     ldb       #40
 InventoryPaintCell  lda       inventorypaint,x
                     sta       ,y
-                    lda       #17
-                    suba      inventorypaint,x
-                    sta       1000,y
                     leay      1,y
                     decb
                     bne       InventoryPaintCell

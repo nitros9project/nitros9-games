@@ -28,7 +28,7 @@ menutitles          rmb       32
 menuentries         rmb       192
 menutext            rmb       768
 vmkeys              rmb       150
-vmcontrollers       rmb       256
+vmcontrollers       rmb       32
 vmstrings           rmb       480
 vmobjects           rmb       2752
 vmcache             rmb       448

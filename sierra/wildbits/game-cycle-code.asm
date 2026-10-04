@@ -42,7 +42,7 @@ GameNextCycle       lbsr      AssetUnmap
                     clr       vmvariables+19,u
                     clr       <vmhavekey
                     leax      vmcontrollers,u
-                    ldy       #256
+                    ldy       #32
 GameResetControllers clr     ,x+
                     leay      -1,y
                     bne       GameResetControllers
@@ -156,11 +156,9 @@ GameKeyBinding      tfr       y,d
                     cmpa      1,x
                     bne       GameNextBinding
                     ldb       2,x
-                    leay      vmcontrollers,u
-                    clra
-                    leay      d,y
-                    lda       #1
-                    sta       ,y
+                    lbsr      InputControllerAddress
+                    ora       ,x
+                    sta       ,x
                     clr       vmvariables+19,u
                     clrb
                     rts

@@ -266,6 +266,24 @@ def main():
                 assert not error and state['vmflags'][200] == 1, 'sound-off completion flag missing'
                 assert state['vmflags'][9] == 0, 'unsupported audio remained enabled'
                 assert output == (b'Wild Bits audio unavailable; sound disabled.\r' if sound_enabled else b''), 'audio fallback was not reported exactly once'
+            # Adjacent high controllers exercise every bit, including controller
+            # 255. Exactly one must be active in each cycle, then all must clear.
+            script = bytearray()
+            for bit in range(8):
+                script.extend([121, ord('a') + bit, 0, 248 + bit])
+            for bit in range(8):
+                script.extend([255, 12, 248 + bit, 255, 4, 0,
+                               1, 220 + bit, 12, 220 + bit])
+            script.extend([1, 250, 255, 1, 250, 10, 255, 2, 0, 134, 1, 0])
+            logic = len(script).to_bytes(2, 'little') + script
+            files = {'/game/logDir': b'\xff' * 3 + bytes(3),
+                '/game/vol.0': b'\x12\x34\0' + len(logic).to_bytes(2, 'little') * 2 + logic}
+            error, output, state = exercise(d, files, module='wbgame', base=0xb000,
+                database=0x1000, window=0x8000, blocks=None, multiple=True,
+                firstblock=0x10, capture=True, keyboard=b'abcdefgh')
+            assert not error and not output, (error, output)
+            assert state['vmvariables'][220:228] == bytes([1]) * 8, 'controller bits aliased or survived their cycle'
+            assert state['vmflags'][220:228] == bytes([1]) * 8, 'high controller bit was lost'
             script = bytes([121,ord('q'),0,7,1,250,255,12,7,255,2,0,134,1,0])
             logic = len(script).to_bytes(2, 'little') + script
             files = {'/game/logDir': b'\xff' * 3 + bytes(3),

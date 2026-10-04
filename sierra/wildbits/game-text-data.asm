@@ -1,7 +1,7 @@
 * Persistent text cells survive picture refreshes; zero means no overlay.
 textcharacters      rmb      1000
-textforegrounds     rmb      1000
-textbackgrounds     rmb      1000
+* High nibble is logical foreground, low nibble logical background (0..15).
+textcolors          rmb      1000
 textpointer         rmb      2
 textindex           rmb      2
 textend             rmb      2

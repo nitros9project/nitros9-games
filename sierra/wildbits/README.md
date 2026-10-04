@@ -409,13 +409,13 @@ hidden time. Immediate `quit(1)` releases owned resources.
 
 Text uses the existing immutable 128-character, 8-by-8 font, extracted into
 `objs/font-data.asm`; the CoCo screen module remains byte-for-byte identical.
-Private 40-by-25 character/foreground/background cells survive picture
-refreshes. `display`/`display.v` support literal messages, colors and wrapping;
+Private 40-by-25 character cells and packed foreground/background colors
+survive picture refreshes. `display`/`display.v` support literal messages, colors and wrapping;
 format directives currently return an explicit unsupported error.
 
-`wbgame` currently uses 15,189 code bytes and 25,552 private bytes. Four private
+`wbgame` currently uses 15,198 code bytes and 24,328 private bytes. Three private
 blocks, the kernel block and one mapping window leave a conservative
-15,616-byte code budget.
+23,808-byte code budget.
 Physical memory also holds resource caches, two picture slabs and the terminal
 bitmap. These are distinct from the logical-address budget.
 
@@ -488,7 +488,7 @@ variable. Names are reread for each status screen without resetting item rooms.
 `status` shows up to 21 item names per page. With flag 13 enabled, up/down moves
 the selection, ENTER stores the selected item in variable 25, and ESC cancels; cancellation stores 255. CTRL-C interrupts the game. Without flag 13, a key dismisses the
 screen. Foreground checks and ready polling leave no mapping live while waiting.
-The modal screen saves the 3,000 persistent text bytes and restores them after
+The modal screen saves the 2,000 persistent text bytes and restores them after
 exit. It clears the complete owned bitmap before redrawing the picture, sprites
 and text, including pixels outside the 168-row picture region.
 
@@ -506,3 +506,13 @@ rows. Recognized arrows are consumed while player control is disabled, so a
 Right arrow cannot accidentally trigger the game's ASCII Tab controller.
 The real-driver test sends Ctrl-I for that Tab binding; ordinary physical Tab
 delivery in this MAME setup remains a separate keyboard-driver/UI check.
+
+Text colors now occupy one byte per cell: the high nibble holds the logical
+foreground and the low nibble holds the logical background (each 0–15).
+The renderer converts these to palette indices once per glyph; its pixel loop
+is unchanged. Inventory highlights and text backups use the same packed format.
+Keyboard controllers use one private bit each, retaining all 256 controller
+IDs in 32 bytes. Tests exercise all eight adjacent bits at IDs 248–255 and
+require each event to expire after one cycle. Together these changes save
+1,224 private bytes and one 8 KB logical data block, leaving room for vocabulary
+parser code. Parsing itself is still pending; this is memory preparation.
