@@ -115,18 +115,40 @@ The latter produced 2,752 command bytes with SHA256
 `65f0bfee93044b42eaca6ce11c35d8db108d0af79d1d213e78ebf40167fa8258`.
 This verifies native resource loading, not native command decoding.
 
-## Native line decoder
+## Native mapped decoder and fill
 
 Add `--decode` to the resource-loader test command to exercise `wbdecode`.
-The default fixture then contains color/priority, absolute-line, relative-line
-and coordinate-clamping commands. The test runs the existing CoCo renderer
-as a CPU reference, runs the native decoder under the real Wild Bits OS,
-and compares all 26,880 combined bytes. This reference step also requires
-XRoar and lwasm on PATH. Use a fresh output directory for each run.
+The default fixture draws a rectangle, fills its inside and outside and
+checks a priority-only fill. The test executes the existing CoCo renderer
+on XRoar's 6809 CPU and compares every one of the 26,880 native output bytes.
+It runs the probe separately on `/term` and `/vt1`, requires both outputs to
+match, and compares the free-memory map before and after both runs. This is
+sequential terminal-path coverage; the viewer test above covers simultaneous
+presentation and terminal switching. Use a fresh output directory each time.
 
-This passed on the same emulator/OS revisions with native module size 1,400
-bytes and CRC `$EF5D62`. The combined output hash was
-`41b1095683a9252eadcd883f97ffed28467ef96a257f63b4084980d592a3cdd4`.
-The fixture is diagnostic, not a complete game picture. `wbdecode` rejects
-fill and pen opcodes; its resident probe buffer still needs a mapped backend
-before the full interpreter can use it.
+Script input must be redirected explicitly with `</term` or `</vt1`. Without
+that redirection, path 0 is the startup file and graphics SetStt requests go
+to RBF. The native probe now checks stdin's SCF device type before allocation.
+It allocates four program-owned picture blocks, uses one cached mapping window
+and releases the mapping and allocation on exit. Output goes through a private
+staging buffer after unmapping. No display layers or palettes are modified.
+
+This passed on the emulator/OS revisions recorded above with module size
+2,085 bytes, CRC `$A353F8`, and combined output SHA256
+`ece06b2520475bce66b073dd594074215b3bea9993957d1153fe3c8a4f4c6cb3`.
+The free-memory reports were identical. Artifacts from this run are in
+`/tmp/sierra-final-mapped-fill`; they are not committed.
+
+The CPU fixtures generate a tiny idle ROM before debugger attachment and
+switch to all-RAM mode before executing either renderer. This contains no
+BASIC or game assets. On macOS, headless GDB attachment can still time out;
+the exporter retries only startup timeouts, up to four fresh processes, and
+reports persistent failure. The final broader CPU regression used an official
+XRoar 1.12.1 build configured without SDL, Cocoa, GTK or platform audio, placed
+first on PATH. It passed all differential, malformed-input, service-error and
+fill-stack boundary checks. The module output and OS-memory checks above
+passed independently through the actual Wild Bits MAME drivers.
+
+The fixture remains diagnostic: pen commands and
+compression are unsupported, and the full game interpreter is not running.
+Physical hardware and performance validation remain outstanding.

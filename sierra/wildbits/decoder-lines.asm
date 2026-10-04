@@ -329,93 +329,49 @@ PlotNextPoint       ldd       <ScratchA4 load computed pos_x/y
                     bne       LineDrawLoop if counter not zero go again
                     rts                 line fully drawn return
 
-SbuffXLine          sta       <ScratchAC stow as x_orig
-                    cmpa      <PosInitX  compare with pos_init_x position
-                    bhs       XLineStart if pos_final_x same or greater branch
-
-*                      otherwise init >  final so swap init and final
-                    ldb       <PosInitX  load pos_init_x position
-                    stb       <PosFinalX save pos_final_x position
-                    sta       <PosInitX  save pos_init_x position
-
-XLineStart          bsr       SbuffPlot head for sbuff_plot() returns pointer in u
-
-                    ldb       <PosFinalX load pos_final_x
-                    subb      <PosInitX  subtract pos_init_x position
-                    beq       XLineDone if they are the same move on
-*                      b now holds the loop counter len
-*                      u is the pointer returned from sbuff_plot
-                    leau      $01,u     bump the pointer one byte right
-XLineLoop           lda       ,u        get the the byte
-                    ora       <DrawMask  or it with sbuff_drawmmask
-                    anda      <DrawColor and it with the color
-                    sta       ,u+       save it back and bump u to next byte
-                    decb                decrememnt the loop counter
-                    bne       XLineLoop done them all? Nope loop
-
-XLineDone           lda       <ScratchAC x_orig (pos_final_x)
-                    sta       <PosInitX  save at pos_init_x position
-                    rts                 horizontal line drawn return
-
-
-* sbuff_yline() sbuf_util.c
-* gets called here with pos_final_x/y in accd
-*
-*  DrawColor = color
-*  DrawMask = sbuff_drawmask
-*  PosInitX = pos_init_x
-*  PosInitY = pos_init_y
-*  PosFinalX = pos_final_x
-*  PosFinalY = pos_final_y
-*  ScratchAC = y_orig
-
-SbuffYLine          stb       <ScratchAC stow as y_orig
-                    cmpb      <PosInitY  compare with pos_init_y
-                    bhs       YLineStart if pos_final same or greater branch
-
-*                           otherwise init > final so swap 'em
-                    lda       <PosInitY  load pos_init_y
-                    sta       <PosFinalY stow as pos_final_y
-                    stb       <PosInitY  stow as pos_init_y
-
-YLineStart          bsr       SbuffPlot head for sbuff_plot() returns pointer in u
-                    ldb       <PosFinalY load pos_final_y
-                    subb      <PosInitY  subtract pos_init_y
-                    beq       YLineDone if they are the same move on
-*                           b now holds the loop counter len
-*                           u is the pointer returned from sbuff_plot
-YLineLoop           leau      PICBUFF_WIDTH,u bump ptr one line up
-                    lda       ,u        get the byte
-                    ora       <DrawMask  or it with sbuff_drawmmask
-                    anda      <DrawColor and it with the color
-                    sta       ,u        save it back out
-                    decb                decrement the loop counter
-                    bne       YLineLoop done them all ? Nope loop
-
-YLineDone           ldb       <ScratchAC load y_orig
-                    stb       <PosInitY  save it as pos_init_y
-                    rts                 vertical line drawn return
-
-
-* sbuff_plot()  from sbuf_util.c
-* according to agi.h PBUF_MULT(width) ((( (width)<<2) + (width))<<5)
-* which next 3 lines equate to so the $A0 is from 2 x 5
-* pointer is returned in index reg u
-*
-*  DrawColor = color
-*  DrawMask = sbuff_drawmask
-*  PosInitX = pos_init_x
-*  PosInitY = pos_init_y
-
-SbuffPlot           ldb       <PosInitY  load pos_init_y
-                    lda       #$A0      according to PBUF_MULT()
-                    mul                 do the math
-                    addb      <PosInitX  add pos_init_x position
-                    adca      #0000     this adds the carry bit in to a
-                    addd      <decodedbase add that to the start of the screen buf $6040
-                    tfr       d,u       move this into u
-                    lda       ,u        get the byte u points to
-                    ora       <DrawMask  or it with sbuff_drawmask
-                    anda      <DrawColor and it with the color
-                    sta       ,u        and stow it back at the same place
-                    rts                 return
+* Native mapped line/plot primitives. No direct mapped-pointer increments
+* survive an 8K crossing; PicturePointer caches the current physical page.
+SbuffXLine          sta       <ScratchAC
+                    cmpa      <PosInitX
+                    bhs       XLineStart
+                    ldb       <PosInitX
+                    stb       <PosFinalX
+                    sta       <PosInitX
+XLineStart          lbsr      SbuffPlot
+                    lda       <PosInitX
+                    cmpa      <PosFinalX
+                    beq       XLineDone
+                    inc       <PosInitX
+                    bra       XLineStart
+XLineDone           lda       <ScratchAC
+                    sta       <PosInitX
+                    rts
+SbuffYLine          stb       <ScratchAC
+                    cmpb      <PosInitY
+                    bhs       YLineStart
+                    lda       <PosInitY
+                    sta       <PosFinalY
+                    stb       <PosInitY
+YLineStart          lbsr      SbuffPlot
+                    ldb       <PosInitY
+                    cmpb      <PosFinalY
+                    beq       YLineDone
+                    inc       <PosInitY
+                    bra       YLineStart
+YLineDone           ldb       <ScratchAC
+                    stb       <PosInitY
+                    rts
+SbuffPlot           pshs      d,x,y,u
+                    ldb       <PosInitY
+                    lda       #160
+                    mul
+                    addb      <PosInitX
+                    adca      #0
+                    lbsr      PicturePointer
+                    tst       <decodeerror
+                    bne       PlotDone
+                    lda       ,u
+                    ora       <DrawMask
+                    anda      <DrawColor
+                    sta       ,u
+PlotDone            puls      d,x,y,u,pc

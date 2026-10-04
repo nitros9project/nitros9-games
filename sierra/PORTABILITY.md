@@ -809,17 +809,18 @@ supported resource encoding, and the reference hash.
 Native resource loading now exists as `wildbits/resource-code.asm`, exercised
 by the position-independent `wbres` probe. Real `wbjr2` MAME RBF reads matched
 the host reference for King's Quest I picture 1 and an 8 KB resource at a
-20-bit offset in volume 15. The native decoder remains unimplemented.
+20-bit offset in volume 15. Native command decoding is described below.
 See [wildbits/ENGINE.md](wildbits/ENGINE.md) for the planned module structure:
 one native program may include converted routine bodies, but the old complete
 module sources cannot simply be included into an outer module. The untracked
 packed scaffold remains untouched and excluded from the build.
 
-The first native command decoder now exists in `wildbits/decoder-code.asm`
-and `decoder-lines.asm`, exercised by `wbdecode`. It converts the original
-F0-F7 line/corner algorithms with private state, bounded reads, an immutable
-relative dispatch table and a data-relative combined buffer. The probe uses
-a large resident buffer for differential testing; a mapped storage backend,
-bounded fill workspace and pen conversion remain prerequisites for a full
-native picture decoder. The real-driver MAME diagnostic matched all 26,880
-bytes of the CoCo CPU reference. No existing CoCo engine source was changed.
+The native decoder now handles F0-F8 through private state, bounded reads and
+immutable dispatch. Its combined picture occupies four owned physical blocks,
+accessed through one cached OS mapping window; scanline fill uses a bounded
+private seed stack. Export unmaps before disk writes. MAME checks use actual
+terminal stdin: a shell script's RBF stdin must never receive graphics codes.
+The module checks SCF input before allocation. Two terminal-path runs must
+produce identical diagnostic buffers and restore the free-memory map.
+Pen conversion, compression and interpreter integration remain. Performance
+parity has not been established. No existing CoCo engine source was changed.

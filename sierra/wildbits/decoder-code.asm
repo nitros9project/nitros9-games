@@ -1,22 +1,20 @@
 * DecodeLines: X=commands, Y=length, U=private base and matching DP.
-* Returns X=combined buffer, Y=26880, U=private base, carry clear;
+* Returns a private physical combined buffer, U=private base, carry clear;
 * otherwise carry/B error, with no successful result for unsupported opcodes.
-* This probe uses a resident combined buffer. A mapped backend is still needed
-* before integrating it into the full engine's smaller resident state budget.
+* Picture storage uses one OS-managed window; PictureWrite exports its bytes.
 DecodeLines         stu       <resourcebase
-                    clr       <decodeerror
+                    tst       <decodeerror
+                    lbne      DecodeFailed
                     tfr       y,d
                     leay      d,x
                     sty       <decodeend
                     pshs      x
-                    leau      decodedbuffer,u
-                    stu       <decodedbase
-                    ldx       #13440
-                    ldd       #$4F4F
-DecodeClear         std       ,u++
-                    leax      -1,x
-                    bne       DecodeClear
-                    puls      x
+                    lbsr      PictureAllocate
+                    bcs       DecodeInitFailed
+                    lbsr      PictureClear
+DecodeInitFailed    puls      x
+                    tst       <decodeerror
+                    lbne      DecodeFailed
                     lda       #$FF
                     sta       <DrawColor
                     clr       <DrawMask
@@ -27,7 +25,7 @@ DecodeCommand       tst       <decodeerror
                     beq       DecodeFinished
                     suba      #$F0
                     blo       DecodeInvalid
-                    cmpa      #7
+                    cmpa      #8
                     bhi       DecodeInvalid
                     asla
                     leau      DecodeDispatch,pcr
@@ -38,8 +36,6 @@ DecodeCommand       tst       <decodeerror
 DecodeFinished      cmpx      <decodeend
                     bne       DecodeInvalid
                     ldu       <resourcebase
-                    leax      decodedbuffer,u
-                    ldy       #26880
                     clrb
                     rts
 DecodeInvalid       ldb       #E$BMode
@@ -58,9 +54,12 @@ DecodeDispatch      fdb       EnablePicDraw-DecodeDispatch
                     fdb       DrawXCorner-DecodeDispatch
                     fdb       AbsoluteLine-DecodeDispatch
                     fdb       RelativeLine-DecodeDispatch
+                    fdb       PicFill-DecodeDispatch
 
 * Preserve B: color/mask routines and coordinate helpers use it across reads.
-ReadNext            cmpx      <decodeend
+ReadNext            tst       <decodeerror
+                    bne       DecodeReadStop
+                    cmpx      <decodeend
                     bhs       DecodeExhausted
                     lda       ,x+
                     rts
@@ -68,7 +67,7 @@ DecodeExhausted     pshs      b
                     ldb       #E$BMode
                     stb       <decodeerror
                     puls      b
-                    lda       #$FF
+DecodeReadStop      lda       #$FF
                     rts
 ReadNextB           pshs      a
                     bsr       ReadNext

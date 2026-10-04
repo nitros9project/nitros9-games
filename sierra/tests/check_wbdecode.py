@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Compare native F0-F7 decoding against the existing actual 6809 renderer."""
+"""Compare native F0-F8 mapped decoding against the existing actual 6809 renderer."""
 from pathlib import Path
 import random
 import shutil
@@ -7,8 +7,9 @@ import socket
 import subprocess
 import sys
 import time
-from check_instances import Debugger
-from check_wbres import exercise, fixture
+import tempfile
+from check_instances import Debugger, symbols
+from check_wbres import exercise, fixture, idle_rom
 
 SIERRA = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SIERRA / 'wildbits'))
@@ -22,9 +23,12 @@ def pictures():
     yield bytes([0xF0, 4, 0xF6, 20, 20, 150, 140, 10, 140, 150, 10, 20, 20,
                  0xF1, 0xF2, 12, 0xF7, 0, 0, 0x11, 0x99, 0xE1, 0x17,
                  0xF3, 0xF0, 5, 0xF6, 239, 239, 0, 0, 0xFF])
+    yield bytes([0xF0, 3, 0xF8, 0, 0, 0xFF])
+    yield bytes([0xF0, 2, 0xF2, 9, 0xF6, 20, 20, 140, 20, 140, 150, 20, 150, 20, 20,
+                 0xF0, 6, 0xF8, 21, 21, 0, 0, 0xF1, 0xF2, 12, 0xF8, 0, 0, 0xFF])
     rng = random.Random(6809)
     data = bytearray()
-    for _ in range(40):
+    for _ in range(8):
         data.extend([0xF0, rng.randrange(16), 0xF2, rng.randrange(16), 0xF6])
         for _ in range(5):
             data.extend([rng.randrange(160), rng.randrange(168)])
@@ -39,9 +43,11 @@ def main():
     with socket.socket() as reservation:
         reservation.bind(('127.0.0.1', 0))
         port = reservation.getsockname()[1]
+    bootrom = tempfile.NamedTemporaryFile(prefix='sierra-cpu-idle-', suffix='.rom')
+    idle_rom(bootrom.name)
     emulator = subprocess.Popen(['xroar', '-machine', 'coco3', '-ui', 'null', '-ao', 'null',
-        '-ram', '2048', '-gdb', '-gdb-port', str(port), '-timeout', '300',
-        '-no-bas', '-no-extbas', '-no-altbas'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        '-ram', '2048', '-no-ratelimit', '-gdb', '-gdb-port', str(port), '-timeout', '300',
+        '-no-bas', '-extbas', bootrom.name, '-no-altbas'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     d = None
     try:
         time.sleep(.01)
@@ -60,18 +66,44 @@ def main():
         d.write(0xFFA8, bytes(range(8)))
         for base, database in ((0xE000, 0x2000), (0xD000, 0x1000)):
             for payload, reference in references:
-                error, actual = exercise(d, fixture(payload), base=base, database=database, module='wbdecode')
+                error, actual = exercise(d, fixture(payload), base=base, database=database, module='wbdecode', window=0x8000 if database == 0x2000 else 0xA000)
                 assert not error, (error, payload.hex(), base, database)
                 assert actual == reference, f'decoder pixels differ for {payload.hex()}'
-        for payload in (b'\xf8\xff', b'\xf9\x00\xff', b'\xfa\xff', b'\xfb\xff',
+        for payload in (b'\xf9\x00\xff', b'\xfa\xff', b'\xfb\xff',
                         b'\xf0\xff', b'\xf0\x10\xff', b'\xf2\x10\xff',
                         b'\xf6\x01\xff', b'\xf6\xff', b'\xff\xff', b'\x00\xff'):
             error, output = exercise(d, fixture(payload), module='wbdecode')
             assert error and not output, payload.hex()
-        print('PASS: native F0-F7 decoding matches every CoCo reference pixel at two code/data locations; immutable code, bounded malformed/unsupported input')
+        for options in ({'terminal': False}, {'allocation_error': True}, {'map_failure': 1}, {'map_failure': 6}, {'unmap_error': True}, {'write_error': True}):
+            error, output = exercise(d, fixture(b'\xf0\x03\xf8\x00\x00\xff'), module='wbdecode', **options)
+            assert error and not output, options
+        # Execute the work-stack guard itself: the last seed fits; the next
+        # must report exhaustion without overwriting the adjacent stage buffer.
+        syms = symbols(SIERRA / 'wildbits/wbdecode.map')
+        base, database = 0xE000, 0x2000
+        d.write(base, (SIERRA / 'wildbits/wbdecode').read_bytes())
+        d.write(database, bytes(syms['size']))
+        d.write(database + syms['resourcebase'], database.to_bytes(2, 'big'))
+        d.write(database + syms['filltop'], (4094).to_bytes(2, 'big'))
+        guard = database + syms['fillstack'] + 4096
+        d.write(guard, b'guard')
+        for expected_error in (0, syms['E$MemFul']):
+            d.write(0x1DF0, bytes.fromhex('1d00'))
+            d.breakpoint(0x1D00)
+            d.regs(cc=0x50, dp=database >> 8, s=0x1DF0,
+                   pc=base + syms['FillPush'], a=159, b=167)
+            d.call('c')
+            assert d.regs()['pc'] == 0x1D00
+            assert d.read(database + syms['filltop'], 2) == b'\x10\x00'
+            assert d.read(database + syms['decodeerror'], 1)[0] == expected_error
+            assert d.read(guard, 5) == b'guard'
+            assert d.read(guard - 2, 2) == bytes([159, 167])
+            d.breakpoint(0x1D00, False)
+        print('PASS: native F0-F8 mapped decoding matches every CoCo reference pixel at two code/data locations; immutable code, bounded malformed/unsupported input')
     finally:
         if d:
             d.s.close()
+        bootrom.close()
         emulator.terminate()
         try:
             emulator.wait(timeout=2)

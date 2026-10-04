@@ -26,7 +26,11 @@ class Debugger:
         self.s = socket.create_connection(('127.0.0.1', port), 5)
         self.s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self.s.settimeout(15)
-        self.call('?')
+        try:
+            self.call('?')
+        except (OSError, ConnectionError):
+            self.s.close()
+            raise
 
     def call(self, command):
         data = command.encode()

@@ -1,4 +1,4 @@
-* Private state for the line-command decoder; include before resource-data.
+* Private state for the mapped picture decoder; include before resource-data.
 DrawColor           rmb       1
 DrawMask            rmb       1
 PosInitX            rmb       1
@@ -16,7 +16,25 @@ ScratchA9           rmb       1
 ScratchAA           rmb       1
 ScratchAB           rmb       1
 ScratchAC           rmb       1
-decodedbase         rmb       2
+picturefirst        rmb       2
+pictureowned        rmb       1
+picturemapped       rmb       1
+picturepage         rmb       1
+picturemapbase      rmb       2
+pictureoffset       rmb       2
+pictureoutoffset    rmb       2
+picturechunk        rmb       2
+pictureexiterror    rmb       1
+filltop             rmb       2
+fillmask            rmb       1
+filltarget          rmb       1
+fillx               rmb       1
+filly               rmb       1
+fillleft            rmb       1
+fillright           rmb       1
+fillneighbor        rmb       1
+fillrun             rmb       1
+filldirection       rmb       1
 decodeend           rmb       2
 decodeerror         rmb       1
 decodevalue         rmb       1

@@ -5,12 +5,24 @@ import re
 import socket
 import subprocess
 import time
+import tempfile
 from check_instances import Debugger, symbols
 
 ROOT = Path(__file__).resolve().parents[1] / 'wildbits'
 
 
-def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zero_read=False, seek_error=False, write_error=False, module='wbres'):
+def idle_rom(path):
+    # A deterministic BRA loop prevents ROM-free startup from running random
+    # RAM instructions while the GDB thread is attaching. Tests switch to
+    # all-RAM mode before loading any routine under test.
+    data = bytearray([0x12] * 32768)
+    data[:2] = b'\x20\xfe'
+    data[-2:] = b'\x80\x00'
+    Path(path).write_bytes(data)
+    return str(path)
+
+
+def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zero_read=False, seek_error=False, write_error=False, module='wbres', map_failure=0, allocation_error=False, unmap_error=False, window=0x8000, terminal=True):
     syms = symbols(ROOT / (module + '.map'))
     calls = {base + int(m[1], 16): int(m[2], 16) for m in re.finditer(
         r'^([0-9A-F]{4}) 103F([0-9A-F]{2}).*os9', (ROOT / (module + '.list')).read_text(), re.M)}
@@ -24,6 +36,9 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
     d.regs(pc=base + syms['start'], s=database + syms['size'] - 256,
            dp=database >> 8, u=database, x=argv, cc=0x50)
     paths, output, nextpath = {}, bytearray(), 3
+    owned = mapped = False
+    maps = 0
+    unmap_failed = False
     for _ in range(20000):
         d.call('c')
         r = d.regs()
@@ -31,10 +46,41 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
         updates = {'pc': r['pc'] + 3, 'cc': r['cc'] & ~1}
         if service == syms['F$Exit']:
             assert not paths, f'leaked file paths: {paths}'
+            assert not mapped and not owned, 'leaked picture allocation/mapping'
             assert d.read(base, len(code)) == code, 'native module modified its code/tables'
             for address in calls:
                 d.breakpoint(address, False)
             return r['b'], bytes(output)
+        elif service == syms['I$GetStt'] and r['b'] == syms['SS.Opt']:
+            assert r['a'] == 0
+            d.write(r['x'], bytes([0 if terminal else 1]) + bytes(31))
+        elif service == syms['I$SetStt'] and r['b'] == 0xD4:
+            assert r['a'] == 0 and r['x'] == 4 and not owned
+            if allocation_error:
+                updates.update(cc=r['cc'] | 1, b=syms['E$MemFul'])
+            else:
+                owned = True
+                updates['x'] = 0x30
+        elif service == syms['I$SetStt'] and r['b'] == 0xD5:
+            assert owned and not mapped and r['x'] == 0x30 and r['u'] == 4
+            owned = False
+        elif service == syms['F$MapBlk']:
+            assert owned and not mapped and r['b'] == 1 and 0x30 <= r['x'] < 0x34
+            maps += 1
+            if maps == map_failure:
+                updates.update(cc=r['cc'] | 1, b=syms['E$MemFul'])
+            else:
+                d.write(0xFFA8 + window // 8192, bytes([r['x']]))
+                mapped = True
+                updates['u'] = window
+        elif service == syms['F$ClrBlk']:
+            assert mapped and r['b'] == 1 and r['u'] == window
+            if unmap_error and not unmap_failed:
+                unmap_failed = True
+                updates.update(cc=r['cc'] | 1, b=syms['E$MemFul'])
+            else:
+                d.write(0xFFA8 + window // 8192, bytes([window // 8192]))
+                mapped = False
         elif service == syms['I$Open']:
             name = d.read(r['x'], 160).split(b'\r')[0].decode()
             if name not in files:
@@ -64,6 +110,7 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
             del paths[r['a']]
         elif service == syms['I$Write']:
             assert not paths, 'output before complete resource validation/close'
+            assert not mapped, 'file write with foreign mapping live'
             if write_error:
                 updates.update(cc=r['cc'] | 1, b=syms['E$Write'])
             else:
@@ -71,7 +118,7 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
                 output.extend(d.read(r['x'], count))
                 updates['y'] = count
         else:
-            assert service == syms['I$WritLn']  # usage text stays on stderr
+            assert service in (syms['I$WritLn'], syms['F$Icpt'])  # usage text stays on stderr
         d.regs(**updates)
     raise AssertionError('probe did not exit')
 
@@ -88,9 +135,11 @@ def main():
     with socket.socket() as reservation:
         reservation.bind(('127.0.0.1', 0))
         port = reservation.getsockname()[1]
+    bootrom = tempfile.NamedTemporaryFile(prefix='sierra-cpu-idle-', suffix='.rom')
+    idle_rom(bootrom.name)
     emulator = subprocess.Popen(['xroar', '-machine', 'coco3', '-ui', 'null', '-ao', 'null',
-        '-ram', '2048', '-gdb', '-gdb-port', str(port), '-timeout', '300',
-        '-no-bas', '-no-extbas', '-no-altbas'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        '-ram', '2048', '-no-ratelimit', '-gdb', '-gdb-port', str(port), '-timeout', '300',
+        '-no-bas', '-extbas', bootrom.name, '-no-altbas'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     d = None
     try:
         time.sleep(.1)
@@ -131,6 +180,7 @@ def main():
     finally:
         if d:
             d.s.close()
+        bootrom.close()
         emulator.terminate()
         try:
             emulator.wait(timeout=2)

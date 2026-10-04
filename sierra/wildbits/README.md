@@ -169,47 +169,72 @@ real-driver MAME test is described in [MAME.md](MAME.md). Native MAME reads
 matched both an 8 KB diagnostic resource from `vol.15` at `$23456` and all
 2,752 bytes of King's Quest I picture 1 at `vol.1` offset `$E24A`.
 
-## Native line-command decoder
+## Native mapped picture decoder
 
-`wbdecode` is the first native command-decoding probe. It includes the same
-resource loader as `wbres`, then produces a 26,880-byte combined buffer:
+`wbdecode` includes the same native resource loader as `wbres`, then decodes
+picture commands into a 26,880-byte color/priority buffer. From an interactive
+Wild Bits terminal:
 
 ```text
 wbdecode /s0/diagnostic-game 1 >/s0/combined.bin
 wbpic /s0/combined.bin
 ```
 
-This currently accepts only `$F0` through `$F7` and the `$FF` terminator:
-color/priority enable and disable, X/Y corners, absolute lines, and relative
-lines. Fill (`$F8`) and pen (`$F9`/`$FA`) commands return an error before any
-output is written. Ordinary game pictures usually require those commands;
-this is not yet a complete picture decoder or a playable interpreter.
+When invoking it from a shell script, give it terminal input explicitly:
+`wbdecode /s0/diagnostic-game 1 </term >/s0/combined.bin`. Use the appropriate
+`/vtN` for another terminal. The program uses its own stdin path for graphics
+allocation and checks that it is an SCF device before allocation. A startup
+script's disk-file stdin is rejected: RBF SetStt codes are not graphics calls.
+It does not define a bitmap or change a terminal's palette or display layers.
 
-`decoder-lines.asm` converts the existing CoCo coordinate, Bresenham and
-line/plot routines, retaining their labels, rounding and clamping behavior.
-It uses private direct-page state and a private buffer-base pointer.
-`decoder-code.asm` provides bounded command reads and an immutable table of
-relative handler offsets; it never patches load addresses into shared code.
-Incomplete coordinate pairs, invalid colors, unknown commands and trailing
-bytes after the terminator are rejected. `resource-cli.asm` is shared by both
-probes; extracting it left `wbres` byte-for-byte unchanged.
+Commands `$F0` through `$F8` and the `$FF` terminator are supported: color and
+priority controls, corner/absolute/relative lines, and flood fill. Pen commands
+`$F9`/`$FA` and unknown commands are rejected before buffer output begins.
+Incomplete coordinates, invalid colors and bytes after the terminator also
+fail. Ordinary game pictures still need pen conversion; this is a decoder
+probe, not a playable interpreter.
 
-The decoder probe is 1,400 bytes and requests 36,322 bytes of process data,
-rounded to five 8 KB blocks. It deliberately keeps commands and the combined
-buffer resident for this first correctness comparison. **This is not the final
-engine memory layout:** the combined buffer and fill workspace must move behind
-bounded service windows before integration into the interpreter. No hardware
-registers or fixed CoCo buffer/stack addresses are used by this probe.
+`picture-memory.asm` allocates four consecutive physical blocks through
+`SS.GfxAlloc` and maps one block at a time through `F$MapBlk`. The current page
+is cached. `PicturePointer` accepts a logical byte offset and returns a pointer
+valid only until another mapping call; clients never retain it across pages.
+The line and plot routines use this boundary, including lines crossing an
+8 KB page. All four blocks are initialized; only the 26,880 picture bytes
+are exported. A private 512-byte staging buffer lets output unmap before
+`I$Write`, including partial writes.
 
-The differential CPU test compares complete buffers with the existing actual
-6809 CoCo renderer at two native code/data locations and verifies that the
-module's code/table bytes remain unchanged. The real-driver MAME diagnostic
-also produced an identical buffer through native OS/RBF calls. See
-[MAME.md](MAME.md) for the decoder test option.
+`decoder-fill.asm` uses scanline flood fill with a private 4,096-byte stack
+of 2,048 coordinate seeds. It paints a horizontal span and queues neighboring
+runs. Exhaustion returns `E$MemFul` instead of overwriting another buffer.
+It matches white color when color drawing is enabled, otherwise default
+priority 4 when only priority drawing is enabled, preserving CoCo semantics.
+The CPU stack stays in normal private process storage.
 
-The next steps are the mapped combined-buffer backend, bounded fill workspace,
-and pen commands, followed by real game picture comparisons and direct native
-presentation. A silent playable game follows those milestones.
+The module is 2,085 bytes and requests 14,073 bytes of process data (two 8 KB
+blocks), plus four owned picture blocks. Reserving one mapping window and
+the Wild Bits I/O region leaves a 40,192-byte code budget. The command buffer
+and bounded fill stack remain private resident data; this is still a probe
+layout, not the completed interpreter's memory budget. Dispatch offsets and
+code are immutable. No application hardware-register access is used.
+
+Normal success and error exits unmap and explicitly free the picture blocks.
+Abort/interrupt signals request a controlled error exit; cleanup retries once
+on failure and preserves the original error. The driver does not reclaim
+program-owned slabs automatically. Forced termination or persistent cleanup
+failure can therefore leave an allocation behind; an eventual interpreter
+needs to account for that ownership limit. Output errors can leave a partial
+file, so only use a successful decode as viewer input.
+
+Differential CPU checks cover the complete CoCo reference buffer, two native
+code/data locations, different window addresses, malformed input, service
+errors, immutable code and the fill-stack boundary. The MAME diagnostic runs
+on `/term` and `/vt1`, compares both outputs and requires an unchanged
+free-memory map. See [MAME.md](MAME.md) for reproduction.
+
+Next are pen commands, real game picture comparisons and direct native
+presentation, followed by interpreter integration. Performance optimization
+of mapped spans and fill remains to be measured; correctness does not prove
+performance parity with the original CoCo routines.
 
 ## Real game picture reference bridge
 
@@ -239,8 +264,8 @@ buffers are committed to the repository.
 Resource extraction validates the directory entry, volume header, stored
 length, and end marker. This first bridge supports plain resources up to one
 8 KB command window. Nibble-packed and LZW resources fail explicitly; they
-are not silently treated as plain bytes. Native Wild Bits resource loading,
-compression decoding, and mapped command rendering are still unimplemented.
+are not silently treated as plain bytes. Native resource loading and F0-F8 mapped command decoding now exist.
+Compression and pen decoding remain unimplemented.
 The viewer still takes a raw combined buffer, not a game directory.
 
 Validation includes visual inspection of the castle reference and execution

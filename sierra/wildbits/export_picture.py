@@ -16,6 +16,7 @@ import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tests'))
 from check_instances import Debugger, symbols as read_symbols
+from check_wbres import idle_rom
 
 
 def resource(game, number):
@@ -43,7 +44,22 @@ def resource(game, number):
     return payload, volume, offset
 
 
+class _StartupTimeout(socket.timeout):
+    pass
+
+
 def render(game, payload, assembler, defs):
+    # The headless XRoar GDB thread can time out during startup on macOS.
+    # Restart a bounded number of times; a persistent failure still fails.
+    for attempt in range(4):
+        try:
+            return _render_once(game, payload, assembler, defs)
+        except _StartupTimeout:
+            if attempt == 3:
+                raise
+
+
+def _render_once(game, payload, assembler, defs):
     root = Path(__file__).resolve().parents[1]
     with tempfile.TemporaryDirectory(prefix='sierra-picture-reference-') as temporary:
         work = Path(temporary)
@@ -60,18 +76,22 @@ def render(game, payload, assembler, defs):
         with socket.socket() as reservation:
             reservation.bind(('127.0.0.1', 0))
             port = reservation.getsockname()[1]
+        bootrom = idle_rom(work / 'idle.rom')
         emulator = subprocess.Popen(['xroar', '-machine', 'coco3', '-ui', 'null', '-ao', 'null',
-            '-ram', '2048', '-gdb', '-gdb-port', str(port), '-timeout', '120',
-            '-no-bas', '-no-extbas', '-no-altbas'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            '-ram', '2048', '-no-ratelimit', '-gdb', '-gdb-port', str(port), '-timeout', '120',
+            '-no-bas', '-extbas', bootrom, '-no-altbas'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         debugger = None
         try:
-            time.sleep(.1)
+            time.sleep(.01)
             for attempt in range(50):
                 try:
-                    debugger = Debugger(port)
+                    try:
+                        debugger = Debugger(port)
+                    except socket.timeout as error:
+                        raise _StartupTimeout(str(error)) from error
                     break
                 except ConnectionRefusedError:
-                    time.sleep(.1)
+                    time.sleep(.01)
             if debugger is None:
                 raise RuntimeError('XRoar debugger did not start')
             d = debugger

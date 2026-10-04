@@ -23,7 +23,7 @@ def main():
     parser.add_argument('--os9', default='os9')
     parser.add_argument('--game', type=Path, help='optional local game instead of generated diagnostic resource')
     parser.add_argument('--picture-number', type=int, default=1)
-    parser.add_argument('--decode', action='store_true', help='test wbdecode F0-F7 combined-buffer output instead of wbres commands')
+    parser.add_argument('--decode', action='store_true', help='test wbdecode F0-F8 mapped combined-buffer output instead of wbres commands')
     args = parser.parse_args()
     out = args.output.resolve()
     out.mkdir(parents=True, exist_ok=False)
@@ -53,7 +53,7 @@ def main():
                  f'vol.{volume}': (args.game / f'vol.{volume}').read_bytes()}
     elif args.decode:
         from check_wbdecode import pictures
-        payload = list(pictures())[2]
+        payload = list(pictures())[4]
         number, volume, offset = 1, 1, 32
         files = {Path(name).name: data for name, data in fixture(payload).items()}
     else:
@@ -66,7 +66,14 @@ def main():
     expected = payload
     if args.decode:
         expected = render(ROOT.parent / 'kingsquest1', payload, shutil.which('lwasm.orig') or shutil.which('lwasm'), ROOT.parents[2] / 'nitros9/defs')
-    script = f'load utilpak1\nload {module}\n{module} /s0/game {number} >/s0/commands.bin\necho WBRES-DONE >/s0/wbres-done\n'
+    if args.decode:
+        script = ('load utilpak1\nload wbdecode\nload grfdrv256\niniz /vt1\n'
+                  'mfree >/s0/free-before\n'
+                  f'wbdecode /s0/game {number} </term >/s0/commands.bin\n'
+                  f'wbdecode /s0/game {number} </vt1 >/s0/commands-vt1.bin\n'
+                  'mfree >/s0/free-after\necho WBRES-DONE >/s0/wbres-done\n')
+    else:
+        script = f'load utilpak1\nload {module}\n{module} /s0/game {number} >/s0/commands.bin\necho WBRES-DONE >/s0/wbres-done\n'
     install('startup', script.encode(), text=True)
     install('feu.startup', b'bootos9 /s0/OS9Boot\n', 'FEU/startup', text=True)
     # Installations can extend a sparse image. Apply the mount-size rule last.
@@ -76,12 +83,12 @@ def main():
     lua.write_text('''frames = 0
 sub = emu.add_machine_frame_notifier(function()
  frames = frames + 1
- if frames == 1600 then manager.machine.video:snapshot(); manager.machine:exit() end
+ if frames == 7200 then manager.machine.video:snapshot(); manager.machine:exit() end
 end)
 ''')
     command = [str(args.mame.resolve()), 'wbjr2', '-bios', 'turbo', '-rompath', str(roms.parent),
                '-hard', str(disk), '-skip_gameinfo', '-video', 'none', '-sound', 'none', '-nothrottle',
-               '-autoboot_script', str(lua), '-seconds_to_run', '40', '-snapshot_directory', str(out / 'snap'),
+               '-autoboot_script', str(lua), '-seconds_to_run', '130', '-snapshot_directory', str(out / 'snap'),
                '-cfg_directory', str(out / 'cfg'), '-nvram_directory', str(out / 'nvram')]
     (out / 'command.json').write_text(json.dumps(command, indent=2) + '\n')
     with (out / 'mame.log').open('w') as log:
@@ -90,6 +97,11 @@ end)
     result = out / 'commands.bin'
     os9('copy', f'{disk},commands.bin', result)
     assert result.read_bytes() == expected, 'native output differs from reference'
+    if args.decode:
+        second = out / 'commands-vt1.bin'
+        os9('copy', f'{disk},commands-vt1.bin', second)
+        assert second.read_bytes() == expected, 'second terminal output differs'
+        assert os9('list', f'{disk},free-before') == os9('list', f'{disk},free-after'), 'picture blocks leaked after two terminal runs'
     print(f'PASS: {module} with real Wild Bits OS/RBF, picture {number}, vol.{volume}@{offset:#x}, {len(expected)} output bytes')
     print(f'SHA256: {hashlib.sha256(expected).hexdigest()}; artifacts: {out}')
 

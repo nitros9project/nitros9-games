@@ -1,6 +1,16 @@
 * Shared probe argument/output body. Owning module supplies state and help.
 start               stu       <resourcebase
                     clr       <resourceopen
+                    ifne      DECODE_PICTURE
+                    clr       <pictureowned
+                    clr       <picturemapped
+                    clr       <decodeerror
+                    pshs      x
+                    leax      DecodeIntercept,pcr
+                    os9       F$Icpt
+                    lbcs      Exit
+                    puls      x
+                    endc
                     lbsr      SkipSpaces
                     stx       <argdirectory
 FindNumber          lda       ,x+
@@ -48,6 +58,8 @@ LoadResource        ldx       <argdirectory
                     ifne      DECODE_PICTURE
                     lbsr      DecodeLines
                     bcs       Exit
+                    lbsr      PictureWrite
+                    bra       Exit
                     endc
                     stx       <resourcepointer
                     sty       <resourceremaining
@@ -69,7 +81,18 @@ WriteMore           lda       #1
                     std       <resourceremaining
                     bne       WriteMore
                     clrb
-Exit                os9       F$Exit
+Exit                equ       *
+                    ifne      DECODE_PICTURE
+                    stb       <pictureexiterror
+                    lbsr      PictureRelease
+                    bcc       PictureExitResult
+                    tst       <pictureexiterror
+                    bne       PictureExitRetry
+                    stb       <pictureexiterror
+PictureExitRetry    lbsr      PictureRelease
+PictureExitResult   ldb       <pictureexiterror
+                    endc
+                    os9       F$Exit
 WriteBad            ldb       #E$BMode
                     bra       Exit
 ArgumentsBad        leax      help,pcr

@@ -55,7 +55,7 @@ are not separate processes intended to form the eventual game interpreter.
 `wbpic.asm` owns one OS-9 module and exercises combined-buffer presentation.
 `wbres.asm` owns another small test module and includes `resource-data.asm`
 and `resource-code.asm`. `wbdecode.asm` now includes those same resource routines
-directly, together with converted line-command bodies. It does not fork
+directly, together with converted command, line, fill and mapped-storage bodies. It does not fork
 `wbres` or reimplement its loader. `resource-cli.asm` supplies shared probe
 argument/output handling. Each executable still has exactly one module header.
 
@@ -64,13 +64,14 @@ The current flow is:
 ```text
 Native resource step: picDir + vol.N -> LoadPicture -> AGI command bytes
 Presentation step:   combined color/priority buffer -> wbpic -> terminal bitmap
-Native decoder:     F0-F7 command bytes -> private combined buffer (probe layout)
-Still to convert:    mapped storage, fill and pen commands, interpreter integration
+Native decoder:     F0-F8 command bytes -> owned physical buffer, one mapped window
+Still to convert:    pen commands, compression, direct presentation and interpreter integration
 ```
 
-The host renderer continues to provide the expected combined buffer while
-the native decoder is converted. The line decoder now has private state,
-bounded reads and immutable relative dispatch. Mapped-buffer access and bounded
-fill workspace remain to be resolved before importing the remaining `shdw`
-body. Merely linking that fixed-address renderer would recreate the problem
-the portability work is intended to remove.
+The host renderer supplies the reference while the native decoder is converted.
+The decoder has private state, bounded reads and immutable relative dispatch.
+Mapped picture storage and bounded scanline fill now replace fixed CoCo buffer
+and stack addresses. The private command buffer and fill stack still consume
+two process blocks; integration must budget interpreter state alongside them.
+Pen conversion and direct presentation remain before a full picture path.
+The old fixed-address `shdw` body cannot simply be linked into the new module.

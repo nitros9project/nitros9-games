@@ -1,4 +1,4 @@
-* Native line-command decoder probe, not the full AGI picture decoder.
+* Native mapped picture decoder probe, not the full AGI picture decoder.
                     nam       wbdecode
                     use       defsfile
 DECODE_PICTURE      equ       1
@@ -11,7 +11,8 @@ argnumber           rmb       2
 argdigit            rmb       1
                     use       decoder-data.asm
                     use       resource-data.asm
-decodedbuffer       rmb       160*168
+fillstack           rmb       4096
+picturestage        rmb       512
                     rmb       1024
 size                equ       .
                     mod       eom,name,Prgrm+Objct,ReEnt+1,start,size
@@ -21,6 +22,8 @@ name                fcs       /wbdecode/
                     use       resource-code.asm
                     use       decoder-code.asm
                     use       decoder-lines.asm
+                    use       picture-memory.asm
+                    use       decoder-fill.asm
 help                fcc       /Usage: wbdecode game-directory picture-number >combined-file/
                     fcb       C$CR
                     emod
