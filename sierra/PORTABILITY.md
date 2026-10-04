@@ -790,8 +790,11 @@ background/foreground notifications, and keeps signal state private. Its
 signal handler addresses fields through intercepted U rather than DP.
 Native CPU checks cover distinct module/data addresses, different map-return
 addresses, span boundaries, short reads, malformed files, cleanup failures,
-terminal identity, and visibility flags. Actual driver shadowing and two-terminal
-restoration still require target hardware validation. See
+terminal identity, and visibility flags. A separate `wbjr2` MAME test now runs
+the actual OS/graphics driver: it verifies every displayed pixel, two-terminal
+picture restoration, independent exit, relaunch, and an unchanged free-memory
+map after two launch/quit cycles. The diagnostic pair and King's Quest I
+reference both passed. Physical hardware validation remains outstanding. See
 [wildbits/README.md](wildbits/README.md) for exact build/run instructions and
 the acceptance checklist. The CoCo binaries continue to match `83e5fb4`.
 

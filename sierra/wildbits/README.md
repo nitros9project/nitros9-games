@@ -29,8 +29,9 @@ and the published [Joust graphics](https://github.com/jfed6000/JoustF256/blob/ma
 and [platform backend](https://github.com/jfed6000/JoustF256/blob/main/src/platform.a).
 The viewer requires visibility registration to succeed; it does not silently
 continue with a driver lacking multi-terminal notification support. Start it
-from the visible terminal. Actual initial-visibility notification and graphics
-restoration must be verified on the installed driver/core.
+from the visible terminal. Initial visibility and graphics restoration still
+need validation on physical hardware; MAME checks below cover the specified
+emulator/driver versions.
 
 ## Build and run
 
@@ -83,7 +84,8 @@ not assume the interrupted DP. Hidden instances wait using `F$Sleep` before
 continuing block/row work or presentation. Visibility registration is released
 during cleanup. Background cleanup still uses the terminal driver: its
 per-terminal shadowing contract is essential to avoid altering the visible
-terminal. The CPU tests cannot establish that driver behavior.
+terminal. The CPU tests cannot establish that driver behavior; the MAME test
+below exercises the actual driver during ordinary switching and foreground exit.
 
 The viewer balances the opened input file, bitmap ownership, and mapping
 lifetime on the tested success/error paths. It restores text mode on its own
@@ -109,13 +111,23 @@ assembled 6809 module with mocked OS-9/graphics calls. It checks:
 - Terminal name matching, background waiting, registration release, and
   refusal to free an existing bitmap.
 
-This is CPU/service-contract testing, **not a Wild Bits emulator or hardware
-run**. For multi-terminal acceptance, launch the viewer on two separate
+`make check` is CPU/service-contract testing. The separate MAME check below
+uses the real Wild Bits OS and drivers. For physical hardware acceptance,
+launch the viewer on two separate
 terminals, switch between them during loading and while displayed, verify each
 palette/picture returns correctly, quit one, and verify the other remains
 intact. Repeat both launches and check free RAM and bitmap availability.
 Also test mismatch/redirection, missing services, signal cancellation while
 hidden, and the actual keyboard behavior on the target.
+
+## Wild Bits MAME checks
+
+The real-driver `wbjr2` MAME test passed with two viewers on `/term` and `/vt1`:
+every displayed pixel, restoration after switching, independent exit,
+relaunch, and an unchanged free-memory map after two launch/quit cycles.
+Both diagnostic buffers and the King's Quest I reference were exercised.
+See [MAME.md](MAME.md) for setup, the repeatable test command, exact revisions,
+and remaining hardware acceptance work.
 
 The next port milestone is connecting the existing picture/resource decoder
 to this native buffer/presentation path, then running one silent game before
@@ -156,6 +168,8 @@ The viewer still takes a raw combined buffer, not a game directory.
 Validation includes visual inspection of the castle reference and execution
 of the native viewer against every pixel of that real buffer under mocked
 services, alongside its diagnostic/error/terminal tests. This proves the
-reference-to-presentation pipeline at the CPU level, not actual Wild Bits
-graphics output or a playable game. The bridge also establishes a concrete
-reference for comparing the eventual native decoder.
+reference-to-presentation pipeline at the CPU level. The separate MAME run
+also verified every displayed pixel of this buffer through the real Wild Bits
+driver on `/vt1`, including restoration after terminal switching. A playable
+game and physical hardware validation remain future milestones. The bridge
+establishes a concrete reference for comparing the eventual native decoder.
