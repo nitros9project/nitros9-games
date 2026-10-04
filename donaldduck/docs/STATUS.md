@@ -1,11 +1,15 @@
 # Validation status — 2026-10-04
 
-Validated DONALD: **7,794 bytes**, OS-9 CRC **$56A281**, private data **$6C00**.
+Validated DONALD: **7,983 bytes**, OS-9 CRC **$FE401A**, private data **$6C00**.
 Code, data, activity, and two mapping windows fit the eight logical blocks.
 The local validated 2 MiB Jr2 image contained this module and the combined
 assets. Boot firmware and the base OS disk must be supplied separately.
 
 ## Passed
+
+- Exact packed-row cache: unchanged images convert no rows; a changed byte
+  converts one row, with full pixel equality and 8 KiB boundary checks.
+  Cache allocation is included in emulator free-memory before/after checks.
 
 - Updated bitmap conversion: paired stores, unrolled copy loops, exact pixel
   verification and physical Return/Space key-field boot/run/quit testing.

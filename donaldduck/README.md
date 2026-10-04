@@ -36,6 +36,7 @@ Requires NitrOS-9 Level 2 and a modern graphics driver providing:
 
 - `SS.AScrn`, `SS.BmBlk`, `SS.FScrn`, `SS.Palet`, `SS.PScrn`, `SS.DScrn`;
 - `SS.ClutWrite` ($CF), `SS.LiveKeys` ($C6), `SS.WSig` ($E1);
+- `SS.GfxAlloc` ($D4), `SS.GfxFree` ($D5) for one 8 KiB frame-cache block;
 - the fixed PSG sound register at $FF92 described in the porting guide.
 
 Copy the seven modules in `build/game/CMDS` into `/s0/CMDS`, with executable
@@ -80,6 +81,10 @@ Add `--activity produce` (or `airport`, `railroad`, `playground`, `stores`,
 builds only change the route from the town into the original activity entry;
 they are not the shipping module. Add `--record-audio` to capture emulator
 sound. To test the supplied release disk, use `--installed` with that disk.
+
+The adapter caches the exact last displayed packed rows and only converts
+and copies changed rows. Input polling still presents sprite changes, while
+idle polling avoids full-screen conversion. Emulator speed stays at 1×.
 
 ## Validation and limits
 

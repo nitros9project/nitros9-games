@@ -17,3 +17,6 @@ FX_BM equ 8
 FX_GRF equ 4
 FX_TXT equ 1
 FT_OMIT equ $ff
+
+SS.GfxAlloc equ $d4
+SS.GfxFree equ $d5

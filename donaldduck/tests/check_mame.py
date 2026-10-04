@@ -61,11 +61,11 @@ if shots[frames] then manager.machine.screens[":screen"]:snapshot(%s .. shots[fr
 local town_test=%s
 if town_test then
  if frames==9200 then arrows["Right"]:set_value(1) end
- if frames==9280 then arrows["Right"]:clear_value() end
+ if frames==9220 then arrows["Right"]:clear_value() end
  if frames==9600 then arrows["Up"]:set_value(1) end
- if frames==9680 then arrows["Up"]:clear_value() end
+ if frames==9620 then arrows["Up"]:clear_value() end
  if frames==10000 then arrows["Down"]:set_value(1) end
- if frames==10080 then arrows["Down"]:clear_value() end
+ if frames==10020 then arrows["Down"]:clear_value() end
  if frames==9000 or frames==9400 or frames==9800 or frames==10200 then
   local n,sx,sy=0,0,0
   for y=220,320 do

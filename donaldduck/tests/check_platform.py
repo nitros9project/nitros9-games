@@ -19,17 +19,35 @@ try:
  else:raise RuntimeError("XRoar debugger did not start")
  d.write(0xffdf,b"\0");d.write(0xff90,b"\x4c");d.write(0xff91,b"\x01");d.write(0xffa8,bytes(range(8)))
  for address in (0xff92,0xff93,0xff01,0xff03,0xff21,0xff23):d.write(address,b"\0")
- def run(base,db,screen,error=0):
+ def run(base,db,screen,error=0,cached=False,change=False):
   d.write(base,code);d.write(db,bytes(0x6c00));d.write(db+8,db.to_bytes(2,'big'))
   d.write(db+14,(db+0x3900).to_bytes(2,'big')+(db+0x5100).to_bytes(2,'big'))
   payload=bytes((i*37+i//32)&255 for i in range(6144));d.write(db+0x3900,payload);d.write(db+0x5100,bytes(v^255 for v in payload))
-  d.write(db+119,bytes([screen]));d.write(db+0x6a40,b'\x01\x00\x30')
-  frame=bytearray(81920);mapped=None;maps=0;stop=0x2100;stack=0xbff0;d.write(stack,stop.to_bytes(2,'big'));d.breakpoint(stop)
+  d.write(db+119,bytes([screen]));d.write(db+0x6a40,b'\x01\x00\x30');d.write(db+syms['Guard'],(0xe000).to_bytes(2,'big'));d.write(0xe000,bytes(6144))
+  source=bytearray(payload if not screen else bytes(v^255 for v in payload))
+  def expected_frame(data):
+   result=bytearray([1])*76800
+   for y in range(192):
+    pixels=bytes(c for v in data[y*32:(y+1)*32] for shift in (6,4,2,0) for c in [1+((v>>shift)&3)]*2)
+    result[(y+24)*320+32:(y+24)*320+288]=pixels
+   return result
+  frame=bytearray(81920)
+  if cached:
+   frame[:76800]=expected_frame(source)
+   d.write(0xe000,source);d.write(db+syms['Cached'],b'\x01')
+   if change:
+    source[2571]^=255
+    d.write(db+(0x5100 if screen else 0x3900)+2571,bytes([source[2571]]))
+  rendered=0
+  if cached:d.breakpoint(base+syms['RenderRow'])
+  mapped=None;maps=0;stop=0x2100;stack=0xbff0;d.write(stack,stop.to_bytes(2,'big'));d.breakpoint(stop)
   for i in calls:d.breakpoint(base+i)
   d.regs(pc=base+syms['Present'],u=db+0x374c,dp=db>>8,s=stack,cc=0x50)
   for _ in range(100):
    d.call('c');r=d.regs()
    if r['pc']==stop:break
+   if cached and r['pc']==base+syms['RenderRow']:
+    rendered+=1;d.call('s');continue
    service=calls[r['pc']-base];u={'cc':r['cc']&~1,'pc':r['pc']+3}
    if service==0x4f:
     assert mapped is None and r['b']==1;maps+=1
@@ -38,8 +56,9 @@ try:
      mapped=r['x']-0x30;assert 0<=mapped<10
      d.write(0xc000,frame[mapped*8192:(mapped+1)*8192]);u['u']=0xc000
    elif service==0x50:
-    assert mapped is not None and r['u']==0xc000
-    frame[mapped*8192:(mapped+1)*8192]=d.read(0xc000,8192);mapped=None
+    if r['u']!=0xe000:
+     assert mapped is not None and r['u']==0xc000
+     frame[mapped*8192:(mapped+1)*8192]=d.read(0xc000,8192);mapped=None
    elif service==0x8e:pass
    elif service==0x8d and r['b']==0:d.write(r['x'],bytes(32))
    elif service==6:
@@ -51,13 +70,10 @@ try:
   d.breakpoint(stop,False)
   if not error:
    assert maps==10 and mapped is None
-   expected=bytearray([1])*76800
-   source=payload if not screen else bytes(v^255 for v in payload)
-   for y in range(192):
-    pixels=bytes(c for v in source[y*32:(y+1)*32] for shift in (6,4,2,0) for c in [1+((v>>shift)&3)]*2)
-    expected[(y+24)*320+32:(y+24)*320+288]=pixels
-   assert frame[:76800]==expected,'bitmap mismatch'
-  print('PASS',hex(base),hex(db),'screen',screen,'map failure',error)
+   assert frame[:76800]==expected_frame(source),'bitmap mismatch'
+   if cached:assert rendered==int(change), ('unexpected converted row count',rendered)
+  if cached:d.breakpoint(base+syms['RenderRow'],False)
+  print('PASS',hex(base),hex(db),'screen',screen,'map failure',error,'cached',cached,'change',change)
  def initialize(refused=False):
   base=0x100;db=0x2200;stop=0x2100;stack=0xbff0
   d.write(base,code);d.write(db,bytes(0x6c00));d.write(db+8,db.to_bytes(2,'big'));d.write(stack,stop.to_bytes(2,'big'))
@@ -73,9 +89,10 @@ try:
      if refused:u.update(cc=r['cc']|1,b=183)
      else:allocated=True;u['x']=99
     elif r['b']==0x8d:frees+=1
+    elif r['b']==0xd4:u['x']=64
    elif service==0x8d:
     assert r['b']==0xe4;u['x']=48
-   elif service==0x4f:assert r['x']==48 and r['b']==1;u['u']=0xe000
+   elif service==0x4f:assert r['x']==64 and r['b']==1;u['u']=0xe000
    else:raise AssertionError((service,r))
    d.regs(**u)
   else:raise AssertionError('init did not return')
@@ -85,7 +102,7 @@ try:
   for i in calls:d.breakpoint(base+i,False)
   d.breakpoint(stop,False)
  initialize();initialize(True)
- print('PASS initialization, upper guard window, existing-bitmap refusal')
+ print('PASS initialization, owned cache guard window, existing-bitmap refusal')
  def signals():
   base=0x100;db=0x2200;stop=0x2100;stack=0xbff0
   d.write(base,code);d.write(db,bytes(0x6c00));d.write(db+10,b'\x77');d.breakpoint(stop)
@@ -163,6 +180,8 @@ try:
  run(0x100,0x2200,0)
  run(0xa000,0x2000,1)
  run(0x100,0x2200,0,4)
+ run(0x100,0x2200,0,cached=True)
+ run(0xa000,0x2000,1,cached=True,change=True)
 finally:
  p.terminate()
  try:p.wait(timeout=5)

@@ -21,6 +21,12 @@ Error equ $6a50
 Chunk equ $6a51
 Guard equ $6a55
 Aborted equ $6a57
+CacheBlock equ $6a58
+CacheOwned equ $6a5a
+Cached equ $6a5b
+CachePtr equ $6a5c
+Dirty equ $6a5e
+Skip equ $6a5f
 OriginalTerm equ $0f00
 
 NativeStart
@@ -69,9 +75,18 @@ ni1     clr ,x+
         lbcs InitError
         ldu <8
         stx First,u
+* Own one cache block and retain its mapping as the upper guard window.
+        lda #1
+        ldb #SS.GfxAlloc
+        ldx #1
+        syscall I$SetStt
+        lbcs InitError
+        ldu <8
+        stx CacheBlock,u
+        inc CacheOwned,u
 * Reserve the highest free logical window. If it is $E000, its last
 * $300 bytes are fixed I/O, so it cannot carry a complete bitmap block.
-* Keep it mapped without touching its bytes; use a lower service window.
+* Its first 6 KB hold packed frame history; use a lower bitmap window.
         ldb #1
         syscall F$MapBlk
         lbcs InitError
@@ -171,6 +186,8 @@ Visible
         beq psel
         ldx <16
 psel    stx Source,u
+        ldd Guard,u
+        std CachePtr,u
         clr Row,u
         clr Row+1,u
         clr Index,u
@@ -180,6 +197,44 @@ psel    stx Source,u
         lbcs RuntimeError
 NextRow
         ldu <8
+        clr Skip,u
+        ldd Row,u
+        cmpd #24
+        blo BorderRow
+        cmpd #216
+        bhs BorderRow
+* Compare exact packed bytes with the last visible frame; update the cache.
+        ldx Source,u
+        pshs x
+        ldy CachePtr,u
+        clr Dirty,u
+        ldb #32
+CompareRow
+        lda ,x+
+        cmpa ,y
+        beq SameByte
+        sta ,y
+        inc Dirty,u
+SameByte
+        leay 1,y
+        decb
+        bne CompareRow
+        sty CachePtr,u
+        puls x
+        tst Cached,u
+        beq RenderRow
+        tst Dirty,u
+        bne RenderRow
+        leax 32,x
+        stx Source,u
+        bra SkipRow
+BorderRow
+        tst Cached,u
+        beq RenderRow
+SkipRow
+        inc Skip,u
+        lbra CopyRow
+RenderRow
         leax RowBuf,u
         ldy #40
         ldd #$0101
@@ -264,6 +319,8 @@ UseCount
         ldd 2,s
         subd Chunk,u
         std 2,s
+        tst Skip,u
+        bne SkipSpan
         ldy Chunk,u
         ldu Dest,u
         ldx ,s
@@ -279,13 +336,22 @@ CopyPixel
         std ,u++
         leay -8,y
         bne CopyPixel
+        bra SpanDone
+SkipSpan
+        ldd Chunk,u
+        ldx ,s
+        leax d,x
+        ldu Dest,u
+        leau d,u
+        ldy #0
+SpanDone
         tfr u,d
         ldu <8
         std Dest,u
         stx ,s
         puls x,y
         cmpy #0
-        bne CopySpan
+        lbne CopySpan
         ldd Row,u
         addd #1
         std Row,u
@@ -293,6 +359,9 @@ CopyPixel
         lblo NextRow
         lbsr Unmap
         lbcs RuntimeError
+        ldu <8
+        lda #1
+        sta Cached,u
         lda #1
         ldb #SS.DScrn
         ldx #FX_BM+FX_GRF
@@ -373,7 +442,17 @@ c1      ldu <8
         ldu <8
         ldd #0
         std Guard,u
-c2      tst Owned,u
+c2      tst CacheOwned,u
+        beq FreeBitmap
+        lda #1
+        ldb #SS.GfxFree
+        ldx CacheBlock,u
+        ldu #1
+        syscall I$SetStt
+        ldu <8
+        clr CacheOwned,u
+FreeBitmap
+        tst Owned,u
         beq cdone
         lda #$9f
         sta >$ff92

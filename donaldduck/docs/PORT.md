@@ -57,20 +57,27 @@ only gives the assembler module-relative offsets; no runtime address is forced.
 | DONALD, including adapter | 1 |
 | Private data, $6C00 bytes | 4 |
 | Largest activity module, 6,314 bytes | 1 |
-| Reserved upper mapping | 1 |
+| Packed-frame cache / upper guard mapping | 1 |
 | Bitmap service mapping | 1 |
 | Total | 8 |
 
 F$MapBlk chooses the highest free logical hole. $E000 is a possible result,
 but its last $300 bytes decode fixed I/O rather than ordinary RAM. A complete
 8 KB copy through that window corrupts MMU, interrupt, and display registers.
-The adapter therefore maps a bitmap block once as a guard, never accesses its
-bytes, and retains it until exit. Actual bitmap work uses a second one-block
-window below $E000. A guard can share the bitmap’s physical block because
-mapping does not allocate or duplicate that RAM. Actual mappings always use
-the returned U, and spans split at the physical 8 KB boundary. An unexpected
-$E000 service window is unmapped and rejected. The bitmap itself is allocated
-outside logical space by the graphics driver.
+The adapter allocates one owned cache block with `SS.GfxAlloc` and retains its
+mapping as the upper guard. Only the first 6,144 bytes hold the last displayed
+packed image; even at $E000 they end at $F7FF, below the fixed-I/O region.
+Actual bitmap work uses a second one-block window below $E000. Exact 32-byte
+row comparisons update this cache; unchanged rows skip conversion and bitmap
+writes, including the already-filled borders. Changed rows retain the same
+pixel conversion and mapping-boundary handling as a full refresh. The initial
+refresh always writes the complete image. No checksum is used, so collisions
+cannot hide a sprite change. The cache mapping is released and its physical
+block freed with `SS.GfxFree` on ordinary cleanup and graphics errors.
+
+Actual mappings always use the returned U, and spans split at the physical
+8 KB boundary. An unexpected $E000 bitmap service window is unmapped and
+rejected. The bitmap and cache physical blocks live outside logical space.
 
 There are never more than two one-block service mappings. The guard remains
 while activity code is loaded; all maps are released before SS.FScrn.
