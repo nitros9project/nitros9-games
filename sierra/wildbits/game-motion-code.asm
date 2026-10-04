@@ -164,7 +164,10 @@ MotionTargetYPositive ldd     motiony,x
 MotionTargetYStore  ldd       ,s
                     std       motiony,x
 MotionTargetYReady  leas      2,s
-MotionCheckTerrain  lbsr      MotionTerrain
+MotionCheckTerrain  lbsr      GameCheckBlock
+                    tstb
+                    lbne      MotionNextObject
+                    lbsr      MotionTerrain
                     lbcs      MotionReturn
                     tstb
                     lbne      MotionNextObject

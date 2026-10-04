@@ -140,3 +140,31 @@ passed. The selectors add no runtime dispatch. Native
 probes remain in this directory; production backend routines belong under
 `objs/platform`, and routines shared by both platforms belong under
 `objs/shared`.
+
+### Command/state migration
+
+`objs/shared/agi-command-table.asm` is now the single 182-entry command catalog.
+Assembly macros expand it into the original CoCo handler/parameter descriptors
+or native operand-count bytes. There is no runtime conversion. The CoCo command
+table and interpreter binary remain byte-for-byte unchanged.
+
+`objs/shared/object-distance.asm` supplies the distance calculation to both
+interpreters. Each owner resolves its own object arguments, binds private
+scratch, and stores the result in its own variable table. Native command 69
+checks both object indices before calculating distance.
+
+`objs/shared/object-block-test.asm` supplies strict rectangle containment to
+both interpreters. The state-addressing choice is made at assembly time.
+Native commands 90/91 set/clear a process-private rectangle; movement compares
+old and proposed containment, stops a crossing, and honors ignore-blocks.
+CPU tests cover blocking, ignoring and clearing, alongside object-distance
+self/invisible cases. The expanded suite needs more emulated runtime than the
+previous suite, so its emulator limit is now 900 seconds; each synthetic logic
+still has an explicit bounded exit.
+
+Actual King's Quest I startup was also exercised with real resources, advancing
+mock clock values and Space/Return input. It reached command 99 (`sound`) and
+returned the explicit unsupported-service error 208 with complete cleanup.
+That run used mocked OS services, not MAME, and is not a gameplay acceptance.
+Sound remains the next observed startup blocker. Main interpreter state and
+command consolidation remain incomplete.

@@ -1,4 +1,5 @@
 GameInitialize      ldu       <resourcebase
+                    clr       gameblockenabled,u
                     clr       gamequit,u
                     clr       gameclockreset,u
                     lda       #$FF

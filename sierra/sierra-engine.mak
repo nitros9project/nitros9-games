@@ -57,3 +57,6 @@ shdw: ../objs/shared/picture-pen.asm ../objs/shared/picture-pen-tables.asm
 shdw: ../objs/shared/picture-line.asm
 mnln: ../objs/shared/object-direction-tables.asm
 shdw: ../objs/shared/picture-coordinates.asm
+mnln: ../objs/shared/object-distance.asm
+mnln: ../objs/shared/agi-command-table.asm
+mnln: ../objs/shared/object-block-test.asm

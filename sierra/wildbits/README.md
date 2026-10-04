@@ -413,7 +413,7 @@ Private 40-by-25 character/foreground/background cells survive picture
 refreshes. `display`/`display.v` support literal messages, colors and wrapping;
 format directives currently return an explicit unsupported error.
 
-`wbgame` currently uses 13,907 code bytes and 25,780 private bytes. Four private
+`wbgame` currently uses 14,187 code bytes and 25,785 private bytes. Four private
 blocks plus one mapping window leave a conservative 23,808-byte code budget.
 Physical memory also holds resource caches, two picture slabs and the terminal
 bitmap. These are distinct from the logical-address budget.
@@ -425,9 +425,11 @@ keyboard controllers, clock rollover, normal and move-to stepping,
 end-of-loop animation, directional keys, and ownership cleanup. These CPU tests
 mock OS services; real-driver MAME acceptance is reported separately.
 
-This is **not a playable game yet**. Follow/wander motion, blocking rectangles, vocabulary
+This is **not a playable game yet**. Follow/wander motion, vocabulary
 parsing, formatted messages/dialogs, menu interaction, sound playback and
-remaining game commands still need integration. Menu construction and replay
+remaining game commands still need integration. Native blocking-rectangle
+commands now use the same containment routine as CoCo, with private native
+state; blocking, ignoring and clearing passed CPU tests. Menu construction and replay
 records are bounded state components, not completed menu UI or save/restore.
 The original `objs/wildbits_engine.asm` remains untouched and unbuilt.
 

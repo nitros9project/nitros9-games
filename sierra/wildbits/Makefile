@@ -61,3 +61,6 @@ wbdecode wbrun wbgame: ../objs/shared/picture-line.asm ../objs/platform/picture-
 wbrun wbgame: ../objs/platform/presentation.asm
 wbgame: ../objs/shared/object-direction-tables.asm
 wbdecode wbrun wbgame: ../objs/shared/picture-coordinates.asm
+wbexec wbgame: ../objs/shared/object-distance.asm
+wbexec wbgame: ../objs/shared/agi-command-table.asm
+wbgame: ../objs/shared/object-block-test.asm

@@ -3,6 +3,12 @@
 These are body includes used by both the CoCo modules and native Wild Bits
 owners. They allocate no state and contain no OS-9 module header.
 
+- `agi-command-table.asm`: one command catalog, expanded into CoCo handler
+  descriptors or native operand-count bytes at assembly time.
+- `object-distance.asm`: visible-object Manhattan distance with saturation;
+  owners supply private scratch and result-store adapters.
+- `object-block-test.asm`: strict rectangle containment, with owner-selected
+  state addressing at assembly time.
 - `picture-coordinates.asm`: common coordinate clamping and command-byte
   detection, with assembly-time contiguous/bounded input selection.
 - `object-direction-tables.asm`: movement-direction to view-loop selection.

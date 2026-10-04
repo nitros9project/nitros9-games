@@ -15,7 +15,7 @@ def main():
         binary = temp / 'vmtest'
         subprocess.run(['lwasm.orig', '--6809', '--format=os9',
             '--pragma=pcaspcr,nosymbolcase,condundefzero',
-            '-I' + str(ROOT / 'wildbits'), '-I' + str(ROOT.parent.parent / 'nitros9/defs'),
+            '-I' + str(ROOT / 'wildbits'), '-I' + str(ROOT / 'objs'), '-I' + str(ROOT.parent.parent / 'nitros9/defs'),
             '--map=' + str(binary) + '.map', '-o', str(binary),
             str(ROOT / 'tests/logic-harness.asm')], check=True)
         syms = symbols(Path(str(binary) + '.map'))

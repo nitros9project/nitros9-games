@@ -23,7 +23,7 @@ def main():
         f'/game/vol.{volume}': (game / f'vol.{volume}').read_bytes(),
     }
     with tempfile.TemporaryDirectory(prefix='sierra-game-') as temp:
-        d, emulator = start_cpu(idle_rom(Path(temp) / 'idle.rom'))
+        d, emulator = start_cpu(idle_rom(Path(temp) / 'idle.rom'), timeout=900)
         try:
             d.write(0xffdf, b'\0')
             d.write(0xff90, b'\x4c')
@@ -86,17 +86,23 @@ def main():
                     next((i for i, (a,b) in enumerate(zip(frame, expected_frame)) if a != b), None))
             # Repeated cycles must move the ego and stop precisely at a target.
             # An end-of-loop animation must set its completion flag as well.
-            for mode in ('normal', 'move', 'animation', 'arrow', 'backspace', 'wall', 'land', 'water'):
+            for mode in ('normal', 'move', 'animation', 'arrow', 'backspace', 'wall', 'land', 'water', 'block', 'ignoreblock', 'unblock'):
                 setup = bytes([3,0,1,24,0,25,0,33,0,41,0,0,
                     37,0,20,60,70,0,35,0,26])
-                if mode in ('normal', 'wall', 'land', 'water'):
+                if mode in ('normal', 'wall', 'land', 'water', 'block', 'ignoreblock', 'unblock'):
                     setup += bytes([3,6,3])
+                    if mode in ('block', 'ignoreblock', 'unblock'):
+                        setup += bytes([90,20,50,30,70])
+                        if mode == 'ignoreblock':
+                            setup += bytes([88,0])
+                        elif mode == 'unblock':
+                            setup += bytes([91])
                     if mode == 'land':
                         setup += bytes([65,0])
                     elif mode == 'water':
                         setup += bytes([64,0])
                     stop = bytes([255,1,250,3,255,2,0,134,1])
-                elif mode in ('arrow', 'backspace', 'wall', 'land', 'water'):
+                elif mode in ('arrow', 'backspace'):
                     setup += bytes([132])
                     stop = bytes([255,1,250,4,255,2,0,134,1])
                 elif mode == 'move':
@@ -106,7 +112,7 @@ def main():
                     setup += bytes([73,0,200])
                     stop = bytes([255,7,200,255,2,0,134,1])
                 script = bytes([255,7,11,255]) + len(setup).to_bytes(2,'little') + setup
-                script += bytes([1,250]) + stop + bytes([255,1,250,8,255,2,0,134,1,0])
+                script += bytes([69,0,0,248,69,0,1,249,1,250]) + stop + bytes([255,1,250,8,255,2,0,134,1,0])
                 logic = len(script).to_bytes(2,'little') + script
                 # Two 1x1 cels: red followed by green.
                 view = bytes([0,0,1,0,0,7,0,2,5,0,10,0,
@@ -131,10 +137,11 @@ def main():
                     keyboard=b'\x09' if mode == 'arrow' else (b'\x08' if mode == 'backspace' else b''),
                     key_sense=0x40 if mode == 'arrow' else 0)
                 assert not error and not output, (mode, error)
+                assert state['vmvariables'][248:250] == bytes([0,255]), 'shared object distance visibility/self cases'
                 ego = state['vmobjects'][:43]
-                if mode in ('backspace', 'wall', 'land'):
+                if mode in ('backspace', 'wall', 'land', 'block'):
                     assert ego[3:5] == bytes([20,60]), (mode, ego.hex())
-                elif mode in ('normal', 'arrow', 'water'):
+                elif mode in ('normal', 'arrow', 'water', 'ignoreblock', 'unblock'):
                     assert ego[3:5] == bytes([22,60]), (mode, ego.hex())
                 elif mode == 'move':
                     assert ego[3:5] == bytes([23,60]), (mode, ego.hex())
@@ -181,7 +188,7 @@ def main():
             assert not error and not output
             assert state['vmvariables'][250] == 2, 'controller did not reach the next logic cycle'
             assert state['vmvariables'][11] == 1, 'clock lost the second at minute rollover'
-            print('PASS: native picture/view composition matches every castle pixel and handles transparent/mirrored/clipped/occluded/erased sprites with persistent native text, repeated logic cycles, keyboard controllers, clock rollover, stepping, move-to completion, end-of-loop animation, arrows/backspace, one mapping and complete cleanup')
+            print('PASS: native picture/view composition matches every castle pixel and handles transparent/mirrored/clipped/occluded/erased sprites with persistent native text, repeated logic cycles, keyboard controllers, clock rollover, stepping, move-to completion, end-of-loop animation, arrows/backspace, shared object distance, blocking/ignoring/clearing rectangles, one mapping and complete cleanup')
         finally:
             d.s.close()
             emulator.terminate()

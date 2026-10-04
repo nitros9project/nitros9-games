@@ -495,211 +495,11 @@ CmdQuitReturn       rts
 *   LSB = parameter flag
 
 cmd_table
-CmdTableStart       fdb       NoopCmdsRet,$0000 *do nothing
-                    fdb       cmd_increment,$180 *increment
-                    fdb       cmd_decrement,$180 *decrement
-                    fdb       cmd_assignn,$280 *assign nn
-                    fdb       cmd_assignv,$2c0 *assign nv
-                    fdb       cmd_addn,$280 *add n
-                    fdb       cmd_addv,$2c0 *add v
-                    fdb       cmd_subn,$280 *sub n
-                    fdb       cmd_subv,$2c0 *sub v
-                    fdb       cmd_lindirectv,$2c0 *l indirect v
-                    fdb       cmd_rindirect,$2c0 *r indirect
-                    fdb       cmd_lindirectn,$280 *l indirect n
-
-                    fdb       CmdSetImpl,$100 *set
-                    fdb       CmdResetImpl,$100 *reset
-                    fdb       CmdToggleImpl,$100 *toggle
-                    fdb       CmdSetVImpl,$180 *set v
-                    fdb       CmdResetVImpl,$180 *reset v
-                    fdb       CmdToggleVImpl,$180 *toggle v
-
-                    fdb       cmd_new_room,$100 *new room
-                    fdb       cmd_new_room_v,$180 *new room v
-
-                    fdb       cmd_load_logics,$100 *load logics
-                    fdb       cmd_load_logics_v,$180 *load logics v
-                    fdb       cmd_call,$100 *call
-                    fdb       cmd_call_v,$180 *call v
-
-                    fdb       cmd_load_pic,$180 *load pic
-                    fdb       cmd_draw_pic,$180 *draw pic
-                    fdb       cmd_show_pic,$0000 *show pic
-                    fdb       cmd_discard_pic,$180 *discard overlay
-                    fdb       cmd_overlay_pic,$180 *animate obj
-
-                    fdb       CmdSaveGame,$0000 *show pri
-
-                    fdb       cmd_load_view,$100 *load view
-                    fdb       cmd_load_view_v,$180 *load view v
-                    fdb       cmd_discard_view,$100 *discard view
-
-                    fdb       CmdAnimateObj,$100 *animate obj
-                    fdb       CmdUnanimateAll,$0000 *unanumate all
-
-                    fdb       CmdDrawImpl,$100 *draw
-                    fdb       CmdEraseImpl,$100 *erase
-
-                    fdb       cmd_position,$300 *position
-                    fdb       cmd_position_v,$360 *position v
-                    fdb       cmd_get_position,$360 *get position
-                    fdb       cmd_reposition,$360 *reposition
-
-                    fdb       cmd_set_view,$200 *set view
-                    fdb       cmd_set_view_v,$240 *set view v
-                    fdb       cmd_set_loop,$200 *set loop
-                    fdb       cmd_set_loop_v,$240 *set loop v
-
-                    fdb       CmdFixLoop,$100 *fix loop
-                    fdb       CmdReleaseLoop,$100 *release loop
-
-                    fdb       cmd_set_cel,$200 *set cel
-                    fdb       cmd_set_cel_v,$240 *set cel v
-                    fdb       cmd_last_cel,$240 *last cel
-                    fdb       cmd_current_cel,$240 *current cel
-                    fdb       cmd_current_loop,$240 *current loop
-                    fdb       cmd_current_view,$240 *current view
-                    fdb       cmd_number_of_loops,$240 *number of loops
-
-                    fdb       cmd_set_priority,$200 *set priority
-                    fdb       cmd_set_priority_v,$240 *set priority v
-                    fdb       cmd_release_priority,$100 *release priority
-                    fdb       cmd_get_priority,$240 *get priority
-
-                    fdb       CmdStopUpdate,$100 *stop update
-                    fdb       CmdStartUpdate,$100 *start update
-                    fdb       CmdForceUpdate,$100 *force update
-
-                    fdb       cmd_ignore_horizon,$100 *ignore horizon
-                    fdb       cmd_observe_horizon,$100 *observe horizon
-                    fdb       cmd_set_horizon,$100 *set horizon
-                    fdb       cmd_obj_on_water,$100 *obj on water
-                    fdb       cmd_obj_on_land,$100 *obj on land
-                    fdb       cmd_obj_on_anything,$100 *obj on anything
-
-                    fdb       CmdIgnoreObjects,$100 *ignore objects
-                    fdb       CmdObserveObjects,$100 *observe objects
-                    fdb       CmdDistance,$320 *distance
-                    fdb       CmdStopCycling,$100 *stop cycling
-                    fdb       CmdStartCycling,$100 *start cycling
-                    fdb       CmdNormalCycle,$100 *normal cycle
-                    fdb       CmdEndOfLoop,$200 *end of loop
-                    fdb       CmdReverseCycle,$100 *reverse cycle
-                    fdb       CmdReverseLoop,$200 *reverse loop
-                    fdb       CmdSetCycleTime,$240 *cycle time
-
-                    fdb       cmd_stop_motion,$100 *stop motion
-                    fdb       cmd_start_motion,$100 *start motion
-                    fdb       cmd_step_size_v,$240 *step size
-                    fdb       cmd_step_time,$240 *step time
-                    fdb       cmd_move_obj,$500 *move obj
-                    fdb       cmd_move_obj_v,$570 *move obj v
-                    fdb       cmd_follow_ego,$300 *follow ego
-                    fdb       cmd_wander,$100 *wander
-                    fdb       cmd_normal_motion,$100 *normal motion
-                    fdb       cmd_set_dir,$240 *set dir
-
-                    fdb       cmd_get_dir,$240 *get dir
-
-                    fdb       CmdIgnoreBlocks,$100 *ignore blocks
-                    fdb       CmdObserveBlocks,$100 *observe blocks
-                    fdb       CmdSetBlock,$400 *block
-                    fdb       CmdClearBlock,$0000 *unblock
-
-                    fdb       cmd_get,$100 *get
-                    fdb       cmd_get_v,$180 *get v
-                    fdb       cmd_drop,$100 *drop
-                    fdb       cmd_put,$200 *put
-                    fdb       cmd_put_v,$240 *put v
-                    fdb       cmd_get_room_v,$2c0 *get room v
-
-                    fdb       cmd_load_sound,$100 *load sound
-                    fdb       cmd_sound,$200 *sound
-                    fdb       NoopCmdsRet,$0000 *stop sound
-                    fdb       cmd_print,$100 *print
-                    fdb       cmd_print_v,$180 *print v
-                    fdb       cmd_display,$300 *display
-
-                    fdb       cmd_display_v,$3e0 *display v
-                    fdb       cmd_clear_lines,$300 *clear lines
-                    fdb       cmd_text_screen,$0000 *text screen
-                    fdb       cmd_graphics,$0000 *graphics
-                    fdb       cmd_set_cursor_char,$100 *set cursor char
-                    fdb       cmd_set_text_attribute,$200 *set text attribute
-                    fdb       cmd_shake_screen,$100 *shake screen
-                    fdb       cmd_config_screen,$300 *config screen
-                    fdb       cmd_status_line_on,$0000 *status line on
-                    fdb       cmd_status_line_off,$0000 *status line off
-
-                    fdb       cmd_set_string,$200 *set string
-                    fdb       cmd_get_string,$500 *get string
-                    fdb       cmd_word_to_string,$200 *word to string
-                    fdb       cmd_parse,$100 *parse
-                    fdb       CmdObjStatus,$240 *get num
-                    fdb       cmd_prevent_input,$0000 *prevent input
-                    fdb       cmd_accept_input,$0000 *accept inpur
-                    fdb       CmdSetKey,$300 *set key
-                    fdb       cmd_add_to_pic,$700 *add to pic
-                    fdb       cmd_add_to_pic_v,$7fe *add to pic v
-                    fdb       cmd_status,$0000 *status
-                    fdb       cmd_save_game,$0000 *save game
-                    fdb       cmd_restore_game,$0000 *restore game
-                    fdb       NoopCmdsRet,$0000 *init disk
-                    fdb       cmd_restart_game,$0000 *restart game
-                    fdb       cmd_show_obj,$100 *sow obj
-                    fdb       CmdRandomImpl,$320 *random
-                    fdb       cmd_program_control,$0000 *program control
-                    fdb       cmd_player_control,$0000 *player control
-                    fdb       CmdObjStatusV,$180 *obj status v
-                    fdb       CmdQuitImpl,$100 *quit
-                    fdb       CmdShowMemInfo,$0000 *show mem
-                    fdb       CmdPauseImpl,$0000 *pause
-                    fdb       cmd_echo_line,$0000 *echo line
-                    fdb       cmd_cancel_line,$0000 *cancel line
-                    fdb       cmd_init_joy,$0000 *init joy
-                    fdb       cmd_toggle_monitor,$0000 *toggle monitor
-                    fdb       CmdShowAgiInfo,$0000 *version
-                    fdb       cmd_script_size,$100 *script size
-                    fdb       cmd_set_game_id,$100 *set game id
-                    fdb       cmd_shake_screen,$100 *log
-                    fdb       cmd_set_scan_start,$0000 *set scan start
-                    fdb       cmd_reset_scan_start,$0000 *reset scan start
-                    fdb       cmd_reposition_to,$300 *reposition to
-                    fdb       cmd_reposition_to_v,$360 *reposition to v
-                    fdb       cmd_trace_on,$0000 *trace on
-                    fdb       cmd_trace_info,$300 *trace info
-                    fdb       cmd_print_at,$400 *print at
-                    fdb       cmd_print_at_v,$480 *print at v
-                    fdb       cmd_discard_view_v,$180 *discard view v
-                    fdb       cmd_clear_text_rect,$500 *clear text rect
-                    fdb       cmd_set_upper_left,$200 *set upper left
-                    fdb       cmd_set_menu,$100 *set menu
-                    fdb       cmd_set_menu_item,$200 *set menu item
-                    fdb       cmd_submit_menu,$0000 *submit menu
-                    fdb       cmd_enable_item,$100 *enable item
-                    fdb       cmd_disable_item,$100 *disable item
-                    fdb       cmd_menu_input,$0000 *menu input
-                    fdb       cmd_show_obj_v,$100 *show obj v
-                    fdb       NoopCmdsRet,$0000 *open dialogue
-                    fdb       NoopCmdsRet,$0000 *close dialogue
-                    fdb       cmd_multn,$280 *mult n
-                    fdb       cmd_multv,$2c0 *mult v
-                    fdb       cmd_divn,$280 *div n
-                    fdb       cmd_divv,$2c0 *div v
-                    fdb       cmd_close_window,$0000 *close window
-                    fdb       cmd_set_simple,$100 *set simple
-                    fdb       cmd_push_script,$0000 *push script
-                    fdb       cmd_pop_script,$0000 *pop script
-                    fdb       NoopCmdsRet,$0000 *hold key
-                    fdb       SetPriBaseStub,$100 *set pri base, via patch stub
-                    fdb       cmd_shake_screen,$180 *discard sound
-                    fdb       NoopCmdsRet,$0000 *do nothing
-                    fdb       cmd_show_menu,$100
-                    fdb       NoopCmdsRet,$0000 *do nothing
-                    fdb       cmd_hide_mouse,$400 *hide mouse
-                    fdb       cmd_set_upper_left,$2c0 *allow menu
-                    fdb       NoopCmdsRet,$0000 *do nothing
+AGI_COMMAND         macro
+                    fdb       \1,\2
+                    endm
+CmdTableStart       equ       *
+                    use       shared/agi-command-table.asm
 
 *
 *======================================================================
@@ -1230,20 +1030,11 @@ CmdObserveBlocks    lda       ,y+       load object number from script
 *   Tests whether a position falls inside the block rectangle, and checks for collisions between objects.
 *======================================================================
 *
-InBlockRect         leas      -$01,s    allocate one byte result on stack
-                    clr       ,s        assume not in block rect
-                    cmpa      >$024E    compare X to left edge
-                    bls       InBlockRectReturn branch if X is left of rect (not inside)
-                    cmpa      >$023C    compare X to right edge
-                    bcc       InBlockRectReturn branch if X is right of rect (not inside)
-                    cmpb      >$024F    compare Y to top edge
-                    bls       InBlockRectReturn branch if Y is above rect (not inside)
-                    cmpb      >$023D    compare Y to bottom edge
-                    bcc       InBlockRectReturn branch if Y is below rect (not inside)
-                    inc       ,s        inside rect: set result to 1
-InBlockRectReturn   lda       ,s        load result byte
-                    leas      $01,s     release stack byte
-                    rts
+BlockLeft           equ       $024E
+BlockRight          equ       $023C
+BlockTop            equ       $024F
+BlockBottom         equ       $023D
+                    use       shared/object-block-test.asm
 CheckObjCollision   clra                assume no collision
                     ldb       <$25,u    load object animation flags
                     bitb      #$02      test ignore-objects flag
@@ -1318,33 +1109,8 @@ CmdDistance         lda       ,y+       load first object number
                     mul                 compute byte offset into object table
                     addd      <$0030    add base address of object table
                     tfr       d,u       transfer second object address to U
-                    lda       #$FF      default distance = 255 (max)
-                    ldb       <$26,x    load first object state flags
-                    bitb      #$01      test drawn/visible flag
-                    beq       StoreDistResult branch if first object not visible
-                    ldb       <$26,u    load second object state flags
-                    bitb      #$01      test drawn/visible flag
-                    beq       StoreDistResult branch if second object not visible
-                    lda       <$1C,u    load second object width
-                    lsra                halve width to get center offset
-                    adda      $03,u     add Y to get center Y
-                    ldb       <$1C,x    load first object width
-                    lsrb                halve width to get center offset
-                    addb      $03,x     add Y to get center Y
-                    stb       <$0076    save first object center Y
-                    suba      <$0076    subtract to get delta Y
-                    bcc       CalcDistStoreX branch if delta is positive
-                    nega                negate to get absolute delta Y
-CalcDistStoreX      sta       <$0076    save absolute delta Y
-                    lda       $04,u     load second object X position
-                    suba      $04,x     subtract first object X
-                    bcc       CalcDistAddY branch if delta X is positive
-                    nega                negate to get absolute delta X
-CalcDistAddY        adda      <$0076    add absolute delta Y to get Manhattan distance
-                    bcs       DistMaxOut branch if sum overflowed (distance > 255)
-                    cmpa      #$FF      check if distance equals max
-                    bne       StoreDistResult branch if distance is not 255
-DistMaxOut          lda       #$FE      cap distance at 254
+ObjectDistanceScratch equ    $0076
+                    use       shared/object-distance.asm
 StoreDistResult     ldb       ,y+       load destination variable number
                     ldx       #$0431    point to variable table
                     abx                 index to destination variable

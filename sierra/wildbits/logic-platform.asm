@@ -2,6 +2,10 @@
 * remains an explicit error until the corresponding component is ported.
 VmPlatformCommand  ldb       <vmopcode
                     ifne      GAME_PRESENTATION
+                    cmpb      #90
+                    lbeq      GameBlockCommand
+                    cmpb      #91
+                    lbeq      GameBlockCommand
                     cmpb      #81
                     lbeq      GameMoveCommand
                     cmpb      #82
@@ -55,7 +59,9 @@ VmNotMenuCommand    cmpb      #61
                     blo       VmNotTerrainCommand
                     cmpb      #68
                     lbls      ObjectFlagCommand
-VmNotTerrainCommand cmpb      #70
+VmNotTerrainCommand cmpb      #69
+                    lbeq      ObjectDistanceCommand
+                    cmpb      #70
                     blo       VmNotCycleCommand
                     cmpb      #80
                     lbls      ObjectCycleCommand

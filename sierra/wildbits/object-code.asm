@@ -296,3 +296,28 @@ ObjectStartMotion   clr       $22,x
                     lda       #1
                     sta       <vmplayercontrol
                     lbra      ObjectDone
+
+* Resolve object operands separately from the shared distance calculation.
+ObjectDistanceCommand lbsr    ObjectAddress
+                    lbcs      ObjectReturn
+                    pshs      x
+                    lda       vmarguments+1,u
+                    cmpa      #64
+                    bhs       ObjectDistanceBad
+                    ldb       #43
+                    mul
+                    leau      vmobjects,u
+                    leau      d,u
+                    puls      x
+                    lbra      ObjectDistance
+ObjectDistanceBad   leas      2,s
+                    lbra      ObjectBadIndex
+ObjectDistanceScratch equ     vmtemp
+                    use       shared/object-distance.asm
+StoreDistResult     ldu       <resourcebase
+                    leax      vmvariables,u
+                    ldb       vmarguments+2,u
+                    abx
+                    sta       ,x
+                    clrb
+                    rts

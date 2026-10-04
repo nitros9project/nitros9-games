@@ -67,7 +67,7 @@ def main():
             obj = state['vmobjects'][63*43:64*43]
             assert obj[2:5] == bytes([63,159,167]) and obj[0x1a:0x1c] == bytes([159,167])
             assert obj[0x21] == 8 and obj[0x24:0x27] == bytes([15,0,0x30])
-            for body in [bytes([33,64,0]), bytes([54,0,16,0]), bytes([3,250,9,86,0,250,0])]:
+            for body in [bytes([69,64,0,250,0]), bytes([69,0,64,250,0]), bytes([33,64,0]), bytes([54,0,16,0]), bytes([3,250,9,86,0,250,0])]:
                 error, output = exercise(d, logic_files([body]), arguments=b'/game 0\r',
                     module='wbexec', blocks=None, multiple=True)
                 assert error and not output
