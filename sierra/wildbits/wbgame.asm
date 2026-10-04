@@ -29,6 +29,7 @@ argdigit            rmb       1
                     use       presentation-data.asm
 presentoffset       rmb       2
                     use       resource-data.asm
+                    use       game-motion-data.asm
                     use       game-text-data.asm
                     use       game-cycle-data.asm
                     use       game-render-data.asm
@@ -80,6 +81,8 @@ name                fcs       /wbgame/
                     use       game-background-code.asm
                     use       game-render-code.asm
                     use       game-cycle-code.asm
+                    use       game-motion-code.asm
+                    use       game-motion-command.asm
                     use       game-text-code.asm
                     use       ../objs/font-data.asm
                     use       decoder-code.asm

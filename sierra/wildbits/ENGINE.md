@@ -105,8 +105,9 @@ the existing decoder. `game-background-*` owns an immutable decoded background;
 `game-text-*` maintains private persistent text cells and draws the shared font;
 `game-cycle-*` owns scheduling, clock, controller polling and immediate quit.
 Each component calls OS services through the same one-window discipline.
-There is still no complete gameplay claim: movement, parsing, dialogs and sound
-remain explicit work, and unsupported commands do not become silent no-ops.
+The `game-motion-*` bodies add object stepping and cel updates without merging
+the sources into a second engine. There is still no complete gameplay claim:
+follow/wander motion, parsing, dialogs and sound remain explicit work, and unsupported commands do not become silent no-ops.
 
 Startup and cycle flags follow the existing AGI semantics, checked against
 [ScummVM's AGI cycle implementation](https://github.com/scummvm/scummvm/blob/master/engines/agi/cycle.cpp).

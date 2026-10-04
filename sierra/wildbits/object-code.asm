@@ -11,6 +11,12 @@ ObjectsClear        sta       ,x+
                     leax      vmobjects,u
                     clrb
 ObjectsSetId        stb       2,x
+                    lda       #1
+                    sta       ,x
+                    sta       1,x
+                    sta       $1E,x
+                    sta       $1F,x
+                    sta       $20,x
                     leax      43,x
                     incb
                     cmpb      #64
@@ -148,6 +154,9 @@ ObjectDirection     lbsr      ObjectArgumentValue
                     cmpb      #8
                     lbhi      ObjectBadIndex
                     stb       $21,x
+                    tst       vmarguments,u
+                    lbne      ObjectDone
+                    stb       vmvariables+6,u
                     lbra      ObjectDone
 ObjectGetDirection  lda       $21,x
 ObjectStoreResult   pshs      a
@@ -261,6 +270,7 @@ ObjectEndCycleMode  sta       $23,x
                     clr       ,y
                     lbra      ObjectDone
 ObjectCycleTime     lbsr      ObjectArgumentValue
+                    stb       $1F,x
                     stb       $20,x
                     lbra      ObjectDone
 ObjectStepSize      lbsr      ObjectArgumentValue

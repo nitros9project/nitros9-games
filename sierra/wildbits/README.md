@@ -413,7 +413,7 @@ Private 40-by-25 character/foreground/background cells survive picture
 refreshes. `display`/`display.v` support literal messages, colors and wrapping;
 format directives currently return an explicit unsupported error.
 
-`wbgame` currently uses 12,346 code bytes and 25,762 private bytes. Four private
+`wbgame` currently uses 13,907 code bytes and 25,780 private bytes. Four private
 blocks plus one mapping window leave a conservative 23,808-byte code budget.
 Physical memory also holds resource caches, two picture slabs and the terminal
 bitmap. These are distinct from the logical-address budget.
@@ -421,10 +421,11 @@ bitmap. These are distinct from the logical-address budget.
 `check_wbgame.py` executes native instructions and checks every castle pixel,
 transparent/mirrored/clipped/occluded/erased sprites, glyph colors and wrapping
 across framebuffer pages, persistence after `show.pic`, repeated logic cycles,
-keyboard controllers, clock rollover and ownership cleanup. These CPU tests
+keyboard controllers, clock rollover, normal and move-to stepping,
+end-of-loop animation, directional keys, and ownership cleanup. These CPU tests
 mock OS services; real-driver MAME acceptance is reported separately.
 
-This is **not a playable game yet**. Automatic motion/cel updates, vocabulary
+This is **not a playable game yet**. Follow/wander motion, blocking rectangles, vocabulary
 parsing, formatted messages/dialogs, menu interaction, sound playback and
 remaining game commands still need integration. Menu construction and replay
 records are bounded state components, not completed menu UI or save/restore.
@@ -437,3 +438,17 @@ exercise implemented picture commands; they are not the full King's Quest I
 logic. See [MAME.md](MAME.md). Two sprite-heavy games need additional memory;
 the guide's current RAM-capable kernel/core must be verified before claiming
 that configuration. An allocation failure is reported and cleaned up.
+
+The native `game-motion-*` components now step visible animated objects between
+logic cycles, choose directional loops, advance cels, and complete move-to and
+end-of-loop operations. Positions are checked against horizon/edge limits,
+picture control pixels and other object baselines. Those checks use the saved
+background rather than the priority values written by sprite composition.
+Normal stepping, exact move-to completion with restored step size, and animation
+completion passed CPU tests, as did impassable picture controls and
+land-only/water-only restrictions. Object collisions and edge cases still need
+dedicated coverage. Direction keys use `SS.KySns` after reading a character, so an ordinary
+Backspace does not become a left arrow. Function-key bindings recognize the
+four codes exposed by the current driver. This input path has CPU-test coverage;
+real-driver gameplay acceptance is still pending. Arrow autorepeat currently
+keeps the selected direction; stop/toggle behavior needs game-level verification.

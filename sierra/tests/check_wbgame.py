@@ -84,6 +84,65 @@ def main():
                                 expected_frame[address:address+2] = bytes([color+1]) * 2
                 assert frame == expected_frame, (mirrored, xpos, ypos, priority, erase,
                     next((i for i, (a,b) in enumerate(zip(frame, expected_frame)) if a != b), None))
+            # Repeated cycles must move the ego and stop precisely at a target.
+            # An end-of-loop animation must set its completion flag as well.
+            for mode in ('normal', 'move', 'animation', 'arrow', 'backspace', 'wall', 'land', 'water'):
+                setup = bytes([3,0,1,24,0,25,0,33,0,41,0,0,
+                    37,0,20,60,70,0,35,0,26])
+                if mode in ('normal', 'wall', 'land', 'water'):
+                    setup += bytes([3,6,3])
+                    if mode == 'land':
+                        setup += bytes([65,0])
+                    elif mode == 'water':
+                        setup += bytes([64,0])
+                    stop = bytes([255,1,250,3,255,2,0,134,1])
+                elif mode in ('arrow', 'backspace', 'wall', 'land', 'water'):
+                    setup += bytes([132])
+                    stop = bytes([255,1,250,4,255,2,0,134,1])
+                elif mode == 'move':
+                    setup += bytes([81,0,23,60,2,200])
+                    stop = bytes([255,7,200,255,2,0,134,1])
+                else:
+                    setup += bytes([73,0,200])
+                    stop = bytes([255,7,200,255,2,0,134,1])
+                script = bytes([255,7,11,255]) + len(setup).to_bytes(2,'little') + setup
+                script += bytes([1,250]) + stop + bytes([255,1,250,8,255,2,0,134,1,0])
+                logic = len(script).to_bytes(2,'little') + script
+                # Two 1x1 cels: red followed by green.
+                view = bytes([0,0,1,0,0,7,0,2,5,0,10,0,
+                    1,1,15,0x11,0,1,1,15,0x21,0])
+                resources = bytearray()
+                offsets = []
+                picture = b'\xff'
+                if mode == 'wall':
+                    picture = bytes([0xf2,0,0xf6,21,60,21,60,0xf3,0xff])
+                elif mode in ('land', 'water'):
+                    picture = bytes([0xf2,3,0xf6,21,60,22,60,0xf3,0xff])
+                for payload in (logic, picture, view):
+                    offsets.append(len(resources))
+                    resources.extend(b'\x12\x34\0' + len(payload).to_bytes(2,'little') * 2 + payload)
+                files = {'/game/vol.0': bytes(resources),
+                    '/game/logDir': b'\xff' * 3 + offsets[0].to_bytes(3,'big'),
+                    '/game/picDir': b'\xff' * 3 + offsets[1].to_bytes(3,'big'),
+                    '/game/viewDir': offsets[2].to_bytes(3,'big')}
+                error, output, state = exercise(d, files, module='wbgame', base=0xb000,
+                    database=0x1000, window=0x8000, blocks=None, multiple=True,
+                    firstblock=0x10, capture=True,
+                    keyboard=b'\x09' if mode == 'arrow' else (b'\x08' if mode == 'backspace' else b''),
+                    key_sense=0x40 if mode == 'arrow' else 0)
+                assert not error and not output, (mode, error)
+                ego = state['vmobjects'][:43]
+                if mode in ('backspace', 'wall', 'land'):
+                    assert ego[3:5] == bytes([20,60]), (mode, ego.hex())
+                elif mode in ('normal', 'arrow', 'water'):
+                    assert ego[3:5] == bytes([22,60]), (mode, ego.hex())
+                elif mode == 'move':
+                    assert ego[3:5] == bytes([23,60]), (mode, ego.hex())
+                    assert ego[0x1e] == 1 and ego[0x21] == 0 and ego[0x22] == 0
+                    assert state['vmflags'][200] == 1
+                else:
+                    assert ego[0x0e] == 1 and not (ego[0x26] & 0x20)
+                    assert state['vmflags'][200] == 1
             # display writes true 8-by-8 cells, including a row that straddles
             # an 8K frame page, and survives the next show.pic refresh.
             import re
@@ -122,7 +181,7 @@ def main():
             assert not error and not output
             assert state['vmvariables'][250] == 2, 'controller did not reach the next logic cycle'
             assert state['vmvariables'][11] == 1, 'clock lost the second at minute rollover'
-            print('PASS: native picture/view composition matches every castle pixel and handles transparent/mirrored/clipped/occluded/erased sprites with persistent native text, repeated logic cycles, keyboard controllers, clock rollover, one mapping and complete cleanup')
+            print('PASS: native picture/view composition matches every castle pixel and handles transparent/mirrored/clipped/occluded/erased sprites with persistent native text, repeated logic cycles, keyboard controllers, clock rollover, stepping, move-to completion, end-of-loop animation, arrows/backspace, one mapping and complete cleanup')
         finally:
             d.s.close()
             emulator.terminate()

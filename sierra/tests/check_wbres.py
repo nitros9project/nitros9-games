@@ -51,7 +51,7 @@ def start_cpu(bootrom, timeout=300):
     raise RuntimeError('XRoar debugger did not attach after four fresh starts')
 
 
-def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zero_read=False, seek_error=False, write_error=False, module='wbres', map_failure=0, allocation_error=False, unmap_error=False, window=0x8000, terminal=True, blocks=4, capture=False, multiple=False, firstblock=0x30, frame_capture=False, keyboard=b'', clock=(0,), bitmap_error=False):
+def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zero_read=False, seek_error=False, write_error=False, module='wbres', map_failure=0, allocation_error=False, unmap_error=False, window=0x8000, terminal=True, blocks=4, capture=False, multiple=False, firstblock=0x30, frame_capture=False, keyboard=b'', clock=(0,), bitmap_error=False, key_sense=0):
     syms = symbols(ROOT / (module + '.map'))
     calls = {base + int(m[1], 16): int(m[2], 16) for m in re.finditer(
         r'^([0-9A-F]{4}) 103F([0-9A-F]{2}).*os9', (ROOT / (module + '.list')).read_text(), re.M)}
@@ -98,6 +98,9 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
             assert not mapped
             if not keyboard:
                 updates.update(cc=r['cc'] | 1, b=syms['E$NotRdy'])
+        elif service == syms['I$GetStt'] and r['b'] == syms.get('SS.KySns'):
+            assert not mapped
+            updates.update(a=key_sense)
         elif service == syms['I$GetStt'] and r['b'] == syms['SS.Opt']:
             assert r['a'] == 0
             d.write(r['x'], bytes([0 if terminal else 1]) + bytes(31))

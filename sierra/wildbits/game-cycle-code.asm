@@ -51,6 +51,8 @@ GameResetControllers clr     ,x+
                     lbcs      GameCycleReturn
                     lbsr      GameReadClock
                     lbcs      GameCycleReturn
+                    lbsr      GameUpdateObjects
+                    lbcs      GameCycleReturn
                     lbsr      GamePollKeyboard
                     lbcs      GameCycleReturn
                     tst       <bitmapowned
@@ -124,8 +126,16 @@ GameReadKey         ldu       <resourcebase
                     lbcs      GameCycleReturn
                     cmpy      #1
                     bne       GameClockInvalid
+                    clra
+                    ldb       #SS.KySns
+                    os9       I$GetStt
+                    lbcs      GameCycleReturn
+                    ldu       <resourcebase
+                    sta       gamekeysense,u
+                    clr       gamekeyscan,u
                     lda       #1
                     sta       <vmhavekey
+                    lbsr      GameDirectionalKey
                     ldu       <resourcebase
                     ldb       <vmkeybyte
                     stb       vmvariables+19,u
@@ -137,7 +147,8 @@ GameKeyBinding      tfr       y,d
                     ldb       <vmkeybyte
                     cmpb      ,x
                     bne       GameNextBinding
-                    tst       1,x       ASCII binding, scan bindings separate
+                    lda       gamekeyscan,u
+                    cmpa      1,x
                     bne       GameNextBinding
                     ldb       2,x
                     leay      vmcontrollers,u
@@ -148,6 +159,38 @@ GameKeyBinding      tfr       y,d
                     clr       vmvariables+19,u
                     clrb
                     rts
+* Arrow codes overlap ordinary SCF control characters. Use the buffered
+* key-sense byte from the character just read to distinguish them.
+GameDirectionalKey  ldb       <vmkeybyte
+                    cmpb      #$B1
+                    blo       GameArrowKey
+                    cmpb      #$B4
+                    bhi       GameArrowKey
+                    subb      #$76                 F1..Shift-F2 -> scans 3B..3E
+                    stb       gamekeyscan,u
+                    clr       <vmkeybyte
+                    clrb
+                    rts
+GameArrowKey        leax      GameArrowTable,pcr
+GameArrowFind       lda       ,x
+                    beq       GameDirectionDone
+                    cmpa      <vmkeybyte
+                    bne       GameArrowNext
+                    lda       gamekeysense,u
+                    bita      1,x
+                    beq       GameDirectionDone
+                    tst       <vmplayercontrol
+                    beq       GameDirectionDone
+                    lda       2,x
+                    sta       vmvariables+6,u
+                    clr       <vmkeybyte
+                    clrb
+                    rts
+GameArrowNext       leax      3,x
+                    bra       GameArrowFind
+GameDirectionDone   clrb
+                    rts
+GameArrowTable      fcb       $0C,$08,1,$0A,$10,5,$08,$20,7,$09,$40,3,0
 GameNextBinding     leax      3,x
                     leay      1,y
                     bra       GameKeyBinding
