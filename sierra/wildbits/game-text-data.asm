@@ -4,6 +4,7 @@ textforegrounds     rmb      1000
 textbackgrounds     rmb      1000
 textpointer         rmb      2
 textindex           rmb      2
+textend             rmb      2
 textfontpointer     rmb      2
 textrow             rmb      1
 textcolumn          rmb      1

@@ -70,7 +70,7 @@ PresentPicture      lbsr      PictureUnmap
                     endc
                     lbcs      PresentFailure
                     inc       <registered
-                    clr       <blockindex
+PresentClearBitmap  clr       <blockindex
 clearblock          lbsr      foreground
                     lbcs      PresentFailure
                     lbsr      mapblock
@@ -334,3 +334,15 @@ PresentReleaseError tst       <errorcode
                     bne       PresentReleaseResult
                     stb       <errorcode
                     bra       PresentReleaseResult
+
+                    ifne      GAME_PRESENTATION
+* Modal overlays can cover pixels outside the game picture. Clear the whole
+* owned bitmap before restoring the picture and persistent text cells.
+RefreshPicture      lbsr      AssetUnmap
+                    lbcs      PresentFailure
+                    lbsr      PictureUnmap
+                    lbcs      PresentFailure
+                    tst       <bitmapowned
+                    lbeq      PresentPicture
+                    lbra      PresentClearBitmap
+                    endc

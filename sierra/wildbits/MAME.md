@@ -246,3 +246,30 @@ view and sound resources, discards/reloads views, calls cached logic twice and
 checks object position/direction/priority. Its 512-byte result hashes to
 `3d5134f1ae4380a2d74887b2f8e9fbacddc634300c0f3b03d7e65beca3e01ec3`;
 artifacts are `/tmp/sierra-native-vm-objects-final-v1`. Free RAM is unchanged.
+
+## Real-resource inventory checkpoint
+
+The final inventory/font build passed with unmodified King's Quest I files:
+
+```sh
+python3 ../tests/check_wbgame_mame.py \
+  --mame /tmp/sierra-wildbits-mame/mamed \
+  --disk /tmp/sierra-wildbits-os/recipes/wildbits/l2/l2_wildbitsjr2.dsk \
+  --firmware /tmp/sierra-wildbits-os/recipes/wildbits/feu \
+  --game ../kingsquest1 --module-file /tmp/wbgame-trace-inventory-final \
+  --output /tmp/sierra-real-kq1-inventory-ctrl-i-v20
+```
+
+That optional trace module is assembled from `wbgame.asm` with
+`-DGAME_TRACE=1`. The harness installs the generated `wbfont` in `CMDS` with
+read/execute attributes. It checks castle graphics, the inventory title's
+pixels against the shared font, dismissal, restored graphics, interrupt exit
+and the original 376 KB free-memory map. Ctrl-I supplies the game's ASCII Tab
+inventory binding; the ordinary Tab key was not reliably delivered by this
+MAME setup. This is not a claim of complete keyboard, parser, audio or gameplay
+acceptance. Later trace exits other than controlled abort (228) fail the test.
+
+The font/scratch change also passed the existing two-terminal interpreter
+regression in `/tmp/sierra-native-game-inventory-terminals-final-v3`: exact picture pixels,
+visibility switching, independent controller exits, relaunch and free-memory
+recovery. Those scripts remain picture-only diagnostics, not two full games.

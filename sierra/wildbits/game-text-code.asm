@@ -123,17 +123,21 @@ GameTextDecodeError ldb       <decodeerror
                     orcc      #1
                     rts
 
-GameDrawText        lbsr      AssetUnmap
+GameDrawText        ldx       <resourcebase
+                    clr       textindex,x
+                    clr       textindex+1,x
+                    clr       textrow,x
+                    clr       textcolumn,x
+                    ldd       #1000
+                    std       textend,x
+* A bounded contiguous cell range; caller sets index/end/row/column.
+GameDrawTextRange   lbsr      AssetUnmap
                     lbcs      GameTextReturn
                     lbsr      PictureUnmap
                     lbcs      GameTextReturn
                     lbsr      foreground
                     lbcs      GameTextReturn
                     ldx       <resourcebase
-                    clr       textindex,x
-                    clr       textindex+1,x
-                    clr       textrow,x
-                    clr       textcolumn,x
 GameTextCell        ldd       textindex,x
                     leay      textcharacters,x
                     lda       d,y
@@ -141,7 +145,7 @@ GameTextCell        ldd       textindex,x
                     anda      #$7F
                     ldb       #8
                     mul
-                    leay      BitmapFont,pcr
+                    leay      gamefont,x
                     leay      d,y
                     sty       textfontpointer,x
                     ldd       textindex,x
@@ -192,7 +196,7 @@ GameTextPixelColor  sta       textcolor,x
 GameTextNextCell    ldd       textindex,x
                     addd      #1
                     std       textindex,x
-                    cmpd      #1000
+                    cmpd      textend,x
                     bhs       GameTextDrawDone
                     inc       textcolumn,x
                     lda       textcolumn,x

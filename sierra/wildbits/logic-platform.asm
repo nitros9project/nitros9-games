@@ -2,6 +2,13 @@
 * remains an explicit error until the corresponding component is ported.
 VmPlatformCommand  ldb       <vmopcode
                     ifne      GAME_PRESENTATION
+                    cmpb      #124
+                    lbeq      InventoryStatus
+                    cmpb      #92
+                    blo       VmNotInventoryCommand
+                    cmpb      #97
+                    lbls      InventoryCommand
+VmNotInventoryCommand
                     cmpb      #84
                     lbeq      GameWanderCommand
                     cmpb      #99
@@ -160,6 +167,12 @@ VmPlatformUnsupported ldb     #E$UnkSvc
                     orcc      #1
                     rts
 VmPlatformTest      ldb       <vmopcode
+                    ifne      GAME_PRESENTATION
+                    cmpb      #9
+                    lbeq      InventoryTest
+                    cmpb      #10
+                    lbeq      InventoryTest
+                    endc
                     cmpb      #11
                     lbeq      ObjectPositionTest
                     cmpb      #16

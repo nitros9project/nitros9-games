@@ -212,7 +212,7 @@ The CPU stack stays in normal private process storage.
 
 The module is 2,507 bytes and requests 14,076 bytes of process data (two 8 KB
 blocks), plus four owned picture blocks. Reserving one mapping window and
-the Wild Bits I/O region leaves a 40,192-byte code budget. The command buffer
+the kernel block leaves a conservative 32,000-byte code budget. The command buffer
 and bounded fill stack remain private resident data; this is still a probe
 layout, not the completed interpreter's memory budget. Dispatch offsets and
 code are immutable. No application hardware-register access is used.
@@ -372,7 +372,7 @@ See [MAME.md](MAME.md) for the commands and hashes.
 
 Current probe modules: `wbasset` is 1,815 bytes with 9,989 private bytes;
 `wbexec` is 6,194 bytes with 17,069 private bytes. The latter now needs three
-private 8 KB blocks and one mapping window, leaving 32,000 code bytes.
+private 8 KB blocks and one mapping window, leaving 23,808 code bytes.
 
 ## Native game owner
 
@@ -413,8 +413,9 @@ Private 40-by-25 character/foreground/background cells survive picture
 refreshes. `display`/`display.v` support literal messages, colors and wrapping;
 format directives currently return an explicit unsupported error.
 
-`wbgame` currently uses 14,705 code bytes and 25,788 private bytes. Four private
-blocks plus one mapping window leave a conservative 23,808-byte code budget.
+`wbgame` currently uses 15,189 code bytes and 25,552 private bytes. Four private
+blocks, the kernel block and one mapping window leave a conservative
+15,616-byte code budget.
 Physical memory also holds resource caches, two picture slabs and the terminal
 bitmap. These are distinct from the logical-address budget.
 
@@ -463,3 +464,45 @@ sound streams. `wildbits-sound-code.asm` implements sound-off completion and
 stop commands without touching audio hardware. If a script re-enables flag 9, the backend reports audio unavailable once,
 clears flag 9 and completes the request in sound-off mode. This is sound-disabled operation, not
 audio playback support.
+
+## Inventory and native font installation
+
+Install **both** `wbgame` and the generated `wbfont` in the target execution
+directory. Give `wbfont` read/execute attributes, including public attributes
+when other users run games. The engine opens it with `READ.+EXEC.` and requires
+exactly 1,024 bytes. `make` exports those bytes directly from the canonical
+`objs/font-data.asm`. The CoCo font is unchanged; native glyph rendering reads
+a per-process copy loaded once at startup. Missing, short or oversized fonts
+fail with closed paths and owned-resource cleanup.
+
+The inventory backend is in `objs/platform/wildbits-inventory-{code,data}.asm`.
+It implements `get`, `get.v`, `drop`, `put`, `put.v`, `get.room.v`, `has`,
+`obj.in.room`, and `status`. The item table comes from the game's encrypted
+`object` file using its Avis Durgan key. Files above 2,048 bytes are explicitly
+rejected. The header must describe at most 256 complete three-byte entries;
+name pointers must follow the entry table and terminate within the file.
+Item locations are mutable private state: room 255 means carried, room zero
+means removed. `put` resolves its room variable; `put.v` also resolves the item
+variable. Names are reread for each status screen without resetting item rooms.
+
+`status` shows up to 21 item names per page. With flag 13 enabled, up/down moves
+the selection, ENTER stores the selected item in variable 25, and ESC cancels; cancellation stores 255. CTRL-C interrupts the game. Without flag 13, a key dismisses the
+screen. Foreground checks and ready polling leave no mapping live while waiting.
+The modal screen saves the 3,000 persistent text bytes and restores them after
+exit. It clears the complete owned bitmap before redrawing the picture, sprites
+and text, including pixels outside the 168-row picture region.
+
+CPU checks cover item transfers and predicates, selection/cancellation,
+modified rooms surviving status reload, full-frame restoration, malformed
+objects/fonts and cleanup. The real-resource MAME diagnostic now checks the
+inventory title against the shared font pixel by pixel, dismisses inventory,
+requires the castle scene to return, interrupts the process and compares free
+memory. This is inventory/startup acceptance, not parser, audio or full-game
+acceptance. See [MAME.md](MAME.md).
+
+Selection changes redraw only the old and new highlight rows. A page change
+redraws the list. The CPU suite tests selecting item 22, beyond the 21 visible
+rows. Recognized arrows are consumed while player control is disabled, so a
+Right arrow cannot accidentally trigger the game's ASCII Tab controller.
+The real-driver test sends Ctrl-I for that Tab binding; ordinary physical Tab
+delivery in this MAME setup remains a separate keyboard-driver/UI check.

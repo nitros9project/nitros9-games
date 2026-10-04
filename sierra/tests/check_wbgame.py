@@ -86,7 +86,7 @@ def main():
                     next((i for i, (a,b) in enumerate(zip(frame, expected_frame)) if a != b), None))
             # Repeated cycles must move the ego and stop precisely at a target.
             # An end-of-loop animation must set its completion flag as well.
-            for mode in ('normal', 'move', 'animation', 'arrow', 'backspace', 'wall', 'land', 'water', 'block', 'ignoreblock', 'unblock', 'wander'):
+            for mode in ('normal', 'move', 'animation', 'arrow', 'programarrow', 'backspace', 'wall', 'land', 'water', 'block', 'ignoreblock', 'unblock', 'wander'):
                 setup = bytes([3,0,1,24,0,25,0,33,0,41,0,0,
                     37,0,20,60,70,0,35,0,26])
                 if mode in ('normal', 'wall', 'land', 'water', 'block', 'ignoreblock', 'unblock'):
@@ -102,8 +102,8 @@ def main():
                     elif mode == 'water':
                         setup += bytes([64,0])
                     stop = bytes([255,1,250,3,255,2,0,134,1])
-                elif mode in ('arrow', 'backspace'):
-                    setup += bytes([132])
+                elif mode in ('arrow', 'programarrow', 'backspace'):
+                    setup += bytes([131,121,9,0,200] if mode == 'programarrow' else [132])
                     stop = bytes([255,1,250,4,255,2,0,134,1])
                 elif mode == 'wander':
                     setup += bytes([84,0])
@@ -115,6 +115,7 @@ def main():
                     setup += bytes([73,0,200])
                     stop = bytes([255,7,200,255,2,0,134,1])
                 script = bytes([255,7,11,255]) + len(setup).to_bytes(2,'little') + setup
+                script += bytes([255,12,200,255,2,0,12,219])
                 for test, flag in ((11,210),(16,211),(17,212),(18,213)):
                     script += bytes([255,test,0,0,0,159,167,255,2,0,12,flag])
                 script += bytes([255,7,180,11,0,0,0,159,167,255,2,0,12,214])
@@ -140,16 +141,18 @@ def main():
                 error, output, state = exercise(d, files, module='wbgame', base=0xb000,
                     database=0x1000, window=0x8000, blocks=None, multiple=True,
                     firstblock=0x10, capture=True,
-                    keyboard=b'\x09' if mode == 'arrow' else (b'\x08' if mode == 'backspace' else b''),
-                    key_sense=0x40 if mode == 'arrow' else 0)
+                    keyboard=b'\x09' if mode in ('arrow','programarrow') else (b'\x08' if mode == 'backspace' else b''),
+                    key_sense=0x40 if mode in ('arrow','programarrow') else 0)
                 assert not error and not output, (mode, error)
                 assert state['vmvariables'][248:250] == bytes([0,255]), 'shared object distance visibility/self cases'
                 assert state['vmflags'][210:214] == bytes([1]*4), 'position tests failed'
                 assert state['vmflags'][214] == 0, 'position test overwrote false AND accumulator'
+                if mode == 'programarrow':
+                    assert state['vmflags'][219] == 0, 'ignored Right arrow triggered an ASCII Tab controller'
                 ego = state['vmobjects'][:43]
                 if mode == 'wander':
                     assert ego[0x22] == 1 and ego[0x21] <= 8 and 6 <= ego[0x27] <= 50
-                elif mode in ('backspace', 'wall', 'land', 'block'):
+                elif mode in ('programarrow', 'backspace', 'wall', 'land', 'block'):
                     assert ego[3:5] == bytes([20,60]), (mode, ego.hex())
                 elif mode in ('normal', 'arrow', 'water', 'ignoreblock', 'unblock'):
                     assert ego[3:5] == bytes([22,60]), (mode, ego.hex())
@@ -201,6 +204,57 @@ def main():
                 cleared = bytearray(expected_frame)
                 cleared[24*320:32*320] = bytes([16 if clearcolor else 1]) * (8*320)
                 assert frame == cleared, 'clear.lines range/color/persistence'
+            # Inventory locations are private and names come from encrypted object data.
+            raw_object = bytes([6,0,2,6,0,255,10,0,1]) + b'key\0coin\0'
+            cipher = b'Avis Durgan'
+            encrypted = bytes(value ^ cipher[i % len(cipher)] for i,value in enumerate(raw_object))
+            for selected, keys, expected_item in ((False,b'x',0),(True,b'\n\r',1),(True,b'\x1b',255)):
+                script = bytes([3,239,1,3,238,3,92,1,97,239,240,95,1,238,97,239,241,255,10,1,238,255,2,0,12,221,93,239,97,239,242,255,9,1,255,2,0,12,222] +
+                    ([12,13] if selected else []) + [124,97,239,243,134,1,0])
+                logic = len(script).to_bytes(2,'little') + script
+                files = {'/game/logDir': b'\xff'*3 + bytes(3),
+                    '/game/vol.0': b'\x12\x34\0' + len(logic).to_bytes(2,'little')*2 + logic,
+                    '/game/object': encrypted}
+                error, output, state = exercise(d, files, module='wbgame', base=0xb000,
+                    database=0x1000, window=0x8000, blocks=None, multiple=True,
+                    firstblock=0x10, capture=True, frame_capture=True, keyboard=keys)
+                assert not error, ('inventory',error)
+                assert output == bytes([1])*76800, 'inventory left pixels outside the restored picture'
+                assert state['vmvariables'][240:243] == bytes([255,3,255]), 'inventory item locations'
+                assert state['vmvariables'][243] == 255, 'status reload reset modified item rooms'
+                assert state['vmflags'][221:223] == bytes([1,1]), 'inventory possession/room predicates'
+                if selected:
+                    assert state['vmvariables'][25] == expected_item, 'inventory selection/cancel'
+            # Selection must scroll beyond the 21 visible rows without losing IDs.
+            table = bytearray((69).to_bytes(2,'little') + bytes([23]))
+            names = bytearray()
+            for item in range(23):
+                table.extend((69+len(names)).to_bytes(2,'little') + bytes([255]))
+                names.extend(f'item {item}'.encode() + b'\0')
+            raw_object = table + names
+            encrypted = bytes(value ^ cipher[i % len(cipher)] for i,value in enumerate(raw_object))
+            script = bytes([12,13,124,134,1,0])
+            logic = len(script).to_bytes(2,'little') + script
+            files = {'/game/logDir': b'\xff'*3 + bytes(3),
+                '/game/vol.0': b'\x12\x34\0' + len(logic).to_bytes(2,'little')*2 + logic,
+                '/game/object': encrypted}
+            error, output, state = exercise(d, files, module='wbgame', base=0xb000,
+                database=0x1000, window=0x8000, blocks=None, multiple=True,
+                firstblock=0x10, capture=True, frame_capture=True, keyboard=b'\n'*22 + b'\r', os_call_limit=100000)
+            assert not error and state['vmvariables'][25] == 22, 'inventory scrolling lost item identity'
+            assert output == bytes([1])*76800, 'scrolled inventory left an overlay'
+            for bad_font in (b'', bytes(1023), bytes(1025)):
+                failed_files = {**files, 'wbfont': bad_font}
+                error, output, state = exercise(d, failed_files, module='wbgame', base=0xb000,
+                    database=0x1000, window=0x8000, blocks=None, multiple=True,
+                    firstblock=0x10, capture=True)
+                assert error, 'malformed font accepted'
+            for malformed in (b'bad', encrypted[:10], encrypted + bytes(4096)):
+                files['/game/object'] = malformed
+                error, output, state = exercise(d, files, module='wbgame', base=0xb000,
+                    database=0x1000, window=0x8000, blocks=None, multiple=True,
+                    firstblock=0x10, capture=True)
+                assert error, 'malformed object file accepted'
             for sound_enabled in (False, True):
                 script = bytes(([12,9] if sound_enabled else []) + [99,0,200,100,134,1,0])
                 logic = len(script).to_bytes(2,'little') + script
@@ -222,7 +276,7 @@ def main():
             assert not error and not output
             assert state['vmvariables'][250] == 2, 'controller did not reach the next logic cycle'
             assert state['vmvariables'][11] == 1, 'clock lost the second at minute rollover'
-            print('PASS: native picture/view composition matches every castle pixel and handles transparent/mirrored/clipped/occluded/erased sprites with persistent native text, repeated logic cycles, keyboard controllers, clock rollover, stepping, move-to completion, end-of-loop animation, arrows/backspace, shared object distance, blocking/ignoring/clearing rectangles, one mapping and complete cleanup')
+            print('PASS: native picture/view composition matches every castle pixel and handles transparent/mirrored/clipped/occluded/erased sprites with persistent native text, repeated logic cycles, keyboard controllers, clock rollover, stepping, move-to completion, end-of-loop animation, arrows/backspace, shared object distance, blocking/ignoring/clearing rectangles, inventory transfers/predicates/selection/scrolling, font validation, full-frame restoration, one mapping and complete cleanup')
         finally:
             d.s.close()
             emulator.terminate()

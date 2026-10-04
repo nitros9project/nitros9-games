@@ -95,6 +95,9 @@ def main():
     module = 'wbgame' if args.interpreter else ('wbrun' if args.native_game else 'wbpic')
     install(module, (args.module_file or (VIEWER / module)).read_bytes(), 'CMDS/' + module)
     os9('attr', f'{disk},CMDS/{module}', '-e', '-pe')
+    if args.interpreter:
+        install('wbfont', (VIEWER / 'wbfont').read_bytes(), 'CMDS/wbfont')
+        os9('attr', f'{disk},CMDS/wbfont', '-e', '-pe')
     bars = bytes((((4 + y // 14) & 15) << 4) | (x // 10) for y in range(168) for x in range(160))
     picture = args.picture.read_bytes() if args.picture else bytes(
         ((y // 14) << 4) | ((x // 10 + y // 7) & 15) for y in range(168) for x in range(160))

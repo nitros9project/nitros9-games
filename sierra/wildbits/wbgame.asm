@@ -35,15 +35,17 @@ presentoffset       rmb       2
                     use       game-motion-data.asm
                     use       game-text-data.asm
                     use       game-cycle-data.asm
+                    use       platform/wildbits-inventory-data.asm
                     use       game-render-data.asm
                     ifne      GAME_TRACE
 gametracestagebyte  rmb       1
                     endc
 assetinput          rmb       512
-picturestage        rmb       512
+* I/O, picture copies and message copies are separate phases.
+picturestage        equ       assetinput
 fillstack           rmb       4096
                     use       presentation-buffers.asm
-messagebuffer       rmb       512
+messagebuffer       equ       assetinput
 vmgameid            rmb       8
 vmvariables         rmb       256
 vmflags             rmb       256
@@ -58,7 +60,8 @@ vmstrings           rmb       480
 vmobjects           rmb       2752
 vmcache             rmb       448
 vmcallstack         rmb       128
-                    rmb       1024
+gamefont            rmb       1024
+                    rmb       512
 size                equ       .
                     mod       eom,name,Prgrm+Objct,ReEnt+1,start,size
 name                fcs       /wbgame/
@@ -84,13 +87,14 @@ name                fcs       /wbgame/
                     use       game-background-code.asm
                     use       game-render-code.asm
                     use       game-cycle-code.asm
+                    use       platform/wildbits-inventory-code.asm
                     use       platform/sound-code.asm
                     use       game-block-code.asm
                     use       game-wander-code.asm
                     use       game-motion-code.asm
                     use       game-motion-command.asm
                     use       game-text-code.asm
-                    use       ../objs/font-data.asm
+                    use       platform/wildbits-font-code.asm
                     use       decoder-code.asm
                     use       decoder-lines.asm
                     use       platform/wildbits-picture-memory.asm

@@ -196,11 +196,50 @@ simulated interrupt after two cycle waits returned error 228 and freed all
 resources. The captured scene included the castle and sprites. These OS calls
 were mocked; the capture is not driver acceptance.
 
-The real-driver diagnostic in `tests/check_wbgame_mame.py` displayed the real
-castle scene but subsequently exited at unsupported command 124 (`status`).
-The traced run `/tmp/sierra-real-kq1-mame-trace-v2` returned to the original free
-memory map. Its original scene-change assertion was insufficient because an
-exit to the console also changed the image; the harness now requires game
-colors in both captures. This diagnostic is currently expected to fail until
-status and the remaining gameplay behavior are implemented. No playable-game
-or full two-game acceptance is claimed.
+The earlier real-driver diagnostic reached the castle and stopped at command
+124 (`status`). The inventory implementation described below removes that
+blocker. Full gameplay and concurrent sprite-heavy games remain unverified.
+
+### Inventory state, scratch lifetimes and the font boundary
+
+The Wild Bits inventory backend loads real item names and initial locations,
+then keeps mutable locations private to the process. Its status screen rereads
+names without resetting those locations. The normal and selecting screens use
+the persistent text renderer; selecting uses AGI flag 13 and variable 25.
+Tests cover the file bounds, commands, predicates, scrolling logic, selection,
+cancellation and restoration. Only encrypted object files up to 2 KB are
+currently supported.
+
+The modal screen backs up all three text planes in `resourcecommands`. That
+8 KB workspace normally holds the LZW dictionary or decoded picture commands.
+No asset loading or picture decoding occurs while inventory is modal. The
+4 KB fill stack supplies the temporary object-name buffer (first 2 KB) and the
+item list (last 256 bytes); names are reloaded because subsequent picture fills
+can overwrite them. Item rooms remain in separate persistent storage.
+
+`assetinput`, `picturestage` and `messagebuffer` share one 512-byte private
+region. Resource decompression, picture/background copies and message copying
+are separate phases. Message consumers must finish copying before presentation
+or another asset load. These aliases save memory without introducing window
+mapping into hot rendering loops. They are process-local, never shared across
+instances. The owner reserves a 512-byte CPU stack area.
+
+Code growth exposed a startup stall on the real driver even while mocked CPU
+runs passed. A reduced-size diagnostic passed that point. The build budget now
+reserves the kernel's logical block as well as the service window. The native
+font is therefore a separate bundled asset exported from the same CoCo font
+source, loaded once into private memory. This preserves all 128 glyphs and the
+rendering loop while shrinking resident code by roughly 1 KB. Install `wbfont`
+in the execution directory with `wbgame`; startup rejects a missing or
+incorrect-length font. This is a resource boundary, not a second interpreter.
+
+Real MAME checks cover the inventory title glyphs, dismissal, restored castle,
+interrupt exit and unchanged free memory. CPU checks also require every pixel
+outside the picture to return to its prior blank state; modal dismissal clears
+the full bitmap before redrawing the saved scene and persistent text.
+
+Inventory cursor movement uses a bounded text-cell range to repaint the old
+and new rows. Only a visible-page change redraws all cells. The scrolling
+check selects item 22 and verifies the bitmap returns to its exact prior blank
+state. The input adapter also consumes recognized arrows during program
+control rather than exposing them as overlapping ASCII Tab/backspace keys.

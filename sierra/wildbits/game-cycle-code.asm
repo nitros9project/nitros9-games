@@ -2,6 +2,7 @@ GameInitialize      ldu       <resourcebase
                     ldd       #$ACE1
                     std       gamerandom,u
                     clr       gamesoundwarned,u
+                    clr       inventoryloaded,u
                     clr       gameblockenabled,u
                     clr       gamequit,u
                     clr       gameclockreset,u
@@ -183,11 +184,11 @@ GameArrowFind       lda       ,x
                     lda       gamekeysense,u
                     bita      1,x
                     beq       GameDirectionDone
+                    clr       <vmkeybyte          arrows never become ASCII Tab/backspace controllers
                     tst       <vmplayercontrol
                     beq       GameDirectionDone
                     lda       2,x
                     sta       vmvariables+6,u
-                    clr       <vmkeybyte
                     clrb
                     rts
 GameArrowNext       leax      3,x

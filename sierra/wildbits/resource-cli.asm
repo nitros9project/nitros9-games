@@ -111,7 +111,12 @@ NumberEnd           cmpa      #C$CR
                     lda       ,x
                     cmpa      #C$CR
                     lbne      ArgumentsBad
-LoadResource        ldx       <argdirectory
+LoadResource        equ       *
+                    ifne      GAME_PRESENTATION
+                    lbsr      GameFontLoad
+                    lbcs      Exit
+                    endc
+                    ldx       <argdirectory
                     ldy       <argnumber
                     ldu       <resourcebase
                     ifne      AGI_ASSET
