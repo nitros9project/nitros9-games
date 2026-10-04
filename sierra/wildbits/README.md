@@ -194,7 +194,7 @@ Incomplete coordinates, invalid colors and bytes after the terminator also
 fail. King’s Quest I picture 1 now decodes natively with the exact CoCo reference
 buffer. This is still a decoder probe, not a playable interpreter.
 
-`picture-memory.asm` allocates four consecutive physical blocks through
+`../objs/platform/wildbits-picture-memory.asm` allocates four consecutive physical blocks through
 `SS.GfxAlloc` and maps one block at a time through `F$MapBlk`. The current page
 is cached. `PicturePointer` accepts a logical byte offset and returns a pointer
 valid only until another mapping call; clients never retain it across pages.
@@ -247,9 +247,9 @@ wbrun /s0/kingsquest1 1
 
 Input and output must be the same Wild Bits terminal; any key exits this
 integration test. `presentation-data.asm`, `presentation-buffers.asm`,
-`presentation-helpers.asm`, `presentation-palette.asm` and `presentation.d`
+`../objs/platform/wildbits-presentation-helpers.asm`, `../objs/platform/wildbits-presentation-palette.asm` and `presentation.d`
 are shared with `wbpic`. Splitting these includes left `wbpic` byte-for-byte
-unchanged. `presentation-code.asm` copies source spans into private row staging,
+unchanged. `../objs/platform/wildbits-presentation.asm` copies source spans into private row staging,
 unmaps them, then maps the framebuffer. Source and destination never require
 two simultaneous service windows. The integrated module is 3,294 bytes and
 requests 14,646 bytes of private data.
@@ -452,3 +452,5 @@ Backspace does not become a left arrow. Function-key bindings recognize the
 four codes exposed by the current driver. This input path has CPU-test coverage;
 real-driver gameplay acceptance is still pending. Arrow autorepeat currently
 keeps the selected direction; stop/toggle behavior needs game-level verification.
+
+The shared-source/backend migration is described in [ENGINE.md](ENGINE.md#architecture-correction).

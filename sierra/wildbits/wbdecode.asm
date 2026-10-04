@@ -1,7 +1,9 @@
 * Native mapped AGI picture decoder probe, not the game interpreter.
                     nam       wbdecode
+WILDBITS            equ       1
                     use       defsfile
 DECODE_PICTURE      equ       1
+PICTURE_BOUNDED_READ equ       1
 cmd_start           equ       $F0
 x_max               equ       159
 y_max               equ       167
@@ -22,7 +24,7 @@ name                fcs       /wbdecode/
                     use       resource-code.asm
                     use       decoder-code.asm
                     use       decoder-lines.asm
-                    use       picture-memory.asm
+                    use       platform/wildbits-picture-memory.asm
                     use       decoder-fill.asm
                     use       decoder-pen.asm
 help                fcc       /Usage: wbdecode game-directory picture-number >combined-file/

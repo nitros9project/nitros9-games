@@ -1,7 +1,9 @@
 * Native resource-to-display integration, not yet the game interpreter.
                     nam       wbrun
+WILDBITS            equ       1
                     use       defsfile
 DECODE_PICTURE      equ       1
+PICTURE_BOUNDED_READ equ       1
 PRESENT_PICTURE     equ       1
                     use       presentation.d
 cmd_start           equ       $F0
@@ -27,12 +29,12 @@ name                fcs       /wbrun/
                     use       resource-code.asm
                     use       decoder-code.asm
                     use       decoder-lines.asm
-                    use       picture-memory.asm
+                    use       platform/wildbits-picture-memory.asm
                     use       decoder-fill.asm
                     use       decoder-pen.asm
-                    use       presentation-code.asm
-                    use       presentation-helpers.asm
-                    use       presentation-palette.asm
+                    use       platform/presentation.asm
+                    use       platform/wildbits-presentation-helpers.asm
+                    use       platform/wildbits-presentation-palette.asm
 help                fcc       /Usage: wbrun game-directory picture-number; any key exits/
                     fcb       C$CR
                     emod

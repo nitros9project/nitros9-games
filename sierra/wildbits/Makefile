@@ -1,23 +1,23 @@
 NITROS9DIR ?= $(abspath ../../../nitros9)
 LWASM ?= lwasm
 AFLAGS = --6809 --format=os9 --pragma=pcaspcr,nosymbolcase,condundefzero \
-	-I. -I$(NITROS9DIR)/defs
+	-I. -I../objs -I$(NITROS9DIR)/defs
 
 .PHONY: all budget clean
 all: wbpic wbres wbdecode wbrun wbasset wbexec wbgame budget
-wbpic: wbpic.asm presentation.d presentation-data.asm presentation-buffers.asm presentation-helpers.asm presentation-palette.asm defsfile $(NITROS9DIR)/defs/wildbits.d
+wbpic: wbpic.asm presentation.d presentation-data.asm presentation-buffers.asm ../objs/platform/wildbits-presentation-helpers.asm ../objs/platform/wildbits-presentation-palette.asm defsfile $(NITROS9DIR)/defs/wildbits.d
 	$(LWASM) $(AFLAGS) --list=wbpic.list --symbols -o $@ $<
 wbres: wbres.asm resource-cli.asm resource-data.asm resource-code.asm defsfile $(NITROS9DIR)/defs/wildbits.d
 	$(LWASM) $(AFLAGS) --list=wbres.list --map=wbres.map --symbols -o $@ $<
-wbdecode: wbdecode.asm decoder-data.asm decoder-code.asm decoder-lines.asm decoder-fill.asm decoder-pen.asm picture-memory.asm resource-cli.asm resource-data.asm resource-code.asm defsfile $(NITROS9DIR)/defs/wildbits.d
+wbdecode: wbdecode.asm decoder-data.asm decoder-code.asm decoder-lines.asm decoder-fill.asm decoder-pen.asm ../objs/platform/wildbits-picture-memory.asm resource-cli.asm resource-data.asm resource-code.asm defsfile $(NITROS9DIR)/defs/wildbits.d
 	$(LWASM) $(AFLAGS) --list=wbdecode.list --map=wbdecode.map --symbols -o $@ $<
-wbrun: wbrun.asm decoder-data.asm decoder-code.asm decoder-lines.asm decoder-fill.asm decoder-pen.asm picture-memory.asm resource-cli.asm resource-data.asm resource-code.asm presentation.d presentation-data.asm presentation-buffers.asm presentation-code.asm presentation-helpers.asm presentation-palette.asm defsfile $(NITROS9DIR)/defs/wildbits.d
+wbrun: wbrun.asm decoder-data.asm decoder-code.asm decoder-lines.asm decoder-fill.asm decoder-pen.asm ../objs/platform/wildbits-picture-memory.asm resource-cli.asm resource-data.asm resource-code.asm presentation.d presentation-data.asm presentation-buffers.asm ../objs/platform/wildbits-presentation.asm ../objs/platform/wildbits-presentation-helpers.asm ../objs/platform/wildbits-presentation-palette.asm defsfile $(NITROS9DIR)/defs/wildbits.d
 	$(LWASM) $(AFLAGS) --list=wbrun.list --map=wbrun.map --symbols -o $@ $<
 wbasset: wbasset.asm asset-data.asm asset-code.asm asset-write.asm lzw-data.asm lzw-code.asm resource-cli.asm resource-data.asm resource-code.asm defsfile
 	$(LWASM) $(AFLAGS) --list=wbasset.list --map=wbasset.map --symbols -o $@ $<
 wbexec: wbexec.asm asset-data.asm asset-code.asm lzw-data.asm lzw-code.asm logic-data.asm logic-code.asm logic-fetch.asm logic-platform.asm logic-cache.asm message-data.asm message-code.asm replay-data.asm replay-code.asm object-code.asm menu-data.asm menu-code.asm room-data.asm room-code.asm view-data.asm view-code.asm screen-data.asm screen-code.asm input-data.asm input-code.asm string-code.asm resource-cli.asm resource-data.asm resource-code.asm defsfile
 	$(LWASM) $(AFLAGS) --list=wbexec.list --map=wbexec.map --symbols -o $@ $<
-wbgame: wbgame.asm ../objs/font-data.asm $(wildcard *-code.asm *-data.asm) decoder-lines.asm decoder-fill.asm decoder-pen.asm picture-memory.asm resource-cli.asm resource-code.asm resource-data.asm presentation.d presentation-buffers.asm presentation-helpers.asm presentation-palette.asm defsfile
+wbgame: wbgame.asm $(wildcard ../objs/platform/wildbits-*.asm) ../objs/font-data.asm $(wildcard *-code.asm *-data.asm) decoder-lines.asm decoder-fill.asm decoder-pen.asm ../objs/platform/wildbits-picture-memory.asm resource-cli.asm resource-code.asm resource-data.asm presentation.d presentation-buffers.asm ../objs/platform/wildbits-presentation-helpers.asm ../objs/platform/wildbits-presentation-palette.asm defsfile
 	$(LWASM) $(AFLAGS) --list=wbgame.list --map=wbgame.map --symbols -o $@ $<
 budget: wbpic wbres wbdecode wbrun wbasset wbexec wbgame
 	@python3 -c 'from pathlib import Path; n=Path("wbpic").stat().st_size; assert n <= 40192, n; print("wbpic module: %d / 40192 bytes; process data: 8192 bytes; one mapping window" % n)'
@@ -53,3 +53,11 @@ PICTURE ?= 1
 reference:
 	python3 export_picture.py $(GAME) $(PICTURE) reference-picture.bin \
 		--assembler "$(LWASM)" --defs "$(NITROS9DIR)/defs"
+
+wbdecode wbrun wbgame: ../objs/shared/picture-pen.asm ../objs/shared/picture-pen-tables.asm
+
+wbdecode wbrun wbgame: ../objs/shared/picture-line.asm ../objs/platform/picture-storage.asm ../objs/platform/wildbits-picture-storage.asm
+
+wbrun wbgame: ../objs/platform/presentation.asm
+wbgame: ../objs/shared/object-direction-tables.asm
+wbdecode wbrun wbgame: ../objs/shared/picture-coordinates.asm

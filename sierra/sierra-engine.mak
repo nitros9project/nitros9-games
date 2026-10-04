@@ -52,3 +52,8 @@ shdw: ../objs/platform/picture-orientation.asm ../objs/platform/coco-picture-ori
 
 shdw: ../objs/platform/object-storage.asm ../objs/platform/coco-object-storage.asm
 mnln: ../objs/platform/sound-elapsed.asm ../objs/platform/coco-sound-elapsed.asm
+
+shdw: ../objs/shared/picture-pen.asm ../objs/shared/picture-pen-tables.asm
+shdw: ../objs/shared/picture-line.asm
+mnln: ../objs/shared/object-direction-tables.asm
+shdw: ../objs/shared/picture-coordinates.asm

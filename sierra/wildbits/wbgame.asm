@@ -1,9 +1,11 @@
 * Native game owner: shared AGI logic with Wild Bits platform components.
                     nam       wbgame
+WILDBITS            equ       1
                     use       defsfile
 AGI_ASSET           equ       1
 AGI_VM              equ       1
 DECODE_PICTURE      equ       1
+PICTURE_BOUNDED_READ equ       1
 PRESENT_PICTURE     equ       1
 GAME_PRESENTATION   equ       1
                     use       presentation.d
@@ -87,12 +89,12 @@ name                fcs       /wbgame/
                     use       ../objs/font-data.asm
                     use       decoder-code.asm
                     use       decoder-lines.asm
-                    use       picture-memory.asm
+                    use       platform/wildbits-picture-memory.asm
                     use       decoder-fill.asm
                     use       decoder-pen.asm
-                    use       presentation-code.asm
-                    use       presentation-helpers.asm
-                    use       presentation-palette.asm
+                    use       platform/presentation.asm
+                    use       platform/wildbits-presentation-helpers.asm
+                    use       platform/wildbits-presentation-palette.asm
                     ifne      GAME_TRACE
                     use       game-trace-code.asm
                     endc

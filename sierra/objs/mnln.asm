@@ -945,8 +945,7 @@ StartUpdateHelper   lda       <$26,u    load object state flags
                     sta       <$26,u    store updated flags
                     lbsr      SwapObjRanges
 StartUpdateReturn   rts
-DirTableFwd         fcb       4,4,0,0,0,4,1,1,1
-DirTableRev         fcb       4,3,0,0,0,2,1,1,1
+                    use       shared/object-direction-tables.asm
 
 *
 *======================================================================

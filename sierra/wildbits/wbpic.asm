@@ -232,11 +232,11 @@ releasescreen       tst       <bitmapowned
 exit                ldb       <errorcode
                     os9       F$Exit
 
-                    use       presentation-helpers.asm
+                    use       platform/wildbits-presentation-helpers.asm
 
 help                fcc       /Usage: wbpic <26880-byte combined picture>; any key exits/
                     fcb       C$CR
-                    use       presentation-palette.asm
+                    use       platform/wildbits-presentation-palette.asm
                     emod
 eom                 equ       *
                     end

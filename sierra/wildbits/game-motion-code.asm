@@ -394,10 +394,10 @@ MotionAdvanceCel    lda       $25,u
                     blo       MotionCycleTick
                     cmpa      #4
                     bhi       MotionCycleTick
-                    leay      MotionTwoLoops,pcr
+                    leay      DirTableFwd,pcr
                     cmpa      #4
                     bne       MotionChooseLoop
-                    leay      MotionFourLoops,pcr
+                    leay      DirTableRev,pcr
 MotionChooseLoop    ldb       $21,u
                     cmpb      #8
                     lbhi      MotionInvalid
@@ -472,8 +472,7 @@ MotionCycleSet      lda       #47
                     lbra      MotionSelectView
 MotionCycleDone     clrb
                     rts
-MotionTwoLoops      fcb       4,4,0,0,0,4,1,1,1
-MotionFourLoops     fcb       4,3,0,0,0,2,1,1,1
+                    use       shared/object-direction-tables.asm
 * A=selection opcode, B=index. The ordinary view component refreshes cel
 * metadata; scratch instruction arguments/opcode are restored afterwards.
 MotionSelectView    pshs      a,b

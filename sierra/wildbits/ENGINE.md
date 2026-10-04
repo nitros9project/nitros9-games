@@ -114,3 +114,29 @@ Startup and cycle flags follow the existing AGI semantics, checked against
 The 6809 command adaptations remain based on this repository's CoCo engine.
 The native renderer retains priority/control distinctions while changing the
 storage and mapping interface; shared module code and font bytes are immutable.
+
+## Architecture correction
+
+The picture coordinate, line and pen routines, including their immutable tables, now have
+one implementation under `objs/shared/`, included by both `objs/shdw.asm` and
+the native decoder. `objs/platform/picture-storage.asm` selects either
+`coco-picture-storage.asm` or `wildbits-picture-storage.asm` at assembly time.
+The Wild Bits implementation preserves the registers needed by these shared
+algorithms and maps each logical pixel through `PicturePointer`.
+
+Wild Bits mapped-picture allocation/access and terminal presentation now live
+in `objs/platform/wildbits-picture-memory.asm` and `wildbits-presentation*.asm`.
+Native game/viewer integration uses the existing `platform/presentation.asm`
+selector. This does not yet make the legacy CoCo interpreter's state ABI usable
+on Wild Bits: its loader and other unconverted selectors still reject that
+build. The native interpreter is retained during migration, not declared to be
+a shared CoCo/Wild Bits interpreter. Remaining work is to reconcile command
+interfaces and state access before retiring its duplicate implementations.
+
+The first extraction rebuilt all seven native modules and CoCo `shdw` with
+byte-for-byte identical output. CoCo `mnln` also remains byte-for-byte identical
+after sharing direction tables. Decoder and native-game CPU regression checks
+passed. The selectors add no runtime dispatch. Native
+probes remain in this directory; production backend routines belong under
+`objs/platform`, and routines shared by both platforms belong under
+`objs/shared`.
