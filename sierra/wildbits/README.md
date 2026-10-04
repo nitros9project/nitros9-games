@@ -4,6 +4,8 @@
 presents the Sierra engine's combined picture-buffer format. It is the first
 executable port artifact, not yet a playable interpreter. The existing
 `objs/wildbits_engine.asm` remains an unfinished scaffold and is not built.
+See [ENGINE.md](ENGINE.md) for why including four complete CoCo modules is
+insufficient, and how one native program can be organized from reusable includes.
 
 ## Target and interfaces
 
@@ -129,9 +131,47 @@ Both diagnostic buffers and the King's Quest I reference were exercised.
 See [MAME.md](MAME.md) for setup, the repeatable test command, exact revisions,
 and remaining hardware acceptance work.
 
-The next port milestone is connecting the existing picture/resource decoder
-to this native buffer/presentation path, then running one silent game before
-adding sound and full concurrent-instance acceptance.
+## Native resource loader
+
+`make` now also builds `wbres`, a small native resource-loading probe. On
+Wild Bits, with an existing game directory containing `picDir` and `vol.N`:
+
+```text
+wbres /s0/kingsquest1 1 >/s0/picture-1.cmd
+```
+
+Its binary output is **AGI picture commands**, not the combined pixels accepted
+by `wbpic`. It reads a three-byte directory entry, constructs the decimal
+volume filename (including `vol.10` through `vol.15`), seeks to the 20-bit
+resource offset through `I$Seek`, checks the seven-byte CoCo resource header,
+and reads exactly the stored resource size. It validates the volume number,
+nonzero size, an 8 KB command limit, equal decoded/stored lengths, and final
+`$FF` marker before emitting anything. Packed and LZW resources are explicitly
+rejected. Short reads/writes retain progress; failures close opened inputs.
+The shell may create an empty redirected output file when validation fails.
+
+The loader lives in `resource-code.asm`, with private fields declared by
+`resource-data.asm`; the probe owns the sole module header. `LoadPicture`
+takes X=game directory, Y=picture number, U=private data base and matching DP.
+It returns X=command buffer and Y=length, or carry/B indicating an error.
+Its mutable fields, path strings and command bytes are process-private.
+There are no hardware accesses, fixed load addresses or writable code.
+
+The probe is 728 bytes with 8,907 bytes of requested private data, including
+the full 8 KB command buffer and stack. The OS rounds this data allocation to
+two 8 KB blocks. This is a test arrangement: the eventual interpreter should
+put large resources behind bounded mapping windows to retain its 8 KB state
+budget. It must not simply add this resident buffer to the packed engine.
+
+`make check` runs actual 6809 tests for relocation, short reads/writes,
+directory/header failures, large offsets and boundary sizes. The separate
+real-driver MAME test is described in [MAME.md](MAME.md). Native MAME reads
+matched both an 8 KB diagnostic resource from `vol.15` at `$23456` and all
+2,752 bytes of King's Quest I picture 1 at `vol.1` offset `$E24A`.
+
+The next step is converting the picture decoder to consume this native
+loader's commands and write a mapped combined buffer, then feeding that
+buffer directly to presentation. A silent playable game follows that milestone.
 
 ## Real game picture reference bridge
 

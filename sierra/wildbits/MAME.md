@@ -87,3 +87,30 @@ forced kill, or behavior under persistent driver failures. Those checks remain
 in physical hardware/extended runtime acceptance work. The module is still
 a combined-buffer viewer; native game-resource decoding and a playable
 interpreter remain future milestones.
+
+## Native resource-loader check
+
+With the same emulator, disk and firmware prerequisites:
+
+```sh
+python3 ../tests/check_wbres_mame.py \
+  --mame /absolute/path/to/mamed \
+  --disk /absolute/path/to/l2_wildbitsjr2.dsk \
+  --firmware /absolute/path/to/nitros9/recipes/wildbits/feu \
+  --output /tmp/wbres-mame-new-run
+```
+
+This installs `wbres` and a generated 8 KB resource in a copied disk, then
+runs the native probe from startup with stdout redirected to a disk file.
+The resource uses picture number 255, volume 15, and offset `$23456`, testing
+the decimal filename, directory multiplication, full seek offset and maximum
+supported command size against real RBF services. The resulting bytes must
+exactly match the input, and startup must write its completion marker.
+
+For a real game, add `--game /path/to/kingsquest1 --picture-number 1`.
+Only its directory and selected volume are installed on the temporary disk;
+no game assets are committed. This run passed for both the diagnostic and
+King's Quest I picture 1 using the emulator/OS revisions recorded above.
+The latter produced 2,752 command bytes with SHA256
+`65f0bfee93044b42eaca6ce11c35d8db108d0af79d1d213e78ebf40167fa8258`.
+This verifies native resource loading, not native command decoding.

@@ -805,3 +805,12 @@ a real-game reference for the native presentation tests; it does not implement
 native resource decoding. King's Quest I picture 1 was rendered and visually
 inspected as the castle scene. See the Wild Bits README for reproduction,
 supported resource encoding, and the reference hash.
+
+Native resource loading now exists as `wildbits/resource-code.asm`, exercised
+by the position-independent `wbres` probe. Real `wbjr2` MAME RBF reads matched
+the host reference for King's Quest I picture 1 and an 8 KB resource at a
+20-bit offset in volume 15. The native decoder remains unimplemented.
+See [wildbits/ENGINE.md](wildbits/ENGINE.md) for the planned module structure:
+one native program may include converted routine bodies, but the old complete
+module sources cannot simply be included into an outer module. The untracked
+packed scaffold remains untouched and excluded from the build.
