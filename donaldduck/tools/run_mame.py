@@ -13,8 +13,8 @@ def main():
     parser.add_argument('--firmware', required=True, type=Path)
     parser.add_argument('--output', required=True, type=Path,
                         help='new working directory for a private disk copy')
-    parser.add_argument('--speed', type=float, default=2,
-                        help='emulation speed multiplier (default: 2)')
+    parser.add_argument('--speed', type=float, default=1,
+                        help='emulation speed multiplier (default: 1)')
     args = parser.parse_args()
     if args.speed <= 0:
         parser.error('--speed must be positive')

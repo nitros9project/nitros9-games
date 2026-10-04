@@ -81,8 +81,9 @@ Native stick buttons map to the original $FF pressed convention. The original
 reader waits for release and produces bit 7 on the transition. Held arrows
 supply the extremes of the legacy axes. Sierra interprets increasing Y as up,
 so native joystick Y is inverted and Up supplies 63 while Down supplies zero.
-Joystick polls do not redraw; frame commits and blocking key reads present the
-screen. Frame commits yield for one tick after conversion rather than three. Space is accepted both as key-sense
+Joystick polls, frame commits and blocking key reads present the screen.
+The original code can update sprites without a page flip, so input-poll
+presentation is required. Frame commits yield for one tick rather than three. Space is accepted both as key-sense
 bit 7 and as an ordinary held code, covering the guide’s K2/Jr2 distinction.
 Q is polled during joystick reads, frame commits, and sound notes, and waits
 for release while draining queued input before using the original quit path.

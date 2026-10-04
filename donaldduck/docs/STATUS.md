@@ -1,6 +1,6 @@
 # Validation status — 2026-10-04
 
-Validated DONALD: **7,787 bytes**, OS-9 CRC **$D0D4E2**, private data **$6C00**.
+Validated DONALD: **7,794 bytes**, OS-9 CRC **$56A281**, private data **$6C00**.
 Code, data, activity, and two mapping windows fit the eight logical blocks.
 The local validated 2 MiB Jr2 image contained this module and the combined
 assets. Boot firmware and the base OS disk must be supplied separately.
@@ -16,8 +16,8 @@ assets. Boot firmware and the base OS disk must be supplied separately.
   an existing bitmap, reserved upper window, private signal state with an
   arbitrary interrupted DP and the original intercept U convention.
 - All four arrow directions executed through Sierra’s original direction reader,
-  including corrected inverted joystick Y; input polls avoid redundant display
-  copies and frame commits yield for one tick.
+  including corrected inverted joystick Y; input polls retain required sprite
+  presentation and frame commits yield for one tick.
 - Held arrows, original joystick scaling and buttons, Space in both K2/Jr2
   representations, preservation of the original auxiliary-stack U.
 - Every output pixel of both packed screens at two code/data placements,
@@ -25,7 +25,8 @@ assets. Boot firmware and the base OS disk must be supplied separately.
 - Execution of the first original sound script: 111 duration/pitch notes and
   302 PSG writes, with the caller’s registers restored.
 - Initial town sprite has an explicit display commit and a screen-pixel
-  regression assertion verifying Donald is visible before any movement.
+  regression assertions verifying Donald remains visible while idle and moves
+  right, up and down in the expected screen directions.
 - Real NitrOS-9 in the Wildbits `wbjr2` MAME fork: title, difficulty selection,
   instruction dismissal, town with Donald displayed, ordinary Q exit and shell
   completion marker.

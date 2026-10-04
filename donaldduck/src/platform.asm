@@ -392,7 +392,10 @@ cdone   puls d,x,y,u,pc
 
 * Legacy CoCo joystick range 0..63, fire=$FF; native range 0..255.
 NativeJoy
-* Frame commits and blocking reads present graphics; polling does not redraw.
+* Some original game paths update a visible sprite without a page flip.
+        pshs d,x,y,u
+        lbsr Present
+        puls d,x,y,u
         syscall I$GetStt
         bcs joydone
         pshs a

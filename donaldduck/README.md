@@ -113,6 +113,6 @@ The launcher uses a new private disk copy and opens a dedicated interactive VT
 shell before starting DONALD. Running DONALD directly inside an OS-9 startup
 script can give it startup-file input instead of keyboard input. MAME UI
 controls start disabled and the keyboard uses emulated mode. Default speed is
-2×; use `--speed 1` for normal emulator timing. Faster emulation also speeds up
+1× (normal emulator timing). An explicit higher `--speed` also speeds up
 music and the game's wall-clock timers. Close an existing emulator before
 starting another session. The title appears after the automated boot sequence.

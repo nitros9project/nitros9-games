@@ -40,7 +40,7 @@ with disk.open('ab') as f:f.truncate(1<<(disk.stat().st_size-1).bit_length())
 rom=out/'roms/wbjr2';rom.mkdir(parents=True,exist_ok=True)
 for name in ['booter','f0.dsk']:shutil.copyfile(args.firmware/name,rom/name)
 commands={900:'iniz /vt1\n',1150:'shell i=/vt1&\n',1500:'chd /s0/ddp\n',1800:'mfree >/s0/free-before\n',2200:'donald\n',11800:'echo DDP-DONE >/s0/ddp-done\n',12000:'mfree >/s0/free-after\n'}
-shots={2000:'before',3500:'logo',5200:'title',6800:'menu',8500:'town',9700:'activity',11000:'quit',12300:'shell'}
+shots={2000:'before',3500:'logo',5200:'title',6800:'menu',8500:'town',9000:'town-idle',9400:'town-right',9800:'town-up',10200:'town-down',11000:'quit',12300:'shell'}
 lua=out/'drive.lua';lua.write_text('''frames=0
 local commands=%s
 local shots=%s
@@ -58,7 +58,32 @@ if frames==10500 then qfields["q  Q"]:set_value(1) end
 if frames==10700 then qfields["q  Q"]:clear_value() end
 if commands[frames] then manager.machine.natkeyboard:post(commands[frames]) end
 if shots[frames] then manager.machine.screens[":screen"]:snapshot(%s .. shots[frames] .. ".png") end
-if frames==8500 and %s then
+local town_test=%s
+if town_test then
+ if frames==9200 then arrows["Right"]:set_value(1) end
+ if frames==9280 then arrows["Right"]:clear_value() end
+ if frames==9600 then arrows["Up"]:set_value(1) end
+ if frames==9680 then arrows["Up"]:clear_value() end
+ if frames==10000 then arrows["Down"]:set_value(1) end
+ if frames==10080 then arrows["Down"]:clear_value() end
+ if frames==9000 or frames==9400 or frames==9800 or frames==10200 then
+  local n,sx,sy=0,0,0
+  for y=220,320 do
+   for x=300,355 do
+    if (manager.machine.screens[":screen"]:pixel(x,y) & 0xffffff) ~= 0 then
+     n=n+1; sx=sx+x; sy=sy+y
+    end
+   end
+  end
+  assert(n>80, "Donald disappeared while idle or moving")
+  local cx,cy=sx/n,sy/n
+  if frames==9400 then assert(cx>duck_x+4, "Right did not move Donald right") end
+  if frames==9800 then assert(cy<duck_y-3, "Up did not move Donald up") end
+  if frames==10200 then assert(cy>duck_y+3, "Down did not move Donald down") end
+  duck_x=cx; duck_y=cy
+ end
+end
+if (frames==8500 or frames==9000) and town_test then
  local visible=0
  for y=240,280 do
   for x=308,336 do
