@@ -11,3 +11,6 @@ CocoFrameBytes      equ       CocoFrameStride*CocoFrameHeight
 CocoFrameBase       equ       $6000
 CocoFrameEnd        equ       CocoFrameBase+CocoFrameBytes
 CocoFramePairBytes  equ       2*CocoMapBlockBytes
+CocoPictureBase     equ       $6040
+CocoPictureBytes    equ       AgiCombinedBytes
+CocoPictureEnd      equ       CocoPictureBase+CocoPictureBytes

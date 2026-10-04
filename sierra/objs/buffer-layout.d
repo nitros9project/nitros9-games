@@ -2,6 +2,7 @@
 AgiPictureWidth     equ       160
 AgiPictureHeight    equ       168
 AgiPicturePixels    equ       AgiPictureWidth*AgiPictureHeight
+AgiCombinedBytes    equ       AgiPicturePixels one color/priority byte per pixel
 
 * Platform storage geometry is selected at assembly time.
                     ifne      WILDBITS

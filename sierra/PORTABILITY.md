@@ -525,3 +525,76 @@ the working CoCo backend available as the behavioral reference throughout.
 This phase supplies named current geometry and the design contract. It does
 not implement Wild Bits allocation, convert the engine to position-independent
 code, or claim that old save files remain compatible with a future layout.
+
+## Picture/priority access audit: findings
+
+The first source audit establishes a useful distinction: the current AGI
+picture/priority buffer is **one combined byte per logical pixel**, whereas
+the presented CoCo framebuffer packs **two display pixels per byte**. They
+have the same 160-byte row stride for different reasons and must not be
+interchanged. `AgiCombinedBytes` now names the 26,880-byte combined storage
+size; the CoCo layout names its existing `$6040..$C93F` range, with exclusive
+end `$C940`. `shdw.asm` uses those equates without changing generated code.
+
+### Access inventory
+
+| Code | Observed storage dependency | Migration implication |
+| --- | --- | --- |
+| `RenderPic`, `EnablePicDraw`, `EnablePriDraw` | Initial fill `$4F`; color in the low nibble and priority in the high nibble during command drawing. | Preserve combined-byte meaning before changing display packing. |
+| `SbuffPlot`, `SbuffXLine`, `SbuffYLine` | Compute addresses from fixed base and 160-byte rows; update bytes as `(old OR DrawMask) AND DrawColor`. | A buffer interface must preserve selective color/priority updates. |
+| `SbuffPicFill` | Flood-fill reads, masks, and writes combined bytes using direct pointers and shared scratch. | Moving to mapped chunks needs explicit treatment of traversal and scratch lifetimes. |
+| `PicCmdLoop` | Maps a resource pair, then reads the picture-command stream through `GivenPicDataPtr`. | Preserve the input pointer's lifetime while drawing into the output buffer. |
+| `PicBufUpdateRemap` | Swaps both nibbles of every byte in place. | Buffer orientation is mutable state; identify its callers before removing or relocating this operation. |
+| `ObjChkControl` | Reads high-nibble priority/control values along an object's baseline. | Logic must access combined priority information, not presentation pixels. |
+| `ObjBlit`, `ObjAddPicPri` | Combine cel data and picture/priority data using fixed pointers and masks. | View resource access and destination access must coexist or use staging. |
+| `BlitSave`, `BlitRestore` | Copy complete combined bytes for rectangles into/from buffers referenced by blit records. | Saved backgrounds must retain priority as well as color. |
+| `PicRenderSetup`, picture decoding in `mnln` | Maps the shadow block and maintains decoder state and output pointers in scratch fields. | The vector-command decoder is not the only producer to audit. |
+| `CalcPriAddr`, its callers | Construct priority addresses from row offsets and a banked pointer representation. | Returning an old fixed pointer cannot serve as a future buffer identity. |
+
+These observations come from the instructions, not just the disassembly's
+comments. In particular, `PicBufUpdateRemap` really does change the buffer in
+place. A follow-up call-chain audit must establish the orientation expected
+at each boundary; this inventory does not assume that every consumer always
+sees the command-drawing orientation.
+
+### Text-state audit
+
+Global `$024C`/`$024D` accesses include the packed text-color pair, color-stack
+save/restore, and temporary changes around text drawing. Some matching numeric
+operands are **stack-relative** (`$024C,s` or `$024D,s`) in save/restore UI code
+and refer to unrelated local data. Do not change them with a textual address
+replacement. The `$024D` alias/comments also vary between routines; trace the
+actual packing routine and consumers when assigning portable field names.
+
+### Revised first-port recommendation
+
+Keep a single combined picture/priority buffer for the initial Wild Bits port.
+Separating its nibbles into independent planes is optional future work and
+would require changing fill, collision, background save/restore, and blitting
+at the same time. Retaining the combined format uses 26,880 bytes and preserves
+more of the working algorithms. Convert the appropriate color nibble into
+Wild Bits display palette indices only at the presentation boundary, once the
+orientation at that boundary is proven.
+
+A combined logical buffer and the candidate 320-by-240 framebuffer together
+need 103,680 bytes before alignment, resource storage, and scratch. This is a
+planning total, not proof that the existing fixed-address engine can map them
+simultaneously. The logical address budget and mapping schedule still govern
+implementation.
+
+### Implementation gate
+
+Before introducing mapped-buffer calls into these algorithms:
+
+1. Trace the nibble-swap dispatch and each producer/consumer's orientation.
+2. Classify each retained pointer as an owned allocation offset or a borrowed
+   mapped pointer, including pointers embedded in view and blit records.
+3. Design the mapping schedule for picture input, combined destination,
+   view/cel input, and saved-background storage. Two windows do not permit
+   arbitrary simultaneous access to all of them.
+4. Measure the code/data budget and select a staging strategy that keeps
+   mapping calls outside inner drawing loops.
+
+The audit changes no game behavior. All 56 modules are compared against the
+previous verified binaries; this establishes equivalence of the named-size
+changes, not correctness of a new portable buffer API or Wild Bits runtime.

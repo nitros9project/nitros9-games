@@ -109,12 +109,12 @@ O_UNUSED            equ       $8000
 PICBUFF_WIDTH       equ       AgiPictureWidth ($A0)
 PICBUFF_HEIGHT      equ       AgiPictureHeight ($A8)
 
-picb_size           equ       PICBUFF_WIDTH*PICBUFF_HEIGHT $6900
+picb_size           equ       CocoPictureBytes $6900
 x_max               equ       PICBUFF_WIDTH-1 159 ($9F)
 y_max               equ       PICBUFF_HEIGHT-1 167 ($A7)
 
-gfx_picbuff         equ       $6040     screen buff low address
-gbuffend            equ       gfx_picbuff+picb_size screen buff high address $C940
+gfx_picbuff         equ       CocoPictureBase combined picture/priority buffer
+gbuffend            equ       CocoPictureEnd exclusive end $C940
 
 blit_end            equ       gfx_picbuff+$6860
 
