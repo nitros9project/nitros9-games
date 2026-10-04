@@ -34,6 +34,13 @@ VmNext              ldd       <vmsteps
                     bls       VmArithmetic
                     lbsr      VmPlatformCommand
                     lbcs      VmReturn
+                    ifne      GAME_PRESENTATION
+                    ldu       <resourcebase
+                    tst       gamequit,u
+                    lbne      VmSuccess
+                    endc
+                    tst       <vmroompending
+                    lbne      VmSuccess
                     lbra      VmNext
 VmReadArguments     clr       <vmargindex
 VmArgumentLoop      lda       <vmargindex

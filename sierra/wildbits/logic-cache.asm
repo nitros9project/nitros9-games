@@ -1,5 +1,5 @@
 * Bounded resident logic cache and nested calls. Cache entries (14 bytes):
-* id, owned, physical-first(2), count, pad, expanded(2), stored(2), scan(2),
+* id, owned, physical-first(2), count, kind, expanded(2), stored(2), scan(2),
 * reserved(2). Calls save id/index, IP, code-end and remaining instruction
 * budget in a private eight-byte frame. No resource pointers survive mapping.
 VmClearCache        ldu       <resourcebase
@@ -24,6 +24,8 @@ VmStoreAsset        ldb       <assetowned
                     std       2,x
                     ldb       <assetblocks
                     stb       4,x
+                    ldb       <resourcekind
+                    stb       5,x
                     ldd       <resourcelength
                     std       6,x
                     ldd       <resourcestored
@@ -42,6 +44,8 @@ VmRestoreAsset      ldd       2,x
                     std       <assetfirst
                     ldb       4,x
                     stb       <assetblocks
+                    ldb       5,x
+                    stb       <resourcekind
                     ldd       6,x
                     std       <resourcelength
                     ldd       8,x
@@ -49,7 +53,9 @@ VmRestoreAsset      ldd       2,x
                     clr       <assetowned
                     rts
 * B=logic number. Ensure it is cached; return X=slot, no mapping live.
-VmLoadLogic         stb       <vmrequested
+VmLoadLogic         clra
+VmLoadResource      sta       <vmrequestedkind
+                    stb       <vmrequested
                     lbsr      AssetUnmap
                     lbcs      VmCacheReturn
                     clr       <vmcacheindex
@@ -57,6 +63,9 @@ VmCacheFind         ldb       <vmcacheindex
                     lbsr      VmSlotAddress
                     tst       1,x
                     beq       VmCacheFindNext
+                    ldb       5,x
+                    cmpb      <vmrequestedkind
+                    bne       VmCacheFindNext
                     ldb       ,x
                     cmpb      <vmrequested
                     beq       VmCacheFound
@@ -79,11 +88,14 @@ VmCacheFreeSlot     ldb       <vmcacheindex
 VmCacheLoad         stx       <vmslot
                     ldb       <vmrequested
                     stb       ,x
+                    lda       <vmrequestedkind
+                    sta       5,x
                     clra
                     tfr       d,y
                     ldx       <argdirectory
                     ldu       <resourcebase
-                    clr       <resourcekind
+                    lda       <vmrequestedkind
+                    sta       <resourcekind
                     lbsr      LoadAsset
                     bcc       VmCacheLoaded
                     pshs      b
@@ -97,6 +109,14 @@ VmCacheLoadFailed   puls      b
 VmCacheLoaded
                     ldx       <vmslot
                     lbsr      VmStoreAsset
+                    pshs      x
+                    leax      VmReplayLoadKinds,pcr
+                    lda       <vmrequestedkind
+                    lda       a,x
+                    ldb       <vmrequested
+                    lbsr      ReplayPush
+                    puls      x
+                    bcs       VmCacheReturn
 VmCacheFound        clrb
 VmCacheReturn       rts
 * Nested call, B=logic number. The active caller owns a cache slot; save
@@ -206,3 +226,41 @@ VmReleaseAdvance    inc       <vmcacheindex
                     beq       VmReleaseDone
                     orcc      #1
 VmReleaseDone       rts
+
+* A=kind/B=id. Discard a cached non-logic resource; absent resources are
+* already discarded. Unmap before freeing and restore the executing logic.
+VmDiscardResource   sta       <vmrequestedkind
+                    stb       <vmrequested
+                    lbsr      AssetUnmap
+                    lbcs      VmCacheReturn
+                    clr       <vmcacheindex
+VmDiscardFind       ldb       <vmcacheindex
+                    lbsr      VmSlotAddress
+                    tst       1,x
+                    beq       VmDiscardNext
+                    ldb       5,x
+                    cmpb      <vmrequestedkind
+                    bne       VmDiscardNext
+                    ldb       ,x
+                    cmpb      <vmrequested
+                    bne       VmDiscardNext
+                    stx       <vmslot
+                    lbsr      VmRestoreAsset
+                    inc       <assetowned
+                    lbsr      AssetRelease
+                    bcs       VmDiscardFailed
+                    ldx       <vmslot
+                    clr       1,x
+                    bra       VmDiscardRestore
+VmDiscardNext       inc       <vmcacheindex
+                    ldb       <vmcacheindex
+                    cmpb      #32
+                    blo       VmDiscardFind
+VmDiscardRestore    ldb       <vmcurrent
+                    lbsr      VmSlotAddress
+                    lbsr      VmRestoreAsset
+                    clrb
+                    rts
+VmDiscardFailed     clr       <assetowned
+                    rts
+VmReplayLoadKinds   fcb       0,2,1,3

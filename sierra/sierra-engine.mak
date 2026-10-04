@@ -35,6 +35,7 @@ sierra: ../objs/platform/screen-restore.asm ../objs/platform/coco-screen-restore
 mnln: ../objs/platform/game-palette-data.asm ../objs/platform/coco-game-palette-data.asm
 mnln: ../objs/platform/game-palette-set.asm ../objs/platform/coco-game-palette-set.asm
 
+scrn: ../objs/font-data.asm
 scrn: ../objs/platform/render-spans.asm ../objs/platform/coco-render-spans.asm
 scrn: ../objs/platform/render-view.asm ../objs/platform/coco-render-view.asm
 scrn: ../objs/platform/render-glyphs.asm ../objs/platform/coco-render-glyphs.asm

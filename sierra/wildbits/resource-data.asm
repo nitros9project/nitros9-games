@@ -14,10 +14,16 @@ resourcelength      rmb       2
 resourcepointer     rmb       2
 resourceremaining   rmb       2
 resourcenameend     rmb       2
+                    ifeq      AGI_ASSET
 resourceentry       rmb       3
 resourceheader      rmb       7
+                    endc
                     ifgt      .-$100
                     error     Picture resource control fields must fit the private direct page
                     endc
 resourcefilename    rmb       160
+                    ifne      AGI_ASSET
+resourceentry       rmb       3
+resourceheader      rmb       7
+                    endc
 resourcecommands    rmb       8192

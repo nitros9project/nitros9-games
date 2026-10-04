@@ -56,6 +56,37 @@ def main():
             error, output = exercise(d, files, arguments=b'/game 0\r',
                 module='wbexec', blocks=None, multiple=True)
             assert error and not output  # missing callee releases caller
+            body = bytes([33,63,37,63,159,167,39,63,250,251,
+                          3,252,8,86,63,252,87,63,253,
+                          54,63,15,57,63,254,45,63,46,63,
+                          56,63,34,0])
+            error, output, state = exercise(d, logic_files([body]), arguments=b'/game 0\r',
+                module='wbexec', blocks=None, multiple=True, capture=True)
+            assert not error and len(output) == 512
+            assert state['vmvariables'][250:255] == bytes([159,167,8,8,15])
+            obj = state['vmobjects'][63*43:64*43]
+            assert obj[2:5] == bytes([63,159,167]) and obj[0x1a:0x1c] == bytes([159,167])
+            assert obj[0x21] == 8 and obj[0x24:0x27] == bytes([15,0,0x30])
+            for body in [bytes([33,64,0]), bytes([54,0,16,0]), bytes([3,250,9,86,0,250,0])]:
+                error, output = exercise(d, logic_files([body]), arguments=b'/game 0\r',
+                    module='wbexec', blocks=None, multiple=True)
+                assert error and not output
+            # Same numeric ID in three resource directories must be distinct.
+            files = logic_files([bytes([142,10,30,0,30,0,32,0,32,0,98,0,171,172,0])])
+            volume = bytearray(files['/game/vol.0'])
+            for directory, content in [('viewDir', b'view-data'), ('sndDir', b'sound-data')]:
+                files['/game/' + directory] = len(volume).to_bytes(3, 'big')
+                length = len(content).to_bytes(2, 'little')
+                volume += b'\x12\x34\0' + length * 2 + content
+            files['/game/vol.0'] = bytes(volume)
+            error, output = exercise(d, files, arguments=b'/game 0\r',
+                module='wbexec', blocks=None, multiple=True)
+            assert not error and len(output) == 512
+            # A configured one-record replay buffer must fail safely at two loads.
+            files = logic_files([bytes([142,1,20,1,20,2,0]), b'\0', b'\0'])
+            error, output = exercise(d, files, arguments=b'/game 0\r',
+                module='wbexec', blocks=None, multiple=True)
+            assert error and not output
             text = b'KQ1\0'
             encrypted = bytes(value ^ b'Avis Durgan'[n % 11] for n, value in enumerate(text))
             body = bytes([143,1,0])
@@ -67,11 +98,14 @@ def main():
                 error, output = exercise(d, asset_fixture(payload, len(payload)), module='wbexec', blocks=1)
                 assert error and not output
             _, data, reference = next(resources())
-            error, output, state = exercise(d, asset_fixture(data, len(reference)),
-                module='wbexec', blocks=2, capture=True)
-            assert error and not output  # explicit unsupported platform opcode
+            game = Path(__file__).resolve().parents[1] / 'kingsquest1'
+            files = {'/game/' + p.name: p.read_bytes() for p in game.iterdir() if p.name in ('logDir','viewDir','sndDir','picDir') or p.name.startswith('vol.')}
+            error, output, state = exercise(d, files, arguments=b'/game 0\r',
+                module='wbexec', blocks=None, multiple=True, capture=True)
+            assert error == 208 and not output  # explicit unsupported platform opcode
             assert state['vmgameid'] == b'KQ1' + bytes(5)
-            print(f'KQ1 logic 0 reaches opcode {state["vmopcode"][0]} at offset {int.from_bytes(state["vmip"], "big")}; platform command still required')
+            print('KQ1 stop:', error, {n: state[n].hex() for n in ('asseterror','vmerror','vmend','resourcelength','vmcurrent')})
+            print(f'KQ1 startup stops at unported command/test {state["vmopcode"][0]}; caller-restored IP {int.from_bytes(state["vmip"], "big")}')
             print('PASS: native mapped bytecode crosses physical pages, relocated data/code, bounded fetch, cached/nested calls, explicit unsupported-command failure and allocation cleanup')
         finally:
             d.s.close()

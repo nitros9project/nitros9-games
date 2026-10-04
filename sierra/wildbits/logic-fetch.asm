@@ -7,6 +7,11 @@ StartLogic          ldu       <resourcebase
 VmClearState        sta       ,x+
                     leay      -1,y
                     bne       VmClearState
+                    ifne      GAME_PRESENTATION
+                    lbsr      GameInitialize
+                    lbcs      VmNativeReturn
+                    endc
+                    lbsr      ObjectsInitialize
                     lbsr      VmInitializeCache
                     clr       <vmip
                     clr       <vmip+1
@@ -22,7 +27,29 @@ VmClearState        sta       ,x+
                     cmpd      #2
                     bls       VmNativeInvalid
                     std       <vmend
-                    lbsr      ExecuteLogic
+VmRunRoot           lbsr      ExecuteLogic
+                    bcs       VmNativeReturn
+                    tst       <vmroompending
+                    beq       VmCompletedRootCycle
+                    lbsr      ApplyRoomChange
+                    bcs       VmNativeReturn
+                    bra       VmRunRoot
+VmCompletedRootCycle equ      *
+                    ifne      GAME_PRESENTATION
+                    lbsr      GameNextCycle
+                    bcs       VmNativeReturn
+                    ldu       <resourcebase
+                    tst       gamequit,u
+                    bne       VmNativeReturn
+                    clr       <vmroomchanges
+                    clr       <vmcurrent
+                    clrb
+                    lbsr      VmSlotAddress
+                    lbsr      VmRestoreAsset
+                    ldd       10,x
+                    std       <vmip
+                    lbra      VmRunRoot
+                    endc
 VmNativeReturn      pshs      b,cc
                     lbsr      AssetUnmap
                     bcs       VmNativeUnmapError

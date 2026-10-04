@@ -203,3 +203,46 @@ match the expected 512 bytes and restore free memory. SHA256:
 Artifacts are `/tmp/sierra-native-vm-cache`. This verifies the real mapping,
 resource ownership and nested-call path; it does not prove gameplay, physical
 hardware behavior or performance parity.
+
+
+## Native game owner: repeated cycles on two terminals
+
+The native `wbgame` diagnostic passed with the same `wbjr2` emulator and
+multi-terminal OS revisions above. It executes AGI scripts that load/draw/show
+pictures, keep returning through the game cycle, bind ASCII `x` to a controller,
+and quit when that controller is seen. Every displayed pixel matches the CoCo
+reference. Both terminals survive switches and the other instance's exit;
+relaunch succeeds and the free-memory map returns to its starting value.
+
+```sh
+python3 ../tests/check_wbpic_mame.py \
+  --mame /tmp/sierra-wildbits-mame/mamed \
+  --disk /tmp/sierra-wildbits-os/recipes/wildbits/l2/l2_wildbitsjr2.dsk \
+  --firmware /tmp/sierra-wildbits-os/recipes/wildbits/feu \
+  --native-game ../kingsquest1 --interpreter \
+  --output /tmp/sierra-native-game-terminals-final-v1
+```
+
+Artifacts from this run are `/tmp/sierra-native-game-terminals-final-v1`.
+Both before/after maps contain 344 KB free. The first eager-background build
+failed bitmap allocation for the second instance (`E$MFull`, error 32) under
+this 512 KB kernel. Lazy background allocation removes the unused duplicate
+picture in these sprite-free diagnostics and the repeat then passes. Sprite
+composition still needs a separate background; this is not acceptance of two
+full games on a 512 KB machine. The guide describes a newer expanded-RAM
+kernel/core combination, which remains separate environment validation work.
+
+This result is real-driver integration for the native owner, not proof of
+playable King's Quest I. Sprite and text pixel cases currently run in the
+actual-6809/mocked-services tests; full game motion, parsing and sound remain.
+An optional `-DGAME_TRACE=1` build reports an exit error, last opcode and first
+failing presentation stage after cleanup. `--module-file` selects such a build
+for MAME tests without replacing the normal executable.
+
+
+The expanded `wbexec` typed-cache/object diagnostic also passed on `/term`
+and `/vt1` with the final 6,194-byte module. It distinguishes same-number logic,
+view and sound resources, discards/reloads views, calls cached logic twice and
+checks object position/direction/priority. Its 512-byte result hashes to
+`3d5134f1ae4380a2d74887b2f8e9fbacddc634300c0f3b03d7e65beca3e01ec3`;
+artifacts are `/tmp/sierra-native-vm-objects-final-v1`. Free RAM is unchanged.

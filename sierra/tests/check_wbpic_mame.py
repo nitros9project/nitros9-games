@@ -66,8 +66,12 @@ def main():
     parser.add_argument('--os9', default='os9')
     parser.add_argument('--picture', type=Path, help='optional 26880-byte real reference picture for /vt1')
     parser.add_argument('--native-game', type=Path, help='test integrated native loading/decoding/presentation using this game directory')
+    parser.add_argument('--module-file', type=Path, help='optional diagnostic build of the selected module')
+    parser.add_argument('--interpreter', action='store_true', help='exercise wbgame repeated logic cycles and keyboard-controller exit on both terminals')
     parser.add_argument('--picture-number', type=int, default=1)
     args = parser.parse_args()
+    if args.interpreter and not args.native_game:
+        parser.error('--interpreter requires --native-game')
     mame, out = args.mame.resolve(), args.output.resolve()
     out.mkdir(parents=True, exist_ok=False)
     disk = out / 'test.dsk'
@@ -88,8 +92,8 @@ def main():
         source.write_bytes(data)
         os9('copy', '-r', *(['-l'] if text else []), source, f'{disk},{target or name}')
 
-    module = 'wbrun' if args.native_game else 'wbpic'
-    install(module, (VIEWER / module).read_bytes(), 'CMDS/' + module)
+    module = 'wbgame' if args.interpreter else ('wbrun' if args.native_game else 'wbpic')
+    install(module, (args.module_file or (VIEWER / module)).read_bytes(), 'CMDS/' + module)
     os9('attr', f'{disk},CMDS/{module}', '-e', '-pe')
     bars = bytes((((4 + y // 14) & 15) << 4) | (x // 10) for y in range(168) for x in range(160))
     picture = args.picture.read_bytes() if args.picture else bytes(
@@ -114,6 +118,17 @@ def main():
             basename = Path(filename).name
             install('bars-' + basename, data, 'bars-game/' + basename)
         first_command, second_command = 'wbrun /s0/bars-game 1', f'wbrun /s0/game {args.picture_number}'
+        if args.interpreter:
+            assert volume != 0, 'diagnostic logic occupies volume zero'
+            for directory, number in [('bars-game', 1), ('game', args.picture_number)]:
+                body = bytes([111,0,23,0,3,0,number,24,0,25,0,26])
+                script = bytes([121,ord('x'),0,7,255,7,11,255,len(body),0]) + body
+                script += bytes([255,12,7,255,2,0,134,1,0])
+                payload = len(script).to_bytes(2,'little') + script
+                install(directory + '-logDir', bytes(3), directory + '/logDir')
+                install(directory + '-logic', b'\x12\x34\0' + len(payload).to_bytes(2,'little') * 2 + payload, directory + '/vol.0')
+            first_command, second_command = 'wbgame /s0/bars-game 0', 'wbgame /s0/game 0'
+
     else:
         install('bars.bin', bars)
         install('picture.bin', picture)

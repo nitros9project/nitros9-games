@@ -20,3 +20,4 @@ vmrequested         rmb       1
 vmcacheindex        rmb       1
 vmslot              rmb       2
 vmcleanup           rmb       1
+vmrequestedkind     rmb       1

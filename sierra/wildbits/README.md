@@ -345,14 +345,16 @@ commands/tests return an error instead of silently being skipped.
 
 The core implements commands 1–17, relative jumps, return, comparisons,
 variable/flag tests and AND/OR/NOT expressions. Platform commands currently
-include loading/calling logic, scan-start management and `set.game.id`.
+include typed resource loading/discard, cached/nested logic calls, scan-start
+management, `set.game.id`, bounded object/view state, menus, strings, screen
+configuration, keyboard bindings, replay records and room transitions.
 `logic-code.asm` follows the existing CoCo operand-count table; argument
 staging and instruction/branch bounds prevent malformed scripts from reading
 messages as instructions. Script positions remain offsets across mapping
 changes. Messages use bounded relative offsets; plain logic strings are
 XOR-decoded with the original key, while compressed logic strings are plain.
 
-`logic-cache.asm` retains up to 32 owned logic slabs. Sixteen private call
+`logic-cache.asm` retains up to 32 owned typed resource slabs. Sixteen private call
 frames save the caller's cache slot, instruction offset, code end and remaining
 instruction budget. Loading a callee unmaps the caller first; return restores
 its descriptor. Exit frees temporary allocations and all cache-owned slabs,
@@ -368,10 +370,70 @@ MAME verified real logic 0's 8,950 expanded bytes and a diagnostic cross-page
 script with cached/nested calls on `/term` and `/vt1`, with unchanged free memory.
 See [MAME.md](MAME.md) for the commands and hashes.
 
-Current modules: `wbasset` is 1,748 bytes with 9,989 bytes of private data;
-`wbexec` is 3,584 bytes with 11,889 bytes of private data. Both need two private
-8 KB blocks and one mapping window, leaving 40,192 code bytes. These probe
-budgets are not a final game-engine memory budget. Object/view drawing and
-motion, text/input, remaining AGI commands, the game cycle and save/restore
-still need integration. King's Quest I logic 0 currently sets its game ID and
-stops at the unported `script.size` command; it does not run a game cycle yet.
+Current probe modules: `wbasset` is 1,815 bytes with 9,989 private bytes;
+`wbexec` is 6,194 bytes with 17,069 private bytes. The latter now needs three
+private 8 KB blocks and one mapping window, leaving 32,000 code bytes.
+
+## Native game owner
+
+`wbgame.asm` has one OS-9 module header and includes the same small loader,
+logic, decoder and presentation components directly. It also includes separate
+`game-background-*`, `game-render-*`, `game-cycle-*` and `game-text-*` components.
+It does not concatenate complete CoCo modules or run the probes as subprocesses.
+
+The implemented path is:
+
+```text
+logic -> load.pic/draw.pic -> immutable background + composition buffer
+      -> view metadata/RLE rows -> priority-sorted sprite composition
+      -> show.pic -> terminal bitmap + persistent text cells
+      -> wait/poll keyboard/update clock -> run root logic again
+```
+
+A composition slab owns four physical blocks. A separate four-block background
+slab is allocated lazily when the first visible sprite needs it. Picture-only
+scenes retain no duplicate background, saving 32 KB per process. Sprite
+RLE rows stage in private memory; the view is unmapped before picture pixels
+are accessed. Transparent pixels, mirrored cels, clipping and priority/control
+occlusion are handled without retaining pointers across mapping changes.
+Draw/erase rebuild visible objects over the saved background. This version
+refreshes complete pictures; dirty-region optimization and hardware timing
+measurements remain work, so no performance parity is claimed.
+
+The game cycle resumes root logic at its saved scan start, while room changes
+unwind nested calls before discarding room resources. Nonblocking `SS.Ready`
+and one-byte reads route ASCII `set.key` bindings to controllers. `F$Time`
+updates the AGI clock, including second rollover. Foreground/background signals
+pause work, and foreground return resets the time baseline to avoid counting
+hidden time. Immediate `quit(1)` releases owned resources.
+
+Text uses the existing immutable 128-character, 8-by-8 font, extracted into
+`objs/font-data.asm`; the CoCo screen module remains byte-for-byte identical.
+Private 40-by-25 character/foreground/background cells survive picture
+refreshes. `display`/`display.v` support literal messages, colors and wrapping;
+format directives currently return an explicit unsupported error.
+
+`wbgame` currently uses 12,346 code bytes and 25,762 private bytes. Four private
+blocks plus one mapping window leave a conservative 23,808-byte code budget.
+Physical memory also holds resource caches, two picture slabs and the terminal
+bitmap. These are distinct from the logical-address budget.
+
+`check_wbgame.py` executes native instructions and checks every castle pixel,
+transparent/mirrored/clipped/occluded/erased sprites, glyph colors and wrapping
+across framebuffer pages, persistence after `show.pic`, repeated logic cycles,
+keyboard controllers, clock rollover and ownership cleanup. These CPU tests
+mock OS services; real-driver MAME acceptance is reported separately.
+
+This is **not a playable game yet**. Automatic motion/cel updates, vocabulary
+parsing, formatted messages/dialogs, menu interaction, sound playback and
+remaining game commands still need integration. Menu construction and replay
+records are bounded state components, not completed menu UI or save/restore.
+The original `objs/wildbits_engine.asm` remains untouched and unbuilt.
+
+The native-owner MAME diagnostic passed on the existing 512 KB Jr2 test OS:
+repeated logic cycles, every castle/diagnostic pixel, two terminals, switching,
+independent controller-key exits, relaunch and unchanged free RAM. Its scripts
+exercise implemented picture commands; they are not the full King's Quest I
+logic. See [MAME.md](MAME.md). Two sprite-heavy games need additional memory;
+the guide's current RAM-capable kernel/core must be verified before claiming
+that configuration. An allocation failure is reported and cleaned up.

@@ -37,6 +37,9 @@ intercept           cmpb      #SignalBg
 signalforeground    cmpb      #SignalFg
                     bne       signalabort
                     clr       paused,u
+                    ifne      GAME_PRESENTATION
+                    inc       gameclockreset,u
+                    endc
                     rti
 signalabort         cmpb      #S$Abort
                     blo       signalreturn
@@ -46,6 +49,9 @@ signalabort         cmpb      #S$Abort
                     ifne      PRESENT_PICTURE
                     ldb       #E$PrcAbt
                     stb       decodeerror,u
+                    ifne      AGI_ASSET
+                    stb       asseterror,u
+                    endc
                     endc
 signalreturn        rti
 

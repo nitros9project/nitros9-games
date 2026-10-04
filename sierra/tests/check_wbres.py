@@ -51,7 +51,7 @@ def start_cpu(bootrom, timeout=300):
     raise RuntimeError('XRoar debugger did not attach after four fresh starts')
 
 
-def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zero_read=False, seek_error=False, write_error=False, module='wbres', map_failure=0, allocation_error=False, unmap_error=False, window=0x8000, terminal=True, blocks=4, capture=False, multiple=False):
+def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zero_read=False, seek_error=False, write_error=False, module='wbres', map_failure=0, allocation_error=False, unmap_error=False, window=0x8000, terminal=True, blocks=4, capture=False, multiple=False, firstblock=0x30, frame_capture=False, keyboard=b'', clock=(0,), bitmap_error=False):
     syms = symbols(ROOT / (module + '.map'))
     calls = {base + int(m[1], 16): int(m[2], 16) for m in re.finditer(
         r'^([0-9A-F]{4}) 103F([0-9A-F]{2}).*os9', (ROOT / (module + '.list')).read_text(), re.M)}
@@ -66,7 +66,11 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
            dp=database >> 8, u=database, x=argv, cc=0x50)
     paths, output, nextpath = {}, bytearray(), 3
     owned, mapped = {}, False
-    nextblock = 0x30
+    nextblock = firstblock
+    bitmapfirst, frame = None, bytearray()
+    keyboard = bytearray(keyboard)
+    clock = list(clock)
+    clocksecond = clock[0]
     maps = 0
     unmap_failed = False
     for _ in range(20000):
@@ -81,11 +85,47 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
             for address in calls:
                 d.breakpoint(address, False)
             if capture:
-                return r['b'], bytes(output), {name: d.read(database + syms[name], length) for name, length in [('vmopcode', 1), ('vmip', 2), ('vmvariables', 256), ('vmflags', 256), ('vmgameid', 8), ('messagebuffer', 512)]}
-            return r['b'], bytes(output)
+                return r['b'], bytes(frame if frame_capture else output), {name: d.read(database + syms[name], length) for name, length in [('vmopcode', 1), ('vmip', 2), ('vmvariables', 256), ('vmflags', 256), ('vmgameid', 8), ('messagebuffer', 512), ('vmobjects', 2752), ('menucount', 1), ('menuitems', 1), ('menuready', 1), ('menutext', 768), ('asseterror', 1), ('vmerror', 1), ('vmend', 2), ('resourcelength', 2), ('vmcurrent', 1)]}
+            return r['b'], bytes(frame if frame_capture else output)
+        elif service == syms.get('F$Time'):
+            assert not mapped
+            if clock:
+                clocksecond = clock.pop(0)
+            d.write(r['x'], bytes([126,10,4,12,0,clocksecond]))
+        elif service == syms.get('F$Sleep'):
+            assert not mapped
+        elif service == syms['I$GetStt'] and r['b'] == syms['SS.Ready']:
+            assert not mapped
+            if not keyboard:
+                updates.update(cc=r['cc'] | 1, b=syms['E$NotRdy'])
         elif service == syms['I$GetStt'] and r['b'] == syms['SS.Opt']:
             assert r['a'] == 0
             d.write(r['x'], bytes([0 if terminal else 1]) + bytes(31))
+        elif service == syms['I$GetStt'] and r['b'] == syms.get('SS.DevNm'):
+            d.write(r['x'], b'/term\0' + bytes(26))
+        elif service == syms['I$SetStt'] and r['b'] == syms.get('SS.AScrn'):
+            assert r['a'] == 1 and bitmapfirst is None and not mapped, (r, bitmapfirst, mapped)
+            if bitmap_error:
+                updates.update(cc=r['cc'] | 1, b=syms['E$MFull'])
+            else:
+                bitmapfirst = nextblock
+                owned[bitmapfirst] = 10
+                nextblock += 10
+        elif service == syms['I$GetStt'] and r['b'] == 0xe4:
+            assert r['a'] == 1 and bitmapfirst is not None
+            updates['x'] = bitmapfirst
+        elif service == syms['I$SetStt'] and r['b'] == syms.get('SS.FScrn'):
+            assert r['a'] == 1 and bitmapfirst in owned and not mapped
+            if frame_capture:
+                for page in range(10):
+                    d.write(0xffa8 + window // 8192, bytes([bitmapfirst + page]))
+                    frame.extend(d.read(window, 8192))
+                del frame[76800:]
+                d.write(0xffa8 + window // 8192, bytes([window // 8192]))
+            del owned[bitmapfirst]
+            bitmapfirst = None
+        elif service == syms['I$SetStt'] and r['b'] in (0xcf, 0xe1, syms.get('SS.PScrn'), syms.get('SS.DScrn'), syms.get('SS.Palet')):
+            assert not mapped
         elif service == syms['I$SetStt'] and r['b'] == 0xD4:
             assert r['a'] == 0 and (blocks is None or r['x'] == blocks) and (multiple or not owned)
             if allocation_error:
@@ -128,8 +168,12 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
                 updates.update(cc=r['cc'] | 1, b=syms['E$Seek'])
             else:
                 paths[r['a']][1] = r['x'] * 65536 + r['u']
+        elif service == syms['I$Read'] and r['a'] == 0:
+            assert not mapped and keyboard and r['y'] == 1
+            d.write(r['x'], bytes([keyboard.pop(0)]))
+            updates['y'] = 1
         elif service == syms['I$Read']:
-            assert not mapped or module not in ('wbasset', 'wbexec'), 'resource read with foreign mapping live'
+            assert not mapped or module not in ('wbasset', 'wbexec', 'wbgame'), 'resource read with foreign mapping live'
             data, position = paths[r['a']]
             if zero_read:
                 updates['y'] = 0
@@ -152,7 +196,7 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
                 output.extend(d.read(r['x'], count))
                 updates['y'] = count
         else:
-            assert service in (syms['I$WritLn'], syms['F$Icpt'])  # usage text stays on stderr
+            assert service in (syms['I$WritLn'], syms['F$Icpt']), (service, r)  # usage text stays on stderr
         d.regs(**updates)
     raise AssertionError('probe did not exit')
 

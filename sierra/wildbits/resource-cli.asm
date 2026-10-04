@@ -1,6 +1,27 @@
 * Shared probe argument/output body. Owning module supplies state and help.
 start               stu       <resourcebase
+                    ifne      GAME_TRACE
+                    clr       gametracestagebyte,u
+                    endc
+                    ifne      GAME_PRESENTATION
+                    clr       gamebackgroundowned,u
+                    pshs      x
+                    lbsr      GameTextInitialize
+                    puls      x
+                    endc
                     clr       <resourceopen
+                    ifne      AGI_ASSET
+                    ifne      DECODE_PICTURE
+                    clr       <pictureowned
+                    clr       <picturemapped
+                    clr       <decodeerror
+                    ifne      PRESENT_PICTURE
+                    pshs      x
+                    lbsr      PresentationInitialize
+                    puls      x
+                    endc
+                    endc
+                    endc
                     ifne      AGI_ASSET
                     clr       <assetowned
                     clr       <assetmapped
@@ -8,6 +29,21 @@ start               stu       <resourcebase
                     clr       <resourcekind
                     ifne      AGI_VM
                     pshs      x
+                    clr       <replaylimit
+                    clr       <replayused
+                    clr       <replayused+1
+                    clr       <replaycheckpoint
+                    clr       <replaycheckpoint+1
+                    clr       <vmroompending
+                    clr       <vmroomchanges
+                    lda       #36
+                    sta       <vmhorizon
+                    lda       #1
+                    sta       <vmplayercontrol
+                    lbsr      InputInitialize
+                    lbsr      ScreenInitialize
+                    lbsr      StringsInitialize
+                    lbsr      MenuInitialize
                     lbsr      VmClearCache
                     puls      x
                     endc
@@ -18,12 +54,16 @@ start               stu       <resourcebase
                     lbcs      Exit
                     endc
                     ifne      DECODE_PICTURE
+                    ifeq      AGI_ASSET
                     clr       <pictureowned
                     clr       <picturemapped
                     clr       <decodeerror
+                    endc
                     pshs      x
                     ifne      PRESENT_PICTURE
+                    ifeq      AGI_ASSET
                     lbsr      PresentationInitialize
+                    endc
                     leax      intercept,pcr
                     else
                     leax      DecodeIntercept,pcr
@@ -80,6 +120,10 @@ LoadResource        ldx       <argdirectory
                     ifne      AGI_VM
                     lbsr      StartLogic
                     bcs       Exit
+                    ifne      GAME_PRESENTATION
+                    clrb
+                    lbra      Exit
+                    endc
                     ldu       <resourcebase
                     leax      vmvariables,u
                     ldy       #512
@@ -125,6 +169,15 @@ WriteMore           lda       #1
                     bne       WriteMore
                     clrb
 Exit                equ       *
+                    ifne      GAME_PRESENTATION
+                    pshs      b
+                    lbsr      GameUnmapForExit
+                    bcc       GameExitMappingsReady
+                    tst       ,s
+                    bne       GameExitMappingsReady
+                    stb       ,s
+GameExitMappingsReady puls    b
+                    endc
                     ifne      AGI_ASSET
                     stb       <assetexiterror
                     ifne      AGI_VM
@@ -148,6 +201,15 @@ AssetExitDone       ldb       <assetexiterror
                     stb       <pictureexiterror
 PictureExitRetry    lbsr      PictureRelease
 PictureExitResult   equ       *
+                    ifne      GAME_PRESENTATION
+                    lbsr      GameReleaseBackground
+                    bcc       GameBackgroundExitDone
+                    tst       <pictureexiterror
+                    bne       GameBackgroundExitRetry
+                    stb       <pictureexiterror
+GameBackgroundExitRetry lbsr  GameReleaseBackground
+GameBackgroundExitDone equ   *
+                    endc
                     ifne      PRESENT_PICTURE
                     lbsr      PresentationRelease
                     bcc       PresentationExitResult
@@ -157,6 +219,9 @@ PictureExitResult   equ       *
 PresentationExitResult equ    *
                     endc
                     ldb       <pictureexiterror
+                    endc
+                    ifne      GAME_TRACE
+                    lbsr      GameTraceError
                     endc
                     os9       F$Exit
 WriteBad            ldb       #E$BMode

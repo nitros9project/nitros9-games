@@ -67,7 +67,8 @@ Presentation step:   combined color/priority buffer -> wbpic -> terminal bitmap
 Native decoder:     F0-FA command bytes -> owned physical buffer, one mapped window
 Native assets:       log/view/sound resources -> bounded LZW -> owned mapped slabs
 Native logic:        mapped byte fetch -> arithmetic/conditions -> cached/nested calls
-Still to convert:    game commands, object/view motion, text/input and game cycle
+Native game owner:  picture/view composition + literal text + repeated logic/input cycles
+Still to convert:   motion/cel updates, word parsing, dialogs, sound, remaining commands
 ```
 
 The host renderer supplies the reference while the native decoder is converted.
@@ -94,3 +95,21 @@ alongside the picture/presentation includes. `logic-platform.asm` is currently
 the command integration boundary, with explicit errors for unported behavior.
 The original CoCo `mnln.asm` remains the source/semantic reference; no complete
 CoCo module or fixed-address workspace is incorporated into the native owner.
+
+
+`wbgame.asm` is now the integration owner. The `object-*`, `view-*`, `room-*`,
+`menu-*`, `input-*`, `screen-*`, `string-*` and `replay-*` bodies keep small AGI
+command groups separate. `game-picture-*` connects script picture commands to
+the existing decoder. `game-background-*` owns an immutable decoded background;
+`game-render-*` stages bounded view rows and composes visible objects;
+`game-text-*` maintains private persistent text cells and draws the shared font;
+`game-cycle-*` owns scheduling, clock, controller polling and immediate quit.
+Each component calls OS services through the same one-window discipline.
+There is still no complete gameplay claim: movement, parsing, dialogs and sound
+remain explicit work, and unsupported commands do not become silent no-ops.
+
+Startup and cycle flags follow the existing AGI semantics, checked against
+[ScummVM's AGI cycle implementation](https://github.com/scummvm/scummvm/blob/master/engines/agi/cycle.cpp).
+The 6809 command adaptations remain based on this repository's CoCo engine.
+The native renderer retains priority/control distinctions while changing the
+storage and mapping interface; shared module code and font bytes are immutable.

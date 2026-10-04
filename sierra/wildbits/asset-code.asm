@@ -211,3 +211,36 @@ AssetIntercept      cmpb      #S$Abort
                     ldb       #E$PrcAbt
                     stb       asseterror,u
 AssetSignalDone     rti
+
+* Bounded random byte/word reads from the current slab. D=offset; U/X/Y
+* retained. Word result is little endian; byte result is B.
+AssetReadWord         pshs      x
+                    tfr       d,x
+                    lbsr      AssetReadByte
+                    bcs       AssetReadWordFailed
+                    pshs      b
+                    leax      1,x
+                    tfr       x,d
+                    lbsr      AssetReadByte
+                    bcs       AssetReadWordLowFailed
+                    tfr       b,a
+                    puls      b,x
+                    andcc     #$FE
+                    rts
+AssetReadWordLowFailed leas     1,s
+AssetReadWordFailed   puls      x,pc
+AssetReadByte         pshs      x,y,u
+                    cmpd      <resourcelength
+                    bhs       AssetReadByteInvalid
+                    lbsr      AssetPointer
+                    tst       <asseterror
+                    bne       AssetReadByteError
+                    ldb       ,u
+                    andcc     #$FE
+                    puls      x,y,u,pc
+AssetReadByteInvalid  ldb       #E$BMode
+                    orcc      #1
+                    puls      x,y,u,pc
+AssetReadByteError    ldb       <asseterror
+                    orcc      #1
+                    puls      x,y,u,pc

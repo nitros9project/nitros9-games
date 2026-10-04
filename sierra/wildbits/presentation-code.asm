@@ -12,15 +12,37 @@ PresentationInitLoop clr      ,x+
                     clr       <presentoffset+1
                     rts
 PresentPicture      lbsr      PictureUnmap
+                    ifne      GAME_TRACE
+                    pshs      cc,a
+                    lda       #1
+                    lbsr      GameTraceStage
+                    puls      cc,a
+                    endc
                     lbcs      PresentFailure
                     lbsr      CheckTerminal
+                    ifne      GAME_TRACE
+                    pshs      cc,a
+                    lda       #2
+                    lbsr      GameTraceStage
+                    puls      cc,a
+                    endc
                     lbcs      PresentFailure
+                    ifne      GAME_PRESENTATION
+                    tst       <bitmapowned
+                    lbne      PresentReuseBitmap
+                    endc
 * Refuse an existing bitmap: it is not ours to modify or free.
                     lda       #1
                     ldb       #SS.AScrn
                     ldx       #0
                     ldy       #0
                     os9       I$SetStt
+                    ifne      GAME_TRACE
+                    pshs      cc,a
+                    lda       #3
+                    lbsr      GameTraceStage
+                    puls      cc,a
+                    endc
                     lbcs      PresentFailure
                     inc       <bitmapowned
 * Query the actual first block,rather than relying on an old allocation ABI.
@@ -28,12 +50,24 @@ PresentPicture      lbsr      PictureUnmap
                     ldb       #WBBmBlk
                     ldy       #0
                     os9       I$GetStt
+                    ifne      GAME_TRACE
+                    pshs      cc,a
+                    lda       #4
+                    lbsr      GameTraceStage
+                    puls      cc,a
+                    endc
                     lbcs      PresentFailure
                     stx       <firstblock
                     lda       #0
                     ldb       #WBWSig
                     ldx       #SignalBg*256+SignalFg
                     os9       I$SetStt
+                    ifne      GAME_TRACE
+                    pshs      cc,a
+                    lda       #5
+                    lbsr      GameTraceStage
+                    puls      cc,a
+                    endc
                     lbcs      PresentFailure
                     inc       <registered
                     clr       <blockindex
@@ -54,6 +88,16 @@ clearbyte           sta       ,u+
                     lda       <blockindex
                     cmpa      #10
                     blo       clearblock
+                    ifne      GAME_PRESENTATION
+PresentReuseBitmap  clr       <presentoffset
+                    clr       <presentoffset+1
+                    lda       <vmpicturetop
+                    ldb       #10
+                    mul
+                    tfr       b,a
+                    clrb
+                    std       <frameoffset   picture top row * 8 * 320
+                    endc
                     lda       #PictureHeight
                     sta       <rows
 PresentReadRow      lbsr      foreground
@@ -84,6 +128,12 @@ PresentCopySource   lda       ,u+
                     bne       PresentCopySource
                     stx       <sourceptr
                     lbsr      PictureUnmap
+                    ifne      GAME_TRACE
+                    pshs      cc,a
+                    lda       #6
+                    lbsr      GameTraceStage
+                    puls      cc,a
+                    endc
                     lbcs      PresentFailure
                     ldd       <presentoffset
                     addd      <chunk
@@ -151,31 +201,73 @@ copyspan            lda       ,x+
                     lda       #1
                     ldb       #WBClutWrite
                     os9       I$SetStt
+                    ifne      GAME_TRACE
+                    pshs      cc,a
+                    lda       #7
+                    lbsr      GameTraceStage
+                    puls      cc,a
+                    endc
                     lbcs      PresentFailure
                     lda       #1
                     ldb       #SS.Palet
                     ldx       #0
                     ldy       #0
                     os9       I$SetStt
+                    ifne      GAME_TRACE
+                    pshs      cc,a
+                    lda       #8
+                    lbsr      GameTraceStage
+                    puls      cc,a
+                    endc
                     lbcs      PresentFailure
                     lda       #1
                     ldb       #SS.PScrn
                     ldx       #0
                     ldy       #0
                     os9       I$SetStt
+                    ifne      GAME_TRACE
+                    pshs      cc,a
+                    lda       #9
+                    lbsr      GameTraceStage
+                    puls      cc,a
+                    endc
                     lbcs      PresentFailure
                     lda       #1
                     ldb       #SS.DScrn
                     ldx       #FX_BM+FX_GRF
                     ldy       #FT_OMIT
                     os9       I$SetStt
+                    ifne      GAME_TRACE
+                    pshs      cc,a
+                    lda       #10
+                    lbsr      GameTraceStage
+                    puls      cc,a
+                    endc
                     lbcs      PresentFailure
+                    ifne      GAME_PRESENTATION
+                    lbsr      GameDrawText
+                    ifne      GAME_TRACE
+                    pshs      cc,a
+                    lda       #11
+                    lbsr      GameTraceStage
+                    puls      cc,a
+                    endc
+                    lbcs      PresentFailure
+                    endc
+                    ifeq      GAME_PRESENTATION
                     lda       #0
                     ldu       <dbase
                     leax      rowinput,u
                     ldy       #1
                     os9       I$Read    any key returns to text
+                    ifne      GAME_TRACE
+                    pshs      cc,a
+                    lda       #12
+                    lbsr      GameTraceStage
+                    puls      cc,a
+                    endc
                     bcs       PresentFailure
+                    endc
                     clrb
                     rts
 PresentAbort        ldb       #E$PrcAbt
@@ -198,6 +290,12 @@ PresentReleaseSignal tst      <registered
                     ldb       #WBWSig
                     ldx       #0
                     os9       I$SetStt
+                    ifne      GAME_TRACE
+                    pshs      cc,a
+                    lda       #13
+                    lbsr      GameTraceStage
+                    puls      cc,a
+                    endc
                     bcs       PresentReleaseError
                     clr       <registered
 PresentReleaseBitmap tst      <bitmapowned
@@ -207,11 +305,23 @@ PresentReleaseBitmap tst      <bitmapowned
                     ldx       #FX_TXT
                     ldy       #FT_OMIT
                     os9       I$SetStt
+                    ifne      GAME_TRACE
+                    pshs      cc,a
+                    lda       #14
+                    lbsr      GameTraceStage
+                    puls      cc,a
+                    endc
                     bcs       PresentReleaseError
                     lda       #1
                     ldb       #SS.FScrn
                     ldy       #0
                     os9       I$SetStt
+                    ifne      GAME_TRACE
+                    pshs      cc,a
+                    lda       #15
+                    lbsr      GameTraceStage
+                    puls      cc,a
+                    endc
                     bcs       PresentReleaseError
                     clr       <bitmapowned
 PresentReleaseResult ldb      <errorcode

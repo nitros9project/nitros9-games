@@ -832,3 +832,22 @@ logic conditions/arithmetic and cached/nested calls. MAME checks cover logic 0
 and cross-page bytecode on both terminal paths with unchanged free memory.
 Object/view motion, text/input, game commands and the main game cycle remain;
 this is not yet playable. Performance parity has not been established. No existing CoCo engine source was changed.
+
+
+### Native game integration checkpoint
+
+The Wild Bits owner now follows the CoCo approach of small included bodies,
+with one module header and private process state. Object/view metadata, room
+transitions, menus, strings, keyboard bindings and replay bookkeeping live in
+separate command components. Picture loading, background ownership, sprite
+composition, literal text and scheduling each have their own `game-*` bodies.
+The shared bitmap font is now `objs/font-data.asm`; assembling the CoCo `scrn`
+module before/after extraction produces identical bytes.
+
+CPU tests cover the native picture/view/text path, repeated logic cycles and
+controller input. Real Wild Bits MAME checks cover two picture-command game
+instances, visibility switching, independent exits/relaunch and free-memory
+recovery. This is not full game acceptance: motion, vocabulary parsing, dialogs,
+sound and remaining commands still need integration. See
+[wildbits/README.md](wildbits/README.md) and [wildbits/MAME.md](wildbits/MAME.md)
+for module budgets, exact test scope and the older test kernel's RAM limit.

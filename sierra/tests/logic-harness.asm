@@ -1,6 +1,7 @@
                     use       defsfile
 resourcebase        rmb       2
                     use       logic-data.asm
+                    use       room-data.asm
 scriptbase          rmb       2
 vmvariables         rmb       256
 vmflags             rmb       256

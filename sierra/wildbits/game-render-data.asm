@@ -1,0 +1,21 @@
+* Private renderer state outside the direct page. No mapped pointers persist.
+gamebackgroundfirst rmb      2
+gamebackgroundowned rmb      1
+gamecopydirection   rmb      1
+spriteobject        rmb      2
+spriteoffset        rmb      2
+spriterowy          rmb      2
+spritewidth         rmb      1
+spriteheight        rmb      1
+spritecolumn        rmb      1
+spriterun           rmb      1
+spritecolor         rmb      1
+spritetransparent   rmb      1
+spritemirror        rmb      1
+spritepriority      rmb      1
+spriteid            rmb      1
+spriteorder         rmb      1
+spritecount         rmb      1
+spritekey           rmb      2
+spritelist          rmb      256
+spriterow           rmb      160

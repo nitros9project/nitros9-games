@@ -57,17 +57,25 @@ def main():
         assert args.game is None, 'execute mode currently tests a generated diagnostic'
         script = b'\xfe' + (8192 - 5).to_bytes(2, 'little')
         script += bytes(8192 - len(script) - 2)
-        script += bytes([20,1,22,1,22,1,3,250,99,0])
+        script += bytes([142,10,20,1,22,1,22,1,30,0,30,0,32,0,98,0,
+                         3,250,99,33,63,37,63,100,160,39,63,248,249,
+                         3,252,8,86,63,252,87,63,253,54,63,15,57,63,254,0])
         volume_data, entries = bytearray(), bytearray()
         for body in [script, bytes([1,251,12,200,0])]:
             entries += len(volume_data).to_bytes(3, 'big')
             data = len(body).to_bytes(2, 'little') + body
             length = len(data).to_bytes(2, 'little')
             volume_data += b'\x12\x34\0' + length * 2 + data
-        files = {'logDir': bytes(entries), 'vol.0': bytes(volume_data)}
+        files = {'logDir': bytes(entries)}
+        for directory, data in [('viewDir', b'view-data'), ('sndDir', b'sound-data')]:
+            files[directory] = len(volume_data).to_bytes(3, 'big')
+            length = len(data).to_bytes(2, 'little')
+            volume_data += b'\x12\x34\0' + length * 2 + data
+        files['vol.0'] = bytes(volume_data)
         number, volume, offset = 0, 0, 0
         payload = bytearray(512)
-        payload[250], payload[251], payload[256 + 200] = 99, 2, 1
+        payload[248:255] = bytes([100,160,99,2,8,8,15])
+        payload[256 + 200] = 1
         payload = bytes(payload)
     elif args.asset:
         from check_lzw import expand

@@ -5,7 +5,7 @@
 * Every table/string access is checked against the owned expanded slab.
 ReadLogicMessage    stb       <messagenumber
                     ldd       <vmend
-                    lbsr      MessageByte
+                    lbsr      AssetReadByte
                     lbcs      MessageReturn
                     stb       <messagecount
                     tst       <messagenumber
@@ -16,7 +16,7 @@ ReadLogicMessage    stb       <messagenumber
                     ldd       <vmend
                     addd      #1
                     std       <messagebase
-                    lbsr      MessageWord
+                    lbsr      AssetReadWord
                     lbcs      MessageReturn
                     cmpd      #2
                     lblo      MessageInvalid
@@ -40,7 +40,7 @@ ReadLogicMessage    stb       <messagenumber
                     lslb
                     rola
                     addd      <messagebase
-                    lbsr      MessageWord
+                    lbsr      AssetReadWord
                     lbcs      MessageReturn
                     cmpd      #0
                     lbeq      MessageInvalid
@@ -62,7 +62,7 @@ MessageKeyReady     stb       <messagekey
 MessageCopyNext     ldd       <messageposition
                     cmpd      <messageend
                     lbhs      MessageInvalid
-                    lbsr      MessageByte
+                    lbsr      AssetReadByte
                     lbcs      MessageReturn
                     pshs      b
                     ldd       <messageposition
@@ -105,34 +105,5 @@ MessageReturn       rts
 MessageInvalid      ldb       #E$BMode
                     orcc      #1
                     rts
-MessageWord         pshs      x
-                    tfr       d,x
-                    lbsr      MessageByte
-                    bcs       MessageWordFailed
-                    pshs      b
-                    leax      1,x
-                    tfr       x,d
-                    lbsr      MessageByte
-                    bcs       MessageWordLowFailed
-                    tfr       b,a
-                    puls      b,x
-                    andcc     #$FE
-                    rts
-MessageWordLowFailed leas     1,s
-MessageWordFailed   puls      x,pc
-MessageByte         pshs      x,y,u
-                    cmpd      <resourcelength
-                    bhs       MessageByteInvalid
-                    lbsr      AssetPointer
-                    tst       <asseterror
-                    bne       MessageByteError
-                    ldb       ,u
-                    andcc     #$FE
-                    puls      x,y,u,pc
-MessageByteInvalid  ldb       #E$BMode
-                    orcc      #1
-                    puls      x,y,u,pc
-MessageByteError    ldb       <asseterror
-                    orcc      #1
-                    puls      x,y,u,pc
+
 MessageXorKey       fcc       /Avis Durgan/
