@@ -1,3 +1,5 @@
+                    use       buffer-layout.d
+
 ********************************************************************
 * sierra - Sierra AGI game setup module
 *
@@ -247,39 +249,8 @@ ExitNow             os9       F$Exit    time to check out
 * ====== Static Data: Color Tables, MMU Slots, and Module Name Strings ======
 * same sequence of bytes at L454C in mnln
 
-ColorTable          fcb       $00       composite
-                    fcb       $0C
-                    fcb       $02
-                    fcb       $2E
-                    fcb       $06
-                    fcb       $09
-                    fcb       $04
-                    fcb       $20
-                    fcb       $10
-                    fcb       $1B
-                    fcb       $11
-                    fcb       $3D
-                    fcb       $17
-                    fcb       $29
-                    fcb       $33
-                    fcb       $3F
-
-                    fcb       $00       rgb
-                    fcb       $08
-                    fcb       $14
-                    fcb       $18
-                    fcb       $20
-                    fcb       $28
-                    fcb       $22
-                    fcb       $38
-                    fcb       $07
-                    fcb       $0B
-                    fcb       $16
-                    fcb       $1F
-                    fcb       $27
-                    fcb       $2D
-                    fcb       $37
-                    fcb       $3F
+* Platform screen implementation, selected during assembly.
+                    use       platform/screen-colors.asm
 
 * Name strings of other modules to load.
 
@@ -314,41 +285,8 @@ SetupModuleRet      rts                 startup error is handled by InitEntry
 
 * Require matching input/output terminals and the ownership-aware screen
 * service. Reject old bootfiles before changing any device or MMU state.
-CheckInstanceServices lda     #StdIn
-                    ldb       #SS.DevNm
-                    ldx       #gprbuf
-                    os9       I$GetStt
-                    bcs       InstanceServiceRet
-                    lda       #StdOut
-                    ldb       #SS.DevNm
-                    ldx       #gprbuf+32
-                    os9       I$GetStt
-                    bcs       InstanceServiceRet
-                    ldx       #gprbuf
-                    ldy       #gprbuf+32
-                    ldb       #32
-InstanceNameLoop    lda       ,x+
-                    cmpa      ,y+
-                    bne       InstanceServiceBad
-                    tsta
-                    beq       InstanceNamesMatch
-                    bmi       InstanceNamesMatch
-                    decb
-                    bne       InstanceNameLoop
-InstanceServiceBad  comb
-                    ldb       #E$IllArg
-                    rts
-InstanceNamesMatch  lda       #StdOut
-                    ldb       #SS.AScrn
-                    os9       I$GetStt  query the ownership-aware application-screen ABI
-                    bcs       InstanceServiceRet
-                    cmpx      #2
-                    bcc       InstanceServiceOK
-                    comb
-                    ldb       #E$UnkSvc
-InstanceServiceRet  rts
-InstanceServiceOK   clrb
-                    rts
+* Platform implementation; selection emits no dispatch code.
+                    use       platform/service-check.asm
 
 * clean up and shut down
 agi_shutdown
@@ -392,7 +330,7 @@ ClearLoop           std       ,x++      write zero word and advance pointer
                     lda       #$32      load game state constant
                     sta       >$0245    store game state byte at $0245
 
-                    ldd       #$6000    This is the start of high res screen memory
+                    ldd       #CocoFrameBase This is the start of high res screen memory
                     std       <ScrAddrHi store hi-res screen start address
 
                     lda       #$15      load game state constant
@@ -413,36 +351,8 @@ FillBytes           sta       ,x+       store fill byte and advance pointer
                     bne       FillBytes loop until count reaches zero
                     rts                 return from FillBytes/InitDataArea
 
-ConfigureMonitor
-*  get current montype
-*  GetStat Function Code $92
-*          Allocates and maps high res screen
-*          into application address space
-* entry:
-*       a -> path number
-*       b -> function code $92 (SS.Montr)
-*
-* exit:
-*       x -> monitor type
-*
-* error:
-*       CC -> Carry set on error
-*       b  -> error code (if any)
-*
-                    lda       #StdOut   $01 path number
-                    ldb       #SS.Montr monitor type code (not listed for getstat $92
-                    os9       I$GetStt  make the call
-                    bcs       ConfigureMonitorRet
-                    tfr       x,d       save in d appears he expects montype returned
-                    lda       >RgbRequested
-                    beq       UseOriginalMonitor
-                    ldb       #RGB
-UseOriginalMonitor  andb      #$01      mask out mono type only RGB or COMP
-                    stb       >$0553    save that value off as display_type
-
-                    clrb                success; global monitor mode is untouched
-
-ConfigureMonitorRet rts
+* Platform screen implementation, selected during assembly.
+                    use       platform/monitor-select.asm
 
 * ====== DisableKbdInt: Save and Suppress Keyboard Signals ======
 *  Raw disassembly of followin code
@@ -493,69 +403,8 @@ ConfigureMonitorRet rts
 *       THEN, CAN BUMP BLOCKS AROUND WITH THE ACTUAL BLOCK #
 *       IN FULL 2 MB RANGE, INSTEAD OF JUST GIME 512K RANGE.
 
-SetupProcMap        os9       F$ID
-                    sta       >OwnProcessId
-                    orcc      #IntMasks Shut interrupts off
-                    ldx       #$0002    ???
-                    stx       <BlockRef save block reference pair
-
-*        As per above NOTE, should postpone this until we have DAT image
-*        available for Sierra process
-
-*         lda   >$FFAF         Get MMU block # SIERRA is in
-                    lda       >mmubuf+$0F read task-0 MMU slot 15 (Sierra's block)
-                    sta       <MmuSaveTmp Save it
-                    clr       >$FFA9    Map system block 0 into $2000-$3FFF
-                    ldx       >D.PrcDBT+$2000
-                    leax      $2000,x   process-pointer table resides in system block 0
-                    ldb       >OwnProcessId
-                    lda       b,x       process descriptors are aligned to $200
-                    clrb
-                    tfr       d,y       retain the full system descriptor address
-                    anda      #$1F      Keep non-MMU dependent address
-
-* NOTE: OFFSET IS STUPID, SHOULD USE EVEN BYTE SO LDD'S BELOW
-*       CAN USE FASTER LDD ,X INSTEAD OF OFFSET,X
-
-                    addd      #$2000+P$DATImg+3 Set up ptr for what we want out of it
-                    std       <Sierra2ndBlk Save it
-                    tfr       y,d
-                    tfr       a,b       MSB of our descriptor address
-                    andb      #$E0      Calculate which 8K block within
-*                                 system task it's in
-*         lsrb
-*         lsrb
-*         lsrb
-*         lsrb
-*         lsrb
-                    lda       #8        hi_byte × 8 / 256 = 8K block index
-                    mul                 compute MMU block offset for this address
-
-* NOTE: HAVE TO CHANGE THIS TO GET BLOCK #'S FROM SYSTEM DAT IMAGE,
-*       NOT RAW GIME REGS (TO WORK WITH >512K MACHINES)
-*         ldx   #$FFA0       Point to base of System task DAT register set block 0 task 0
-                    ldx       #mmubuf point to task-0 physical MMU block table
-*         lda   b,x          Get block # that has process desc. for SIERRA
-                    lda       a,x       read block # at computed offset
-                    sta       <SierraPdBlk Save it
-                    sta       >$FFA9    Map in block with process dsc. to $2000-$3FFF
-                    ldx       <Sierra2ndBlk Get offset to 2nd 8K block in DAT map for SIERRA
-                    ldd       -1,x      Get MMU block # of current 2nd 8k block in SIERRA
-                    std       >SierraMmuBlk2 Save it
-                    ldd       1,x       Get MMU block # of current 3rd 8k block in SIERRA
-                    std       >SierraMmuBlk3 Save it
-                    ldd       -3,x      Get data area block 3 from sierra (1st block)
-                    std       -1,x      Move 8k data area to 2nd block
-                    std       1,x       And to 3rd block
-                    tfr       b,a       D=Raw MMU block # for both
-
-* HAVE TO CHANGE TO ALLOW FOR DISTO DAT EXTENSION
-                    std       >$FFA9    Map data area block into both blocks 2&3
-                    std       <MmuBlk2Orig Save both block #'s
-                    inc       >ProcMapReady
-                    andcc     #^IntMasks Turn interrupts back on
-                    rts                 return from SetupProcMap
-
+* Platform loader/memory implementation, selected during assembly.
+                    use       platform/process-map.asm
 
 * ====== CopySubsToData: Copy Runtime Subroutines to Data Area ======
 * NOTE: 6809/6309 MOD: STUPID. DO LEAX, AND THEN PSHS X
@@ -564,70 +413,16 @@ SetupProcMap        os9       F$ID
 *L01FA    leas  -2,s         Make 2 word buffer on stack
 *         leax  >L054F,pc    Point to end of routine
 *         stx   ,s           Save ptr
-CopySubsToData      leax      MmuSwitchEnd,pcr load end-address of MmuSwitch routine
-                    pshs      x         save end pointer on stack
-                    leax      >MmuSwitch,pc Point to routine
-*         ldu   #$0659      Point to place in data area to copy it
-                    ldu       #sub659   point to data-area slot for MmuSwitch copy
-CopySub1Loop        lda       ,x+       Copy routine
-                    sta       ,u+       write byte to data area and advance
-                    cmpx      ,s        Done whole routine yet?
-                    blo       CopySub1Loop No, keep going
-
-* get next routine interrupt intecept routine
-                    leax      >CloseVirqPath,pcr point to end of routine
-                    stx       ,s        save pointer
-                    leax      >SigIntercept,pcr point to routine
-                    ldu       #int5EE   point to place in data area to copy it
-CopySub2Loop        lda       ,x+       copy routine
-                    sta       ,u+       write byte to data area and advance
-                    cmpx      ,s        Done whole routine yet?
-                    blo       CopySub2Loop No, keep going
-*         leas  $02,s        clean up stack
-*         rts                return
-                    puls      x,pc      restore X and return (clean stack)
+* Platform loader/memory implementation, selected during assembly.
+                    use       platform/runtime-copy.asm
 
 * ====== LoadModules: NMLoad and Link All Three AGI Modules ======
 * Called from dispatch table at L0120
 * The last op in the subroutine before this one
 * was a puls a,b after a puhs x and a setsatt call for process+path to VIRQ
 
-LoadModules         lda       >MultitaskFlag
-                    sta       >MultitaskFlagCopy
-                    ldb       >PrivateNext
-                    subb      #13       original heap allocation begins 13 blocks earlier
-                    tfr       b,a       don't see what's going on here
-                    incb                make B one higher than A for block pair
-                    std       <BlkMapLow but we save off a bunch of values
-
-                    addd      #$0202    advance A and B by 2 for next block pair
-                    std       <BlkMapHigh save high block map pair
-
-                    addd      #$0202    advance again for task-1 slots
-                    sta       <PathTable save path table index
-                    std       <MmuTask1Blk2 init task-1 MMU block slots 2-3
-                    std       <MmuTask1Blk4 init task-1 MMU block slots 4-5
-
-                    ldu       #$001A    remap table offset for Shdw
-                    stu       <ShdwRemap store Shdw remap offset
-                    leax      >ShdwModName,pcr shdw
-                    lbsr      NMLoadModule NMLoads named module
-                    bcs       LoadModulesRet return on error
-
-                    ldu       #$0012    remap table offset for Scrn
-                    stu       <ScrnRemap store Scrn remap offset
-                    leax      >ScrnModName,pcr scrn
-                    lbsr      NMLoadModule NMLoads named module
-                    bcs       LoadModulesRet return on error
-
-                    ldu       #$000A    remap table offset for MnLn
-                    stu       <MnlnRemap store MnLn remap offset
-                    leax      >MnlnModName,pcr mnln
-                    lbsr      NMLoadModule NMLoads named module
-
-                    leau      >$2000,u  advance past module header to entry vectors
-                    stu       <EntryTable save entry table address for MmuSwitch
-LoadModulesRet      rts                 return from LoadModules
+* Platform loader/memory implementation, selected during assembly.
+                    use       platform/engine-load.asm
 
 *****************************************************
 *
@@ -658,100 +453,8 @@ LoadModulesRet      rts                 return from LoadModules
 *  See OS-9 Technical Reference 8-142 for more details
 *
 
-SetupScreen         leas      -$04,s    mamke room om stack 2 words
-                    lda       #$01      Std out
-                    ldb       #SS.AScrn Allocate & map in hi-res screen (VDGINT)
-                    ldx       #$0004    320x192x16 screen
-                    os9       I$SetStt  Map it in
-                    bcs       ScreenSetupRet Error, Restore stack & exit
-                    tfr       y,d       Move screen # returned to D
-*         stb   >$0174      Save screen #
-                    stb       >HiResScrnNum save allocated hi-res screen number
-                    pshs      x         preserve screen mapping across monitor calls
-                    lbsr      ConfigureMonitor
-                    puls      x
-                    bcs       ScreenSetupRet
-
-* call with application address of screen in x
-* returns with values in u
-                    lbsr      mmuini2   get current MMU values
-                    lbsr      TwiddleAddr twiddle addresses
-                    stu       <ScrStartAddr stow it two places
-                    stu       <ScrStart2 also save as second screen start reference
-
-                    leax      >$4000,x  end address ???
-                    lbsr      TwiddleAddr twiddle addresses
-                    stu       <ScrEndAddr stow it in two places
-                    stu       <ScrEnd2  also save as second screen end reference
-
-* TFM for 6309
-                    ldu       #$D800    Clear hi-res screen to color 0
-                    ldx       #$7800    Screen is from $6000 to $D800
-                    ldd       #$0000    (U will end up pointing to beginning of screen)
-ClearScreenLoop     std       ,--u      writes 0000 to screen address and decrements
-                    leax      -2,x      decrement x loop counter
-                    bne       ClearScreenLoop keep going till all of screen is cleared
-
-*  Display a screen allocated by SS.AScrn
-*  SetStat Function Code $8C
-*
-* entry:
-*       a -> path number
-*       b -> function code $8C (SS.DScrn)
-*       y -> screen numbe
-*            0 = text screen (32 x 16)
-*            1-3 = high resolution screen
-*
-* error:
-*       CC -> Carry set on error
-*       b  -> error code (if any)
-
-                    clra                Get screen # to display
-                    ldb       >HiResScrnNum load allocated screen number
-                    tfr       d,y       Y=screen # to display
-                    lda       #StdOut   $01  Std out path
-                    ldb       #SS.DScrn Display 320x192x16 screen
-                    os9       I$SetStt  make the call
-                    bcs       ScreenSetupRet bail on screen display error
-
-                    leax      >ColorTable,pc get color table values
-                    ldb       >$0553    display_type 0 = comp / 1 = rgb
-                    lda       #$10      16 palette entries per color table
-                    mul                 first sixteen comp, second rgb
-                    abx                 add b to x reset the pointer as required
-
-
-* This loads up the control sequence to set the pallete 1B 31 PRN CTN
-*  PRN palette register 0 - 15, CTN color table 0 - 63
-                    lda       #$1B      Escape code
-                    sta       ,s        push on stack
-                    lda       #$31      Palette code
-                    sta       $01,s     push on stack
-                    clra                make a zero palette reg value
-                    sta       $02,s     push it `
-                    ldy       #$0004    sets up # of bytes to write
-PaletteLoop         ldb       ,x+       get value computed above for color table and bump it
-                    stb       $03,s     push it
-                    pshs      x         save it
-                    lda       #StdOut   $01      Std Out path
-                    leax      $02,s     start of data to write
-                    os9       I$Write   write it
-                    puls      x         balance the palette-loop save on errors too
-                    bcs       ScreenSetupRet error during write clean up stack and leave
-*                   puls      x         retrieve our x
-                    inc       $02,s     this is our palette register value
-                    lda       $02,s     we bumped it by one
-                    cmpa      #$10      we loop 15 times to set them all
-                    blo       PaletteLoop loop
-
-                    clr       <PaletteFlag clear a flag in memory
-                    lbsr      DisableKbdInt go disable keyboard interrupts
-                    bcs       ScreenSetupRet
-                    inc       >OptionsChanged
-                    clrb
-ScreenSetupRet      leas      $04,s     clean up stack
-                    rts                 return
-
+* Platform screen implementation, selected during assembly.
+                    use       platform/screen-setup.asm
 
 *  Raw disassembly of following section
 *L02E9    leas  <-$20,s
@@ -797,59 +500,8 @@ ScreenSetupRet      leas      $04,s     clean up stack
 *       b  -> error code (if any)
 *
 
-DisableKbdInt       leas      <-$20,s   Make temp buffer to hold PD.OPT data
-                    lda       #StdIn    $00 Get 32 byte PD.OPT from Std In
-                    ldb       #SS.OPT   $00
-                    leax      ,s        point to our temp buffer
-                    os9       I$GetStt  make the call
-                    bcs       SetOptsDone error goto exit sub
-
-* NOTE: make sure following lines assemble into 5 bit, not 8 bit
-*       These appear to be loading the  echo EOF, INT and QUIT with
-*       null values and saving the original ones back to vars
-*       since L0115 - L0118 were initialized with $00
-
-                    lda       >EchoSave load saved echo value (initially 0)
-                    ldb       PD.EKO-PD.OPT,x Get echo option
-                    sta       PD.EKO-PD.OPT,x change echo option no echo
-                    stb       >EchoSave Save original echo option
-
-                    lda       >EofSave load saved EOF char value
-                    ldb       PD.EOF-PD.OPT,x Change EOF char
-                    sta       PD.EOF-PD.OPT,x disable EOF character
-                    stb       >EofSave save original EOF character
-
-                    lda       >IntSave load saved interrupt char value
-                    ldb       <PD.INT-PD.OPT,x Change INTerrupt char (normally CTRL-C)
-                    sta       <PD.INT-PD.OPT,x disable interrupt character
-                    stb       >IntSave save original interrupt character
-
-                    lda       >QuitSave load saved quit char value
-                    ldb       <PD.QUT-PD.OPT,x Change QUIT char (normally CTRL-E)
-                    sta       <PD.QUT-PD.OPT,x disable quit character
-                    stb       >QuitSave save original quit character
-
-*  set current options packet
-*  SetStat Function Code $00
-*          Writes the options section of the path descriptor
-*          from the 32 byte area pointed to by reg X`
-* entry:
-*       a -> path number
-*       b -> function code $00 (SS.OPT)
-*       x -> address holding the status packet
-*
-* error:
-*       CC -> Carry set on error
-*       b  -> error code (if any)
-*
-
-*                                x is still pointing to our temp buff
-                    lda       #StdIn    $00 Set VDG screen to new options
-                    ldb       #SS.OPT   $00
-                    os9       I$SetStt  set them to be our new values
-
-SetOptsDone         leas      <$20,s    Eat temp stack & return
-                    rts                 return from DisableKbdInt
+* Platform screen implementation, selected during assembly.
+                    use       platform/terminal-options.asm
 
 * ====== RestoreScreen: Return to Text Screen, Free Hi-Res Screen ======
 *  raw disassembly
@@ -883,68 +535,8 @@ SetOptsDone         leas      <$20,s    Eat temp stack & return
 *  Return the screen to default text sreen and its values
 *  deallocate and free memory of high res screen created
 
-RestoreScreen       leas      -2,s      Make temp buffer to hold write data
-*         tst   >$0174       Any hi-res screen # allocated?
-                    tst       >HiResScrnNum any hi-res screen number allocated?
-                    beq       RestoreScreenRet No, restore stack & return
-                    tst       >OptionsChanged
-                    beq       RestoreScreenDisplay
-                    lbsr      DisableKbdInt restore original keyboard options
-                    clr       >OptionsChanged
-RestoreScreenDisplay equ      *
-                    lda       #$1B      Setup DefColr sequence in temp buffer
-                    sta       ,s        store escape byte in write buffer
-                    lda       #$30      Sets palettes back to default color
-                    sta       1,s       store palette-reset code in buffer
-                    ldy       #$0002    number of bytes to write
-                    lda       #StdOut   path to write to $01
-                    leax      ,s        point x a buffer
-                    os9       I$Write   write
-
-*  Display a screen allocated by SS.AScrn
-*  SetStat Function Code $8C
-*
-* entry:
-*       a -> path number
-*       b -> function code $8C (SS.DScrn)
-*       y -> screen numbe
-*            0 = text screen (32 x 16)
-*            1-3 = high resolution screen
-*
-* error:
-*       CC -> Carry set on error
-*       b  -> error code (if any)
-
-*                           a is still set to stdout from above
-                    ldb       #SS.DScrn Display screen function code
-                    ldy       #$0000    Display screen #0 (lo-res or 32x16 text)
-                    os9       I$SetStt  make the call
-
-*  Frees the memory of a screen allocated by SS.AScrn
-*  SetStat Function Code $8C
-*
-* entry:
-*       a -> path number
-*       b -> function code $8D (SS.FScrn)
-*       y -> screen number 1-3 = high resolution screen
-*
-* error:
-*       CC -> Carry set on error
-*       b  -> error code (if any)
-
-                    clra                clear high byte
-                    ldb       >HiResScrnNum get hi-res screen number again
-                    tfr       d,y       move it to Y=screen #
-                    lda       #StdOut   set the path $01
-                    ldb       #SS.FSCrn Return screen memory to system
-                    os9       I$SetStt  amke the call
-                    bcs       RestoreScreenRet
-                    clr       >HiResScrnNum
-
-RestoreScreenRet    leas      2,s       Eat stack & return
-                    rts                 return from RestoreScreen
-
-
+* Platform screen implementation, selected during assembly.
+                    use       platform/screen-restore.asm
 
 * Templates are unlinked immediately after copying; no global unload at exit.
 *L0388    orcc  #$50
@@ -987,52 +579,16 @@ RestoreScreenRet    leas      2,s       Eat stack & return
 
 * ====== RestoreMmu: Restore MMU to Pre-Game State ======
 * Restore original MMU block numbers
-RestoreMmu          tst       >ProcMapReady
-                    beq       RestoreMmuRet
-                    clr       >ProcMapReady
-                    orcc      #IntMasks Shut off interrupts
-                    lda       <SierraPdBlk get MMU Block #
-                    sta       >$FFA9    Restore original block 0 onto MMU
-                    ldx       <Sierra2ndBlk reload Sierra DAT image pointer
-                    ldd       >SierraMmuBlk3 Origanl 3rd block of MMU
-                    std       1,x       restore 3rd block in Sierra's DAT map
-                    stb       >$FFAA    Restore original block 1 onto MMU
-                    ldd       >SierraMmuBlk2 Original 2nd block of MMU
-                    std       -1,x      restore 2nd block in Sierra's DAT map
-                    stb       >$FFA9    Restore block 0 again
-                    andcc     #^IntMasks Turn interrupts back on
-
-RestoreMmuRet       rts                 return from RestoreMmu
+* Platform loader/memory implementation, selected during assembly.
+                    use       platform/map-restore.asm
 
 * ====== TwiddleAddr: Map Logical Address to Physical Block Pair ======
 * twiddles address
 * called with value to be twiddled in X
 * returns block # in a
 *         ?????   in u
-TwiddleAddr         tfr       x,d       Move address to D
-*         exg   a,b          Swap MSB/LSB
-*         lsrb               Divide MSB by 32 (calculate 8k block # in proc map)
-*         lsrb
-*         lsrb
-*         lsrb
-*         lsrb
-*         pshs  b            Save block # in process map
-*         ldu   #$FFA8       Point to start of user DAT image
-*         lda   b,u
-                    ldb       #8        hi_byte × 8 / 256 = 8K block index in A
-                    mul                 compute block index from address high byte
-                    pshs      a         save block index (0-7)
-                    ldu       #mmubuf+8 point to task-1 physical MMU block table
-                    lda       a,u       get MMU value
-                    ldb       ,s        reload block index from stack
-                    incb                index of next adjacent block
-                    andb      #$07      wrap within 8 task-1 slots
-                    ldb       b,u       read physical block # of adjacent slot
-                    tfr       d,u       U = both physical block numbers
-                    puls      a         restore block index
-                    rts                 return: A=block index, U=physical block pair
-
-
+* Platform loader/memory implementation, selected during assembly.
+                    use       platform/address-blocks.asm
 
 *************************************************************
 *  Called from  within sub at L0229
@@ -1045,79 +601,8 @@ TwiddleAddr         tfr       x,d       Move address to D
 * this process's /VI allocation, then balance exactly our own link.
 * U on return remains the logical template header address; LoadModules
 * uses its offset when constructing the relocated entry-vector address.
-NMLoadModule        leas      -10,s
-                    stu       ,s        remap-table base
-                    stx       2,s       module name
-                    lda       #Prgrm+Objct
-                    os9       F$Link
-                    bcc       PrivateLinked
-                    ldx       2,s
-                    lda       #Prgrm+Objct
-                    os9       F$Load
-                    bcs       PrivateLoadRet
-PrivateLinked       stu       6,s
-                    tfr       u,d
-                    addd      M$Size,u
-                    bcs       PrivateBadSize
-                    subd      #1
-                    bcs       PrivateBadSize
-                    anda      #$E0
-                    clrb
-                    std       8,s       last occupied source page
-                    cmpd      #$C000    relocated code must end below the I/O page
-                    bhi       PrivateBadSize
-                    tfr       u,d
-                    anda      #$E0
-                    clrb
-                    cmpd      #$6000    $4000 is the private copy window
-                    blo       PrivateBadSize
-                    std       4,s       first occupied source page
-PrivatePageLoop     lda       >PrivateNext
-                    cmpa      >PrivateLimit
-                    bhs       PrivateBadSize
-                    ldd       4,s
-                    ldb       #8
-                    mul                 A = source logical slot
-                    ldx       ,s
-                    leax      a,x
-                    lda       >PrivateNext
-                    sta       ,x        save private page in the runtime remap table
-                    ldx       4,s
-                    lbsr      CopyPrivatePage
-                    inc       >PrivateNext
-                    ldd       4,s
-                    cmpd      8,s
-                    beq       PrivateCopyDone
-                    addd      #$2000
-                    std       4,s
-                    bra       PrivatePageLoop
-PrivateCopyDone     ldu       6,s
-                    os9       F$UnLink  releases our template reference and mappings
-                    bra       PrivateLoadRet
-PrivateBadSize      ldu       6,s
-                    os9       F$UnLink
-                    comb
-                    ldb       #E$MemFul
-PrivateLoadRet      leas      10,s
-                    rts
-
-* X=source page, A=private destination block. The $4000 data alias is
-* borrowed only while interrupts are masked; the process DAT image is
-* unchanged and no system calls occur before the hardware map is restored.
-CopyPrivatePage     pshs      cc,d,x,y,u
-                    orcc      #IntMasks
-                    ldb       <MmuBlk2Orig the copy window normally aliases private data
-                    pshs      b
-                    sta       >$FFAA
-                    ldu       #$4000
-                    ldy       #$1000
-PrivateWordLoop     ldd       ,x++
-                    std       ,u++
-                    leay      -1,y
-                    bne       PrivateWordLoop
-                    puls      b
-                    stb       >$FFAA
-                    puls      cc,d,x,y,u,pc
+* Platform loader/memory implementation, selected during assembly.
+                    use       platform/private-load.asm
 
 ViDevPath           fcc       '/VI'
 ViDevPathEnd        fcb       C$CR
@@ -1139,95 +624,13 @@ ViDevPathEnd        fcb       C$CR
 *       Signals sent to the process cause the intercept to be
 *       called instead of the process being killed
 
-SetupVirq           ldu       #$0000    start of Sierra memory area
-                    ldx       #int5EE   Intercept rourtine copied to mem area
-                    os9       F$Icpt    install the trap
-
-* Attach to the vrt memory descriptor
-* Attaches and verifies loaded the VI descriptor
-* entry:
-*      a -> access mode
-*          0 = use any special device capabilities
-*          1 = read only
-*          2 = write only
-*          3 = update (read and write)
-*      x -> address of device name string
-*
-* exit:
-*      x -> updated past device name
-*      u -> address of device table entry
-*
-* error:
-*      b  -> error code (if any)
-*      cc -> carry set on error
-
-                    lda       #$01      attach for read
-                    leax      >ViDevPath+1,pcr skip the slash Load VI only
-                    os9       I$Attach  make the call
-                    bcs       SetupVirqRet didn't work exit
-                    stu       >ViDevAddr did work save address
-
-* Open a path to the device /VI
-* entry:
-*       a -> access mode (D S PE PW PR E W R)
-*       x -> address of the path list
-*
-* exit:
-*       a -> path number
-*       x -> address of the last byte if the pathlist + 1
-*
-* error:
-*       b  -> error code(if any)
-*       cc -> carry set on error
-*
-*                            a still contains $01 read
-                    leax      >ViDevPath,pcr load with device name including /
-                    os9       I$Open    make the call
-                    bcs       SetupVirqRet didn't work exit
-                    sta       >ViPathNum did work save path #
-
-* Allocate process+path RAM blocks
-
-                    ldb       #SS.ARAM  $CA function code for VIRQ
-                    ldx       #21       13 game blocks + 8 private engine blocks
-                    os9       I$SetStt  make the call
-                    bcs       SetupVirqRet abort if allocation failed
-                    tfr       x,d
-                    tsta                legacy MMU code handles blocks 0-255
-                    bne       PrivateRamRangeErr
-                    addb      #21
-                    bcs       PrivateRamRangeErr
-                    stb       >PrivateLimit
-                    subb      #8
-                    stb       >PrivateNext
-                    pshs      x         save allocated RAM pointer
-
-* Set process+path VIRQ KQ3
-                    lda       >ViPathNum restore path clobbered by allocation arithmetic
-                    ldb       #SS.KSet  $C8 function code for VIRQ
-                    os9       I$SetStt
-                    bcs       SetupVirqError
-                    puls      b,a       restore A and B after KSet call
-                    rts
-SetupVirqError      leas      2,s       retain the real SetStat error in B
-SetupVirqRet        rts                 return from SetupVirq
-
-PrivateRamRangeErr  comb
-                    ldb       #E$MemFul
-                    rts
+* Platform loader/memory implementation, selected during assembly.
+                    use       platform/private-allocate.asm
 
 * ====== SigIntercept / SigHandlerCore: VIRQ Timer and Game Clock ======
 * Signal Intercept processing gets copied to int5EE mem slot
-SigIntercept        cmpb      #$80      b gets the signal code if not $80 ignore
-                    bne       SigInterceptRet $80 is user defined
-                    tfr       u,d       copy U (data area ptr) into D
-                    tfr       a,dp      set direct page register to data area base
-                    dec       <IrqCountdown decrement IRQ countdown counter
-                    bne       SigInterceptRet not yet time — return
-                    bsr       SigHandlerCore call timer and game-clock handler
-                    lda       #$03      reload countdown to 3 intervals
-                    sta       <IrqCountdown reset IRQ countdown
-SigInterceptRet     rti                 return from interrupt
+* Platform implementation; selection emits no dispatch code.
+                    use       platform/timer-intercept.asm
 
 SigHandlerCore      inc       >GameTimerB0,u increment low byte of 32-bit game timer
                     bne       TimerUpdate no carry — skip upper bytes
@@ -1268,20 +671,8 @@ TimerRet            rts                 return from timer handler
 
 * ====== CloseVirqPath: Release VIRQ Device ======
 * deallocates the VIRQ device
-CloseVirqPath       lda       >ViPathNum load path number to /VI device
-                    beq       DetachVi  no path open check for device table addr
-                    ldb       #SS.KClr  $C9 Clear KQ3 VIRQ
-                    os9       I$SetStt  make the call
-                    ldb       #SS.DRAM  $CB deallocate the ram
-                    os9       I$SetStt  make the call
-                    os9       I$Close   close the path to /VI
-                    clr       >ViPathNum
-DetachVi            ldu       >ViDevAddr load device table address for VI
-                    beq       CloseVirqRet don't have one leave now
-                    os9       I$Detach  else detach it
-                    ldd       #0
-                    std       >ViDevAddr
-CloseVirqRet        rts                 return from CloseVirqPath
+* Platform loader/memory implementation, selected during assembly.
+                    use       platform/private-release.asm
 
 * ====== MmuSwitch: Switch Between Module MMU Address Spaces ======
 *  Twiddles with MMU blocks for us
@@ -1290,61 +681,8 @@ CloseVirqRet        rts                 return from CloseVirqPath
 *
 *  s and x loaded by calling routine
 
-MmuSwitch           ldd       ,s++      load d with current stack pointer and bump it
-*                         from mnln we come in with $4040
-                    std       <CallerSp save the calling stack pointer in CallerSp
-                    orcc      #IntMasks mask the interrupts
-                    lda       <SierraPdBlk load Sierra's process descriptor block #
-                    sta       ,x        x is loaded with value from ShdwRemap in mnln
-                    sta       >$FFA9    task 1 block 2 x2000 - x3FFF
-                    ldu       <Sierra2ndBlk point to Sierra's DAT image in process descriptor
-                    lda       $06,x     get calling module's MMU block 6 entry
-                    sta       MmuTask1Blk2,u save in Sierra's task-1 map slot 2
-                    sta       >$FFAF    task 1 block 8 xE000 - xFFFF
-                    lda       $05,x     get calling module's MMU block 5 entry
-                    sta       MmuTask1Blk0,u save in Sierra's task-1 map slot 0
-                    sta       >$FFAE    task 1 block 7 xC000 - xDFFF
-                    lda       $04,x     get calling module's MMU block 4 entry
-                    sta       MmuSaveTmp,u save to MMU scratch slot
-                    sta       >$FFAD    task 1 block 6 xA000 - xBFFF
-                    lda       $03,x     get calling module's MMU block 3 entry
-                    sta       ScrEndAddr,u save to ScrEndAddr slot
-                    sta       >$FFAC    task 1 block 5 x8000 - x9FFF
-                    lda       $02,x     get calling module's MMU block 2 entry
-                    sta       ScrStartAddr,u save to ScrStartAddr slot
-                    sta       >$FFAB    task 1 block 4 x6000 - x7FFF
-                    andcc     #^IntMasks unmask interrupts
-
-                    lda       $07,x     get dispatch index from remap table
-                    ldu       <EntryTable point to module entry vector table
-                    adda      MmuTask1Blk0,u compute entry vector offset
-                    jsr       a,u       dispatch to target module entry point
-
-                    orcc      #IntMasks disable interrupts for MMU restore
-                    lda       <SierraPdBlk Sierra's process descriptor block #
-                    sta       >$FFA9    map Sierra's PD block into $2000
-                    ldu       <Sierra2ndBlk point to Sierra's DAT image
-                    lda       <MmuTask1Blk6 saved task-1 block 6 value
-                    sta       MmuTask1Blk2,u restore DAT image entry for block 2
-                    sta       >$FFAF    restore GIME MMU slot 7 (xE000)
-                    lda       <MmuTask1Blk5 saved task-1 block 5 value
-                    sta       MmuTask1Blk0,u restore DAT image entry for block 0
-                    sta       >$FFAE    restore GIME MMU slot 6 (xC000)
-                    lda       <MmuTask1Blk4 saved task-1 block 4 value
-                    sta       MmuSaveTmp,u restore scratch slot
-                    sta       >$FFAD    restore GIME MMU slot 5 (xA000)
-                    lda       <MmuTask1Blk3 saved task-1 block 3 value
-                    sta       ScrEndAddr,u restore ScrEndAddr slot
-                    sta       >$FFAC    restore GIME MMU slot 4 (x8000)
-                    lda       <MmuTask1Blk1 saved task-1 block 1 value
-                    sta       MmuBlk2Orig,u restore MmuBlk2Orig slot
-                    sta       >$FFAA    restore GIME MMU slot 2 (x4000)
-                    lda       <MmuTask1Blk0 saved task-1 block 0 value
-                    sta       ,u        restore DAT image task-1 slot 0
-                    sta       >$FFA9    restore GIME MMU slot 1 (x2000)
-                    andcc     #^IntMasks re-enable interrupts
-
-                    jmp       [>$002A]  jump through CallerSp to restore caller
+* Platform mapping implementation; retained at its original location.
+                    use       platform/engine-switch.asm
 
 MmuSwitchEnd        fcb       $00,$00,$00,$00,$00,$00,$00,$00 ........
 SierraNameStr       fcb       $73,$69,$65,$72,$72,$61,$00 sierra.
@@ -1355,38 +693,8 @@ SierraNameStr       fcb       $73,$69,$65,$72,$72,$61,$00 sierra.
 * PID 1 belongs to SysGo, not the kernel. Snapshot the real D.SysDAT
 * through system block 0, borrowing the $2000 slot with interrupts masked.
 * First capture our own image so the borrowed slot can be restored.
-mmuini1             lbsr      mmuini2
-                    pshs      cc,d,x,y
-                    orcc      #IntMasks
-                    lda       >mmubuf+9
-                    pshs      a
-                    clr       >$FFA9
-                    ldx       >D.SysDAT+$2000
-                    leax      $2000,x    the system descriptor is in system block 0
-                    ldy       #mmubuf
-                    ldb       #8
-m2lup               lda       1,x       low byte of the physical block number
-                    sta       ,y+
-                    leax      2,x
-                    decb
-                    bne       m2lup
-                    puls      a
-                    sta       >$FFA9
-                    puls      cc,d,x,y,pc
-* Get $FFA8-$FFAF
-mmuini2             pshs      cc,x,y    save registers across system calls
-                    orcc      #$50      disable interrupts
-                    os9       F$ID      get our ID#
-                    ldx       #gprbuf point to process descriptor buffer
-                    os9       F$GPrDsc  get our process descriptor
-                    leay      $41,x     point to our mmu block values
-                    ldx       #mmubuf+8 destination: task-1 MMU snapshot buffer
-                    ldb       #8        copy 8 MMU block entries
-mloop               lda       ,y++      read MMU value from process descriptor
-                    sta       ,x+       store block number and advance
-                    decb                decrement copy count
-                    bne       mloop     loop until all 8 copied
-                    puls      cc,x,y,pc restore registers and return
+* Platform mapping implementation; retained at its original location.
+                    use       platform/map-snapshot.asm
 
                     emod
 eom                 equ       *
