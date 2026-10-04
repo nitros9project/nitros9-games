@@ -2,6 +2,12 @@
 * remains an explicit error until the corresponding component is ported.
 VmPlatformCommand  ldb       <vmopcode
                     ifne      GAME_PRESENTATION
+                    cmpb      #84
+                    lbeq      GameWanderCommand
+                    cmpb      #99
+                    lbeq      GameSoundCommand
+                    cmpb      #100
+                    lbeq      GameSoundCommand
                     cmpb      #90
                     lbeq      GameBlockCommand
                     cmpb      #91
@@ -10,6 +16,8 @@ VmPlatformCommand  ldb       <vmopcode
                     lbeq      GameMoveCommand
                     cmpb      #82
                     lbeq      GameMoveCommand
+                    cmpb      #105
+                    lbeq      GameClearLines
                     cmpb      #103
                     lbeq      GameDisplayCommand
                     cmpb      #104
@@ -152,6 +160,13 @@ VmPlatformUnsupported ldb     #E$UnkSvc
                     orcc      #1
                     rts
 VmPlatformTest      ldb       <vmopcode
+                    cmpb      #11
+                    lbeq      ObjectPositionTest
+                    cmpb      #16
+                    blo       VmPlatformInputTest
+                    cmpb      #18
+                    lbls      ObjectPositionTest
+VmPlatformInputTest
                     cmpb      #12
                     blo       VmPlatformUnsupported
                     cmpb      #14

@@ -60,3 +60,5 @@ shdw: ../objs/shared/picture-coordinates.asm
 mnln: ../objs/shared/object-distance.asm
 mnln: ../objs/shared/agi-command-table.asm
 mnln: ../objs/shared/object-block-test.asm
+mnln: ../objs/shared/divide-byte.asm ../objs/shared/object-wander.asm
+mnln: ../objs/shared/object-position-test.asm

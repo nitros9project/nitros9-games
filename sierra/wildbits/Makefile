@@ -64,3 +64,6 @@ wbdecode wbrun wbgame: ../objs/shared/picture-coordinates.asm
 wbexec wbgame: ../objs/shared/object-distance.asm
 wbexec wbgame: ../objs/shared/agi-command-table.asm
 wbgame: ../objs/shared/object-block-test.asm
+wbgame: ../objs/platform/sound-code.asm
+wbgame: ../objs/shared/divide-byte.asm ../objs/shared/object-wander.asm
+wbexec wbgame: ../objs/shared/object-position-test.asm

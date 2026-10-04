@@ -229,3 +229,36 @@ GameFrameAddress    ldd       ,s
                     leau      d,u
                     andcc     #$FE
 GameFrameReturn     puls      d,x,y,pc
+
+* clear.lines(start,end,color): inclusive rows; persistent opaque blank cells.
+GameClearLines      ldu       <resourcebase
+                    lda       vmarguments,u
+                    cmpa      #25
+                    lbhs      GameTextInvalid
+                    ldb       vmarguments+1,u
+                    cmpb      #25
+                    lbhs      GameTextInvalid
+                    cmpb      vmarguments,u
+                    lblo      GameTextInvalid
+                    subb      vmarguments,u
+                    incb
+                    lda       #40
+                    mul
+                    tfr       d,y
+                    lda       vmarguments,u
+                    ldb       #40
+                    mul
+                    leax      textcharacters,u
+                    leax      d,x
+                    lda       #1
+                    tst       vmarguments+2,u
+                    beq       GameClearCell
+                    lda       #16
+GameClearCell       ldb       #32
+                    stb       ,x
+                    sta       1000,x
+                    sta       2000,x
+                    leax      1,x
+                    leay      -1,y
+                    bne       GameClearCell
+                    lbra      GameTextPresent

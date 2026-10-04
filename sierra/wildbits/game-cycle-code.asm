@@ -1,4 +1,7 @@
 GameInitialize      ldu       <resourcebase
+                    ldd       #$ACE1
+                    std       gamerandom,u
+                    clr       gamesoundwarned,u
                     clr       gameblockenabled,u
                     clr       gamequit,u
                     clr       gameclockreset,u
@@ -6,7 +9,7 @@ GameInitialize      ldu       <resourcebase
                     sta       gameclocklast,u
                     lda       #1
                     sta       vmflags+5,u
-                    sta       vmflags+9,u
+                    clr       vmflags+9,u     no owned multi-terminal audio service yet
                     sta       vmflags+11,u
                     sta       vmvariables+22,u     three-channel sound model
                     lda       #3

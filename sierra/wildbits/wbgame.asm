@@ -84,7 +84,9 @@ name                fcs       /wbgame/
                     use       game-background-code.asm
                     use       game-render-code.asm
                     use       game-cycle-code.asm
+                    use       platform/sound-code.asm
                     use       game-block-code.asm
+                    use       game-wander-code.asm
                     use       game-motion-code.asm
                     use       game-motion-command.asm
                     use       game-text-code.asm

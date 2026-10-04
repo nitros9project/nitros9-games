@@ -1699,23 +1699,9 @@ GetObjViewPtr       ldb       ,y+       load object number from script
                     ldd       $03,u     load object X (A) and Y (B) position
                     stb       <$0070    save Y position to temp
                     rts
-TestPosnX           ldd       <$006F    load left/right X edge values
-                    cmpa      ,y+       compare left edge to rect left boundary
-                    bcc       TestPosnY branch if left edge >= rect left (inside or right)
-                    leay      $03,y     skip remaining 3 boundary bytes
-                    bra       RetFalse  object is left of rect
-TestPosnY           cmpb      ,y+       compare Y to rect top boundary
-                    bcc       TestPosnXRight branch if Y >= rect top (inside or below)
-                    leay      $02,y     skip remaining 2 boundary bytes
-                    bra       RetFalse  object is above rect
-TestPosnXRight      lda       <$0071    load right X edge value
-                    cmpa      ,y+       compare right edge to rect right boundary
-                    bls       TestPosnYBot branch if right edge <= rect right (inside or left)
-                    leay      $01,y     skip remaining 1 boundary byte
-                    bra       RetFalse  object is right of rect
-TestPosnYBot        cmpb      ,y+       compare Y to rect bottom boundary
-                    bls       RetTrue   branch if Y <= rect bottom (inside)
-                    bra       RetFalse  object is below rect
+PositionLeftY       equ       $006F
+PositionRight       equ       $0071
+                    use       shared/object-position-test.asm
 RetTrue             lda       #$01      return 1 (condition true)
                     rts
 RetFalse            clra                return 0 (condition false)
@@ -10264,19 +10250,9 @@ cmd_divv            ldb       $01,y     ; fetch dividend variable index
                     stb       ,x        ; store quotient
                     rts
 
-Div8                sta       <$0088    ; save divisor
-                    lda       #$08      ; 8 bits to shift
-                    sta       <$008D    ; save bit counter
-                    clra                ; A = 0 (accumulator for quotient)
-Div8Loop            lslb                ; shift dividend left
-                    rola                ; rotate carry into accumulator
-                    cmpa      <$0088    ; accumulator >= divisor?
-                    bcs       Div8Next  ; branch if not
-                    suba      <$0088    ; subtract divisor
-                    incb                ; set quotient bit
-Div8Next            dec       <$008D    ; decrement bit counter
-                    bne       Div8Loop  ; loop for all 8 bits
-                    rts
+DivideDivisor       equ       $0088
+DivideBits          equ       $008D
+                    use       shared/divide-byte.asm
 
 *
 *======================================================================
@@ -10685,28 +10661,7 @@ DiscardViewDoFree   stx       $01,s     ; save view node pointer
 *   reverse-loop) to update the object's loop/cel counters.
 *======================================================================
 *
-ObjAnimStep         lda       <$27,u    ; cel animation delay counter
-                    beq       AnimStepRoll ; zero = time to advance cel
-                    dec       <$27,u    ; decrement delay
-                    lda       <$25,u    ; object flags
-                    bita      #$40      ; random animation flag set?
-                    beq       AnimStepRet ; skip random if not set
-AnimStepRoll        lbsr      InitRandSeed ; seed/advance random generator
-                    lda       #$09      ; range: 0-8 (9 possible values)
-                    lbsr      Div8      ; random modulo: B = random % 9
-                    sta       <$21,u    ; store random direction in object
-                    cmpu      <$0030    ; is this the ego object?
-                    bne       AnimStepCheckDelay ; branch if not ego
-                    sta       >$0437    ; set ego direction variable
-AnimStepCheckDelay  lda       <$27,u    ; reload delay counter
-AnimStepDelayLoop   cmpa      #$06      ; delay >= 6?
-                    bcc       AnimStepRet ; return if delay is already high
-                    lbsr      InitRandSeed ; advance random state
-                    lda       #$33      ; range: 0-50 (51 values)
-                    lbsr      Div8      ; random modulo
-                    sta       <$27,u    ; store new random delay
-                    bra       AnimStepDelayLoop ; check if high enough
-AnimStepRet         rts
+                    use       shared/object-wander.asm
 
 SetPriBaseStub      ldx       #$05ee    * regX will now point to the priority table
                     lbra      SetPriBase * back to the original code

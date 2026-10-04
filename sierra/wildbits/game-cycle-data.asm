@@ -5,3 +5,5 @@ gameclockdelta      rmb      1
 gameclockreset      rmb      1
 gamecleanup         rmb      1
 gametime            rmb      6
+gamesoundwarned      rmb      1
+gamerandom          rmb      2

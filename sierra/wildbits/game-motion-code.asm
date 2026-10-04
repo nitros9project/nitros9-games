@@ -39,7 +39,11 @@ MotionStepReady     lda       ,u
                     sta       1,u
                     lda       $22,u
                     beq       MotionDirectionReady
-                    cmpa      #3
+                    cmpa      #1
+                    bne       MotionNotWander
+                    lbsr      ObjAnimStep
+                    bra       MotionDirectionReady
+MotionNotWander     cmpa      #3
                     lbne      MotionUnsupported
                     lbsr      MotionMoveDirection
 MotionDirectionReady ldb      $21,u
@@ -166,11 +170,11 @@ MotionTargetYStore  ldd       ,s
 MotionTargetYReady  leas      2,s
 MotionCheckTerrain  lbsr      GameCheckBlock
                     tstb
-                    lbne      MotionNextObject
+                    lbne      MotionBlocked
                     lbsr      MotionTerrain
                     lbcs      MotionReturn
                     tstb
-                    lbne      MotionNextObject
+                    lbne      MotionBlocked
                     ldu       motionobject,x
                     ldb       motionx+1,x
                     stb       3,u
@@ -181,8 +185,11 @@ MotionCheckTerrain  lbsr      GameCheckBlock
                     beq       MotionAccept
                     ldd       motionoldposition,x
                     std       3,u
-                    lbra      MotionNextObject
-MotionAccept        lda       motionedge,x
+                    lbra      MotionBlocked
+MotionAccept        lda       $25,u
+                    anda      #$BF
+                    sta       $25,u
+                    lda       motionedge,x
                     beq       MotionCheckDestination
                     ldb       motionid,x
                     bne       MotionOtherEdge
@@ -197,6 +204,14 @@ MotionCheckDestination lda    $22,u
                     cmpd      $27,u
                     bne       MotionNextObject
                     lbsr      MotionArrived
+                    bra       MotionNextObject
+MotionBlocked       ldu       motionobject,x
+                    lda       $22,u
+                    cmpa      #1
+                    bne       MotionNextObject
+                    lda       $25,u
+                    ora       #$40
+                    sta       $25,u
 MotionNextObject    ldx       <resourcebase
                     inc       motionid,x
                     lda       motionid,x

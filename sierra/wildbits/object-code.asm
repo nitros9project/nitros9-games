@@ -321,3 +321,38 @@ StoreDistResult     ldu       <resourcebase
                     sta       ,x
                     clrb
                     rts
+
+ObjectPositionTest  lbsr      ObjectAddress
+                    lbcs      ObjectReturn
+                    lda       3,x
+                    sta       <vmtemp
+                    sta       <vmright
+                    ldb       4,x
+                    stb       <vmleft
+                    ldb       <vmopcode
+                    cmpb      #11
+                    beq       ObjectPositionBounds
+                    lda       $1C,x
+                    cmpb      #16
+                    bne       ObjectPositionEdge
+                    lsra
+                    adda      3,x
+                    bra       ObjectPositionPoint
+ObjectPositionEdge  adda      3,x
+                    deca
+                    cmpb      #18
+                    beq       ObjectPositionRight
+ObjectPositionPoint sta       <vmtemp
+ObjectPositionRight sta       <vmright
+ObjectPositionBounds leay    vmarguments+1,u
+                    lbsr      TestPosnX
+                    tfr       a,b
+                    andcc     #$FE
+                    rts
+PositionLeftY       equ       vmtemp
+PositionRight       equ       vmright
+                    use       shared/object-position-test.asm
+RetTrue             lda       #1
+                    rts
+RetFalse            clra
+                    rts

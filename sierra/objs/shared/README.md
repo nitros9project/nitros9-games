@@ -3,6 +3,11 @@
 These are body includes used by both the CoCo modules and native Wild Bits
 owners. They allocate no state and contain no OS-9 module header.
 
+- `divide-byte.asm`: unsigned byte quotient/remainder with private DP scratch.
+- `object-wander.asm`: direction/countdown changes shared with CoCo; native
+  random state is process-private. Coordinate stepping remains separate.
+- `object-position-test.asm`: inclusive rectangle checks for left/center/right/
+  full object extents, with owner-provided scratch and boolean return adapters.
 - `agi-command-table.asm`: one command catalog, expanded into CoCo handler
   descriptors or native operand-count bytes at assembly time.
 - `object-distance.asm`: visible-object Manhattan distance with saturation;

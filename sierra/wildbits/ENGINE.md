@@ -168,3 +168,39 @@ returned the explicit unsupported-service error 208 with complete cleanup.
 That run used mocked OS services, not MAME, and is not a gameplay acceptance.
 Sound remains the next observed startup blocker. Main interpreter state and
 command consolidation remain incomplete.
+
+### Real startup and additional shared motion
+
+The native owner uses the existing sound selector and
+`objs/platform/wildbits-sound-code.asm`. There is no safe multi-instance AGI
+playback service in the current driver: `SS.Tone` is blocking, has a global
+sound owner and may ignore concurrent requests. The native backend starts with
+AGI sound flag 9 off. If a script enables it, the backend reports audio
+unavailable once, disables the flag and completes the request. It emits no
+hardware writes. Audio support remains unfinished.
+
+Wander direction/countdown and unsigned byte division now come from the same
+includes as CoCo. Native random state is private to each game. Native position
+predicates also share CoCo's inclusive rectangle comparison, with adapters for
+private scratch and boolean returns. The boolean accumulator is preserved.
+Native `clear.lines` creates persistent opaque blank cells over inclusive rows;
+CPU checks cover both clear colors and persistence after a picture refresh.
+
+CPU checks passed for these changes, including all position predicates, false
+AND preservation, wander countdown/direction bounds, audio fallback notification
+and completion, and the existing rendering/movement/cleanup cases. CoCo `mnln`
+remains byte-for-byte identical to the pre-refactor binary.
+
+Unmodified King's Quest I resources reached room 1 in a bounded CPU run. A
+simulated interrupt after two cycle waits returned error 228 and freed all
+resources. The captured scene included the castle and sprites. These OS calls
+were mocked; the capture is not driver acceptance.
+
+The real-driver diagnostic in `tests/check_wbgame_mame.py` displayed the real
+castle scene but subsequently exited at unsupported command 124 (`status`).
+The traced run `/tmp/sierra-real-kq1-mame-trace-v2` returned to the original free
+memory map. Its original scene-change assertion was insufficient because an
+exit to the console also changed the image; the harness now requires game
+colors in both captures. This diagnostic is currently expected to fail until
+status and the remaining gameplay behavior are implemented. No playable-game
+or full two-game acceptance is claimed.

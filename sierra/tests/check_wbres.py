@@ -51,7 +51,7 @@ def start_cpu(bootrom, timeout=300):
     raise RuntimeError('XRoar debugger did not attach after four fresh starts')
 
 
-def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zero_read=False, seek_error=False, write_error=False, module='wbres', map_failure=0, allocation_error=False, unmap_error=False, window=0x8000, terminal=True, blocks=4, capture=False, multiple=False, firstblock=0x30, frame_capture=False, keyboard=b'', clock=(0,), bitmap_error=False, key_sense=0):
+def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zero_read=False, seek_error=False, write_error=False, module='wbres', map_failure=0, allocation_error=False, unmap_error=False, window=0x8000, terminal=True, blocks=4, capture=False, multiple=False, firstblock=0x30, frame_capture=False, keyboard=b'', clock=(0,), bitmap_error=False, key_sense=0, cycle_limit=None):
     syms = symbols(ROOT / (module + '.map'))
     calls = {base + int(m[1], 16): int(m[2], 16) for m in re.finditer(
         r'^([0-9A-F]{4}) 103F([0-9A-F]{2}).*os9', (ROOT / (module + '.list')).read_text(), re.M)}
@@ -71,6 +71,7 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
     keyboard = bytearray(keyboard)
     clock = list(clock)
     clocksecond = clock[0]
+    cycles = 0
     maps = 0
     unmap_failed = False
     for _ in range(20000):
@@ -94,6 +95,9 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
             d.write(r['x'], bytes([126,10,4,12,0,clocksecond]))
         elif service == syms.get('F$Sleep'):
             assert not mapped
+            cycles += 1
+            if cycle_limit is not None and cycles >= cycle_limit:
+                d.write(database + syms['aborted'], b'\x01')
         elif service == syms['I$GetStt'] and r['b'] == syms['SS.Ready']:
             assert not mapped
             if not keyboard:
@@ -201,7 +205,7 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
         else:
             assert service in (syms['I$WritLn'], syms['F$Icpt']), (service, r)  # usage text stays on stderr
         d.regs(**updates)
-    raise AssertionError('probe did not exit')
+    raise AssertionError(f'probe did not exit after {cycles} sleep calls; opcode=' + d.read(database + syms.get('vmopcode', 0), 1).hex())
 
 
 def fixture(payload=b'\xf0\x00\xff', number=1, volume=1, offset=32, header=None):

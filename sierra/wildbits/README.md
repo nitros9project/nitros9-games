@@ -413,7 +413,7 @@ Private 40-by-25 character/foreground/background cells survive picture
 refreshes. `display`/`display.v` support literal messages, colors and wrapping;
 format directives currently return an explicit unsupported error.
 
-`wbgame` currently uses 14,187 code bytes and 25,785 private bytes. Four private
+`wbgame` currently uses 14,705 code bytes and 25,788 private bytes. Four private
 blocks plus one mapping window leave a conservative 23,808-byte code budget.
 Physical memory also holds resource caches, two picture slabs and the terminal
 bitmap. These are distinct from the logical-address budget.
@@ -425,7 +425,7 @@ keyboard controllers, clock rollover, normal and move-to stepping,
 end-of-loop animation, directional keys, and ownership cleanup. These CPU tests
 mock OS services; real-driver MAME acceptance is reported separately.
 
-This is **not a playable game yet**. Follow/wander motion, vocabulary
+This is **not a playable game yet**. Follow motion, vocabulary
 parsing, formatted messages/dialogs, menu interaction, sound playback and
 remaining game commands still need integration. Native blocking-rectangle
 commands now use the same containment routine as CoCo, with private native
@@ -456,3 +456,10 @@ real-driver gameplay acceptance is still pending. Arrow autorepeat currently
 keeps the selected direction; stop/toggle behavior needs game-level verification.
 
 The shared-source/backend migration is described in [ENGINE.md](ENGINE.md#architecture-correction).
+
+The Wild Bits owner currently starts with AGI sound flag 9 off because the
+existing global blocking `SS.Tone` service cannot safely play independent AGI
+sound streams. `wildbits-sound-code.asm` implements sound-off completion and
+stop commands without touching audio hardware. If a script re-enables flag 9, the backend reports audio unavailable once,
+clears flag 9 and completes the request in sound-off mode. This is sound-disabled operation, not
+audio playback support.

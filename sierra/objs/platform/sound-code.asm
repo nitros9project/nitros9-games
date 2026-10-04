@@ -1,7 +1,7 @@
 * Assembly-time sound backend selection; emits no dispatch instructions.
-* WILDBITS is currently unsupported: never silently emit CoCo PIA access.
+* Each owner supplies its backend state/entry-point contract.
                     ifne      WILDBITS
-                    error     Wild Bits sound backend is not implemented
+                    use       platform/wildbits-sound-code.asm
                     else
                     use       platform/coco-sound-code.asm
                     endc
