@@ -65,7 +65,7 @@ def render(game, payload, assembler, defs):
             '-no-bas', '-no-extbas', '-no-altbas'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         debugger = None
         try:
-            time.sleep(.5)
+            time.sleep(.1)
             for attempt in range(50):
                 try:
                     debugger = Debugger(port)

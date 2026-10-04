@@ -1,0 +1,22 @@
+* Private state for the line-command decoder; include before resource-data.
+DrawColor           rmb       1
+DrawMask            rmb       1
+PosInitX            rmb       1
+PosInitY            rmb       1
+PosFinalX           rmb       1
+PosFinalY           rmb       1
+ScratchA2           rmb       1
+ScratchA3           rmb       1
+ScratchA4           rmb       1
+ScratchA5           rmb       1
+ScratchA6           rmb       1
+ScratchA7           rmb       1
+ScratchA8           rmb       1
+ScratchA9           rmb       1
+ScratchAA           rmb       1
+ScratchAB           rmb       1
+ScratchAC           rmb       1
+decodedbase         rmb       2
+decodeend           rmb       2
+decodeerror         rmb       1
+decodevalue         rmb       1

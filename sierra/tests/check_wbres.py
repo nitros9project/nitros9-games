@@ -10,12 +10,13 @@ from check_instances import Debugger, symbols
 ROOT = Path(__file__).resolve().parents[1] / 'wildbits'
 
 
-def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zero_read=False, seek_error=False, write_error=False):
-    syms = symbols(ROOT / 'wbres.map')
+def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zero_read=False, seek_error=False, write_error=False, module='wbres'):
+    syms = symbols(ROOT / (module + '.map'))
     calls = {base + int(m[1], 16): int(m[2], 16) for m in re.finditer(
-        r'^([0-9A-F]{4}) 103F([0-9A-F]{2}).*os9', (ROOT / 'wbres.list').read_text(), re.M)}
+        r'^([0-9A-F]{4}) 103F([0-9A-F]{2}).*os9', (ROOT / (module + '.list')).read_text(), re.M)}
     d.write(database, bytes(syms['size']))
-    d.write(base, (ROOT / 'wbres').read_bytes())
+    code = (ROOT / module).read_bytes()
+    d.write(base, code)
     argv = database + syms['size'] - 160
     d.write(argv, arguments)
     for address in calls:
@@ -30,6 +31,7 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
         updates = {'pc': r['pc'] + 3, 'cc': r['cc'] & ~1}
         if service == syms['F$Exit']:
             assert not paths, f'leaked file paths: {paths}'
+            assert d.read(base, len(code)) == code, 'native module modified its code/tables'
             for address in calls:
                 d.breakpoint(address, False)
             return r['b'], bytes(output)

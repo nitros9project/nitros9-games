@@ -169,9 +169,47 @@ real-driver MAME test is described in [MAME.md](MAME.md). Native MAME reads
 matched both an 8 KB diagnostic resource from `vol.15` at `$23456` and all
 2,752 bytes of King's Quest I picture 1 at `vol.1` offset `$E24A`.
 
-The next step is converting the picture decoder to consume this native
-loader's commands and write a mapped combined buffer, then feeding that
-buffer directly to presentation. A silent playable game follows that milestone.
+## Native line-command decoder
+
+`wbdecode` is the first native command-decoding probe. It includes the same
+resource loader as `wbres`, then produces a 26,880-byte combined buffer:
+
+```text
+wbdecode /s0/diagnostic-game 1 >/s0/combined.bin
+wbpic /s0/combined.bin
+```
+
+This currently accepts only `$F0` through `$F7` and the `$FF` terminator:
+color/priority enable and disable, X/Y corners, absolute lines, and relative
+lines. Fill (`$F8`) and pen (`$F9`/`$FA`) commands return an error before any
+output is written. Ordinary game pictures usually require those commands;
+this is not yet a complete picture decoder or a playable interpreter.
+
+`decoder-lines.asm` converts the existing CoCo coordinate, Bresenham and
+line/plot routines, retaining their labels, rounding and clamping behavior.
+It uses private direct-page state and a private buffer-base pointer.
+`decoder-code.asm` provides bounded command reads and an immutable table of
+relative handler offsets; it never patches load addresses into shared code.
+Incomplete coordinate pairs, invalid colors, unknown commands and trailing
+bytes after the terminator are rejected. `resource-cli.asm` is shared by both
+probes; extracting it left `wbres` byte-for-byte unchanged.
+
+The decoder probe is 1,400 bytes and requests 36,322 bytes of process data,
+rounded to five 8 KB blocks. It deliberately keeps commands and the combined
+buffer resident for this first correctness comparison. **This is not the final
+engine memory layout:** the combined buffer and fill workspace must move behind
+bounded service windows before integration into the interpreter. No hardware
+registers or fixed CoCo buffer/stack addresses are used by this probe.
+
+The differential CPU test compares complete buffers with the existing actual
+6809 CoCo renderer at two native code/data locations and verifies that the
+module's code/table bytes remain unchanged. The real-driver MAME diagnostic
+also produced an identical buffer through native OS/RBF calls. See
+[MAME.md](MAME.md) for the decoder test option.
+
+The next steps are the mapped combined-buffer backend, bounded fill workspace,
+and pen commands, followed by real game picture comparisons and direct native
+presentation. A silent playable game follows those milestones.
 
 ## Real game picture reference bridge
 

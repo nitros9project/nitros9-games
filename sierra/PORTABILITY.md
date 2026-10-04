@@ -814,3 +814,12 @@ See [wildbits/ENGINE.md](wildbits/ENGINE.md) for the planned module structure:
 one native program may include converted routine bodies, but the old complete
 module sources cannot simply be included into an outer module. The untracked
 packed scaffold remains untouched and excluded from the build.
+
+The first native command decoder now exists in `wildbits/decoder-code.asm`
+and `decoder-lines.asm`, exercised by `wbdecode`. It converts the original
+F0-F7 line/corner algorithms with private state, bounded reads, an immutable
+relative dispatch table and a data-relative combined buffer. The probe uses
+a large resident buffer for differential testing; a mapped storage backend,
+bounded fill workspace and pen conversion remain prerequisites for a full
+native picture decoder. The real-driver MAME diagnostic matched all 26,880
+bytes of the CoCo CPU reference. No existing CoCo engine source was changed.

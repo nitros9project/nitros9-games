@@ -11,7 +11,7 @@ from check_wbres import fixture
 
 ROOT = Path(__file__).resolve().parents[1] / 'wildbits'
 sys.path.insert(0, str(ROOT))
-from export_picture import resource
+from export_picture import resource, render
 
 
 def main():
@@ -23,6 +23,7 @@ def main():
     parser.add_argument('--os9', default='os9')
     parser.add_argument('--game', type=Path, help='optional local game instead of generated diagnostic resource')
     parser.add_argument('--picture-number', type=int, default=1)
+    parser.add_argument('--decode', action='store_true', help='test wbdecode F0-F7 combined-buffer output instead of wbres commands')
     args = parser.parse_args()
     out = args.output.resolve()
     out.mkdir(parents=True, exist_ok=False)
@@ -41,14 +42,20 @@ def main():
         path.write_bytes(payload)
         os9('copy', '-r', *(['-l'] if text else []), path, f'{disk},{target or name}')
 
-    install('wbres', (ROOT / 'wbres').read_bytes(), 'CMDS/wbres')
-    os9('attr', f'{disk},CMDS/wbres', '-e', '-pe')
+    module = 'wbdecode' if args.decode else 'wbres'
+    install(module, (ROOT / module).read_bytes(), 'CMDS/' + module)
+    os9('attr', f'{disk},CMDS/{module}', '-e', '-pe')
     os9('makdir', f'{disk},game')
     if args.game:
         payload, volume, offset = resource(args.game, args.picture_number)
         number = args.picture_number
         files = {'picDir': (args.game / 'picDir').read_bytes(),
                  f'vol.{volume}': (args.game / f'vol.{volume}').read_bytes()}
+    elif args.decode:
+        from check_wbdecode import pictures
+        payload = list(pictures())[2]
+        number, volume, offset = 1, 1, 32
+        files = {Path(name).name: data for name, data in fixture(payload).items()}
     else:
         payload = bytes(range(256)) * 31 + bytes(255) + b'\xff'
         number, volume, offset = 255, 15, 0x23456
@@ -56,7 +63,10 @@ def main():
     for name, data in files.items():
         install(name, data, 'game/' + name)
     # No keyboard wait in the probe: disk startup is deterministic for this test.
-    script = f'load utilpak1\nload wbres\nwbres /s0/game {number} >/s0/commands.bin\necho WBRES-DONE >/s0/wbres-done\n'
+    expected = payload
+    if args.decode:
+        expected = render(ROOT.parent / 'kingsquest1', payload, shutil.which('lwasm.orig') or shutil.which('lwasm'), ROOT.parents[2] / 'nitros9/defs')
+    script = f'load utilpak1\nload {module}\n{module} /s0/game {number} >/s0/commands.bin\necho WBRES-DONE >/s0/wbres-done\n'
     install('startup', script.encode(), text=True)
     install('feu.startup', b'bootos9 /s0/OS9Boot\n', 'FEU/startup', text=True)
     # Installations can extend a sparse image. Apply the mount-size rule last.
@@ -79,9 +89,9 @@ end)
     assert b'WBRES-DONE' in os9('list', f'{disk},wbres-done'), 'native probe did not return successfully to startup'
     result = out / 'commands.bin'
     os9('copy', f'{disk},commands.bin', result)
-    assert result.read_bytes() == payload, 'native command stream differs from reference'
-    print(f'PASS: native Wild Bits OS/RBF read of picture {number}, vol.{volume}@{offset:#x}, {len(payload)} bytes')
-    print(f'SHA256: {hashlib.sha256(payload).hexdigest()}; artifacts: {out}')
+    assert result.read_bytes() == expected, 'native output differs from reference'
+    print(f'PASS: {module} with real Wild Bits OS/RBF, picture {number}, vol.{volume}@{offset:#x}, {len(expected)} output bytes')
+    print(f'SHA256: {hashlib.sha256(expected).hexdigest()}; artifacts: {out}')
 
 
 if __name__ == '__main__':

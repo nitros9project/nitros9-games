@@ -54,20 +54,23 @@ are not separate processes intended to form the eventual game interpreter.
 
 `wbpic.asm` owns one OS-9 module and exercises combined-buffer presentation.
 `wbres.asm` owns another small test module and includes `resource-data.asm`
-and `resource-code.asm`. The future native picture decoder can include those
-same resource routines directly; it will not need to fork `wbres` or reimplement
-its loader. This keeps executable tests on the code that will be integrated.
+and `resource-code.asm`. `wbdecode.asm` now includes those same resource routines
+directly, together with converted line-command bodies. It does not fork
+`wbres` or reimplement its loader. `resource-cli.asm` supplies shared probe
+argument/output handling. Each executable still has exactly one module header.
 
 The current flow is:
 
 ```text
 Native resource step: picDir + vol.N -> LoadPicture -> AGI command bytes
 Presentation step:   combined color/priority buffer -> wbpic -> terminal bitmap
-Still to convert:    AGI command bytes -> native picture decoder -> combined buffer
+Native decoder:     F0-F7 command bytes -> private combined buffer (probe layout)
+Still to convert:    mapped storage, fill and pen commands, interpreter integration
 ```
 
 The host renderer continues to provide the expected combined buffer while
-the native decoder is converted. Decoder state, mapped-buffer access and
-malformed-command boundaries must be resolved before importing the existing
-`shdw` body. Merely linking that fixed-address renderer would recreate the
-problem the portability work is intended to remove.
+the native decoder is converted. The line decoder now has private state,
+bounded reads and immutable relative dispatch. Mapped-buffer access and bounded
+fill workspace remain to be resolved before importing the remaining `shdw`
+body. Merely linking that fixed-address renderer would recreate the problem
+the portability work is intended to remove.

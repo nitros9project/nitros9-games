@@ -1,5 +1,6 @@
 /wbpic
 /wbres
+/wbdecode
 /*.list
 /*.map
 /test-picture.bin

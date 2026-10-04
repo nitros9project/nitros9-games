@@ -114,3 +114,19 @@ King's Quest I picture 1 using the emulator/OS revisions recorded above.
 The latter produced 2,752 command bytes with SHA256
 `65f0bfee93044b42eaca6ce11c35d8db108d0af79d1d213e78ebf40167fa8258`.
 This verifies native resource loading, not native command decoding.
+
+## Native line decoder
+
+Add `--decode` to the resource-loader test command to exercise `wbdecode`.
+The default fixture then contains color/priority, absolute-line, relative-line
+and coordinate-clamping commands. The test runs the existing CoCo renderer
+as a CPU reference, runs the native decoder under the real Wild Bits OS,
+and compares all 26,880 combined bytes. This reference step also requires
+XRoar and lwasm on PATH. Use a fresh output directory for each run.
+
+This passed on the same emulator/OS revisions with native module size 1,400
+bytes and CRC `$EF5D62`. The combined output hash was
+`41b1095683a9252eadcd883f97ffed28467ef96a257f63b4084980d592a3cdd4`.
+The fixture is diagnostic, not a complete game picture. `wbdecode` rejects
+fill and pen opcodes; its resident probe buffer still needs a mapped backend
+before the full interpreter can use it.
