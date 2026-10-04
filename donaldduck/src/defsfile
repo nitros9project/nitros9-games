@@ -1,0 +1,22 @@
+* NitrOS-9 Level 2 / Wildbits graphics ABI (os9.d, wildbits.d).
+I$SetStt equ $8e
+I$GetStt equ $8d
+F$Sleep equ $0a
+F$Exit equ $06
+F$MapBlk equ $4f
+F$ClrBlk equ $50
+SS.AScrn equ $8b
+SS.DScrn equ $8c
+SS.FScrn equ $8d
+SS.PScrn equ $8e
+SS.Palet equ $91
+SS.BmBlk equ $e4
+SS.ClutWrite equ $cf
+SS.WSig equ $e1
+FX_BM equ 8
+FX_GRF equ 4
+FX_TXT equ 1
+FT_OMIT equ $ff
+
+SS.GfxAlloc equ $d4
+SS.GfxFree equ $d5
