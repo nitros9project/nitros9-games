@@ -9,7 +9,7 @@ export NITROS9_GAMES_DIR
 
 include $(NITROS9DIR)/rules.mak
 
-dirs = arcadepak flightsim2 koronis kyumgai mmission pacos9 rescueof rogue \
+dirs = arcadepak donaldduck flightsim2 koronis kyumgai mmission pacos9 rescueof rogue \
 	sierra subsim
 
 all:

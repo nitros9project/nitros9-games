@@ -6,6 +6,7 @@ This repository contains games, game data, and bootable disk-image builds for
 ## Contents
 
 - `arcadepak` — Smash, Shanghai, and Thexder
+- `donaldduck` — Donald Duck’s Playground binary-adapter port for Wildbits
 - `flightsim2` — Flight Simulator II
 - `koronis` — Koronis Rift
 - `kyumgai` — Kyum-Gai
