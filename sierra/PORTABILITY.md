@@ -794,3 +794,11 @@ terminal identity, and visibility flags. Actual driver shadowing and two-termina
 restoration still require target hardware validation. See
 [wildbits/README.md](wildbits/README.md) for exact build/run instructions and
 the acceptance checklist. The CoCo binaries continue to match `83e5fb4`.
+
+
+A host reference bridge now extracts a plain on-disk picture resource and runs
+the existing 6809 picture renderer to produce `wbpic` input. This establishes
+a real-game reference for the native presentation tests; it does not implement
+native resource decoding. King's Quest I picture 1 was rendered and visually
+inspected as the castle scene. See the Wild Bits README for reproduction,
+supported resource encoding, and the reference hash.

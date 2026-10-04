@@ -4,6 +4,7 @@
 This checks conversion, relocation, chunk boundaries and resource cleanup;
 it does not emulate VICKY or verify the Wild Bits driver implementation.
 """
+import argparse
 from pathlib import Path
 import re
 import socket
@@ -140,6 +141,12 @@ def check_signals(d):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--picture', type=Path, help='also test a real exported combined buffer')
+    args = parser.parse_args()
+    picture = args.picture.read_bytes() if args.picture else None
+    if picture is not None and len(picture) != 160 * 168:
+        parser.error('exported picture must contain exactly 26880 combined bytes')
     with socket.socket() as reservation:
         reservation.bind(('127.0.0.1', 0))
         port = reservation.getsockname()[1]
@@ -147,7 +154,7 @@ def main():
         '-ram', '2048', '-gdb', '-gdb-port', str(port), '-timeout', '300',
         '-no-bas', '-no-extbas', '-no-altbas'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
-        time.sleep(.5)
+        time.sleep(.1)
         for attempt in range(50):
             try:
                 d = Debugger(port)
@@ -177,6 +184,11 @@ def main():
         assert code == symbols(VIEWER / 'wbpic.map')['E$MemFul']
         code, frame = exercise(d, 0xA000, payload, map_failure=12)
         assert code == symbols(VIEWER / 'wbpic.map')['E$MemFul']
+        if picture is not None:
+            code, frame = exercise(d, 0xA000, picture, database=0x6000, terminal=b'v2', window=0xC000)
+            reference = bytes(value for byte in picture for value in ((byte & 15) + 1,) * 2)
+            assert code == 0 and frame[:len(reference)] == reference
+            print('PASS: real exported game picture through native viewer')
         code, frame = exercise(d, 0x8000, payload, terminal_mismatch=True)
         assert code == symbols(VIEWER / 'wbpic.map')['E$IllArg']
         code, frame = exercise(d, 0xA000, payload, allocation_error=True)

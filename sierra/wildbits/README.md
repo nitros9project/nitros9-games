@@ -120,3 +120,42 @@ hidden, and the actual keyboard behavior on the target.
 The next port milestone is connecting the existing picture/resource decoder
 to this native buffer/presentation path, then running one silent game before
 adding sound and full concurrent-instance acceptance.
+
+## Real game picture reference bridge
+
+A host-side bridge can now locate a plain picture resource in `picDir` and
+`vol.N`, execute the existing `shdw` renderer on XRoar's actual 6809 CPU,
+and export the combined buffer. It preserves the working renderer rather
+than introducing a second picture algorithm. For example, from this directory:
+
+```sh
+python3 export_picture.py ../kingsquest1 1 /tmp/kq1-picture-1.bin \
+  --assembler /path/to/lwasm --defs /path/to/nitros9/defs
+python3 ../tests/check_wbpic.py --picture /tmp/kq1-picture-1.bin
+```
+
+Transfer the exported file and run `wbpic` on the target as with the diagnostic
+fixture. King's Quest I picture 1 is the castle scene; its plain resource is
+2,752 bytes at `vol.1` offset `$E24A`. The reference combined buffer has SHA256
+`d1ddfc805018b2c8f4e5fac32b6ce17489154499479fca8ec41194c306b0a757`.
+
+The exporter assembles a private copy of the shared renderer in a temporary
+directory, uses its existing fixed-address layout only inside the CoCo CPU
+reference fixture, and returns the normal low-color/high-priority bytes.
+It does not change the Wild Bits module's position-independent layout or
+perform host-side memory mapping on the target. No game assets or generated
+buffers are committed to the repository.
+
+Resource extraction validates the directory entry, volume header, stored
+length, and end marker. This first bridge supports plain resources up to one
+8 KB command window. Nibble-packed and LZW resources fail explicitly; they
+are not silently treated as plain bytes. Native Wild Bits resource loading,
+compression decoding, and mapped command rendering are still unimplemented.
+The viewer still takes a raw combined buffer, not a game directory.
+
+Validation includes visual inspection of the castle reference and execution
+of the native viewer against every pixel of that real buffer under mocked
+services, alongside its diagnostic/error/terminal tests. This proves the
+reference-to-presentation pipeline at the CPU level, not actual Wild Bits
+graphics output or a playable game. The bridge also establishes a concrete
+reference for comparing the eventual native decoder.

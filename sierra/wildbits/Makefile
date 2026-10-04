@@ -16,4 +16,12 @@ clean:
 fixture:
 	python3 make_picture_fixture.py test-picture.bin
 check: all
+	python3 ../tests/test_picture_resource.py
 	python3 ../tests/check_wbpic.py
+
+GAME ?= ../kingsquest1
+PICTURE ?= 1
+.PHONY: reference
+reference:
+	python3 export_picture.py $(GAME) $(PICTURE) reference-picture.bin \
+		--assembler "$(LWASM)" --defs "$(NITROS9DIR)/defs"

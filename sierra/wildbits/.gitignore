@@ -2,3 +2,5 @@
 /*.list
 /*.map
 /test-picture.bin
+/reference-picture.bin
+/__pycache__/
