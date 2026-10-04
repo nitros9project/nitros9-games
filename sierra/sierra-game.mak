@@ -9,6 +9,9 @@ DEPENDS		= ./Makefile ../sierra-game.mak
 
 sierra mnln: ../objs/instance.d
 
+mnln: ../objs/platform/sound-data.asm ../objs/platform/sound-code.asm \
+	../objs/platform/coco-sound-data.asm ../objs/platform/coco-sound-code.asm
+
 CMDS		= sierra mnln scrn shdw tocgen
 MD		= $(LEVEL2)/coco3/modules
 SYSGO		= $(MD)/sysgo_dd
