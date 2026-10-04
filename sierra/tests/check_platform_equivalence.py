@@ -22,7 +22,8 @@ def main():
     assembler = str(Path(args.assembler).resolve())
     archive = subprocess.check_output(['git', 'archive', args.baseline, 'sierra/objs'], cwd=repo)
     games = sorted(p for p in (repo / 'sierra').iterdir()
-                   if (p / 'Makefile').is_file() and (p / 'defsfile').is_file())
+                   if (p / 'Makefile').is_file() and (p / 'defsfile').is_file()
+                   and (p / 'picDir').is_file())
     flags = ['--no-warn=ifp1', '--6309', '--format=os9',
              '--pragma=pcaspcr,nosymbolcase,condundefzero,undefextern,dollarnotlocal,noforwardrefmax',
              '-I' + str(defs)]

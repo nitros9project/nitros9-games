@@ -774,3 +774,23 @@ standalone makefile include it; Black Cauldron retains its existing disk recipe.
 This prevents a backend edit from being missed by that title and supplies the
 same source include path to every game. The comparison checker also verifies
 that all four module sources reject the unimplemented Wild Bits selection.
+
+
+## Wild Bits implementation has started
+
+The follow-on `wildbits/wbpic.asm` is the first native presentation module.
+It implements the proposed combined-buffer-to-framebuffer path using OS-managed
+mapping, separate process data, and a terminal-owned bitmap. It accepts an
+uncompressed combined-buffer export rather than existing game resource files.
+The unfinished packed-engine wrapper is still excluded from the build.
+
+The target is separate instances on separate terminals. The viewer checks
+input/output terminal identity, refuses an existing bitmap zero, requires
+background/foreground notifications, and keeps signal state private. Its
+signal handler addresses fields through intercepted U rather than DP.
+Native CPU checks cover distinct module/data addresses, different map-return
+addresses, span boundaries, short reads, malformed files, cleanup failures,
+terminal identity, and visibility flags. Actual driver shadowing and two-terminal
+restoration still require target hardware validation. See
+[wildbits/README.md](wildbits/README.md) for exact build/run instructions and
+the acceptance checklist. The CoCo binaries continue to match `83e5fb4`.

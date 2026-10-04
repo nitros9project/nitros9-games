@@ -60,3 +60,7 @@ invoke the normal AGI Quit routine in one process and verify that the other
 continues. The fixture is a separate disposable disk; emulator writes are
 disabled. These checks do not exercise a complete playthrough or save/restore
 through the game UI.
+
+Wild Bits native presentation work and target-side testing are documented in
+[wildbits/README.md](wildbits/README.md). The first module is a combined-buffer
+viewer; the playable interpreter port is not yet implemented.
