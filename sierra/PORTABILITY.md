@@ -426,3 +426,102 @@ Audit the callers and scratch fields against that design before implementing
 Wild Bits routines. The current includes make the optimized CoCo implementation
 replaceable at build time; they do not by themselves make its fixed-address
 calling convention portable.
+
+## Buffer layout and mapping-lifetime design
+
+`objs/buffer-layout.d` now names the shared 160-by-168 AGI picture dimensions.
+Its CoCo selection includes `platform/coco-buffer-layout.d`, which names the
+existing screen width/height, packed-pixel stride, framebuffer range, mapping
+block size, and private-copy window. Selected clear, copy, and drawing operands
+use these equates instead of literal numbers. The constants emit no bytes;
+all 56 rebuilt modules still match the previous renderer binaries exactly.
+Other literals remain where their meaning requires further caller analysis.
+Changing these constants alone cannot change the engine's fixed-address ABI.
+
+### Proposed portable model
+
+The following is the intended replacement contract, not an implemented buffer
+ABI. Introduce it together with the affected callers rather than mixing new
+handles and old absolute pointers in the same operation.
+
+| Buffer role | Logical meaning | Storage responsibility |
+| --- | --- | --- |
+| Picture | 160-by-168 AGI color indices | Private to the game; independent of physical screen packing. |
+| Priority/control | Priority and control information used by game logic | Private to the game; preserve decoder and collision semantics exactly. |
+| Framebuffer | Presented image, text, and composed views | Owned by the terminal/game through the platform graphics service. |
+| Resource | Loaded logic, view, picture, or sound bytes | Private allocation or a deliberately immutable shared resource, with an explicit lifetime. |
+| Scratch | Temporary decode, drawing, and staging bytes | Private to the process; never shared implicitly through module code. |
+
+These roles need not imply separate allocations on CoCo. Its existing picture
+representation and banked layout can remain behind its backend. For an initial
+Wild Bits implementation, one byte per logical picture pixel and a separate
+priority/control representation are reasonable candidates; the latter must
+be chosen after auditing the existing combined values and masks. Do not
+convert AGI priority/control values into display palette indices.
+
+The Wild Bits presentation candidate is a 320-by-240, one-byte-per-pixel
+framebuffer with a 320-byte stride (76,800 bytes). A 160-by-168 one-byte picture
+would occupy 26,880 bytes; a separate one-byte priority/control plane would
+occupy the same amount. These are planning sizes, not an allocation implemented
+here. Account separately for text placement, staging buffers, resource blocks,
+private engine data, and graphics allocation alignment.
+
+### Buffer identity and ownership
+
+A future process-private buffer record should describe its role, dimensions,
+stride, format, byte length, allocation owner, and backing allocation/block
+list. It should identify storage independently of whichever logical address
+happens to map it. Do not store a borrowed mapped address as a permanent resource
+pointer or serialize it into a saved game. Save/restore must reconstruct such
+references from game state and owned-resource identity.
+
+An allocation is published to callers only after successful setup. Every
+failure path releases the allocations created so far. A buffer's release
+operation uses its recorded allocator/owner; a framebuffer obtained through
+a graphics service is released through that service. This preserves the
+per-instance ownership discipline already established for the CoCo backend.
+
+### Mapping lifetime
+
+For a backend that uses OS-managed windows, a mapping operation should receive
+buffer identity plus a byte offset and requested access length. It should
+return the actual mapped address and contiguous accessible length; a caller
+must split work at that boundary. The returned address must come from the OS
+mapping operation, not an assumed fixed window address.
+
+A mapped pointer is valid only until that window is unmapped or reused. Its
+scope should be one strip/span or a documented batch of operations. Nested
+resource and framebuffer access needs distinct windows or explicit staging:
+remapping a resource while retaining a pointer into the same window is invalid.
+Map once outside the inner pixel loop, draw the accessible span, then advance
+the buffer offset and remap as necessary. The mapping service must keep its
+allocation pinned while a mapping is active and balance mapping cleanup on
+errors and normal completion.
+
+For Wild Bits, reserve the planned two service windows explicitly in the
+module/data budget. One candidate is a resource/picture window and a framebuffer
+window; priority accesses that compete for the former need short-lived maps
+or private staging. Avoid designing an inner loop that requires three
+simultaneous mapped buffers without first proving the logical address budget.
+The legacy CoCo backend's interrupt-masked hardware borrow remains a separate
+implementation technique with its existing restrictions.
+
+### Rendering contract and migration order
+
+Shared code should pass logical coordinates, color indices, source offsets,
+and clipping information. The backend performs pixel packing and chooses
+optimized span/glyph/view operations. Text foreground/background remain
+logical indices at this boundary; the existing repeated-nibble state must
+be adapted with all of its readers, not changed piecemeal. Keep font data and
+AGI picture/priority rules independent of display storage.
+
+Before adopting the new ABI, audit picture/priority reads and writes in
+`shdw.asm`, resource pointers and text-color consumers in `mnln.asm`, and
+screen/resource mapping use in the rendering backends. Then implement a
+small owned-buffer mapping and span-drawing path, verify its allocation/error
+cleanup, and use it for the first Wild Bits picture-display milestone. Leave
+the working CoCo backend available as the behavioral reference throughout.
+
+This phase supplies named current geometry and the design contract. It does
+not implement Wild Bits allocation, convert the engine to position-independent
+code, or claim that old save files remain compatible with a future layout.

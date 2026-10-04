@@ -65,8 +65,8 @@ CopyPrivatePage     pshs      cc,d,x,y,u
                     ldb       <MmuBlk2Orig the copy window normally aliases private data
                     pshs      b
                     sta       >$FFAA
-                    ldu       #$4000
-                    ldy       #$1000
+                    ldu       #CocoCopyWindow
+                    ldy       #CocoCopyWords
 PrivateWordLoop     ldd       ,x++
                     std       ,u++
                     leay      -1,y

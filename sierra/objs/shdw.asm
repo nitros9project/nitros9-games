@@ -1,3 +1,5 @@
+                    use       buffer-layout.d
+
 ********************************************************************
 * shdw - Sierra AGI screen rendering module
 *
@@ -104,8 +106,8 @@ O_UNUSED            equ       $8000
 
 * Local Program Defines
 
-PICBUFF_WIDTH       equ       160       ($A0)
-PICBUFF_HEIGHT      equ       168       ($A8)
+PICBUFF_WIDTH       equ       AgiPictureWidth ($A0)
+PICBUFF_HEIGHT      equ       AgiPictureHeight ($A8)
 
 picb_size           equ       PICBUFF_WIDTH*PICBUFF_HEIGHT $6900
 x_max               equ       PICBUFF_WIDTH-1 159 ($9F)

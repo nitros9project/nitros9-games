@@ -22,14 +22,14 @@ SetupScreen         leas      -$04,s    mamke room om stack 2 words
                     stu       <ScrStartAddr stow it two places
                     stu       <ScrStart2 also save as second screen start reference
 
-                    leax      >$4000,x  end address ???
+                    leax      >CocoFramePairBytes,x  end address ???
                     lbsr      TwiddleAddr twiddle addresses
                     stu       <ScrEndAddr stow it in two places
                     stu       <ScrEnd2  also save as second screen end reference
 
 * TFM for 6309
-                    ldu       #$D800    Clear hi-res screen to color 0
-                    ldx       #$7800    Screen is from $6000 to $D800
+                    ldu       #CocoFrameEnd    Clear hi-res screen to color 0
+                    ldx       #CocoFrameBytes    Screen is from $6000 to $D800
                     ldd       #$0000    (U will end up pointing to beginning of screen)
 ClearScreenLoop     std       ,--u      writes 0000 to screen address and decrements
                     leax      -2,x      decrement x loop counter

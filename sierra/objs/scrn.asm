@@ -1,3 +1,5 @@
+                    use       buffer-layout.d
+
 ********************************************************************
 * scrn - Kings Quest III screen module
 *

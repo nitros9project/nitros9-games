@@ -1,3 +1,5 @@
+                    use       buffer-layout.d
+
 ********************************************************************
 * sierra - Sierra AGI game setup module
 *
@@ -361,7 +363,7 @@ ClearLoop           std       ,x++      write zero word and advance pointer
                     lda       #$32      load game state constant
                     sta       >$0245    store game state byte at $0245
 
-                    ldd       #$6000    This is the start of high res screen memory
+                    ldd       #CocoFrameBase This is the start of high res screen memory
                     std       <ScrAddrHi store hi-res screen start address
 
                     lda       #$15      load game state constant

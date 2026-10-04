@@ -29,8 +29,8 @@ CocoViewPal         fcb       $00
 *      u -> contains starting address of the screen
 
 ClearScreen         pshs      x         save the x values as this routine uses it
-ClearScreenInit     ldu       #$D800    end address of high res screen
-                    ldx       #$7800    Scrn is from $6000 to $D800
+ClearScreenInit     ldu       #CocoFrameEnd    end address of high res screen
+                    ldx       #CocoFrameBytes    Scrn is from $6000 to $D800
 ClearWordLoop       std       ,--u      set it to value passed us in d & dec d
                     leax      -$02,x    decrement x
                     bne       ClearWordLoop keep going till all of screen is cleared
@@ -138,7 +138,7 @@ DrawStrip           pshs      y         save Y (module entry absolute address)
                     sta       <ScrAddrLo save row as screen address low byte
                     incb                B = bottom row + 1
                     subb      $06,s     B = height of strip in rows
-                    lda       #$A0      A = 160 (bytes per screen row)
+                    lda       #CocoFrameStride A = 160 (bytes per screen row)
                     mul                 D = height × 160
                     addd      <ScrAddrHi add hi-res screen high byte
                     tfr       d,x       X = source pixel address
@@ -148,7 +148,7 @@ DrawStrip           pshs      y         save Y (module entry absolute address)
                     ldd       $06,s     load strip dimension
                     std       <RowCount save row count and strip width
 
-                    ldb       #$A0      B = 160 (full row width)
+                    ldb       #CocoFrameStride B = 160 (full row width)
                     subb      <StripWidth B = stride = 160 - strip pixel width
                     clra                clear A for full D
                     std       <RowStride save row stride
@@ -184,7 +184,7 @@ DrawPixelInner      lda       ,x+       fetch source pixel byte, advance X
                     ldd       <RowStride load row stride
                     leay      d,y       advance Y to next screen row
                     abx                 advance X by B (stride)
-                    cmpx      #$6000    check if X wrapped below screen base
+                    cmpx      #CocoFrameBase    check if X wrapped below screen base
                     bcs       DrawRowOuter branch if still in range
 
                     orcc      #IntMasks disable interrupts for block remap
@@ -201,14 +201,14 @@ FillSolidRect       ldd       $02,s     load row/column args from stack
                     sta       <ScrAddrLo save row as screen address low
                     incb                B = bottom row + 1
                     subb      $04,s     B = strip height
-                    lda       #$A0      A = 160
+                    lda       #CocoFrameStride A = 160
                     mul                 D = height × 160
                     addd      <ScrAddrHi Hi res screen mem address ($6000)
                     addd      <HiResBase add base screen offset
                     tfr       d,x       X = starting screen address
                     ldd       $04,s     load dimension arg
                     std       <RowCount save row count / strip width
-                    ldb       #$A0      B = 160
+                    ldb       #CocoFrameStride B = 160
                     subb      <StripWidth B = stride = 160 - strip width
                     stb       <RowStride save row stride
                     leau      >CocoViewPal,pcr point U to CoCo palette table
@@ -238,7 +238,7 @@ CopyStrip           leas      -$04,s    allocate 4 scratch bytes on stack
                     lsla                row × 2
                     lsla                row × 4
                     lsla                row × 8
-                    ldb       #$A0      B = 160
+                    ldb       #CocoFrameStride B = 160
                     mul                 D = row × 8 × 160 = row × 1280
                     std       <DrawY1   save Y pixel offset for destination
                     clra                clear A
@@ -247,12 +247,12 @@ CopyStrip           leas      -$04,s    allocate 4 scratch bytes on stack
                     lslb                × 4 (column × 4 bytes per glyph col)
                     addd      <DrawY1   add Y offset to screen address
                     tfr       d,u       transfer result to U (source pointer)
-                    leau      >$6000,u  add screen base $6000
+                    leau      >CocoFrameBase,u  add screen base $6000
                     ldb       $02,s     load scratch[2]
                     lslb                × 2
                     lslb                × 4
                     lslb                × 8 (source col × 8)
-                    lda       #$A0      A = 160
+                    lda       #CocoFrameStride A = 160
                     mul                 D = source col × 8 × 160
                     leax      d,u       X = source screen address
                     lda       $03,s     load source row
@@ -276,7 +276,7 @@ CopyPixelInner      lda       ,-x       read source pixel (reverse scan)
                     puls      u,x,b,a   restore pointers and counts
                     leau      >$00A0,u  advance U to next source row
                     leax      >$00A0,x  advance X to next dest row
-                    cmpx      #$D800    check if X reached screen end
+                    cmpx      #CocoFrameEnd    check if X reached screen end
                     bcc       CopyStripDone done if past end of screen
                     deca                one fewer row
                     bne       CopyRowOuter loop while rows remain

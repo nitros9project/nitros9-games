@@ -9,14 +9,14 @@ DrawSprites         leas      -$02,s    allocate 2 scratch bytes
                     lsla                row × 2
                     lsla                row × 4
                     lsla                row × 8
-                    ldb       #$A0      B = 160
+                    ldb       #CocoFrameStride B = 160
                     mul                 D = row × 8 × 160 = pixel row offset
                     tfr       d,y       Y = row pixel offset
                     clra                clear A for column calculation
                     ldb       <SprCurCol load current sprite column
                     lslb                col × 2
                     lslb                col × 4 (bytes per glyph col)
-                    addd      #$6000    add screen base $6000
+                    addd      #CocoFrameBase    add screen base $6000
                     leay      d,y       Y = screen address for this glyph
 DrawSpriteLoop      tst       ,x        test next glyph byte
                     lbeq      DrawSpritesDone zero byte = end of glyph data

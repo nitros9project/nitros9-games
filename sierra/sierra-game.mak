@@ -7,6 +7,8 @@ vpath %.asm ../objs
 AFLAGS		+= -I. -I../objs
 DEPENDS		= ./Makefile ../sierra-game.mak
 
+sierra mnln scrn shdw: ../objs/buffer-layout.d ../objs/platform/coco-buffer-layout.d
+
 sierra mnln: ../objs/instance.d
 
 mnln: ../objs/platform/sound-data.asm ../objs/platform/sound-code.asm \

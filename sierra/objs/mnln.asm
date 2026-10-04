@@ -1,3 +1,5 @@
+                    use       buffer-layout.d
+
 ********************************************************************
 * MNLN - Leisure Suit Larry main line module
 *
