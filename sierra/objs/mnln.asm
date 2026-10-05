@@ -1958,20 +1958,9 @@ ToLowerRet          equ       LowercaseReturn
 *   and stores it in a variable within a caller-specified range.
 *======================================================================
 *
-CmdRandomImpl       lbsr      InitRandSeed get pseudo-random value into B
-                    lda       $01,y     load range max (second arg)
-                    suba      ,y++      subtract range min from max, advance Y by 2
-                    inca                add 1 to get range size
-                    bne       CmdRandomMod branch if range is non-zero
-                    tfr       b,a       range was zero, use raw random value
-                    bra       CmdRandomStore skip modulo
-CmdRandomMod        lbsr      Div8      divide: A=divisor, B=dividend → B=remainder
-                    adda      -$02,y    add range min to get result in range
-CmdRandomStore      ldx       #$0431    point to variable table
-                    ldb       ,y+       load destination variable number
-                    abx                 index to destination variable
-                    sta       ,x        store random result in variable
-                    rts
+                    use       platform/coco-random-operands.asm
+                    use       shared/random-command.asm
+
 *
 *======================================================================
 * BYTE SEARCH AND CASE HELPERS

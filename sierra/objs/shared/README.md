@@ -3,6 +3,8 @@
 These are body includes used by both the CoCo modules and native Wild Bits
 owners. They allocate no state and contain no OS-9 module header.
 
+- `random-command.asm`: inclusive random-range calculation and variable store;
+  owners retain their seed generators, validation and variable-table bindings.
 - `divide-byte.asm`: unsigned byte quotient/remainder with private DP scratch.
 - `object-wander.asm`: direction/countdown changes shared with CoCo; native
   random state is process-private. Coordinate stepping remains separate.

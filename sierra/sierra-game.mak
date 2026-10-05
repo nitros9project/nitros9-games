@@ -145,3 +145,5 @@ mnln: ../objs/platform/object-coordinate-operands.asm ../objs/platform/coco-obje
 mnln: ../objs/shared/condition-flow.asm ../objs/platform/coco-condition-stream.asm
 
 mnln: ../objs/shared/logic-executor.asm ../objs/platform/coco-logic-stream.asm
+
+mnln: ../objs/shared/random-command.asm ../objs/platform/coco-random-operands.asm

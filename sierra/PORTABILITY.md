@@ -1235,3 +1235,34 @@ seconds. Artifacts are in `/tmp/sierra-shared-executor-mame`,
 `/tmp/sierra-shared-executor-terminals` and
 `/tmp/sierra-shared-executor-movement`. These checks do not establish complete
 gameplay or audio support.
+
+### Shared random command
+
+`shared/random-command.asm` now supplies AGI command 130 to both owners. It
+reads the minimum and maximum, computes the inclusive byte-width, selects a
+remainder using the existing shared `Div8`, adds the minimum, and stores the
+result in the destination variable. A wrapped width of zero represents the
+full 0–255 range and bypasses division. This preserves the existing modulo
+selection rather than changing the game's random distribution.
+
+The CoCo `InitRandSeed` and native private LFSR remain owner implementations;
+sharing range selection does not require identical random sequences. The
+native wrapper validates minimum <= maximum before obtaining a random byte.
+Both wrappers bind the variable table at assembly time. The CoCo handler keeps
+its original bytes and script-cursor advancement; native status return and
+private storage remain intact. The native game shrinks a further 15 bytes to
+21,519 code bytes, with its 24,568-byte private allocation unchanged.
+
+`tests/check_random_command.py` substitutes only the random-byte provider and
+executes each actual handler, including `Div8`. At two load addresses it checks
+all 256 input bytes across six ranges, destination variables 0 and 255, full
+range and singleton edges, guards, stack balance and code immutability. The
+native reversed-range case must fail without changing a variable or calling
+the generator. `check_wbplay.py` separately exercises the real generator through
+loaded logic and the normal command dispatcher.
+
+The exhaustive comparative test and gameplay regression passed. Sustained
+original-game commands, inventory/modal restoration, Pause/resume, interrupt
+exit and free-memory checks passed in Wild Bits MAME; artifacts are in
+`/tmp/sierra-shared-random-mame`. This does not establish full gameplay or audio
+support.
