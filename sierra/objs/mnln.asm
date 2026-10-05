@@ -1790,16 +1790,8 @@ StrCompareLoop      lda       ,x        load byte from first string (no advance 
 StrCompareRet       puls      u,x       restore saved registers
                     rts
                     use       shared/decimal-byte.asm
-UIntToDecStr        leax      >NumConvEnd,pcr point X to end of numeric conversion buffer
-                    clr       ,x        null-terminate the buffer
-UIntToDecLoop       ldu       #$000A    divide by 10 for decimal conversion
-                    bsr       UIntDivide divide D by U for decimal digit
-                    addb      #$30      convert remainder to ASCII digit
-                    stb       ,-x       store digit left of current position
-                    tfr       u,d       transfer quotient to D
-                    cmpd      #$0000    check if quotient is zero
-                    bhi       UIntToDecLoop loop if more digits to convert
-                    rts
+                    use       platform/decimal-output-operands.asm
+                    use       shared/unsigned-decimal.asm
 UIntToHexStr        leax      >NumConvEnd,pcr point X to end of numeric conversion buffer
                     clr       ,x        null-terminate the buffer
 UIntToHexLoop       ldu       #$0010    divide by 16 for hex conversion

@@ -135,33 +135,36 @@ FormatMessageReturn puls     x
 FormatVariable      leay      vmvariables,u
                     clra
                     ldb       d,y
-                    lda       #100
-                    lbsr      Div8
-                    sta       parserbestlength,u
-                    stb       parserid,u
-                    tstb
-                    beq       FormatTens
-                    tfr       b,a
-                    adda      #'0
+* Keep the source cursor/context and four numeric bytes on the caller stack.
+* No copied message, source frame, or persistent argument buffer is reused.
+                    pshs      u,x
+                    leas      -4,s
+                    leax      3,s
+                    lbsr      UIntToDecStr
+                    tfr       x,y
+                    ldx       4,s
+                    ldu       6,s
+FormatVariableCopy  lda       ,y+
+                    beq       FormatVariableDone
                     lbsr      FormatPut
-                    lbcs      FormatPartError
-FormatTens          ldb       parserbestlength,u
-                    lda       #10
-                    lbsr      Div8
-                    sta       parserbestlength,u
-                    tstb
-                    bne       FormatTensPut
-                    tst       parserid,u
-                    beq       FormatOnes
-FormatTensPut       tfr       b,a
-                    adda      #'0
-                    lbsr      FormatPut
-                    lbcs      FormatPartError
-FormatOnes          lda       parserbestlength,u
-                    adda      #'0
-                    lbsr      FormatPut
-                    lbcs      FormatPartError
+                    bcs       FormatVariableError
+                    bra       FormatVariableCopy
+FormatVariableDone  leas      8,s
                     lbra      FormatNext
+FormatVariableError leas      8,s
+                    lbra      FormatPartError
+
+                    use       platform/decimal-output-operands.asm
+                    use       shared/unsigned-decimal.asm
+* Bind the common quotient/remainder ABI to the existing 8-bit divider.
+* D <= 255, U=10; return U=quotient and D=remainder, preserving X/Y.
+FormatByteDivide10  lda       #10
+                    lbsr      Div8
+                    pshs      a
+                    clra
+                    tfr       d,u
+                    puls      b
+                    rts
 
                     use       platform/decimal-index-operands.asm
                     use       shared/decimal-index.asm

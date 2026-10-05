@@ -1618,3 +1618,49 @@ independent exits, relaunch and free-memory recovery. Artifacts are
 `/tmp/sierra-shared-format-index-mame` and
 `/tmp/sierra-shared-format-index-terminals`; complete gameplay/audio support
 is not asserted by those bounded checks.
+
+### Shared unsigned decimal conversion for message expansion
+
+`objs/shared/unsigned-decimal.asm` now implements the complete digit-generation
+loop used by CoCo `UIntToDecStr` and native `%v` expansion. It divides by ten,
+writes remainder digits backward from the caller's buffer end, and repeats
+until the quotient is zero. The result is a NUL-terminated string without
+leading zeroes, including the single digit `0` for zero input.
+
+`platform/decimal-output-operands.asm` selects storage and divider bindings.
+CoCo retains its original private engine conversion buffer and 16-bit
+`UIntDivide` call, producing unchanged engine bytes and supporting values
+through 65535. The native caller supplies a four-byte stack buffer for its
+byte-valued AGI variables. Its adapter binds the existing 8-bit divider to
+the common quotient/remainder register convention. The caller keeps its
+source cursor and private context on the stack and releases all eight local
+bytes on both success and output-limit failure. Copied messages, source
+frames, decoded arguments and persistent strings are not reused as numeric
+scratch storage; no extra private data is allocated.
+
+`tests/check_decimal_output.py` passed 1,560 actual converter/formatter calls
+at two load addresses per owner. It covers every byte value, CoCo wide values
+through 65535, exact digits and NUL placement, surrounding buffer guards,
+register/stack conventions, native copied-message preservation, and a numeric
+write failure after string expansion fills the 2047-byte output limit. That
+failure verifies stack and source-frame unwinding while the numeric buffer is
+live. Whole private-state checks at numeric boundaries and instruction
+immutability also passed; CoCo's existing writable conversion buffer is
+explicitly excluded from its instruction comparison.
+
+The existing scanner and play regressions also passed: 3,580 scanner/formatter
+calls and formatted variables/strings/words/nested messages, rejection bounds,
+modal restoration and ownership cleanup. All 14 CoCo engine binaries remain
+unchanged. The native game is six bytes smaller than the prior checkpoint:
+21,791 of 23,808 code bytes, with unchanged 24,568-byte private storage. Full
+format expansion and wrapping remain part of the unfinished engine migration.
+
+The same native conversion build passed the private Wild Bits MAME movement
+check (approximately nine AGI pixels in 3.33 emulated seconds) and the
+independent two-terminal interpreter check. The latter verified all displayed
+pixels, visibility switching, restored pictures, independent exits, relaunch,
+and the free-memory map. Artifacts are
+`/tmp/sierra-shared-decimal-output-movement` and
+`/tmp/sierra-shared-decimal-output-terminals`. These bounded checks preserve
+the established movement/terminal behavior; they do not prove complete
+formatter, gameplay, or audio coverage.

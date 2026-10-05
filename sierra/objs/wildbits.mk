@@ -46,6 +46,7 @@ check: all probes
 	python3 ../tests/check_view_queries.py
 	python3 ../tests/check_game_clock.py
 	python3 ../tests/check_decimal_index.py
+	python3 ../tests/check_decimal_output.py
 	python3 ../tests/check_condition_flow.py
 	python3 ../tests/check_tokenizer.py
 	python3 ../tests/check_string_compare.py
@@ -142,3 +143,5 @@ wbgame: platform/object-view-query-operands.asm
 wbgame: platform/game-clock-operands.asm
 
 wbgame: platform/decimal-index-operands.asm
+
+wbgame: platform/decimal-output-operands.asm

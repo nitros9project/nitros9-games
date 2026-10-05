@@ -79,3 +79,7 @@ sierra: ../objs/shared/game-clock-tick.asm \
 mnln: ../objs/shared/decimal-index.asm \
 	../objs/platform/decimal-index-operands.asm \
 	../objs/platform/coco-decimal-index-operands.asm
+
+mnln: ../objs/shared/unsigned-decimal.asm \
+	../objs/platform/decimal-output-operands.asm \
+	../objs/platform/coco-decimal-output-operands.asm
