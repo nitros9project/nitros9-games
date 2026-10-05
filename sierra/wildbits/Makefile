@@ -89,3 +89,9 @@ wbgame: logic-fetch.asm
 wbdecode wbrun wbgame: ../objs/shared/picture-colors.asm ../objs/shared/picture-commands.asm
 
 wbdecode wbrun wbgame: ../objs/shared/picture-command-table.asm
+
+wbexec wbgame: ../objs/shared/variable-commands.asm
+
+wbexec wbgame: ../objs/shared/flag-commands.asm
+
+wbexec wbgame: ../objs/platform/wildbits-flag-storage.asm

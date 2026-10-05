@@ -395,3 +395,11 @@ The mapped-fetch build (20,833 bytes) passed the real-driver movement harness
 at `/tmp/sierra-movement-fetch-fast`, including inventory restoration and
 unchanged free memory. The result remains approximately nine pixels in
 200 frames; this test does not establish an additional movement speedup.
+
+The shared-command build (20,966 code / 24,572 private bytes) passed
+`--sustained` at `/tmp/sierra-shared-commands-sustained`: original-game
+commands, unknown-word response, inventory restoration, menu Pause/resume,
+subsequent input, interrupt exit, and unchanged free memory. The preceding
+variable-only consolidation also passed `--movement` at
+`/tmp/sierra-shared-variables-movement` (approximately nine pixels in
+200 frames). That timing result is not a measurement of the later flag build.

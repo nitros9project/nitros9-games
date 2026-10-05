@@ -112,3 +112,9 @@ endif
 shdw: ../objs/shared/picture-colors.asm ../objs/shared/picture-commands.asm
 
 shdw: ../objs/shared/picture-command-table.asm
+
+mnln: ../objs/shared/variable-commands.asm
+
+mnln: ../objs/shared/flag-commands.asm
+
+mnln: ../objs/platform/coco-flag-storage.asm

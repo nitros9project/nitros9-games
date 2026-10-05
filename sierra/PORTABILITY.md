@@ -876,3 +876,34 @@ parser integration still require reconciliation. The `wildbits` directory
 remains needed for its active entry points and platform integration until
 those implementations are replaced. A file qualifies as shared only when
 both platform owners assemble it.
+
+### Shared variable and flag command execution
+
+Commands 1–11 now come from `objs/shared/variable-commands.asm` in both
+`mnln.asm` and the native logic owner. The shared bodies implement saturating
+increment/decrement, modulo-byte assignment/addition/subtraction, variable
+operands, and left/right indirect assignment. Each owner expands
+`VARIABLE_TABLE` into its existing variable-table address. The CoCo owner
+reads operands from its script Y; the native owner has already bounded and
+copied operands into private memory and points Y there. Shared handlers
+consume bytes identically; no mapped pointer is retained.
+
+Commands 12–17 now come from `objs/shared/flag-commands.asm`. The indirect
+variants use `FLAG_VARIABLE_TABLE`; `SetFlag`, `ClearFlag`, and `ToggleFlag`
+are storage interfaces implemented in `platform/coco-flag-storage.asm` and
+`platform/wildbits-flag-storage.asm`. CoCo retains packed flags and the native
+owner retains canonical byte flags. This avoids prematurely changing every
+flag reader throughout either engine while removing duplicate command rules.
+
+The native arithmetic opcode chain is replaced by an immutable, table-relative
+dispatch to these common command bodies. Both CoCo macros emit the original
+instructions, and the resulting CoCo `mnln` is byte-identical to the baseline.
+The native game now uses 20,966 code bytes and still 24,572 private bytes; the
+probe interpreter uses 6,642 code bytes. No new process data is required.
+
+The native control/arithmetic tests cover relocation, saturating edges,
+wrapping, indirect assignment through index 255, flag operations, AND/OR/NOT,
+argument/branch bounds, and immutable code. The mapped interpreter tests
+cover physical page crossings, cached/nested calls, and ownership cleanup.
+Whole-game pixel and real-driver sustained-play checks validate integration.
+The full engine migration remains incomplete beyond these command groups.

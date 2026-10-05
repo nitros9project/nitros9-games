@@ -51,6 +51,12 @@ def main():
             assert variables[:7] == bytes([253,7,7,4,99,7,201]), variables[:7]
             assert flags[200] == 1 and flags[201] == 0 and variables[250] == 0
             assert run(arithmetic, base=0xd000, database=0x9000) == (variables, flags)
+            # Last-byte indices and aliased indirect operands share CoCo bodies.
+            edge = bytes([3,255,255,1,255,2,255,5,255,2,7,255,1,
+                          3,254,255,4,253,255,9,254,253,10,252,254,
+                          11,254,42,0])
+            edgevars, _ = run(edge)
+            assert edgevars[252:256] == bytes([255,255,255,42]), edgevars[252:256]
             # IF expression, false branch skips assign; evaluate AND, OR, NOT.
             def condition(expression):
                 return run(bytes([3,0,7,3,1,8,12,200,3,2,200,255]) +
@@ -72,7 +78,11 @@ def main():
         finally:
             d.s.close()
             emulator.terminate()
-            emulator.wait(timeout=5)
+            try:
+                emulator.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                emulator.kill()
+                emulator.wait(timeout=5)
 
 
 if __name__ == '__main__':

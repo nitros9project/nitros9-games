@@ -2667,63 +2667,12 @@ FlagBitTable        fcb       $80,$40,$20,$10,8,4,2,1
 *   toggle_v AGI flag commands, plus the internal GetFlagBitAddr helper.
 *======================================================================
 *
-CmdSetImpl          lda       ,y+       load flag number from script
-                    bra       SetFlag   jump to SetFlag to set it
+FLAG_VARIABLE_TABLE macro
+                    ldx       #$0431
+                    endm
+                    use       shared/flag-commands.asm
 
-
-CmdResetImpl        lda       ,y+       load flag number from script
-                    bra       ClearFlag jump to ClearFlag to clear it
-
-
-CmdToggleImpl       lda       ,y+       load flag number from script
-                    bra       ToggleFlag jump to ToggleFlag to toggle it
-
-CmdSetVImpl         ldb       ,y+       load variable number from script
-                    ldx       #$0431    point to variable table
-                    abx                 index to the variable
-                    lda       ,x        load flag number from variable
-                    bra       SetFlag   jump to SetFlag with flag number in A
-
-CmdResetVImpl       ldb       ,y+       load variable number from script
-                    ldx       #$0431    point to variable table
-                    abx                 index to the variable
-                    lda       ,x        load flag number from variable
-                    bra       ClearFlag jump to ClearFlag with flag number
-
-CmdToggleVImpl      ldb       ,y+       load variable number from script
-                    ldx       #$431     point to variable table
-                    abx                 index to the variable
-                    lda       ,x        load flag number from variable
-                    bra       ToggleFlag jump to ToggleFlag with flag number
-
-SetFlag             bsr       GetFlagBitAddr get bit mask (A) and byte address (X)
-                    ora       ,x        OR bit mask into flag byte
-                    sta       ,x        store updated flag byte
-                    rts
-
-ClearFlag           bsr       GetFlagBitAddr get bit mask (A) and byte address (X)
-                    coma                invert bit mask to produce AND mask
-                    anda      ,x        AND inverted mask to clear the bit
-                    sta       ,x        store updated flag byte
-                    rts
-
-ToggleFlag          bsr       GetFlagBitAddr get bit mask (A) and byte address (X)
-                    eora      ,x        XOR to toggle the flag bit
-                    sta       ,x        store updated flag byte
-                    rts
-TestFlag            bsr       GetFlagBitAddr get bit mask (A) and byte address (X)
-                    anda      ,x        AND mask with flag byte (result: 0=clear, nonzero=set)
-                    rts
-GetFlagBitAddr      tfr       a,b       copy flag number to B
-                    leax      >FlagBitTable,pcr point X to bit-mask lookup table
-                    anda      #$07      flag number mod 8 → bit index within byte
-                    lda       a,x       load bit mask for this flag bit
-                    lsrb                shift flag number right 3 (÷8)
-                    lsrb                (second shift)
-                    lsrb                → byte offset into flag table
-                    ldx       #$01AE    base address of flag table
-                    abx                 index to the correct flag byte
-                    rts
+                    use       platform/coco-flag-storage.asm
 *
 *======================================================================
 * FOLLOW EGO MOTION CALCULATOR
@@ -9982,115 +9931,10 @@ InputRedrawRet      leas      <$50,s    ; release local frame
 *   Div8 unsigned 8-bit divide helper.
 *======================================================================
 *
-cmd_increment       ldb       ,y+       ; fetch variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to variable
-                    lda       ,x        ; load current value
-                    inca                ; increment
-                    beq       IncrSkip  ; skip store if wrapped to 0 (255)
-                    sta       ,x        ; store incremented value
-IncrSkip            rts
-
-cmd_decrement       ldb       ,y+       ; fetch variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to variable
-                    lda       ,x        ; load current value
-                    beq       DecrSkip  ; skip if already 0
-                    deca                ; decrement
-                    sta       ,x        ; store decremented value
-DecrSkip            rts
-
-cmd_assignn         ldb       ,y+       ; fetch destination variable index
-                    ldx       #$0431    ; variable table base
-                    lda       ,y+       ; fetch immediate value
-                    abx                 ; point to destination variable
-                    sta       ,x        ; store value into variable
-                    rts
-
-cmd_assignv         ldb       $01,y     ; fetch source variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to source variable
-                    lda       ,x        ; read source value
-                    ldb       ,y++      ; fetch destination variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to destination variable
-                    sta       ,x        ; store source value into destination
-                    rts
-
-cmd_addn            ldb       ,y+       ; fetch destination variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to variable
-                    lda       ,x        ; load current value
-                    adda      ,y+       ; add immediate value
-                    sta       ,x        ; store result
-                    rts
-
-cmd_addv            ldb       $01,y     ; fetch source variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to source variable
-                    lda       ,x        ; read source value
-                    ldb       ,y++      ; fetch destination variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to destination variable
-                    adda      ,x        ; add source to destination
-                    sta       ,x        ; store result
-                    rts
-
-cmd_subn            ldb       ,y+       ; fetch destination variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to variable
-                    lda       ,x        ; load current value
-                    suba      ,y+       ; subtract immediate
-                    sta       ,x        ; store result
-                    rts
-
-cmd_subv            ldb       $01,y     ; fetch source variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to source variable
-                    lda       ,x        ; read source value
-                    nega                ; negate source
-                    ldb       ,y++      ; fetch destination variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to destination variable
-                    adda      ,x        ; add negated source to destination
-                    sta       ,x        ; store result (destination - source)
-                    rts
-
-cmd_lindirectv      ldb       $01,y     ; fetch value variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to value variable
-                    lda       ,x        ; read value
-                    ldb       ,y++      ; fetch index variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to index variable
-                    ldb       ,x        ; dereference index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to indexed variable
-                    sta       ,x        ; store value via indirect
-                    rts
-
-cmd_lindirectn      lda       $01,y     ; fetch immediate value
-                    ldb       ,y++      ; fetch index variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to index variable
-                    ldb       ,x        ; dereference index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to indexed variable
-                    sta       ,x        ; store immediate via indirect
-                    rts
-
-cmd_rindirect       ldb       $01,y     ; fetch index variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to index variable
-                    ldb       ,x        ; dereference index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to indexed variable
-                    lda       ,x        ; read value via indirect
-                    ldb       ,y++      ; fetch destination variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to destination variable
-                    sta       ,x        ; store value into destination
-                    rts
+VARIABLE_TABLE      macro
+                    ldx       #$0431
+                    endm
+                    use       shared/variable-commands.asm
 
 cmd_multn           ldx       #$0431    ; variable table base
                     ldb       ,y+       ; fetch destination variable index

@@ -59,108 +59,44 @@ VmArgumentLoop      lda       <vmargindex
                     bra       VmArgumentLoop
 VmArgumentsDone     clrb
                     rts
+* The exact variable-command bodies are also assembled by CoCo mnln.
+* Operand acquisition remains in each owner; the arithmetic is shared.
 VmArithmetic        ldu       <resourcebase
-                    leax      vmarguments,u
-                    ldb       ,x
-                    stb       <vmtemp
-                    lda       1,x
-                    sta       <vmright
-                    leax      vmvariables,u
-                    abx
-                    lda       ,x
-                    sta       <vmleft
+                    leay      vmarguments,u
                     ldb       <vmopcode
-                    cmpb      #1
-                    bne       VmNotIncrement
-                    cmpa      #255
-                    beq       VmArithmeticDone
-                    inca
-                    bra       VmStoreVariable
-VmNotIncrement      cmpb      #2
-                    bne       VmNotDecrement
-                    tsta
-                    beq       VmArithmeticDone
-                    deca
-                    bra       VmStoreVariable
-VmNotDecrement      cmpb      #12
-                    lbhs      VmFlagCommand
-                    cmpb      #4
-                    beq       VmResolveRight
-                    cmpb      #6
-                    beq       VmResolveRight
-                    cmpb      #8
-                    beq       VmResolveRight
-                    cmpb      #9
-                    bne       VmResolved
-VmResolveRight      ldu       <resourcebase
-                    leay      vmvariables,u
-                    clra
-                    ldb       <vmright
-                    lda       d,y
-                    sta       <vmright
-VmResolved          ldb       <vmopcode
-                    cmpb      #3
-                    beq       VmAssign
-                    cmpb      #4
-                    beq       VmAssign
-                    cmpb      #5
-                    beq       VmAdd
-                    cmpb      #6
-                    beq       VmAdd
-                    cmpb      #7
-                    beq       VmSubtract
-                    cmpb      #8
-                    beq       VmSubtract
-                    cmpb      #10
-                    beq       VmRightIndirect
-* lindirectn/v: destination is variable[variable[arg0]].
-                    ldu       <resourcebase
+                    decb
+                    lslb
+                    leax      VmVariableCommands,pcr
+                    ldd       b,x
+                    leax      d,x
+                    jsr       ,x
+                    lbra      VmNext
+VARIABLE_TABLE      macro
                     leax      vmvariables,u
-                    ldb       <vmleft
-                    abx
-                    bra       VmAssign
-VmRightIndirect     ldu       <resourcebase
-                    leay      vmvariables,u
-                    clra
-                    ldb       <vmright
-                    ldb       d,y
-                    clra
-                    lda       d,y
-                    bra       VmStoreVariable
-VmAdd               lda       <vmleft
-                    adda      <vmright
-                    bra       VmStoreVariable
-VmSubtract          lda       <vmleft
-                    suba      <vmright
-                    bra       VmStoreVariable
-VmAssign            lda       <vmright
-VmStoreVariable     sta       ,x
-VmArithmeticDone    lbra      VmNext
-VmFlagCommand       ldu       <resourcebase
-                    leax      vmflags,u
-                    ldb       <vmtemp
-                    lda       <vmopcode
-                    cmpa      #15
-                    blo       VmFlagDirect
-                    leay      vmvariables,u
-                    clra
-                    ldb       d,y
-VmFlagDirect        abx
-                    lda       <vmopcode
-                    cmpa      #15
-                    blo       VmFlagOperation
-                    suba      #3
-VmFlagOperation     cmpa      #12
-                    bne       VmFlagNotSet
-                    lda       #1
-                    bra       VmStoreVariable
-VmFlagNotSet        cmpa      #13
-                    bne       VmFlagToggle
-                    clra
-                    bra       VmStoreVariable
-VmFlagToggle        lda       ,x
-                    eora      #1
-                    bra       VmStoreVariable
+                    endm
+                    use       shared/variable-commands.asm
+VmVariableCommands  fdb       cmd_increment-VmVariableCommands
+                    fdb       cmd_decrement-VmVariableCommands
+                    fdb       cmd_assignn-VmVariableCommands
+                    fdb       cmd_assignv-VmVariableCommands
+                    fdb       cmd_addn-VmVariableCommands
+                    fdb       cmd_addv-VmVariableCommands
+                    fdb       cmd_subn-VmVariableCommands
+                    fdb       cmd_subv-VmVariableCommands
+                    fdb       cmd_lindirectv-VmVariableCommands
+                    fdb       cmd_rindirect-VmVariableCommands
+                    fdb       cmd_lindirectn-VmVariableCommands
+                    fdb       CmdSetImpl-VmVariableCommands
+                    fdb       CmdResetImpl-VmVariableCommands
+                    fdb       CmdToggleImpl-VmVariableCommands
+                    fdb       CmdSetVImpl-VmVariableCommands
+                    fdb       CmdResetVImpl-VmVariableCommands
+                    fdb       CmdToggleVImpl-VmVariableCommands
+FLAG_VARIABLE_TABLE macro
+                    leax      vmvariables,u
+                    endm
+                    use       shared/flag-commands.asm
+                    use       platform/wildbits-flag-storage.asm
 
 VmJump              lbsr      VmReadWord
                     lbcs      VmReturn

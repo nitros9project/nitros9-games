@@ -8,6 +8,11 @@ owners. They allocate no state and contain no OS-9 module header.
   random state is process-private. Coordinate stepping remains separate.
 - `object-position-test.asm`: inclusive rectangle checks for left/center/right/
   full object extents, with owner-provided scratch and boolean return adapters.
+- `variable-commands.asm`: commands 1–11, including saturating increment/
+  decrement, byte wrapping and both indirect assignment directions. Owners
+  provide the variable-table address at assembly time.
+- `flag-commands.asm`: commands 12–17, using owner-specific packed-bit/byte
+  flag storage adapters for set, clear and toggle.
 - `agi-command-table.asm`: one command catalog, expanded into CoCo handler
   descriptors or native operand-count bytes at assembly time.
 - `object-distance.asm`: visible-object Manhattan distance with saturation;

@@ -289,7 +289,7 @@ restores the changed fields, retries a failed restoration once, and preserves
 the earlier failure status. Tests model non-default options and assert their
 restoration on every exit.
 
-The current module is 20,833 bytes and its private area 24,572 bytes, leaving
+The current module is 20,966 bytes and its private area 24,572 bytes, leaving
 4 bytes before a fourth data block. The code limit remains 23,808 bytes.
 Further persistent state needs a deliberate layout change. Timing/performance
 parity and complete game-command coverage are not established.
@@ -340,7 +340,12 @@ uses `AssetPointer`, preserving its mapping and error behavior. Nested calls
 and resource switches still unmap through their existing paths.
 
 This removes the general address helper's register save/restore on common
-bytecode reads, with no additional private data. `wbexec` is now 6,509 bytes;
-`wbgame` is 20,833 bytes with the same 24,572-byte private allocation. The
+bytecode reads, with no additional private data. The mapped-fetch checkpoint used 6,509 bytes for `wbexec`;
+`wbgame` used 20,833 bytes with a 24,572-byte private allocation. The
 Makefile explicitly tracks `logic-fetch.asm` for the game target so edits
 cannot accidentally test a stale game binary.
+
+Commands 1–17 now dispatch to shared CoCo/native variable and flag handlers.
+Operand collection remains bounded by the native VM before those handlers
+run. Flag storage is an explicit owner adapter. The current code budgets are
+6,642 bytes (`wbexec`) and 20,966 bytes (`wbgame`), with unchanged private data.
