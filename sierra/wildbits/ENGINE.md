@@ -253,9 +253,43 @@ backup/restore copies exactly 2,000 bytes. Controllers similarly use a private
 32-byte bitset; controller ID divided by eight selects the byte and its low
 three bits select the mask. This retains the full 0–255 script ABI.
 
-These changes reduce `wbgame` private storage to 24,328 bytes (three 8 KB
-blocks). Its 15,198-byte module fits the revised 23,808-byte code budget. Only
-248 private bytes remain before a fourth data block is needed, so parser
-state must remain bounded. CPU pixel checks and real-driver MAME inventory
+At the memory-preparation checkpoint these changes reduced private storage
+to 24,328 bytes (three 8 KB blocks) and the module to 15,198 bytes, with a
+23,808-byte code budget and 248 spare private bytes. The interactive features
+below use this headroom. CPU pixel checks and real-driver MAME inventory
 startup/restoration pass with the packed layout; performance parity has not
 been measured.
+
+## Interactive native game boundaries
+
+`wildbits-parser-{code,data}.asm` owns the typed line, original dictionary
+reader, submitted IDs and saved input spans. `wildbits-format-code.asm` expands
+copied messages; `wildbits-dialog-code.asm`, `wildbits-line-input-code.asm` and
+`wildbits-menu-code.asm` provide modal interaction. The game owner selects these
+small components, while `logic-platform.asm` only routes commands and tests.
+No additional program module or merged CoCo module header is introduced.
+
+Follow and axis-direction bodies are shared includes, with an owner-specific
+ego pointer and completion-flag callback. Their CoCo assembly is unchanged.
+Reposition is a native placement adapter using existing collision/control
+checks and an explicit finite search budget. Game arithmetic reuses Div8 and
+process-private random state.
+
+Modal text backups use the first 2,000 bytes of `resourcecommands`. A modal
+editor also saves its pending line at offsets 2,000–2,040. The formatter uses
+four 512-byte source slots at `fillstack` offsets 0–2,047 and a separate
+2,048-byte output area at offsets 2,048–4,095. The decoder is idle during this
+phase; menu/inventory and formatter uses of that workspace do not overlap in
+time. Entered words and spans are persistent private data, never aliases of
+these transient buffers.
+
+Terminal option packets use 32 bytes of CPU stack; only the original echo,
+EOF and quit bytes and an ownership flag persist. CTRL-C is retained. Cleanup
+restores the changed fields, retries a failed restoration once, and preserves
+the earlier failure status. Tests model non-default options and assert their
+restoration on every exit.
+
+The current module is 19,592 bytes and its private area 24,555 bytes, leaving
+21 bytes before a fourth data block. The code limit remains 23,808 bytes.
+Further persistent state needs a deliberate layout change. Timing/performance
+parity and complete game-command coverage are not established.

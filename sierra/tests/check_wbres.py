@@ -51,7 +51,7 @@ def start_cpu(bootrom, timeout=300):
     raise RuntimeError('XRoar debugger did not attach after four fresh starts')
 
 
-def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zero_read=False, seek_error=False, write_error=False, module='wbres', map_failure=0, allocation_error=False, unmap_error=False, window=0x8000, terminal=True, blocks=4, capture=False, multiple=False, firstblock=0x30, frame_capture=False, keyboard=b'', clock=(0,), bitmap_error=False, key_sense=0, cycle_limit=None, os_call_limit=20000):
+def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zero_read=False, seek_error=False, write_error=False, module='wbres', map_failure=0, allocation_error=False, unmap_error=False, window=0x8000, terminal=True, blocks=4, capture=False, multiple=False, firstblock=0x30, frame_capture=False, keyboard=b'', clock=(0,), bitmap_error=False, key_sense=0, cycle_limit=None, os_call_limit=20000, keyboard_by_cycle=None, option_set_error=False):
     if module == 'wbgame':
         files = {'wbfont': (ROOT / 'wbfont').read_bytes(), **files}
     syms = symbols(ROOT / (module + '.map'))
@@ -76,6 +76,15 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
     cycles = 0
     maps = 0
     unmap_failed = False
+    original_options=bytearray(32)
+    original_options[0]=0 if terminal else 1
+    original_options[syms.get('PD.EKO',0)-syms.get('PD.OPT',0)]=1
+    original_options[syms.get('PD.EOF',0)-syms.get('PD.OPT',0)]=26
+    original_options[syms.get('PD.INT',0)-syms.get('PD.OPT',0)]=3
+    original_options[syms.get('PD.QUT',0)-syms.get('PD.OPT',0)]=27
+    options=original_options[:]
+    options_failed=False
+
     for _ in range(os_call_limit):
         d.call('c')
         r = d.regs()
@@ -83,6 +92,7 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
         updates = {'pc': r['pc'] + 3, 'cc': r['cc'] & ~1}
         if service == syms['F$Exit']:
             assert not paths, f'leaked file paths: {paths}'
+            assert options==original_options, 'terminal options were not restored'
             assert not mapped and not owned, 'leaked picture allocation/mapping'
             assert d.read(base, len(code)) == code, 'native module modified its code/tables'
             for address in calls:
@@ -98,6 +108,9 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
         elif service == syms.get('F$Sleep'):
             assert not mapped
             cycles += 1
+            if keyboard_by_cycle and cycles in keyboard_by_cycle:
+                keys, key_sense = keyboard_by_cycle[cycles]
+                keyboard.extend(keys)
             if cycle_limit is not None and cycles >= cycle_limit:
                 d.write(database + syms['aborted'], b'\x01')
         elif service == syms['I$GetStt'] and r['b'] == syms['SS.Ready']:
@@ -109,7 +122,7 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
             updates.update(a=key_sense)
         elif service == syms['I$GetStt'] and r['b'] == syms['SS.Opt']:
             assert r['a'] == 0
-            d.write(r['x'], bytes([0 if terminal else 1]) + bytes(31))
+            d.write(r['x'],options)
         elif service == syms['I$GetStt'] and r['b'] == syms.get('SS.DevNm'):
             d.write(r['x'], b'/term\0' + bytes(26))
         elif service == syms['I$SetStt'] and r['b'] == syms.get('SS.AScrn'):
@@ -133,6 +146,13 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
                 d.write(0xffa8 + window // 8192, bytes([window // 8192]))
             del owned[bitmapfirst]
             bitmapfirst = None
+        elif service == syms['I$SetStt'] and r['b'] == syms['SS.Opt']:
+            assert r['a']==0 and not mapped
+            options=bytearray(d.read(r['x'],32))
+            assert options[syms['PD.INT']-syms['PD.OPT']]==3, 'CTRL-C interrupt was disabled'
+            if option_set_error and not options_failed:
+                options_failed=True
+                updates.update(cc=r['cc']|1,b=syms['E$BMode'])
         elif service == syms['I$SetStt'] and r['b'] in (0xcf, 0xe1, syms.get('SS.PScrn'), syms.get('SS.DScrn'), syms.get('SS.Palet')):
             assert not mapped
         elif service == syms['I$SetStt'] and r['b'] == 0xD4:

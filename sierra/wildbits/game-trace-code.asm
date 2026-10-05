@@ -22,6 +22,19 @@ GameTraceCopy       lda       ,x+
                     ldu       <resourcebase
                     ldb       gametracestagebyte,u
                     lbsr      GameTraceHex
+                    lda       #C$SPAC
+                    sta       ,y+
+                    ldu       <resourcebase
+                    ldb       vmvariables,u
+                    lbsr      GameTraceHex
+                    lda       #C$SPAC
+                    sta       ,y+
+                    ldb       gametracekeybyte,u
+                    lbsr      GameTraceHex
+                    lda       #C$SPAC
+                    sta       ,y+
+                    ldb       gametracemenuhit,u
+                    lbsr      GameTraceHex
                     lda       #C$CR
                     sta       ,y+
                     ldu       <resourcebase

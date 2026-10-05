@@ -72,7 +72,10 @@ InputHaveKeyTest    ldb       <vmhavekey
 InputSaidTest       ldu       <resourcebase
                     tst       vmflags+2,u
                     beq       InputTestFalse
-* A submitted sentence requires the native word matcher; it cannot be skipped.
+                    ifne      GAME_PRESENTATION
+                    lbra      ParserSaid
+                    endc
+* The bytecode-only probe does not own a vocabulary parser.
                     ldb       #E$UnkSvc
                     orcc      #1
                     rts

@@ -1,11 +1,29 @@
 # Wild Bits Sierra port
 
-`wbpic` is a native, position-independent 6809/NitrOS-9 Level 2 program that
-presents the Sierra engine's combined picture-buffer format. It is the first
-executable port artifact, not yet a playable interpreter. The existing
-`objs/wildbits_engine.asm` remains an unfinished scaffold and is not built.
-See [ENGINE.md](ENGINE.md) for why including four complete CoCo modules is
-insufficient, and how one native program can be organized from reusable includes.
+`wbgame` is the native 6809/NitrOS-9 game owner. King's Quest I now accepts
+typed commands, displays responses, moves the player between rooms, and opens
+inventory and menus. Its platform implementations are small
+`objs/platform/wildbits-*.asm` includes; reusable motion/decoder code lives in
+`objs/shared`. The older `objs/wildbits_engine.asm` scaffold is not built.
+
+Build with `make -C sierra/wildbits all` from the games repository. Install both
+`wbgame` and `wbfont` in the OS-9 execution directory, with read/execute access.
+Keep the original game resources together in a readable directory, then run:
+
+```text
+wbgame /s0/game 0
+```
+
+Use the arrows to move, type a command and press ENTER. `look room` requests
+the castle description. CTRL-I opens inventory on the tested Wild Bits keyboard;
+Escape/Break opens the menu. ENTER selects; Escape/Break cancels. CTRL-C exits.
+The terminal's echo, EOF and quit settings are restored on exit.
+
+This is an **interactive early build**, not a complete AGI compatibility claim.
+Save/restore, audio, some later-game commands and timing optimizations remain.
+Do not infer that the entire adventure can be completed from the tested route.
+See [MAME.md](MAME.md) for exact driver tests and [ENGINE.md](ENGINE.md) for
+ownership, buffer aliases and shared-source boundaries.
 
 ## Target and interfaces
 
@@ -410,10 +428,11 @@ hidden time. Immediate `quit(1)` releases owned resources.
 Text uses the existing immutable 128-character, 8-by-8 font, extracted into
 `objs/font-data.asm`; the CoCo screen module remains byte-for-byte identical.
 Private 40-by-25 character cells and packed foreground/background colors
-survive picture refreshes. `display`/`display.v` support literal messages, colors and wrapping;
-format directives currently return an explicit unsupported error.
+survive picture refreshes. `display`/`display.v` support colors, wrapping and
+bounded `%v`, `%s`, `%w` and recursive `%m` message expansion. `print`/`print.v`
+show a modal response and restore the scene after dismissal.
 
-`wbgame` currently uses 15,198 code bytes and 24,328 private bytes. Three private
+`wbgame` currently uses 19,592 code bytes and 24,555 private bytes. Three private
 blocks, the kernel block and one mapping window leave a conservative
 23,808-byte code budget.
 Physical memory also holds resource caches, two picture slabs and the terminal
@@ -426,12 +445,13 @@ keyboard controllers, clock rollover, normal and move-to stepping,
 end-of-loop animation, directional keys, and ownership cleanup. These CPU tests
 mock OS services; real-driver MAME acceptance is reported separately.
 
-This is **not a playable game yet**. Follow motion, vocabulary
-parsing, formatted messages/dialogs, menu interaction, sound playback and
-remaining game commands still need integration. Native blocking-rectangle
-commands now use the same containment routine as CoCo, with private native
-state; blocking, ignoring and clearing passed CPU tests. Menu construction and replay
-records are bounded state components, not completed menu UI or save/restore.
+Vocabulary parsing, typed input, formatted responses, follow motion and menu
+interaction are now integrated. Save/restore and audio remain unfinished, and
+later-game command coverage is incomplete. Native blocking rectangles use the
+same containment routine as CoCo. Follow motion and its axis-direction helper
+also use shared CoCo routines; the CoCo binary remains byte-for-byte identical.
+Menu construction and selection work; replay records are bounded bookkeeping,
+not a completed save/restore implementation.
 The original `objs/wildbits_engine.asm` remains untouched and unbuilt.
 
 The native-owner MAME diagnostic passed on the existing 512 KB Jr2 test OS:
@@ -515,4 +535,51 @@ Keyboard controllers use one private bit each, retaining all 256 controller
 IDs in 32 bytes. Tests exercise all eight adjacent bits at IDs 248–255 and
 require each event to expire after one cycle. Together these changes save
 1,224 private bytes and one 8 KB logical data block, leaving room for vocabulary
-parser code. Parsing itself is still pending; this is memory preparation.
+parser code. The interactive parser described below uses that space.
+
+## Interactive gameplay checkpoint
+
+The parser reads original `words.tok` files using bounded 512-byte partial
+reads. It honors the first indexed entry (including padding after the 52-byte
+header), reconstructs prefix-compressed words, recognizes the trailing zero,
+and chooses the longest matching phrase. It normalizes case and the same two
+punctuation classes as CoCo, ignores dictionary group zero, and records unknown
+word indexes in AGI variable 9. Input is limited to 38 typed characters (up to
+39 through `parse`), with at most 20 word IDs. Submitted text and word spans
+remain private across subsequent logic/resource loads. `said` supports word
+wildcards 1/9999 and flag 4 prevents a second acceptance of the same sentence.
+
+The game drains at most 40 buffered keys per cycle, stopping after sentence
+submission. Controller bindings take precedence over text entry. Normal AGI
+startup now enables player control; explicit program-control commands still
+suppress arrow movement. On the tested K keyboard Escape/Break delivers byte
+5, normalized to 27 for bindings and modal cancellation. The program disables
+stdin echo, EOF and quit characters while running, preserves CTRL-C interrupts,
+and restores the three changed options on normal, error and interrupt exits.
+
+`get.string`, `get.num` and `word.to.string` work with bounded private editors
+and string slots. A modal editor saves any pending ordinary input line and
+restores it afterward. Numeric results follow byte-variable arithmetic.
+The formatter supports `%vN`, `%sN`, `%wN`, `%mN` and `%%`; expansion is bounded
+to 2,047 output bytes and four message frames. Other directives remain explicit
+errors. Modal responses wrap whole words and retain a two-column margin.
+
+The native menu is a paged list of `title: item` entries. Arrow keys navigate,
+ENTER sends the item's controller, disabled entries cannot activate, and
+Escape/Break cancels. Modal windows save both text planes and wait without
+foreign mappings. Immediate and confirmed quit are supported.
+
+Commands `random`, `mul.n/v`, `div.n/v`, `follow.ego` and all three reposition
+forms are integrated. Reposition uses bounded left/down/right/up placement
+search with screen, horizon, object-collision and picture-control checks.
+Division by zero and exhausted searches fail explicitly.
+
+`check_wbparser.py` verifies typed/multiword matching, ignored words,
+normalization, editing and unknown indexes. `check_wbplay.py` verifies following,
+placement, math, modal/menu selection, formatted glyph pixels, bounded editors
+and rejection/cleanup paths. The longer `check_wbgame_route.py` executes the
+unmodified KQ1 scripts with Right/Down/Right inputs, requiring a room 1 to room 8
+transition, a rendered new scene and continued movement. Its OS calls are
+mocked. MAME separately verifies `look room`, unknown-word formatting, real
+menu/inventory handling and cleanup. Full-game completion and two simultaneous
+full-resource games remain unverified.

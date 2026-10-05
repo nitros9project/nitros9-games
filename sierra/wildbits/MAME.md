@@ -288,3 +288,53 @@ The two-terminal interpreter diagnostic also passed with this layout in
 `/tmp/sierra-packed-two-terminals`: every displayed pixel, foreground switching,
 restoration, independent exit, relaunch and free-memory recovery. These remain
 picture-command diagnostics rather than two complete concurrent games.
+
+## Interactive King's Quest I checkpoint
+
+The native game now accepts typed commands with original game vocabulary and
+prints original script messages. Real-driver acceptance includes:
+
+- `look room`: the castle/alligator-moat description, word-wrapped modal window,
+  dismissal and restored scene. Artifacts: `/tmp/sierra-kq1-final-typed-room`.
+- `nonsense`: the original `I don't understand "nonsense".` response, including
+  the `%w1` expansion and restored scene.
+  Artifacts: `/tmp/sierra-kq1-unknown-word-v1` (earlier formatter build).
+- Escape/Break menu opening and cancellation, with no lost memory.
+  Artifacts: `/tmp/sierra-kq1-final-menu-19592` (final 19,592-byte build).
+
+The K keyboard delivers byte 5 for its Break/Escape position. The program now
+normalizes that to the game's byte-27 binding, disables the stdin quit/EOF
+characters and echo while running, and restores those options after exit.
+CTRL-C remains an interrupt. This fixes the observed Escape process abort;
+it also explains why disabling the quit character alone did not open a menu.
+
+Reproduce the command and menu checks using the usual harness parameters plus
+`--typed-command 'look room'` or `--menu`. The harness accounts for MAME natural
+keyboard injection time before taking its response snapshot. Do not treat a
+partially injected command as a parser result.
+
+The separate CPU acceptance test:
+
+```sh
+PATH=/tmp/sierra-headless-bin:$PATH python3 ../tests/check_wbgame_route.py
+```
+
+executes unmodified KQ1 resources, schedules Right/Down/Right input, and requires
+room variables `(8,1)`, a rendered new scene and continued movement after the
+castle's east exit. This test mocks OS services; it is not a MAME room-transition
+claim. A southward diagnostic also progressed through the alligator follow,
+reposition and death-message path. Controlled aborts recover all resources.
+
+The final module also repeats the two-terminal picture-command diagnostic in
+`/tmp/sierra-kq1-final-two-terminal-regression`. It checks exact scene pixels,
+visibility switching, independent exits, relaunch and free-memory recovery.
+It still does not establish that two full-resource games fit the 512 KB test OS.
+
+Save/restore, audio, later-game completeness, physical-hardware acceptance and
+performance parity remain open. The current evidence establishes interactive
+startup, command handling, modal UI, movement and a real-script room transition,
+not completion of the entire adventure.
+
+An optional `GAME_TRACE=1` module now appends room, last raw key and menu-entry
+count after the existing exit/opcode/stage fields. Normal builds omit these
+fields and their recording instructions.

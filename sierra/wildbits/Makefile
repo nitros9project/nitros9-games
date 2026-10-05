@@ -38,6 +38,8 @@ fixture:
 	python3 make_picture_fixture.py test-picture.bin
 check: all
 	python3 ../tests/check_wbgame.py
+	python3 ../tests/check_wbparser.py
+	python3 ../tests/check_wbplay.py
 	python3 ../tests/check_wbexec.py
 	python3 ../tests/check_logic.py
 	python3 ../tests/check_wbasset.py
@@ -74,3 +76,5 @@ wbfont: export_font.py ../objs/font-data.asm
 	python3 export_font.py $@
 
 wbgame: wbfont
+
+wbgame: ../objs/shared/object-follow.asm ../objs/shared/object-move-direction.asm

@@ -7,3 +7,5 @@ gamecleanup         rmb      1
 gametime            rmb      6
 gamesoundwarned      rmb      1
 gamerandom          rmb      2
+gamekeybudget       rmb      1
+gamekeypending      rmb      1

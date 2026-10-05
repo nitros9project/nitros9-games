@@ -11,7 +11,8 @@ GameWanderCommand   lbsr      ObjectAddress
                     clr       <vmplayercontrol
                     lbra      ObjectDone
 * Private 16-bit Galois LFSR; no mapped pointers or global random state.
-GameRandomByte      ldd       gamerandom,x
+GameRandomByte      ldx       <resourcebase
+                    ldd       gamerandom,x
                     lsra
                     rorb
                     bcc       GameRandomStore

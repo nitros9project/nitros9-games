@@ -330,6 +330,8 @@ InventoryReadKey    ldu       <resourcebase
                     ldd       inventoryselected,u
                     std       inventoryprevious,u
                     lda       inventorykey,u
+                    cmpa      #5
+                    lbeq      InventoryCancel
                     cmpa      #27
                     lbeq      InventoryCancel
                     cmpa      #3

@@ -2,8 +2,11 @@
 start               stu       <resourcebase
                     ifne      GAME_TRACE
                     clr       gametracestagebyte,u
+                    clr       gametracekeybyte,u
+                    clr       gametracemenuhit,u
                     endc
                     ifne      GAME_PRESENTATION
+                    clr       terminalchanged,u
                     clr       gamebackgroundowned,u
                     pshs      x
                     lbsr      GameTextInitialize
@@ -115,6 +118,8 @@ LoadResource        equ       *
                     ifne      GAME_PRESENTATION
                     lbsr      GameFontLoad
                     lbcs      Exit
+                    lbsr      GameTerminalEnter
+                    lbcs      Exit
                     endc
                     ldx       <argdirectory
                     ldy       <argnumber
@@ -224,6 +229,16 @@ GameBackgroundExitDone equ   *
 PresentationExitResult equ    *
                     endc
                     ldb       <pictureexiterror
+                    endc
+                    ifne      GAME_PRESENTATION
+                    pshs      b
+                    lbsr      GameTerminalRestore
+                    bcc       GameTerminalExitDone
+                    tst       ,s
+                    bne       GameTerminalExitRetry
+                    stb       ,s
+GameTerminalExitRetry lbsr    GameTerminalRestore
+GameTerminalExitDone puls     b
                     endc
                     ifne      GAME_TRACE
                     lbsr      GameTraceError

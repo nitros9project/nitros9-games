@@ -1,4 +1,5 @@
-GameInitialize      ldu       <resourcebase
+GameInitialize      lbsr      ParserInitialize
+                    ldu       <resourcebase
                     ldd       #$ACE1
                     std       gamerandom,u
                     clr       gamesoundwarned,u
@@ -17,7 +18,8 @@ GameInitialize      ldu       <resourcebase
                     sta       vmvariables+26,u     EGA-compatible palette
                     lda       #38
                     sta       vmvariables+24,u
-                    clr       <vmplayercontrol
+                    lda       #1
+                    sta       <vmplayercontrol
                     lbra      GameReadClock
 
 * A completed logic cycle: clear transient state, wait without mappings,
@@ -28,7 +30,7 @@ GameNextCycle       lbsr      AssetUnmap
                     lbcs      GameCycleReturn
                     ldu       <resourcebase
                     tst       gamequit,u
-                    bne       GameCycleSuccess
+                    lbne      GameCycleSuccess
                     lbsr      foreground
                     lbcs      GameCycleReturn
                     ldu       <resourcebase
@@ -58,10 +60,21 @@ GameResetControllers clr     ,x+
                     lbcs      GameCycleReturn
                     lbsr      GameUpdateObjects
                     lbcs      GameCycleReturn
-                    lbsr      GamePollKeyboard
+                    ldu       <resourcebase
+                    lda       #40
+                    sta       gamekeybudget,u
+GameDrainKeyboard   lbsr      GamePollKeyboard
                     lbcs      GameCycleReturn
-                    tst       <bitmapowned
+                    ldu       <resourcebase
+                    tst       gamekeypending,u
+                    beq       GameKeyboardDone
+                    tst       vmflags+2,u
+                    bne       GameKeyboardDone
+                    dec       gamekeybudget,u
+                    bne       GameDrainKeyboard
+GameKeyboardDone    tst       <bitmapowned
                     beq       GameCycleSuccess
+                    lbsr      ParserDrawInput
                     lbsr      GameComposeScene
                     lbcs      GameCycleReturn
                     lbsr      PresentPicture
@@ -115,7 +128,9 @@ GameClockInvalid    ldb       #E$BMode
                     orcc      #1
                     rts
 
-GamePollKeyboard    clra
+GamePollKeyboard    ldu       <resourcebase
+                    clr       gamekeypending,u
+                    clra
                     ldb       #SS.Ready
                     os9       I$GetStt
                     bcc       GameReadKey
@@ -124,6 +139,7 @@ GamePollKeyboard    clra
                     clrb
                     rts
 GameReadKey         ldu       <resourcebase
+                    inc       gamekeypending,u
                     leax      vmkeybyte,u
                     ldy       #1
                     clra
@@ -131,6 +147,11 @@ GameReadKey         ldu       <resourcebase
                     lbcs      GameCycleReturn
                     cmpy      #1
                     bne       GameClockInvalid
+                    ifne      GAME_TRACE
+                    ldu       <resourcebase
+                    lda       <vmkeybyte
+                    sta       gametracekeybyte,u
+                    endc
                     clra
                     ldb       #SS.KySns
                     os9       I$GetStt
@@ -148,7 +169,7 @@ GameReadKey         ldu       <resourcebase
                     ldy       #0
 GameKeyBinding      tfr       y,d
                     cmpb      <vmkeycount
-                    lbhs      GameCycleSuccess
+                    lbhs      ParserKey
                     ldb       <vmkeybyte
                     cmpb      ,x
                     bne       GameNextBinding
@@ -165,6 +186,11 @@ GameKeyBinding      tfr       y,d
 * Arrow codes overlap ordinary SCF control characters. Use the buffered
 * key-sense byte from the character just read to distinguish them.
 GameDirectionalKey  ldb       <vmkeybyte
+                    cmpb      #5             CoCo-style Break key from Wild Bits K keyboard
+                    bne       GameFunctionKey
+                    ldb       #27
+                    stb       <vmkeybyte
+GameFunctionKey
                     cmpb      #$B1
                     blo       GameArrowKey
                     cmpb      #$B4
@@ -205,9 +231,22 @@ GameQuitCommand     ldu       <resourcebase
                     sta       gamequit,u
                     clrb
                     rts
-GameQuitNeedsDialog ldb       #E$UnkSvc
-                    orcc      #1
+GameQuitNeedsDialog clr       dialoginputmode,u
+                    leax      GameQuitPrompt,pcr
+                    lbsr      GamePrintText
+                    lbcs      GameCycleReturn
+                    ldu       <resourcebase
+                    lda       parsercharacter,u
+                    cmpa      #13
+                    lbne      GameCycleSuccess
+                    lda       #1
+                    sta       gamequit,u
+                    clrb
                     rts
+GameQuitPrompt      fcc       /Quit the game?/
+                    fcb       10
+                    fcc       /ENTER quits; ESC cancels./
+                    fcb       0
 
 * Remove any renderer mapping before freeing cache slabs. A transient error
 * is retried, while the first error remains the process's exit status.

@@ -43,7 +43,13 @@ MotionStepReady     lda       ,u
                     bne       MotionNotWander
                     lbsr      ObjAnimStep
                     bra       MotionDirectionReady
-MotionNotWander     cmpa      #3
+MotionNotWander     cmpa      #2
+                    bne       MotionNotFollow
+                    lbsr      CalcFollowDir
+                    ldx       <resourcebase
+                    ldu       motionobject,x
+                    bra       MotionDirectionReady
+MotionNotFollow     cmpa      #3
                     lbne      MotionUnsupported
                     lbsr      MotionMoveDirection
 MotionDirectionReady ldb      $21,u
@@ -208,8 +214,10 @@ MotionCheckDestination lda    $22,u
 MotionBlocked       ldu       motionobject,x
                     lda       $22,u
                     cmpa      #1
+                    beq       MotionMarkBlocked
+                    cmpa      #2
                     bne       MotionNextObject
-                    lda       $25,u
+MotionMarkBlocked   lda       $25,u
                     ora       #$40
                     sta       $25,u
 MotionNextObject    ldx       <resourcebase

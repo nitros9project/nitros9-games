@@ -36,9 +36,12 @@ presentoffset       rmb       2
                     use       game-text-data.asm
                     use       game-cycle-data.asm
                     use       platform/wildbits-inventory-data.asm
+                    use       platform/wildbits-parser-data.asm
                     use       game-render-data.asm
                     ifne      GAME_TRACE
 gametracestagebyte  rmb       1
+gametracekeybyte    rmb       1
+gametracemenuhit    rmb       1
                     endc
 assetinput          rmb       512
 * I/O, picture copies and message copies are separate phases.
@@ -75,6 +78,12 @@ name                fcs       /wbgame/
                     use       message-code.asm
                     use       logic-cache.asm
                     use       input-code.asm
+                    use       platform/wildbits-parser-code.asm
+                    use       platform/wildbits-terminal-options.asm
+                    use       platform/wildbits-dialog-code.asm
+                    use       platform/wildbits-menu-code.asm
+                    use       platform/wildbits-line-input-code.asm
+                    use       platform/wildbits-format-code.asm
                     use       screen-code.asm
                     use       string-code.asm
                     use       view-code.asm
@@ -91,8 +100,10 @@ name                fcs       /wbgame/
                     use       platform/sound-code.asm
                     use       game-block-code.asm
                     use       game-wander-code.asm
+                    use       game-math-code.asm
                     use       game-motion-code.asm
                     use       game-motion-command.asm
+                    use       game-reposition-code.asm
                     use       game-text-code.asm
                     use       platform/wildbits-font-code.asm
                     use       decoder-code.asm

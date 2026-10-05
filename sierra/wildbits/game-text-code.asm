@@ -37,22 +37,58 @@ GameDisplayArguments lda      ,x
                     lbcs      GameTextReturn
                     ldu       <resourcebase
                     stx       textpointer,u
-* Formatting directives require a bounded formatter, not literal rendering.
-GameTextValidate    lda       ,x+
-                    beq       GameTextStore
-                    cmpa      #'%
-                    lbeq      GameTextNeedsFormatter
-                    bra       GameTextValidate
-GameTextStore       ldx       textpointer,u
+* Expand copied messages without retaining resource-window pointers.
+GameTextValidate    lbsr      GameFormatMessage
+                    lbcs      GameTextReturn
+                    stx       textpointer,u
+GameTextStore       tst       dialogactive,u
+                    beq       GameTextRead
+                    tst       dialogwordstart,u
+                    beq       GameTextRead
+                    lda       textcolumn,u
+                    cmpa      #2
+                    bls       GameTextRead
+                    ldx       textpointer,u
+                    clrb
+GameTextWordLength  lda       b,x
+                    beq       GameTextWordEnd
+                    cmpa      #32
+                    beq       GameTextWordEnd
+                    cmpa      #10
+                    beq       GameTextWordEnd
+                    cmpa      #13
+                    beq       GameTextWordEnd
+                    incb
+                    cmpb      #38
+                    blo       GameTextWordLength
+GameTextWordEnd     addb      textcolumn,u
+                    cmpb      #40
+                    bls       GameTextRead
+                    lda       #2
+                    sta       textcolumn,u
+                    inc       textrow,u
+                    lda       textrow,u
+                    cmpa      #25
+                    lbhs      GameTextPresent
+GameTextRead        ldx       textpointer,u
                     lda       ,x+
                     stx       textpointer,u
                     tsta
-                    beq       GameTextPresent
+                    lbeq      GameTextPresent
                     cmpa      #10
                     beq       GameTextNewline
                     cmpa      #13
                     beq       GameTextNewline
-                    pshs      a
+                    tst       dialogactive,u
+                    beq       GameTextCharacter
+                    clr       dialogwordstart,u
+                    cmpa      #32
+                    bne       GameTextCharacter
+                    inc       dialogwordstart,u
+                    ldb       textcolumn,u
+                    cmpb      #2
+                    lbeq      GameTextStore
+GameTextCharacter   pshs      a
                     lda       textrow,u
                     ldb       #40
                     mul
@@ -79,12 +115,18 @@ GameTextStore       ldx       textpointer,u
                     inc       textcolumn,u
                     lda       textcolumn,u
                     cmpa      #40
-                    blo       GameTextStore
+                    lblo      GameTextStore
 GameTextNewline     clr       textcolumn,u
-                    inc       textrow,u
+                    tst       dialogactive,u
+                    beq       GameTextAdvanceRow
+                    lda       #2
+                    sta       textcolumn,u
+                    lda       #1
+                    sta       dialogwordstart,u
+GameTextAdvanceRow  inc       textrow,u
                     lda       textrow,u
                     cmpa      #25
-                    blo       GameTextStore
+                    lblo      GameTextStore
 GameTextPresent     lbsr      AssetUnmap
                     bcs       GameTextReturn
                     tst       <bitmapowned

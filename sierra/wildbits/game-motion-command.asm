@@ -55,3 +55,37 @@ GameMoveSetup       stx       motionobject,u
                     lbsr      MotionMoveDirection
                     clrb
                     rts
+
+GameFollowCommand   lbsr      ObjectAddress
+                    lbcs      ObjectReturn
+                    lda       #2
+                    sta       $22,x
+                    lda       $1E,x
+                    cmpa      vmarguments+1,u
+                    bhs       GameFollowDistance
+                    lda       vmarguments+1,u
+GameFollowDistance  sta       $27,x
+                    ldb       vmarguments+2,u
+                    stb       $28,x
+                    leay      vmflags,u
+                    clra
+                    clr       d,y
+                    lda       #$FF
+                    sta       $29,x
+                    lda       $26,x
+                    ora       #$10
+                    sta       $26,x
+                    lbra      ObjectDone
+GameFollowSetFlag   pshs      a,x
+                    ldx       <resourcebase
+                    leax      vmflags,x
+                    ldb       ,s
+                    clra
+                    leax      d,x
+                    lda       #1
+                    sta       ,x
+                    puls      a,x,pc
+FOLLOW_PRIVATE_STATE equ     1
+                    use       shared/object-follow.asm
+                    use       shared/object-move-direction.asm
+MoveTableData       fcb       8,1,2,7,0,3,6,5,4

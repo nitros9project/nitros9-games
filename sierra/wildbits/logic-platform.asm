@@ -2,13 +2,29 @@
 * remains an explicit error until the corresponding component is ported.
 VmPlatformCommand  ldb       <vmopcode
                     ifne      GAME_PRESENTATION
-                    cmpb      #124
+                    cmpb      #161
+                    lbeq      GameMenuInput
+                    cmpb      #40
+                    lbeq      GameReposition
+                    cmpb      #147
+                    lbeq      GameReposition
+                    cmpb      #148
+                    lbeq      GameReposition
+                    cmpb      #130
+                    lbeq      GameRandomCommand
+                    cmpb      #165
+                    blo       VmNotGameMath
+                    cmpb      #168
+                    lbls      GameMathCommand
+VmNotGameMath       cmpb      #124
                     lbeq      InventoryStatus
                     cmpb      #92
                     blo       VmNotInventoryCommand
                     cmpb      #97
                     lbls      InventoryCommand
 VmNotInventoryCommand
+                    cmpb      #83
+                    lbeq      GameFollowCommand
                     cmpb      #84
                     lbeq      GameWanderCommand
                     cmpb      #99
@@ -60,6 +76,20 @@ VmNotInventoryCommand
                     lbeq      ScreenCommand
                     cmpb      #121
                     lbeq      SetKeyCommand
+                    ifne      GAME_PRESENTATION
+                    cmpb      #115
+                    lbeq      GameGetInput
+                    cmpb      #118
+                    lbeq      GameGetInput
+                    cmpb      #116
+                    lbeq      GameWordToString
+                    cmpb      #101
+                    lbeq      GamePrintCommand
+                    cmpb      #102
+                    lbeq      GamePrintCommand
+                    cmpb      #117
+                    lbeq      ParserCommand
+                    endc
                     cmpb      #114
                     lbeq      SetStringCommand
                     cmpb      #18
