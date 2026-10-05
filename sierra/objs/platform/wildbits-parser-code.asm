@@ -46,6 +46,7 @@ ParserSaveLine      lda       ,x+
                     bne       ParserSaveLine
                     clr       parsercount,u
                     clr       parserposition,u
+                    clr       parserseen,u
                     clr       vmflags+2,u
                     clr       vmflags+4,u
                     clr       vmvariables+9,u
@@ -88,17 +89,19 @@ ParserNextInput     ldu       <resourcebase
                     bne       ParserSearch
                     inc       parserposition,u
                     bra       ParserNextInput
-ParserSearch        clr       parserwordlength,u
+ParserSearch        tst       parserseen,u
+                    lbne      ParserSelectGroup
+                    leax      dictionarygroups,u
+                    ldy       #256
+                    ldd       #$FFFF
+DictionaryClearGroups std    ,x++
+                    leay      -1,y
+                    bne       DictionaryClearGroups
+                    clr       parserwordlength,u
                     clr       parserreadindex,u
                     clr       parserreadindex+1,u
                     clr       parserreadlength,u
                     clr       parserreadlength+1,u
-                    leax      parserline,u
-                    ldb       parserposition,u
-                    lda       b,x
-                    sta       parserseen,u
-                    ldd       #$FFFF
-                    std       dictionaryentry,u
                     ldd       parserstart,u
                     std       dictionarycachebase,u
                     lda       <resourcepath
@@ -108,6 +111,15 @@ ParserSearch        clr       parserwordlength,u
                     lbcs      ResourceFailed
                     ldu       <resourcebase
                     lbra      DictionaryValidateEntry
+ParserSelectGroup   leax      parserline,u
+                    ldb       parserposition,u
+                    lda       b,x
+                    ldb       #2
+                    mul
+                    leax      dictionarygroups,u
+                    leax      d,x
+                    ldd       ,x
+                    std       dictionaryentry,u
 ParserLookup        leax      parserline,u
                     ldb       parserposition,u
                     leau      b,x
@@ -225,18 +237,20 @@ ParserSuffixByte
                     lbsr      ParserByte
                     lbcs      ParserTruncated
                     lda       parserword,u
-                    cmpa      parserseen,u
-                    lbne      DictionaryValidateEntry
-                    ldd       dictionaryentry,u
+                    ldb       #2
+                    mul
+                    leax      dictionarygroups,u
+                    leax      d,x
+                    ldd       ,x
                     cmpd      #$FFFF
                     lbne      DictionaryValidateEntry
                     ldd       parserbestid,u
-                    std       dictionaryentry,u
+                    std       ,x
                     lbra      DictionaryValidateEntry
 DictionaryValidateDone ldd  #0
                     std       parserreadlength,u
-                    clrb
-                    lbra      ParserLookup
+                    inc       parserseen,u
+                    lbra      ParserSelectGroup
 
                     use platform/dictionary-operands.asm
                     use shared/dictionary-lookup.asm

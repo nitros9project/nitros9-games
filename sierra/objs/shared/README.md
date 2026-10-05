@@ -170,3 +170,9 @@ buffer, malformed records, typed input and `said` integration. CoCo binaries are
 unchanged. Sentence orchestration, vocabulary acquisition/validation, and result
 storage still have owner-specific implementations; sharing lookup does not
 complete the broader engine migration.
+
+The native dictionary adapter validates once per submitted line and temporarily
+indexes encoded groups in the idle formatter-output scratch area. That index is
+rebuilt after every `ParserParse`; no additional private bytes are allocated.
+Native parser tests bound dictionary file reads per line and include a second
+submission, protecting this scratch lifetime and avoiding repeated full scans.

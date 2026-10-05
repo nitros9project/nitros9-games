@@ -35,7 +35,8 @@ def main():
         [('zebra%03d' % i,500+i) for i in range(180)]) + b'\0'
     assert len(large) > 1024
     scenarios = [(vocab,case) for case in cases] + [(large,case) for case in cases[:5]]
-    scenarios += [(vocab,(b'look at unknown\r',[3],2)),
+    scenarios += [(large,(b'look\rtree\r',[4],0)),
+                  (vocab,(b'look at unknown\r',[3],2)),
                   (vocab,(b'looker\r',[2],1))]
     with tempfile.TemporaryDirectory(prefix='wbparser-') as tmp:
         d, emulator = start_cpu(idle_rom(Path(tmp) / 'idle.rom'), timeout=900)
@@ -64,6 +65,9 @@ def main():
                     database=0x1000,window=0x8000,blocks=None,multiple=True,
                     firstblock=0x10,capture=True,keyboard=keys)
                 assert not error and not output, (keys,error,output)
+                if vocabulary is large:
+                    reads=state['file_reads']['/game/words.tok']
+                    assert reads <= keys.count(b'\r')*((len(large)+96)//97+10), (keys,reads,len(large))
                 assert state['vmvariables'][222] == unknown, (keys,state['vmvariables'][222])
                 assert state['vmvariables'][220] == (0 if unknown == 1 else 1), (keys,state['vmvariables'][220])
             for malformed in (bytes(51), bytes.fromhex('0001')+bytes(50),
@@ -77,7 +81,7 @@ def main():
                 error,_=exercise(d,files,module='wbgame',base=0xa000,database=0x1000,
                     window=0x8000,blocks=None,multiple=True,firstblock=0x10,keyboard=b'look\r')
                 assert error, ('malformed vocabulary accepted',malformed[:60])
-            print('PASS: typed commands, case folding, prefix-compressed phrases across stream refills, ignored words, backspace, unknown indexes, said wildcards and single acceptance; closed paths and freed slabs')
+            print('PASS: typed commands, case folding, one validation scan per line, prefix-compressed phrases across stream refills, ignored words, backspace, unknown indexes, said wildcards and single acceptance; closed paths and freed slabs')
         finally:
             d.s.close(); emulator.terminate()
             try: emulator.wait(timeout=5)

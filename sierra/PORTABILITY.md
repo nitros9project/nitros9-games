@@ -2020,3 +2020,33 @@ module did not reach any scheduled screenshots or its exit marker; its cause
 has not been established. The fresh repeat, movement and two-terminal runs
 passed, alongside the CPU parser regression. These checks do not constitute
 a full adventure playthrough or physical-hardware timing measurement.
+
+### One native dictionary validation pass per submitted line
+
+The streaming adapter now validates vocabulary once when the first token of a
+line is searched. It records the first encoded offset for each byte-valued group
+in a temporary 512-byte table at `fillstack+2048`. Subsequent phrases use these
+offsets with the same shared lookup kernel and buffered cursor provider. This
+removes the repeated full-file validation scans introduced during integration.
+The `parserseen` flag is reset on every `ParserParse`, so offsets never survive
+into a new submission or depend on scratch content from a previous game cycle.
+
+The table uses idle formatter-output storage. Parser acquisition first unmaps
+asset and picture buffers; its lookup/validation path does not call formatting,
+fill decoding, or inventory presentation. The object-name load area ends at
+`fillstack+2048`, and the inventory selection list starts at `fillstack+3840`, so
+the group table does not overwrite either. Formatting or fill decoding may reuse
+this scratch after parsing finishes. Each process owns its own storage.
+
+There is no added private allocation: the native game uses 24,570 private bytes
+and 22,294 code bytes. The native CPU parser regression checks partial-read
+refills, multi-phrase input, two separate submissions, malformed files and cleanup.
+It counts real intercepted dictionary reads and bounds them by one sequential
+validation scan plus cursor/header overhead per submitted line. This verifies
+reduced repeated file work; it is not a physical-hardware timing measurement.
+
+The final native module also passed the sustained Wild Bits MAME scenario:
+repeated original-game commands, unknown-word response, inventory interaction,
+real menu Pause/resume, a subsequent command, interrupt exit and unchanged free
+memory. Artifacts: `/tmp/sierra-shared-dictionary-onepass-play`. CoCo sources and
+the common matching kernel are unchanged by this native adapter optimization.

@@ -68,6 +68,7 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
     d.regs(pc=base + syms['start'], s=database + syms['size'] - 256,
            dp=database >> 8, u=database, x=argv, cc=0x50)
     paths, output, nextpath = {}, bytearray(), 3
+    path_names, file_reads = {}, {}
     owned, mapped = {}, False
     nextblock = firstblock
     bitmapfirst, frame = None, bytearray()
@@ -106,6 +107,7 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
                 state={name: d.read(database + syms[name], length) for name, length in [('vmopcode', 1), ('vmip', 2), ('vmvariables', 256), ('vmflags', 256), ('vmgameid', 8), ('messagebuffer', 512), ('vmobjects', 2752), ('vmkeys',150), ('vmkeycount',1), ('menucount', 1), ('menuitems', 1), ('menuready', 1), ('menutext', 768), ('asseterror', 1), ('vmerror', 1), ('vmend', 2), ('resourcelength', 2), ('vmcurrent', 1)]}
                 state['map_calls']=maps
                 state['map_sites']=map_sites
+                state['file_reads']=file_reads
                 return r['b'], bytes(frame if frame_capture else output), state
             return r['b'], bytes(frame if frame_capture else output)
         elif service == syms.get('F$Time'):
@@ -197,6 +199,7 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
                 updates.update(cc=r['cc'] | 1, b=syms['E$PNNF'])
             else:
                 paths[nextpath] = [files[name], 0]
+                path_names[nextpath] = name
                 updates['a'] = nextpath
                 nextpath += 1
         elif service == syms['I$Seek']:
@@ -212,6 +215,8 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
         elif service == syms['I$Read']:
             assert not mapped or module not in ('wbasset', 'wbexec', 'wbgame'), 'resource read with foreign mapping live'
             data, position = paths[r['a']]
+            name=path_names[r['a']]
+            file_reads[name]=file_reads.get(name,0)+1
             if zero_read:
                 updates['y'] = 0
             elif position >= len(data):
@@ -223,6 +228,7 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
                 updates['y'] = count
         elif service == syms['I$Close']:
             del paths[r['a']]
+            del path_names[r['a']]
         elif service == syms['I$Write']:
             assert not paths, 'output before complete resource validation/close'
             assert not mapped, 'file write with foreign mapping live'

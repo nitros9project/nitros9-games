@@ -29,3 +29,5 @@ terminalquit        rmb       1
 dictionaryentry     equ       parserid
 * Stream cache base adds two bytes, still within three private pages.
 dictionarycachebase rmb       2
+* Temporary offsets occupy idle formatter output only during ParserParse.
+dictionarygroups    equ       fillstack+2048
