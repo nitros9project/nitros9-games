@@ -152,3 +152,14 @@ and native candidate branches retain their original instruction sequences.
 `object-collision-filter.asm` shares actor/candidate ignore and activity/self
 eligibility. Owner bindings preserve ID-versus-pointer identity and scratch
 registers. Geometric collision rules and iteration remain owner-specific.
+
+The dictionary migration is in progress. `dictionary-lookup.asm` owns the
+complete mapped lookup algorithm: prefix traversal, character matching, longest
+phrase selection, ignored-word IDs, and next-word boundaries. Its dictionary
+cursor operations come from `platform/coco-dictionary-operands.asm`; the CoCo
+module remains byte-identical. `check_dictionary_lookup.py` runs this production
+routine at two load addresses. Wild Bits still uses its streaming implementation
+in `wildbits-parser-code.asm`; the common kernel does **not** yet have a native
+production caller. A streaming provider must preserve file-error validation,
+private phrase offsets, and the bounded input contract before that duplicate
+can be removed. Moving the CoCo routine alone does not complete consolidation.

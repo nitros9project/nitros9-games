@@ -118,3 +118,6 @@ mnln: ../objs/shared/unsigned-decimal.asm \
 	../objs/shared/object-collision-filter.asm \
 	../objs/platform/object-collision-operands.asm \
 	../objs/platform/coco-object-collision-operands.asm
+
+mnln: ../objs/shared/dictionary-lookup.asm ../objs/platform/dictionary-operands.asm \
+	../objs/platform/coco-dictionary-operands.asm
