@@ -194,60 +194,30 @@ VmConditionEnd      tst       <vmoractive
                     std       <vmip
                     lbra      VmNext
 VmEvaluateTest      ldu       <resourcebase
-                    leax      vmarguments,u
-                    ldb       ,x
-                    stb       <vmtemp
-                    lda       1,x
-                    sta       <vmright
                     ldb       <vmopcode
                     cmpb      #8
-                    bhi       VmExternalTest
-                    cmpb      #7
-                    bhs       VmFlagTest
+                    lbhi      VmExternalTest
+                    leay      vmarguments,u
+                    decb
+                    lslb
+                    leax      VmBuiltinTests,pcr
+                    ldd       b,x
+                    leax      d,x
+                    jmp       ,x
+TEST_VARIABLE_TABLE macro
                     leax      vmvariables,u
-                    clra
-                    ldb       <vmtemp
-                    lda       d,x
-                    sta       <vmleft
-                    ldb       <vmopcode
-                    bitb      #1
-                    bne       VmCompare
-                    clra
-                    ldb       <vmright
-                    lda       d,x
-                    sta       <vmright
-VmCompare           lda       <vmleft
-                    cmpa      <vmright
-                    ldb       <vmopcode
-* LDB preserves the comparison carry but changes Z; compare again after
-* choosing each relation so every branch uses the actual operand flags.
-                    cmpb      #2
-                    bls       VmEqual
-                    cmpb      #4
-                    bls       VmLess
-                    lda       <vmleft
-                    cmpa      <vmright
-                    bhi       VmTrue
-                    bra       VmFalse
-VmEqual             lda       <vmleft
-                    cmpa      <vmright
-                    beq       VmTrue
-                    bra       VmFalse
-VmLess              lda       <vmleft
-                    cmpa      <vmright
-                    blo       VmTrue
-                    bra       VmFalse
-VmFlagTest          ldb       <vmtemp
-                    lda       <vmopcode
-                    cmpa      #8
-                    bne       VmTestFlagDirect
-                    leax      vmvariables,u
-                    clra
-                    ldb       d,x
-VmTestFlagDirect    leax      vmflags,u
-                    clra
-                    lda       d,x
-                    bne       VmTrue
+                    endm
+CONDITION_TRUE      equ       VmTrue
+CONDITION_FALSE     equ       VmFalse
+                    use       shared/condition-tests.asm
+VmBuiltinTests      fdb       TestEqualN-VmBuiltinTests
+                    fdb       TestEqualV-VmBuiltinTests
+                    fdb       TestLessN-VmBuiltinTests
+                    fdb       TestLessV-VmBuiltinTests
+                    fdb       TestGreaterN-VmBuiltinTests
+                    fdb       TestGreaterV-VmBuiltinTests
+                    fdb       TestIsSet-VmBuiltinTests
+                    fdb       TestIsSetV-VmBuiltinTests
 VmFalse             clrb
                     rts
 VmTrue              ldb       #1
@@ -261,7 +231,11 @@ VmInvalid           ldb       #E$BMode
                     stb       <vmerror
                     orcc      #1
 VmReturn            rts
-VmTestCounts        fcb       0,2,2,2,2,2,2,1,1,1,2,5,1,0,0,2,5,5,5
+AGI_TEST            macro
+                    fcb       (\2)/256
+                    endm
+VmTestCounts        equ       *
+                    use       shared/agi-test-table.asm
 * Operand counts follow the existing CoCo command table.
 AGI_COMMAND         macro
                     fcb       (\2)/256

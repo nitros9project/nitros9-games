@@ -1,0 +1,20 @@
+* One AGI condition catalog; AGI_TEST emits handler/descriptor or count.
+                    AGI_TEST RetTrue,$0000
+                    AGI_TEST TestEqualN,$280
+                    AGI_TEST TestEqualV,$2c0
+                    AGI_TEST TestLessN,$280
+                    AGI_TEST TestLessV,$2c0
+                    AGI_TEST TestGreaterN,$280
+                    AGI_TEST TestGreaterV,$2c0
+                    AGI_TEST TestIsSet,$100
+                    AGI_TEST TestIsSetV,$180
+                    AGI_TEST TestHasObject,$100
+                    AGI_TEST TestObjectRoom,$240
+                    AGI_TEST TestPosition,$500
+                    AGI_TEST TestController,$100
+                    AGI_TEST TestHaveKey,$0000
+                    AGI_TEST TestSaid,$0000
+                    AGI_TEST TestStrings,$200
+                    AGI_TEST TestBox,$500
+                    AGI_TEST TestCenter,$500
+                    AGI_TEST TestRight,$500

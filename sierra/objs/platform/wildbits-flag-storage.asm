@@ -18,3 +18,8 @@ ToggleFlag          tfr       a,b
                     sta       ,x
                     rts
 
+TestFlag            tfr       a,b
+                    leax      vmflags,u
+                    abx
+                    lda       ,x
+                    rts

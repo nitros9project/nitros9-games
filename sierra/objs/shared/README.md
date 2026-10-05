@@ -13,6 +13,10 @@ owners. They allocate no state and contain no OS-9 module header.
   provide the variable-table address at assembly time.
 - `flag-commands.asm`: commands 12–17, using owner-specific packed-bit/byte
   flag storage adapters for set, clear and toggle.
+- `condition-tests.asm`: the six unsigned comparisons and direct/indirect
+  flag predicates, with owner-provided operands and boolean return adapters.
+- `agi-test-table.asm`: one 19-entry condition catalog, expanded into CoCo
+  handler/operand descriptors or native operand counts.
 - `agi-command-table.asm`: one command catalog, expanded into CoCo handler
   descriptors or native operand-count bytes at assembly time.
 - `object-distance.asm`: visible-object Manhattan distance with saturation;

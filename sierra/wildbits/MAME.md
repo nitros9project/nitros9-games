@@ -403,3 +403,8 @@ subsequent input, interrupt exit, and unchanged free memory. The preceding
 variable-only consolidation also passed `--movement` at
 `/tmp/sierra-shared-variables-movement` (approximately nine pixels in
 200 frames). That timing result is not a measurement of the later flag build.
+
+The shared-condition build (21,068 code / 24,572 private bytes) passed
+`--sustained` at `/tmp/sierra-shared-conditions-sustained`, including original
+commands, unknown-word handling, inventory/modal restoration, Pause/resume,
+subsequent input, interrupt exit, and unchanged free memory.

@@ -907,3 +907,31 @@ argument/branch bounds, and immutable code. The mapped interpreter tests
 cover physical page crossings, cached/nested calls, and ownership cleanup.
 Whole-game pixel and real-driver sustained-play checks validate integration.
 The full engine migration remains incomplete beyond these command groups.
+
+### Shared condition predicates and catalog
+
+Tests 1–8 (equal/less/greater, immediate/variable, and direct/indirect isset)
+now use `objs/shared/condition-tests.asm` in both owners. The unsigned branch
+semantics are the CoCo implementation. `TEST_VARIABLE_TABLE`, `TestFlag`, and
+`CONDITION_TRUE`/`CONDITION_FALSE` adapt storage and boolean return conventions
+without changing the algorithm: CoCo returns A, native returns B.
+
+`objs/shared/agi-test-table.asm` is the common catalog of all 19 condition
+entries and operand descriptors. CoCo expands handler words and descriptors;
+native expands operand counts. Dynamic `said` operands remain handled by the
+native bounded operand reader. The remaining external predicates still have
+owner implementations and are not yet consolidated by sharing this catalog.
+
+CoCo's old numeric table addresses are now handler labels. Comparing its
+module to the previous baseline proves the only differences are the reserved
+entry-zero target (old $0F6E, actual RetTrue $0F6A) and the three CRC bytes.
+The other 18 addresses and every instruction remain unchanged. Labels prevent
+future extraction or code-size changes from silently invalidating the table.
+
+`tests/check_coco_conditions.py` assembles the real CoCo module, checks all
+19 table entries, runs `FixupEvalTbl`, and executes `EvalExpr` at bases $8000
+and $9000 on a 6809. It covers unsigned 0/255 and 127/128 comparisons, both
+operand modes, packed flags across byte boundaries, and indirect flag index
+255. The native control and full-game tests cover the native return adapter.
+The native game is now 21,068 code bytes with unchanged 24,572-byte private
+data; the probe interpreter is 6,744 bytes.

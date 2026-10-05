@@ -37,6 +37,7 @@ clean:
 fixture:
 	python3 make_picture_fixture.py test-picture.bin
 check: all
+	python3 ../tests/check_coco_conditions.py
 	python3 ../tests/check_wbgame.py
 	python3 ../tests/check_wbcredits.py
 	python3 ../tests/check_wbsprite_damage.py
@@ -95,3 +96,7 @@ wbexec wbgame: ../objs/shared/variable-commands.asm
 wbexec wbgame: ../objs/shared/flag-commands.asm
 
 wbexec wbgame: ../objs/platform/wildbits-flag-storage.asm
+
+wbexec wbgame: ../objs/shared/condition-tests.asm
+
+wbexec wbgame: ../objs/shared/agi-test-table.asm

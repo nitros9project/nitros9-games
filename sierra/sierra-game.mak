@@ -118,3 +118,7 @@ mnln: ../objs/shared/variable-commands.asm
 mnln: ../objs/shared/flag-commands.asm
 
 mnln: ../objs/platform/coco-flag-storage.asm
+
+mnln: ../objs/shared/condition-tests.asm
+
+mnln: ../objs/shared/agi-test-table.asm

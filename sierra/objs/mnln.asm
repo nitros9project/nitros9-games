@@ -1453,25 +1453,12 @@ CmdShowMemInfo      leas      >-$00C8,s allocate 200-byte local frame on stack
                     leas      >$00C8,s  release local stack frame
                     rts
 
-eval_table          fdb       $0f6e,$0000
-                    fdb       $0dba,$280
-                    fdb       $0dcb,$2c0
-                    fdb       $0de2,$280
-                    fdb       $0df3,$2c0
-                    fdb       $0e0a,$280
-                    fdb       $0e1b,$2c0
-                    fdb       $0e32,$100
-                    fdb       $0e3e,$180
-                    fdb       $0e51,$100
-                    fdb       $0e63,$240
-                    fdb       $0f0a,$500
-                    fdb       $0e7b,$100
-                    fdb       $0e83,$0000
-                    fdb       $0e9f,$0000
-                    fdb       $0f02,$200
-                    fdb       $0f2e,$500
-                    fdb       $0f12,$500
-                    fdb       $0f22,$500
+AGI_TEST            macro
+                    fdb       \1,\2
+                    endm
+eval_table          equ       *
+                    use       shared/agi-test-table.asm
+
 
 *
 *======================================================================
@@ -1515,70 +1502,14 @@ EvalExprUnknown     tfr       a,b       transfer unknown type code to B
                     lda       #$0F      load "unknown expression type" error code
                     lbsr      ReportError
 EvalExprRet         rts
-                    ldb       ,y+       load variable number (var==value test)
-                    ldx       #$0431    point to variable table
-                    abx                 index to the variable
-                    lda       ,x        load variable value
-                    cmpa      ,y+       compare to immediate operand
-                    lbne      RetFalse  branch if not equal
-                    lbra      RetTrue   var==value matched, return true
-                    ldb       ,y+       load first variable number (var==var test)
-                    ldx       #$0431    point to variable table
-                    abx                 index to first variable
-                    lda       ,x        load first variable value
-                    ldb       ,y+       load second variable number, advance Y
-                    ldx       #$0431    point to variable table
-                    abx                 index to second variable
-                    cmpa      ,x        compare first to second variable
-                    lbne      RetFalse  branch if not equal
-                    lbra      RetTrue   var==var matched, return true
-                    ldb       ,y+       load variable number (var<value test)
-                    ldx       #$0431    point to variable table
-                    abx                 index to the variable
-                    lda       ,x        load variable value
-                    cmpa      ,y+       compare to immediate operand
-                    lbcc      RetFalse  branch if var >= value
-                    lbra      RetTrue   var<value matched, return true
-                    ldb       ,y+       load first variable number (var<var test)
-                    ldx       #$0431    point to variable table
-                    abx                 index to first variable
-                    lda       ,x        load first variable value
-                    ldb       ,y+       load second variable number
-                    ldx       #$0431    point to variable table
-                    abx                 index to second variable
-                    cmpa      ,x        compare first to second variable
-                    lbcc      RetFalse  branch if first >= second
-                    lbra      RetTrue   var<var matched, return true
-                    ldb       ,y+       load variable number (var>value test)
-                    ldx       #$0431    point to variable table
-                    abx                 index to the variable
-                    lda       ,x        load variable value
-                    cmpa      ,y+       compare to immediate operand
-                    lbls      RetFalse  branch if var <= value
-                    lbra      RetTrue   var>value matched, return true
-                    ldb       ,y+       load first variable number (var>var test)
-                    ldx       #$0431    point to variable table
-                    abx                 index to first variable
-                    lda       ,x        load first variable value
-                    ldb       ,y+       load second variable number
-                    ldx       #$0431    point to variable table
-                    abx                 index to second variable
-                    cmpa      ,x        compare first to second variable
-                    lbls      RetFalse  branch if first <= second
-                    lbra      RetTrue   var>var matched, return true
-                    lda       ,y+       load flag number (isset test)
-                    lbsr      TestFlag  test if flag is set
-                    lbeq      RetFalse  branch if flag not set
-                    lbra      RetTrue   flag is set, return true
-                    ldb       ,y+       load variable number (isset.v test)
-                    ldx       #$0431    point to variable table for isset.v
-                    abx                 index to the flag-number variable
-                    lda       ,x        load flag result (from TestFlag above)
-                    lbsr      TestFlag  test flag for isset.v (flag in variable)
-                    lbeq      RetFalse  branch if flag not set
-                    lbra      RetTrue   isset.v matched, return true
+CONDITION_TRUE      equ       RetTrue
+CONDITION_FALSE     equ       RetFalse
+TEST_VARIABLE_TABLE macro
+                    ldx       #$0431
+                    endm
+                    use       shared/condition-tests.asm
                     rts
-                    ldb       ,y+       load object number (has-object test)
+TestHasObject       ldb       ,y+       load object number (has-object test)
                     ldx       <$0038    load pointer to object table
                     abx                 add object offset
                     abx                 (3 bytes per object entry)
@@ -1587,7 +1518,7 @@ EvalExprRet         rts
                     cmpa      $02,x     compare to object's room byte
                     lbne      RetFalse  branch if object not carried
                     lbra      RetTrue   has-object matched, return true
-                    ldb       $01,y     load variable number (obj.in.room test)
+TestObjectRoom      ldb       $01,y     load variable number (obj.in.room test)
                     ldx       #$0431    point to variable table
                     abx                 index to the variable
                     lda       ,x        load room number from variable
@@ -1599,11 +1530,11 @@ EvalExprRet         rts
                     cmpa      $02,x     compare room# to object location
                     lbne      RetFalse  branch if object not in that room
                     lbra      RetTrue   obj.in.room matched, return true
-                    lda       ,y+       load string index (get-string test)
+TestController      lda       ,y+       load string index (get-string test)
                     ldx       #$05BA    point to string storage area
                     lda       a,x       load character from string slot
                     rts
-                    ldx       #$0431    point to variable table (have-key test)
+TestHaveKey         ldx       #$0431    point to variable table (have-key test)
                     lda       <$13,x    load key-pressed variable (var 19)
                     lbne      RetTrue   branch if key already pending
 *
@@ -1620,7 +1551,7 @@ HaveKeyPollLoop     lbsr      GetKeyEvent get next keyboard event
                     lbeq      RetFalse  branch if key was zero (no real key)
                     sta       <$13,x    store key in variable 19
                     lbra      RetTrue   have-key matched, return true
-                    lda       ,y+       load word count argument (said test)
+TestSaid            lda       ,y+       load word count argument (said test)
                     sta       <$0072    save number of words to match
                     lda       >$015A    load parsed-word count
                     beq       SaidCheckDone branch if no words parsed
@@ -1663,15 +1594,15 @@ SaidSetMatch        lda       >$01AE    load game state flags
 SaidNoMatch         lsla                multiply remaining count by 2 for word IDs
                     leay      a,y       skip unmatched word IDs in script
                     lbra      RetFalse  said not matched, return false
-                    lda       ,y+       load first arg (match.word test)
+TestStrings         lda       ,y+       load first arg (match.word test)
                     ldb       ,y+       load second arg
                     lbsr      MatchWord test word against vocabulary
                     rts
-                    bsr       GetObjViewPtr get object X and Y (posn test)
+TestPosition        bsr       GetObjViewPtr get object X and Y (posn test)
                     sta       <$006F    save left edge X
                     sta       <$0071    save right edge X (same for point test)
                     bra       TestPosnX check the position
-                    bsr       GetObjViewPtr get object's X position (posn center test)
+TestCenter          bsr       GetObjViewPtr get object's X position (posn center test)
                     sta       <$006F    save left edge X
                     lda       <$1C,u    load object width
                     lsra                halve width
@@ -1679,13 +1610,13 @@ SaidNoMatch         lsla                multiply remaining count by 2 for word I
                     sta       <$006F    save center X as left edge
                     sta       <$0071    save center X as right edge
                     bra       TestPosnX check the position
-                    bsr       GetObjViewPtr get object's X position (posn right test)
+TestRight           bsr       GetObjViewPtr get object's X position (posn right test)
                     adda      <$1C,u    add object width to get right edge
                     deca                subtract 1 (right edge = left + width - 1)
                     sta       <$006F    save right edge as left edge
                     sta       <$0071    save right edge
                     bra       TestPosnX check the position
-                    bsr       GetObjViewPtr get object's X position (posn range test)
+TestBox             bsr       GetObjViewPtr get object's X position (posn range test)
                     sta       <$006F    save left edge X
                     adda      <$1C,u    add object width to get right edge
                     deca                subtract 1 (right edge = left + width - 1)
