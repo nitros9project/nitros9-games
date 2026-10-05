@@ -85,3 +85,7 @@ wbgame: ../objs/platform/wildbits-sprite-background.asm
 wbgame: ../objs/platform/wildbits-present-damage.asm
 
 wbgame: logic-fetch.asm
+
+wbdecode wbrun wbgame: ../objs/shared/picture-colors.asm ../objs/shared/picture-commands.asm
+
+wbdecode wbrun wbgame: ../objs/shared/picture-command-table.asm

@@ -14,6 +14,12 @@ owners. They allocate no state and contain no OS-9 module header.
   owners supply private scratch and result-store adapters.
 - `object-block-test.asm`: strict rectangle containment, with owner-selected
   state addressing at assembly time.
+- `picture-command-table.asm`: a single F0-FA handler catalog, expanded as
+  CoCo load-relative or native immutable table-relative entries.
+- `picture-colors.asm`: F0-F3 draw-color and priority-mask control, with
+  assembly-time bounded/contiguous reads.
+- `picture-commands.asm`: F4-F7 corners and absolute/relative segment commands,
+  using the same plotting and coordinate interfaces on both owners.
 - `picture-coordinates.asm`: common coordinate clamping and command-byte
   detection, with assembly-time contiguous/bounded input selection.
 - `object-direction-tables.asm`: movement-direction to view-loop selection.

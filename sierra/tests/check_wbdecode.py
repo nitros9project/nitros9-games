@@ -55,7 +55,7 @@ def main():
     d = None
     emulator = None
     try:
-        d, emulator = start_cpu(bootrom.name)
+        d, emulator = start_cpu(bootrom.name, timeout=900)
         d.write(0xFFDF, b'\0')
         d.write(0xFF90, b'\x4c')
         d.write(0xFF91, b'\x01')

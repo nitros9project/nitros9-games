@@ -48,17 +48,11 @@ DecodeFailed        ldu       <resourcebase
                     rts
 
 * Immutable offsets from the table base, not load addresses patched at runtime.
-DecodeDispatch      fdb       EnablePicDraw-DecodeDispatch
-                    fdb       DisablePicDraw-DecodeDispatch
-                    fdb       EnablePriDraw-DecodeDispatch
-                    fdb       DisablePriDraw-DecodeDispatch
-                    fdb       DrawYCorner-DecodeDispatch
-                    fdb       DrawXCorner-DecodeDispatch
-                    fdb       AbsoluteLine-DecodeDispatch
-                    fdb       RelativeLine-DecodeDispatch
-                    fdb       PicFill-DecodeDispatch
-                    fdb       ReadPenStatus-DecodeDispatch
-                    fdb       PlotWithPen-DecodeDispatch
+PICTURE_COMMAND     macro
+                    fdb       \1-DecodeDispatch
+                    endm
+DecodeDispatch      equ       *
+                    use       shared/picture-command-table.asm
 
 * Preserve B: color/mask routines and coordinate helpers use it across reads.
 ReadNext            tst       <decodeerror

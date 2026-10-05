@@ -107,3 +107,8 @@ $(DISK3): $(DEPENDS) $(SUPPORTFILES3)
 	$(DISK_FORMAT) -q $@ -n$(DISK3_NAME)
 	$(OS9COPY) -r $(SUPPORTFILES3) $@,.
 endif
+
+# Shared picture commands must rebuild the CoCo decoder as well.
+shdw: ../objs/shared/picture-colors.asm ../objs/shared/picture-commands.asm
+
+shdw: ../objs/shared/picture-command-table.asm

@@ -851,3 +851,28 @@ recovery. This is not full game acceptance: motion, vocabulary parsing, dialogs,
 sound and remaining commands still need integration. See
 [wildbits/README.md](wildbits/README.md) and [wildbits/MAME.md](wildbits/MAME.md)
 for module budgets, exact test scope and the older test kernel's RAM limit.
+
+## Shared-engine consolidation
+
+The CoCo and Wild Bits owners now assemble the same F0-FA picture-command
+catalog, F0-F3 color/mask bodies, and F4-F7 corner/line command bodies from
+`objs/shared/picture-command-table.asm`, `picture-colors.asm`, and
+`picture-commands.asm`. These join the already shared coordinate, raster-line,
+and pen-geometry routines. The bounded-reader selection happens at assembly
+time; CoCo retains its direct stream reads and Wild Bits retains its error
+checks. No runtime platform dispatch was added.
+
+At this checkpoint, CoCo `shdw` and Wild Bits `wbgame` are both byte-for-byte
+identical to their pre-consolidation builds. Both build graphs track the new
+includes. The decoder regression compares every pixel with the CoCo renderer
+at two relocated code/data addresses and exercises malformed input and
+mapping failures. Its emulated timeout is now 900 seconds so error-injection
+fixtures complete after the full picture comparisons.
+
+This does not complete the shared-engine migration. The native startup and
+bounded stream handling in `wildbits/decoder-code.asm` remain owner adapters;
+flood-fill workspace, resource loading, logic execution, object state, and
+parser integration still require reconciliation. The `wildbits` directory
+remains needed for its active entry points and platform integration until
+those implementations are replaced. A file qualifies as shared only when
+both platform owners assemble it.
