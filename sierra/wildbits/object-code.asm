@@ -121,14 +121,8 @@ ObjectGetPosition   leay      vmvariables,u
                     sta       ,y
                     clrb
                     rts
-ObjectFixLoop       lda       $25,x
-                    ora       #$20
-                    sta       $25,x
-                    bra       ObjectDone
-ObjectReleaseLoop   lda       $25,x
-                    anda      #$DF
-                    sta       $25,x
-                    bra       ObjectDone
+ObjectFixLoop       lbra      CmdFixLoop
+ObjectReleaseLoop   lbra      CmdReleaseLoop
 ObjectArgumentValue leay      vmvariables,u
                     clra
                     ldb       vmarguments+1,u
@@ -144,10 +138,7 @@ ObjectSetPriority   cmpb      #15
                     ora       #4
                     sta       $26,x
                     lbra      ObjectDone
-ObjectReleasePriority lda     $26,x
-                    anda      #$FB
-                    sta       $26,x
-                    lbra      ObjectDone
+ObjectReleasePriority lbra    cmd_release_priority
 ObjectGetPriority   lda       $24,x
                     bra       ObjectStoreResult
 ObjectDirection     lbsr      ObjectArgumentValue
@@ -177,17 +168,14 @@ ObjectFlagFind      lda       ,y
                     beq       ObjectFlagUnsupported
                     cmpa      <vmopcode
                     beq       ObjectFlagFound
-                    leay      4,y
+                    leay      3,y
                     bra       ObjectFlagFind
 ObjectFlagFound     lbsr      ObjectAddress
                     lbcs      ObjectReturn
-                    ldb       1,y
-                    abx
-                    lda       ,x
-                    anda      2,y
-                    ora       3,y
-                    sta       ,x
-                    clrb
+                    ldd       1,y
+                    leay      ObjectFlagTable,pcr
+                    leay      d,y
+                    jsr       ,y
                     rts
 ObjectSetHorizon    ldu       <resourcebase
                     ldb       vmarguments,u
@@ -199,16 +187,24 @@ ObjectSetHorizon    ldu       <resourcebase
 ObjectFlagUnsupported ldb     #E$UnkSvc
                     orcc      #1
                     rts
-ObjectFlagTable     fcb       61,$26,$FF,$08
-                    fcb       62,$26,$F7,$00
-                    fcb       64,$25,$FF,$01
-                    fcb       65,$25,$FF,$08
-                    fcb       66,$25,$F6,$00
-                    fcb       67,$25,$FF,$02
-                    fcb       68,$25,$FD,$00
-                    fcb       88,$26,$FF,$02
-                    fcb       89,$26,$FD,$00
+                    use       shared/object-flag-mask.asm
+OBJECT_FLAG_RULE    macro
+                    ifne      OBJECT_FLAG_TABLE
+                    fcb       \2
+                    fdb       \1-ObjectFlagTable
+                    else
+\1                  equ       *
+                    OBJECT_FLAG_MASK \3,\4,\5,x
+                    clrb
+                    rts
+                    endc
+                    endm
+OBJECT_FLAG_TABLE   set       1
+ObjectFlagTable     equ       *
+                    use       shared/object-flag-rules.asm
                     fcb       0
+OBJECT_FLAG_TABLE   set       0
+                    use       shared/object-flag-rules.asm
 * Cycle and step parameters; actual per-frame advancement is a separate body.
 ObjectCycleCommand  lbsr      ObjectAddress
                     lbcs      ObjectReturn
@@ -240,15 +236,9 @@ ObjectCycleCommand  lbsr      ObjectAddress
                     ldb       #E$UnkSvc
                     orcc      #1
                     rts
-ObjectStopCycle     lda       $26,x
-                    anda      #$DF
-                    sta       $26,x
-                    lbra      ObjectDone
+ObjectStopCycle     lbra      CmdStopCycling
 ObjectNormalCycle   clr       $23,x
-ObjectStartCycle    lda       $26,x
-                    ora       #$20
-                    sta       $26,x
-                    lbra      ObjectDone
+ObjectStartCycle    lbra      CmdStartCycling
 ObjectReverseCycle  lda       #3
                     sta       $23,x
                     bra       ObjectStartCycle

@@ -606,24 +606,23 @@ AdvCelReturn        rts
 *   Commands to fix and release an object's loop selection.
 *======================================================================
 *
-CmdFixLoop          lda       ,y+       load object number from script
-                    ldb       #$2B      object struct is $2B bytes wide
-                    mul                 compute byte offset into object table
-                    addd      <$0030    add base address of object table
-                    tfr       d,x       transfer computed address to X
-                    lda       <$25,x    load object animation flags
-                    ora       #$20      set loop-fix flag
-                    sta       <$25,x    store updated flags
+                    use       shared/object-flag-mask.asm
+OBJECT_FLAG_RULE    macro
+                    ifeq      OBJECT_FLAG_OPCODE-\2
+\1                  equ       *
+                    lda       ,y+
+                    ldb       #$2B
+                    mul
+                    addd      <$0030
+                    tfr       d,\6
+                    OBJECT_FLAG_MASK \3,\4,\5,\6
                     rts
-CmdReleaseLoop      lda       ,y+       load object number from script
-                    ldb       #$2B      object struct is $2B bytes wide
-                    mul                 compute byte offset into object table
-                    addd      <$0030    add base address of object table
-                    tfr       d,x       transfer computed address to X
-                    lda       <$25,x    load object animation flags
-                    anda      #$DF      clear loop-fix flag
-                    sta       <$25,x    store updated flags
-                    rts
+                    endc
+                    endm
+OBJECT_FLAG_OPCODE  set       45
+                    use       shared/object-flag-rules.asm
+OBJECT_FLAG_OPCODE  set       46
+                    use       shared/object-flag-rules.asm
 *
 *======================================================================
 * OBJECT TERRAIN CLASSIFICATION
@@ -1006,24 +1005,10 @@ CmdSetBlock         lda       #$01      enable blocking rectangle
                     rts
 CmdClearBlock       clr       >$01AC    disable blocking rectangle
                     rts
-CmdIgnoreBlocks     lda       ,y+       load object number from script
-                    ldb       #$2B      object struct is $2B bytes wide
-                    mul                 compute byte offset into object table
-                    addd      <$0030    add base address of object table
-                    tfr       d,u       transfer computed address to U
-                    lda       <$26,u    load object state flags
-                    ora       #$02      set ignore-blocks flag
-                    sta       <$26,u    store updated flags
-                    rts
-CmdObserveBlocks    lda       ,y+       load object number from script
-                    ldb       #$2B      object struct is $2B bytes wide
-                    mul                 compute byte offset into object table
-                    addd      <$0030    add base address of object table
-                    tfr       d,u       transfer computed address to U
-                    lda       <$26,u    load object state flags
-                    anda      #$FD      clear ignore-blocks flag
-                    sta       <$26,u    store updated flags
-                    rts
+OBJECT_FLAG_OPCODE  set       88
+                    use       shared/object-flag-rules.asm
+OBJECT_FLAG_OPCODE  set       89
+                    use       shared/object-flag-rules.asm
 *
 *======================================================================
 * COLLISION DETECTION
@@ -1081,24 +1066,10 @@ CollisionReturn     rts
 *   Commands to ignore or observe object-to-object collisions, and to measure the distance between two objects.
 *======================================================================
 *
-CmdIgnoreObjects    lda       ,y+       load object number from script
-                    ldb       #$2B      object struct is $2B bytes wide
-                    mul                 compute byte offset into object table
-                    addd      <$0030    add base address of object table
-                    tfr       d,u       transfer computed address to U
-                    lda       <$25,u    load object animation flags
-                    ora       #$02      set ignore-objects flag
-                    sta       <$25,u    store updated flags
-                    rts
-CmdObserveObjects   lda       ,y+       load object number from script
-                    ldb       #$2B      object struct is $2B bytes wide
-                    mul                 compute byte offset into object table
-                    addd      <$0030    add base address of object table
-                    tfr       d,u       transfer computed address to U
-                    lda       <$25,u    load object animation flags
-                    anda      #$FD      clear ignore-objects flag
-                    sta       <$25,u    store updated flags
-                    rts
+OBJECT_FLAG_OPCODE  set       67
+                    use       shared/object-flag-rules.asm
+OBJECT_FLAG_OPCODE  set       68
+                    use       shared/object-flag-rules.asm
 CmdDistance         lda       ,y+       load first object number
                     ldb       #$2B      object struct is $2B bytes wide
                     mul                 compute byte offset into object table
@@ -1217,24 +1188,10 @@ CmdSetCycleTime     lda       ,y+       load object number from script
                     sta       <$1F,u    store as cycle time (delay preset)
                     sta       <$20,u    store as current cycle counter
                     rts
-CmdStopCycling      lda       ,y+       load object number from script
-                    ldb       #$2B      object struct is $2B bytes wide
-                    mul                 compute byte offset into object table
-                    addd      <$0030    add base address of object table
-                    tfr       d,u       transfer computed address to U
-                    lda       <$26,u    load object state flags
-                    anda      #$DF      clear cycling-enabled flag
-                    sta       <$26,u    store updated flags
-                    rts
-CmdStartCycling     lda       ,y+       load object number from script
-                    ldb       #$2B      object struct is $2B bytes wide
-                    mul                 compute byte offset into object table
-                    addd      <$0030    add base address of object table
-                    tfr       d,u       transfer computed address to U
-                    lda       <$26,u    load object state flags
-                    ora       #$20      set cycling-enabled flag
-                    sta       <$26,u    store updated flags
-                    rts
+OBJECT_FLAG_OPCODE  set       70
+                    use       shared/object-flag-rules.asm
+OBJECT_FLAG_OPCODE  set       71
+                    use       shared/object-flag-rules.asm
 
 StrNormalCycle      fcc       /normal cycle/
                     fcb       0
@@ -6020,35 +5977,14 @@ cmd_reposition_to_v lda       ,y+       ; fetch object number from script
 *   terrain constraints for an object.
 *======================================================================
 *
-cmd_obj_on_water    lda       ,y+       ; fetch object number from script
-                    ldb       #$2B
-                    mul                 ; multiply A*$2B for object array offset
-                    addd      <$0030    ; add object table base
-                    tfr       d,u       ; U = pointer to object struct
-                    lda       <$25,u    ; load constraint flags
-                    ora       #$01      ; set water-only flag
-                    sta       <$25,u    ; store updated flags
-                    rts
+OBJECT_FLAG_OPCODE  set       64
+                    use       shared/object-flag-rules.asm
 
-cmd_obj_on_land     lda       ,y+       ; fetch object number from script
-                    ldb       #$2B
-                    mul                 ; multiply A*$2B for object array offset
-                    addd      <$0030    ; add object table base
-                    tfr       d,u       ; U = pointer to object struct
-                    lda       <$25,u    ; load constraint flags
-                    ora       #$08      ; set land-only flag
-                    sta       <$25,u    ; store updated flags
-                    rts
+OBJECT_FLAG_OPCODE  set       65
+                    use       shared/object-flag-rules.asm
 
-cmd_obj_on_anything lda       ,y+       ; fetch object number from script
-                    ldb       #$2B
-                    mul                 ; multiply A*$2B for object array offset
-                    addd      <$0030    ; add object table base
-                    tfr       d,u       ; U = pointer to object struct
-                    lda       <$25,u    ; load constraint flags
-                    anda      #$F6      ; clear water/land constraint bits
-                    sta       <$25,u    ; store updated flags
-                    rts
+OBJECT_FLAG_OPCODE  set       66
+                    use       shared/object-flag-rules.asm
 
 *
 *======================================================================
@@ -6061,25 +5997,11 @@ cmd_set_horizon     lda       ,y+       ; fetch horizon value from script
                     sta       >$01D6    ; store as current horizon Y
                     rts
 
-cmd_ignore_horizon  lda       ,y+       ; fetch object number from script
-                    ldb       #$2B
-                    mul                 ; multiply A*$2B for object array offset
-                    addd      <$0030    ; add object table base
-                    tfr       d,u       ; U = pointer to object struct
-                    lda       <$26,u    ; load boundary flags
-                    ora       #$08      ; set ignore-horizon flag
-                    sta       <$26,u    ; store updated flags
-                    rts
+OBJECT_FLAG_OPCODE  set       61
+                    use       shared/object-flag-rules.asm
 
-cmd_observe_horizon lda       ,y+       ; fetch object number from script
-                    ldb       #$2B
-                    mul                 ; multiply A*$2B for object array offset
-                    addd      <$0030    ; add object table base
-                    tfr       d,u       ; U = pointer to object struct
-                    lda       <$26,u    ; load boundary flags
-                    anda      #$F7      ; clear ignore-horizon flag
-                    sta       <$26,u    ; store updated flags
-                    rts
+OBJECT_FLAG_OPCODE  set       62
+                    use       shared/object-flag-rules.asm
 
 StrMsgTooVerbose    fcc       /Message too verbose:/
                     fcb       $0a,$0a
@@ -6747,15 +6669,8 @@ cmd_set_priority    lda       ,y+       ; fetch object number from script
                     sta       <$24,u    ; store object priority
                     rts
 
-cmd_release_priority lda       ,y+       ; fetch object number from script
-                    ldb       #$2B
-                    mul                 ; multiply A*$2B for object array offset
-                    addd      <$0030    ; add object table base
-                    tfr       d,u       ; U = pointer to object struct
-                    lda       <$26,u    ; load priority flags
-                    anda      #$FB      ; clear fixed-priority flag
-                    sta       <$26,u    ; store updated flags
-                    rts
+OBJECT_FLAG_OPCODE  set       56
+                    use       shared/object-flag-rules.asm
 
 cmd_get_priority    lda       ,y+       ; fetch object number from script
                     ldb       #$2B

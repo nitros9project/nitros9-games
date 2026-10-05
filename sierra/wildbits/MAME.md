@@ -408,3 +408,9 @@ The shared-condition build (21,068 code / 24,572 private bytes) passed
 `--sustained` at `/tmp/sierra-shared-conditions-sustained`, including original
 commands, unknown-word handling, inventory/modal restoration, Pause/resume,
 subsequent input, interrupt exit, and unchanged free memory.
+
+The shared-object-flags build (21,174 code / 24,572 private bytes) passed
+`--sustained` at `/tmp/sierra-shared-object-flags-sustained`: original commands,
+unknown-word handling, inventory/modal restoration, Pause/resume, subsequent
+input, interrupt exit and unchanged free memory. The native pixel/motion
+regression and cross-platform object-record checks also passed.

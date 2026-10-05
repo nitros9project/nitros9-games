@@ -78,11 +78,12 @@ def _render_once(game, payload, assembler, defs):
             port = reservation.getsockname()[1]
         bootrom = idle_rom(work / 'idle.rom')
         emulator = subprocess.Popen(['xroar', '-machine', 'coco3', '-ui', 'null', '-ao', 'null',
-            '-ram', '2048', '-no-ratelimit', '-gdb', '-gdb-port', str(port), '-timeout', '120',
+            '-ram', '2048', '-no-ratelimit', '-gdb', '-gdb-port', str(port), '-timeout', '900',
             '-no-bas', '-extbas', bootrom, '-no-altbas'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         debugger = None
         try:
-            time.sleep(.01)
+            # Match start_cpu: finish the queued power-on reset before writes.
+            time.sleep(.1)
             for attempt in range(50):
                 try:
                     try:

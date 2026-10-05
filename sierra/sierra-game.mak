@@ -122,3 +122,5 @@ mnln: ../objs/platform/coco-flag-storage.asm
 mnln: ../objs/shared/condition-tests.asm
 
 mnln: ../objs/shared/agi-test-table.asm
+
+mnln: ../objs/shared/object-flag-mask.asm ../objs/shared/object-flag-rules.asm

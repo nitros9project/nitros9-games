@@ -935,3 +935,34 @@ operand modes, packed flags across byte boundaries, and indirect flag index
 255. The native control and full-game tests cover the native return adapter.
 The native game is now 21,068 code bytes with unchanged 24,572-byte private
 data; the probe interpreter is 6,744 bytes.
+
+### Shared object flag rules
+
+Fourteen object commands now use `objs/shared/object-flag-rules.asm`: fix/
+release loop, release priority, ignore/observe horizon, water/land/anything,
+ignore/observe objects, stop/start cycling, and ignore/observe blocks. The
+catalog defines opcode, field offset, AND/OR masks, and the legacy CoCo
+pointer register. `object-flag-mask.asm` emits the mutation instructions,
+omitting identity AND/OR operations. Both owners use the same catalog and
+body, rather than merely keeping similar constants in separate files.
+
+CoCo selects each catalog entry at its existing handler location. Its original
+object lookup and register convention remain intact, and comparison against
+the previous module proves the entire binary is unchanged. Native resolves a
+bounded record separately and dispatches through immutable table-relative
+handler offsets; existing loop/cycling command entry points call those same
+handlers. Native success/error conventions are unchanged. No process-private
+state or runtime platform dispatch was added.
+
+`tests/check_object_flags.py` executes both real engine binaries for every
+rule, object indices 0 and 63, and four bit patterns. It checks the whole
+64-record array and guards, preservation of unrelated bits, and native
+invalid-index/unsupported-command errors against independent expectations.
+Native code is 21,174 bytes (`wbgame`) or 6,850 bytes (`wbexec`), with unchanged
+private data. Object positioning, animation progression, motion integration,
+resource handling and parser integration still need further consolidation.
+
+The CoCo reference-picture utility now waits 100 ms for queued power-on reset
+before debugger memory setup, matching the other CPU harnesses, and uses a
+900-second emulated limit. Its former 10-ms/120-second setup disconnected
+during the real-picture reference phase on repeated regression runs.

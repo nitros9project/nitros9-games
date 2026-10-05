@@ -289,7 +289,7 @@ restores the changed fields, retries a failed restoration once, and preserves
 the earlier failure status. Tests model non-default options and assert their
 restoration on every exit.
 
-The current module is 21,068 bytes and its private area 24,572 bytes, leaving
+The current module is 21,174 bytes and its private area 24,572 bytes, leaving
 4 bytes before a fourth data block. The code limit remains 23,808 bytes.
 Further persistent state needs a deliberate layout change. Timing/performance
 parity and complete game-command coverage are not established.
@@ -348,7 +348,7 @@ cannot accidentally test a stale game binary.
 Commands 1–17 now dispatch to shared CoCo/native variable and flag handlers.
 Operand collection remains bounded by the native VM before those handlers
 run. Flag storage is an explicit owner adapter. The current code budgets are
-6,744 bytes (`wbexec`) and 21,068 bytes (`wbgame`), with unchanged private data.
+6,850 bytes (`wbexec`) and 21,174 bytes (`wbgame`), with unchanged private data.
 
 Unsigned comparison/isset predicates now use the same bodies as CoCo. Boolean
 return adapters retain native B results and CoCo A results. The condition

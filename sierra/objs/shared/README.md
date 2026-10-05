@@ -21,6 +21,10 @@ owners. They allocate no state and contain no OS-9 module header.
   descriptors or native operand-count bytes at assembly time.
 - `object-distance.asm`: visible-object Manhattan distance with saturation;
   owners supply private scratch and result-store adapters.
+- `object-flag-rules.asm`: one catalog of 14 loop/priority/terrain/horizon/
+  collision/cycling mask rules, used by both owners.
+- `object-flag-mask.asm`: common compile-time mask mutation body; owner supplies
+  the record pointer register. Identity operations emit no instructions.
 - `object-block-test.asm`: strict rectangle containment, with owner-selected
   state addressing at assembly time.
 - `picture-command-table.asm`: a single F0-FA handler catalog, expanded as
