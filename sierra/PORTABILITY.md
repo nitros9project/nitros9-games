@@ -1,6 +1,17 @@
 # Sierra platform separation
 
 
+## Current consolidation status
+
+Both production runtimes now assemble common logic execution, dictionary lookup,
+direction-vector stepping, screen/horizon clamping, terrain classification and
+constraints, and complete object collision scanning. Platform bindings retain
+storage, mapping and intentionally different legacy policies. The broader
+migration is unfinished: per-cycle orchestration, position commit, resource/view
+acquisition, rendering and remaining presentation/formatter behavior still need
+consolidation. Historical sections below describe their stage when written;
+the latest sections record the ongoing shared-engine work.
+
 ## CoCo portability groundwork status
 
 The source-separation phase is complete: assembly-time CoCo backends now own
@@ -18,8 +29,8 @@ mappings, and adding an actual Wild Bits backend are port implementation work
 and are intentionally excluded from this phase.
 
 The sections below document the successive extractions; statements about the
-"next" boundary describe the stage when that section was written. The final
-section records the completed boundary inventory and current validation.
+"next" boundary describe the stage when that section was written. The later
+sections record subsequent shared-engine consolidation and its validation.
 
 ## Purpose and current scope
 
@@ -2165,3 +2176,29 @@ and native probes pass. MAME movement remained approximately nine AGI pixels in
 3.33 emulated seconds; two-terminal pixel restoration, independent exit/relaunch
 and free-memory checks also passed. Artifacts: `/tmp/sierra-shared-terrain-movement`
 and `/tmp/sierra-shared-terrain-terminals`.
+
+### Common complete object collision scan
+
+`shared/object-collision-scan.asm` replaces the bodies of `CheckObjCollision`
+and `MotionObjectCollision`. It owns scan sequencing, the existing common
+eligibility filters, two-sided horizontal overlap, baseline rules and Boolean
+result selection. Their legacy entry/loop/result labels remain aliases.
+`platform/*-object-collision-operands.asm` binds candidate/table iteration,
+registers, native history storage and A-versus-B return convention. CoCo still
+uses its end pointer; native still counts exactly 64 records and retains its
+existing early-ignore counter behavior.
+
+Policies remain explicit: CoCo uses byte sums and inclusive touching edges;
+native retains the original word comparison sequence and excludes touching
+edges. The first native candidate comparison preserves its prior high-byte
+handling, while the second clears it. CoCo compares previous record baselines;
+native uses its private pre-step actor baseline against the candidate's current
+baseline. This extraction centralizes those rules without changing them.
+
+Native `wbgame` and all fourteen rebuilt CoCo `mnln` modules are byte-identical
+to the preceding revision, preserving instruction cost, stack/register behavior
+and storage. Native probes build. The focused collision regression executes the
+legacy entries, with activity/ignore/self filtering, owner identity semantics,
+scan limits and guarded records/private state. Previous full-game/MAME checks
+cover the identical native binary; no new emulator acceptance run is claimed.
+Position commit and per-cycle orchestration remain further migration work.

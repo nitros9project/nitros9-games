@@ -956,35 +956,13 @@ BlockBottom         equ       $023D
                     use       shared/object-block-test.asm
                     use platform/object-collision-operands.asm
                     use shared/object-collision-filter.asm
-CheckObjCollision   clra                assume no collision
-                    COLLISION_IGNORE u,b,CollisionReturn
-                    ldx       <$0030    load pointer to first object
-CheckCollisionLoop  cmpx      <$0032    compare to end-of-object-table pointer
-                    bcc       CollisionReturn branch if past all objects (no collision)
-                    COLLISION_CANDIDATE x,b,NextCollisionObj
-                    ldb       $03,u     load current object Y bottom
-                    addb      <$1C,u    add height to get bottom edge
-                    cmpb      $03,x     compare to candidate Y top
-                    bcs       NextCollisionObj branch if current is above candidate
-                    ldb       $03,x     load candidate object Y bottom
-                    addb      <$1C,x    add height to get candidate bottom edge
-                    cmpb      $03,u     compare to current Y top
-                    bcs       NextCollisionObj branch if candidate is above current
-                    ldb       $04,x     load candidate priority
-                    cmpb      $04,u     compare to current priority
-                    beq       CollisionDetected branch if same priority (collision)
-                    bhi       CheckPriorityHigher branch if candidate priority is higher
-                    ldb       <$1B,x    load candidate base priority
-                    cmpb      <$1B,u    compare to current base priority
-                    bhi       CollisionDetected branch if candidate has higher base priority
-                    bra       NextCollisionObj no collision
-CheckPriorityHigher ldb       <$1B,x    load candidate base priority
-                    cmpb      <$1B,u    compare to current base priority
-                    bcs       CollisionDetected branch if candidate has lower base priority
-NextCollisionObj    leax      <$2B,x    advance to next object struct
-                    bra       CheckCollisionLoop loop to check next object
-CollisionDetected   lda       #$01      return 1 (collision detected)
-CollisionReturn     rts
+CheckObjCollision   equ CollisionScan
+CheckCollisionLoop  equ CollisionScanLoop
+NextCollisionObj    equ CollisionScanAdvance
+CollisionDetected   equ CollisionScanHit
+CollisionReturn     equ CollisionScanEmpty
+CheckPriorityHigher equ CollisionPreviousHigher
+                    use shared/object-collision-scan.asm
 *
 *======================================================================
 * OBJECT INTERACTION FLAGS

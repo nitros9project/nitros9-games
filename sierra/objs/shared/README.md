@@ -129,8 +129,8 @@ bounds and object validation stay in their storage providers.
 stopped-direction/ego handling. `object-unanimate.asm` shares bulk animated/
 visible-bit clearing over owned records. `platform/*-object-control-operands.asm`
 binds ego state and record iteration. `object-step-deltas.asm` supplies the
-nine signed X/Y deltas used by both motion implementations. Arithmetic and
-collision orchestration still remain in their owner components.
+nine signed X/Y deltas used by both motion implementations. Vector arithmetic, clamping, terrain rules and collision scanning are described
+below; per-cycle orchestration still remains in owner components.
 
 `object-scalar-state.asm` shares priority/direction mutations with operand,
 range and ego-state interfaces. `object-field-query.asm` is the common
@@ -141,7 +141,8 @@ byte-assignment policy remain explicit in `platform/*-object-scalar-operands.asm
 `object-placement-step.asm` shares rejected-candidate spiral advancement;
 one leg implementation expands to left/down/right/up, preserving the CoCo
 instruction schedule. Owner operands bind frame offsets, continuation branches
-and native exhaustion; bounds/collision/terrain validation remain providers.
+and native exhaustion; placement calls the bounds/collision/terrain services
+whose common rules and owner providers are described below.
 The frozen CoCo step under `tests/probes` is a differential fixture only.
 
 `object-bounds.asm` shares placement right-edge, baseline, height and horizon
@@ -151,7 +152,8 @@ and native candidate branches retain their original instruction sequences.
 
 `object-collision-filter.asm` shares actor/candidate ignore and activity/self
 eligibility. Owner bindings preserve ID-versus-pointer identity and scratch
-registers. Geometric collision rules and iteration remain owner-specific.
+registers. Complete traversal and geometry now live in
+`object-collision-scan.asm`, with explicit owner policies.
 
 `dictionary-lookup.asm` is now used by both production owners. It owns prefix
 traversal, character matching, longest phrase selection, ignored-word IDs, and
@@ -189,14 +191,16 @@ coordinates for both production runtimes. `platform/*-coordinate-step-operands.a
 binds candidate/step storage and direction-table cursors. Store-joining policy
 preserves each owner's original branch schedule, so all fourteen CoCo title
 modules and native `wbgame` remain byte-identical. Candidate initialization,
-clamping, terrain/collision checks and commit are still owner-specific.
+commit and per-cycle orchestration remain owner-specific; the common clamp,
+terrain and collision components are described below.
 
 `object-coordinate-clamp.asm` now owns candidate screen/horizon clamping in both
 movement pipelines. Bindings reuse the coordinate-step storage interface and
 preserve dimension checks, comparison scheduling, early vertical exits and
 byte-versus-word horizon policy. Legacy entry aliases remain available. Native
-and all fourteen rebuilt CoCo title modules are byte-identical; terrain,
-object collision and position commit remain separate.
+and all fourteen rebuilt CoCo title modules were byte-identical for that
+extraction. Terrain and collision rules are now shared too; position commit
+remains separate.
 
 `object-terrain-scan.asm` and `object-terrain-constraints.asm` now supply baseline
 control/water/trigger classification and water-only/land-only constraints for
@@ -207,3 +211,13 @@ clears it afterward. Native trigger counts and CoCo's raw signal value remain
 owner policies. Mapping, priority-15 bypass, ego flag publication and cleanup
 remain outside the common rules. The production-kernel regression covers all
 priorities/control/status bytes, mixed baselines and both owners at two addresses.
+
+`object-collision-scan.asm` now owns the complete collision scan for both owners:
+actor/candidate filtering, record traversal, horizontal overlap, baseline tests
+and result selection. The two old routine bodies are replaced by aliases and
+one include. Bindings select bounded-table versus counted iteration, candidate
+registers, history reads and result ABI. Explicit engine policies retain CoCo
+byte sums/inclusive edge contact versus native word comparisons/exclusive
+contact, and their distinct baseline histories. The native first comparison's
+high-byte handling is preserved exactly. All fourteen CoCo `mnln` binaries and
+native `wbgame` remain byte-identical to the preceding revision.

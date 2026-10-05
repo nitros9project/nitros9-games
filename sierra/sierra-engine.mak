@@ -130,3 +130,5 @@ mnln: ../objs/shared/object-coordinate-clamp.asm ../objs/platform/coordinate-cla
 
 shdw: ../objs/shared/object-terrain-scan.asm ../objs/shared/object-terrain-constraints.asm \
 	../objs/platform/terrain-operands.asm ../objs/platform/coco-terrain-operands.asm
+
+mnln: ../objs/shared/object-collision-scan.asm

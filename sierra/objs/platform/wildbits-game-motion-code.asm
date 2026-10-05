@@ -218,49 +218,13 @@ MotionTerrainError  ldb       <decodeerror
 * Baseline collisions, including crossing another baseline between steps.
                     use platform/object-collision-operands.asm
                     use shared/object-collision-filter.asm
-MotionObjectCollision COLLISION_IGNORE u,a,MotionNoCollision
-                    clr       motioncollision,x
-                    leay      vmobjects,x
-MotionCollisionNext COLLISION_CANDIDATE y,a,MotionCollisionAdvance
-                    clra
-                    ldb       3,u
-                    addb      $1C,u
-                    adca      #0
-                    pshs      d
-                    ldb       3,y
-                    cmpd      ,s++
-                    bhs       MotionCollisionAdvance
-                    clra
-                    ldb       3,y
-                    addb      $1C,y
-                    adca      #0
-                    pshs      d
-                    ldb       3,u
-                    clra
-                    cmpd      ,s++
-                    bhs       MotionCollisionAdvance
-                    lda       4,u
-                    cmpa      4,y
-                    beq       MotionCollided
-                    lda       motionoldposition+1,x
-                    cmpa      4,y
-                    blo       MotionCrossDown
-                    lda       4,u
-                    cmpa      4,y
-                    blo       MotionCollided
-                    bra       MotionCollisionAdvance
-MotionCrossDown     lda       4,u
-                    cmpa      4,y
-                    bhi       MotionCollided
-MotionCollisionAdvance leay  43,y
-                    inc       motioncollision,x
-                    lda       motioncollision,x
-                    cmpa      #64
-                    blo       MotionCollisionNext
-MotionNoCollision   clrb
-                    rts
-MotionCollided      ldb       #1
-                    rts
+MotionObjectCollision equ CollisionScan
+MotionCollisionNext equ CollisionScanLoop
+MotionCollisionAdvance equ CollisionScanAdvance
+MotionNoCollision   equ CollisionScanEmpty
+MotionCollided      equ CollisionScanHit
+MotionCrossDown     equ CollisionCrossDown
+                    use shared/object-collision-scan.asm
 
 * Native stepping chooses by sign, then clamps coordinates to the target.
 * Threshold one makes the shared axis classifier distinguish negative/zero/
