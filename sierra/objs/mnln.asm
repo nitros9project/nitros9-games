@@ -2302,25 +2302,11 @@ FindObjPosDirNone   equ *
                     use shared/object-placement-step.asm
 FindObjPosDone      leas      $05,s     release local stack frame
                     rts
-CheckObjBounds      clra                assume out of bounds (return 0)
-                    ldb       $03,u     load object X position
-                    addb      <$1C,u    add object width to get right edge
-                    bcs       CheckObjBoundsRet branch if right edge overflowed (off-screen)
-                    cmpb      #$A0      compare right edge to screen right (160)
-                    bhi       CheckObjBoundsRet branch if right edge off screen
-                    ldb       $04,u     load object Y position
-                    cmpb      #$A7      compare to screen bottom (167)
-                    bhi       CheckObjBoundsRet branch if Y below screen
-                    incb                Y+1 for height check
-                    cmpb      <$1D,u    compare to object height
-                    bcs       CheckObjBoundsRet branch if Y+1 < height (object too tall)
-                    decb                restore Y
-                    cmpb      >$01D6    compare to horizon row
-                    bhi       CheckObjInBounds branch if below horizon (in bounds)
-                    ldb       <$26,u    load object state flags
-                    bitb      #$08      test ignore-horizon flag
-                    beq       CheckObjBoundsRet branch if must observe horizon (out of bounds)
-CheckObjInBounds    inca                object is in bounds: return 1
+                    use platform/object-bounds-operands.asm
+                    use shared/object-bounds.asm
+CheckObjBounds      clra
+                    OBJECT_CHECK_BOUNDS u,CheckObjBoundsRet,CheckObjInBounds
+                    inca
 CheckObjBoundsRet   rts
 FlagBitTable        fcb       $80,$40,$20,$10,8,4,2,1
 

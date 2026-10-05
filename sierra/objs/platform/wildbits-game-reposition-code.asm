@@ -54,25 +54,10 @@ RepositionSearch    leas      -5,s
                     std       3,s        explicit search budget
 RepositionCandidate ldx      <resourcebase
                     ldu       motionobject,x
-                    ldb       $1C,u
-                    beq       RepositionReject
-                    addb      3,u
-                    bcs       RepositionReject
-                    cmpb      #160
-                    bhi       RepositionReject
-                    ldb       4,u
-                    cmpb      #167
-                    bhi       RepositionReject
-                    incb
-                    cmpb      $1D,u
-                    blo       RepositionReject
-                    decb
-                    cmpb      <vmhorizon
-                    bhi       RepositionBounds
-                    lda       $26,u
-                    bita      #8
-                    beq       RepositionReject
-RepositionBounds    ldd       3,u
+                    use platform/object-bounds-operands.asm
+                    use shared/object-bounds.asm
+                    OBJECT_CHECK_BOUNDS u,RepositionReject,RepositionBounds
+                    ldd       3,u
                     std       motionoldposition,x
                     clra
                     ldb       3,u

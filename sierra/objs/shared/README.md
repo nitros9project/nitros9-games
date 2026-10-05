@@ -143,3 +143,8 @@ one leg implementation expands to left/down/right/up, preserving the CoCo
 instruction schedule. Owner operands bind frame offsets, continuation branches
 and native exhaustion; bounds/collision/terrain validation remain providers.
 The frozen CoCo step under `tests/probes` is a differential fixture only.
+
+`object-bounds.asm` shares placement right-edge, baseline, height and horizon
+validation. `platform/*-object-bounds-operands.asm` binds horizon/flags storage
+and the explicit native zero-width rejection policy. CoCo's Boolean return
+and native candidate branches retain their original instruction sequences.

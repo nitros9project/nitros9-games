@@ -111,4 +111,7 @@ mnln: ../objs/shared/unsigned-decimal.asm \
 	../objs/platform/coco-object-scalar-operands.asm \
 	../objs/shared/object-placement-step.asm \
 	../objs/platform/object-placement-operands.asm \
-	../objs/platform/coco-object-placement-operands.asm
+	../objs/platform/coco-object-placement-operands.asm \
+	../objs/shared/object-bounds.asm \
+	../objs/platform/object-bounds-operands.asm \
+	../objs/platform/coco-object-bounds-operands.asm

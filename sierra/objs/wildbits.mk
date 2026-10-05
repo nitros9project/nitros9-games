@@ -55,6 +55,7 @@ check: all probes
 	python3 ../tests/check_object_block_state.py
 	python3 ../tests/check_object_scalar_commands.py
 	python3 ../tests/check_object_placement_step.py
+	python3 ../tests/check_object_bounds.py
 	python3 ../tests/check_motion_setup.py
 	python3 ../tests/check_cel_advance.py
 	python3 ../tests/check_inventory_commands.py
@@ -163,3 +164,5 @@ wbexec wbgame: platform/object-control-operands.asm
 wbexec wbgame: platform/object-scalar-operands.asm
 
 wbgame: platform/object-placement-operands.asm
+
+wbgame: platform/object-bounds-operands.asm

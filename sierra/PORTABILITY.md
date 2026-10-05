@@ -1926,3 +1926,33 @@ validation and collision acquisition remain further consolidation work.
 
 The final two-terminal MAME run also passed every displayed pixel,
 restoration, independent exit/relaunch and unchanged free-memory maps.
+
+### Shared placement geometry validation
+
+`shared/object-bounds.asm` now supplies the actual geometry check used by
+CoCo `CheckObjBounds` and native reposition candidate validation. It rejects
+right-edge byte overflow and edges beyond 160, baselines beyond row 167,
+objects whose height extends above row zero, and baselines at/above the
+horizon unless the ignore-horizon bit is set. Platform bindings supply the
+horizon comparison and flags scratch register. An explicit zero-width trait
+retains native rejection and CoCo's existing allowance; it also preserves the
+original load/add instruction ordering. Height zero retains each owner's
+existing behavior rather than acquiring a new restriction.
+
+CoCo keeps A as a Boolean result accumulator and uses B for flags; native
+uses A for flags and branches directly to its existing accepted/rejected
+candidate paths. Neither binding performs hardware access or retains a
+mapped resource pointer. These are record/state operations; collision and
+terrain/MMU acceptance remain in the original providers.
+
+The focused regression passed 7,500 calls through the real owners at two
+load addresses, sweeping every coordinate, size, horizon and control byte
+and combinations around screen edges, overflow, height and horizon equality.
+It verifies both zero-width policies, all ignore-horizon flag patterns,
+unchanged object/private state, guards, stack/registers and immutable code.
+All fourteen CoCo engines and native `wbgame` rebuilt byte-identically to the
+verified shared-spiral revision, preserving behavior, code/private-data size
+and instruction cost. Native probes also build. The preceding placement,
+gameplay and MAME movement/two-terminal checks therefore cover the identical
+production instructions. Full collision/terrain validation and placement
+orchestration remain further consolidation work.
