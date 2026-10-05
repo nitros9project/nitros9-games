@@ -446,58 +446,11 @@ MotionCycleTick     lda       $26,u
                     bne       MotionCycleDone
                     lda       $1F,u
                     sta       $20,u
-                    lda       $25,u
-                    bita      #$10
-                    beq       MotionCycleAdvance
-                    anda      #$EF
-                    sta       $25,u
-                    bra       MotionCycleDone
-MotionCycleAdvance  ldb       $0E,u
-                    lda       $23,u
-                    cmpa      #2
-                    bhs       MotionCycleReverse
-                    incb
-                    cmpb      $0F,u
-                    blo       MotionCycleMaybeEnd
-                    decb
-                    tsta
-                    bne       MotionCycleFinished
-                    clrb
-MotionCycleMaybeEnd cmpa      #1
-                    bne       MotionCycleSet
-                    pshs      b
-                    incb
-                    cmpb      $0F,u
-                    puls      b
-                    beq       MotionCycleFinished
-                    bra       MotionCycleSet
-MotionCycleReverse  tstb
-                    bne       MotionCyclePrevious
-                    cmpa      #2
-                    beq       MotionCycleFinished
-                    ldb       $0F,u
-MotionCyclePrevious decb
-                    cmpa      #2
-                    bne       MotionCycleSet
-                    tstb
-                    bne       MotionCycleSet
-MotionCycleFinished pshs      b
-                    ldb       $27,u
-                    leay      vmflags,x
-                    clra
-                    leay      d,y
-                    lda       #1
-                    sta       ,y
-                    lda       $26,u
-                    anda      #$DF
-                    sta       $26,u
-                    clr       $21,u
-                    clr       $23,u
-                    puls      b
-MotionCycleSet      lda       #47
-                    lbra      MotionSelectView
+                    lbra      AdvanceCelFrame
 MotionCycleDone     clrb
                     rts
+                    use       platform/wildbits-cel-advance.asm
+                    use       shared/object-cel-advance.asm
                     use       shared/object-direction-tables.asm
 * A=selection opcode, B=index. The ordinary view component refreshes cel
 * metadata; scratch instruction arguments/opcode are restored afterwards.

@@ -1407,3 +1407,50 @@ builds pass. The final native binary matches the MAME-tested artifact in
 inventory/modal restoration, Pause/resume, interrupt exit and unchanged free
 memory passed. These checks do not establish full gameplay/audio support or
 completion of the remaining source migration.
+
+### Shared cel advancement
+
+`shared/object-cel-advance.asm` now supplies the cel progression routine to
+both owners. It handles continuous forward/reverse cycling, forward/reverse
+endpoint modes, one-tick suppression, endpoint completion flags, disabling
+cycling and stopping direction at completion. `platform/coco-cel-advance.asm`
+binds the existing two scratch bytes, packed flags and `SetCelHelper`;
+`platform/wildbits-cel-advance.asm` binds adjacent process-private `vmleft` /
+`vmright` scratch, byte flags and the existing native view-selection callback.
+No private allocation is added. Native mode validation and callback B/carry
+status are preserved explicitly.
+
+The initial extraction retained the exact CoCo binary. Extending the logical
+transition test to unsigned high cel indexes then reproduced a CoCo defect:
+reverse mode with cel 254 in a 255-cel loop passed 254 to its callback instead
+of 253. The old DECB/BPL sequence treated the decremented byte as signed. Both
+owners now use SUBB #1/BCC for the previous index and load the last index only
+on unsigned underflow. That one rule supports high indexes without a separate
+owner algorithm. The CoCo change adds one byte, retains the instruction count
+on the normal reverse step, and leaves relocation to the existing assembler
+labels/tables. The full shared-executor regression verifies actual CoCo table
+initialization and command/test dispatch at two code bases after the shift.
+
+The native game uses 21,672 code bytes (27 more than the preceding text-helper
+checkpoint), with unchanged 24,568-byte private data. Its cycle-rate countdown
+and automatic loop selection remain in the owner update wrapper; the common
+routine starts at cel advancement. Resource loading, mapped view metadata and
+rendering remain view/backend responsibilities.
+
+`check_cel_advance.py` executes the actual common routine in both owners at two
+load addresses, substituting only the view-selection callback. It covers all
+four modes, first/middle/last cels, counts 1/2/4/128/255, one-tick suppression,
+objects 0/63, completion flags 0/255, whole-record/flag preservation, callback
+context, stack guards and immutable code. Native invalid-mode and callback-error
+cases verify balanced returns and retained B/carry status. The high-count test
+proves the logical index transition; it does not establish full CoCo loading
+of a 255-cel view. `check_wbgame.py` separately runs actual native view selection,
+cel metadata refresh, animation, move-to completion and rendered pixels.
+
+These tests passed, as did all 14 configured CoCo builds. Wild Bits MAME
+movement remained approximately 9 AGI pixels in 3.33 emulated seconds, with
+startup, inventory/modal restoration, interrupt exit and free-memory checks
+passing. Two-terminal tests passed pixel restoration, independent exits and
+relaunch. Artifacts are in `/tmp/sierra-shared-cel-advance-movement` and
+`/tmp/sierra-shared-cel-advance-terminals`. This checkpoint does not establish
+full gameplay/audio support or completion of the remaining engine migration.

@@ -51,6 +51,9 @@ owners. They allocate no state and contain no OS-9 module header.
 - `object-coordinate-state.asm`: literal/variable position assignment, position
   queries, and signed reposition arithmetic; owners provide operand/storage
   adapters and retain their placement/collision boundaries.
+- `object-cel-advance.asm`: all four cel-cycle modes, one-tick suppression,
+  unsigned reverse wrapping, endpoint completion flags and motion stopping;
+  owners bind scratch, flag storage and view-selection/status callbacks.
 - `object-cycle-state.asm`: continuous/endpoint animation modes and flags.
 - `object-motion-setup.asm`: follow-distance selection and completion state,
   wander initialization, and saved/optional move speed with literal completion

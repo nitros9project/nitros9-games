@@ -155,3 +155,5 @@ mnln: ../objs/shared/inventory-commands.asm ../objs/platform/coco-inventory-oper
 mnln: ../objs/shared/bounded-string-copy.asm ../objs/platform/coco-string-copy-count.asm
 
 mnln: ../objs/shared/decimal-byte.asm
+
+mnln: ../objs/shared/object-cel-advance.asm ../objs/platform/coco-cel-advance.asm
