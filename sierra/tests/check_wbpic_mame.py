@@ -12,7 +12,7 @@ import struct
 import subprocess
 import zlib
 
-VIEWER = Path(__file__).resolve().parents[1] / 'wildbits'
+VIEWER = Path(__file__).resolve().parents[1] / 'objs'
 
 
 def png_rgb(path):
@@ -105,7 +105,6 @@ def main():
     if args.native_game:
         from check_wbres import fixture
         import sys
-        sys.path.insert(0, str(VIEWER))
         from export_picture import resource, render
         payload, volume, offset = resource(args.native_game, args.picture_number)
         picture = render(args.native_game, payload, shutil.which('lwasm.orig') or shutil.which('lwasm'), VIEWER.parents[2] / 'nitros9/defs')

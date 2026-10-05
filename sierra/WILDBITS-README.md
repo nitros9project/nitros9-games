@@ -6,7 +6,7 @@ inventory and menus. Its platform implementations are small
 `objs/platform/wildbits-*.asm` includes; reusable motion/decoder code lives in
 `objs/shared`. The older `objs/wildbits_engine.asm` scaffold is not built.
 
-Build with `make -C sierra/wildbits all` from the games repository. Install both
+Build with `make -C sierra/objs -f wildbits.mk all` from the games repository. Install both
 `wbgame` and `wbfont` in the OS-9 execution directory, with read/execute access.
 Keep the original game resources together in a readable directory, then run:
 
@@ -22,7 +22,7 @@ The terminal's echo, EOF and quit settings are restored on exit.
 This is an **interactive early build**, not a complete AGI compatibility claim.
 Save/restore, audio, some later-game commands and timing optimizations remain.
 Do not infer that the entire adventure can be completed from the tested route.
-See [MAME.md](MAME.md) for exact driver tests and [ENGINE.md](ENGINE.md) for
+See [MAME.md](WILDBITS-MAME.md) for exact driver tests and [ENGINE.md](WILDBITS-ENGINE.md) for
 ownership, buffer aliases and shared-source boundaries.
 
 ## Target and interfaces
@@ -58,8 +58,8 @@ emulator/driver versions.
 From this directory, with lwasm on PATH:
 
 ```sh
-make NITROS9DIR=/path/to/nitros9
-make fixture
+make -C sierra/objs -f wildbits.mk NITROS9DIR=/path/to/nitros9
+make -C sierra/objs -f wildbits.mk fixture
 ```
 
 Copy the resulting OS-9 module `wbpic` to the target's executable directory
@@ -117,7 +117,7 @@ hardware; these remain runtime validation work.
 ## Checks and hardware acceptance
 
 ```sh
-make check
+make -C sierra/objs -f wildbits.mk check
 ```
 
 This requires XRoar with its GDB interface. The test executes the actual
@@ -131,7 +131,7 @@ assembled 6809 module with mocked OS-9/graphics calls. It checks:
 - Terminal name matching, background waiting, registration release, and
   refusal to free an existing bitmap.
 
-`make check` is CPU/service-contract testing. The separate MAME check below
+`make -C sierra/objs -f wildbits.mk check` is CPU/service-contract testing. The separate MAME check below
 uses the real Wild Bits OS and drivers. For physical hardware acceptance,
 launch the viewer on two separate
 terminals, switch between them during loading and while displayed, verify each
@@ -146,7 +146,7 @@ The real-driver `wbjr2` MAME test passed with two viewers on `/term` and `/vt1`:
 every displayed pixel, restoration after switching, independent exit,
 relaunch, and an unchanged free-memory map after two launch/quit cycles.
 Both diagnostic buffers and the King's Quest I reference were exercised.
-See [MAME.md](MAME.md) for setup, the repeatable test command, exact revisions,
+See [MAME.md](WILDBITS-MAME.md) for setup, the repeatable test command, exact revisions,
 and remaining hardware acceptance work.
 
 ## Native resource loader
@@ -168,8 +168,8 @@ nonzero size, an 8 KB command limit, equal decoded/stored lengths, and final
 rejected. Short reads/writes retain progress; failures close opened inputs.
 The shell may create an empty redirected output file when validation fails.
 
-The loader lives in `resource-code.asm`, with private fields declared by
-`resource-data.asm`; the probe owns the sole module header. `LoadPicture`
+The loader lives in `objs/platform/wildbits-resource-code.asm`, with private fields declared by
+`objs/platform/wildbits-resource-data.asm`; the probe owns the sole module header. `LoadPicture`
 takes X=game directory, Y=picture number, U=private data base and matching DP.
 It returns X=command buffer and Y=length, or carry/B indicating an error.
 Its mutable fields, path strings and command bytes are process-private.
@@ -181,9 +181,9 @@ two 8 KB blocks. This is a test arrangement: the eventual interpreter should
 put large resources behind bounded mapping windows to retain its 8 KB state
 budget. It must not simply add this resident buffer to the packed engine.
 
-`make check` runs actual 6809 tests for relocation, short reads/writes,
+`make -C sierra/objs -f wildbits.mk check` runs actual 6809 tests for relocation, short reads/writes,
 directory/header failures, large offsets and boundary sizes. The separate
-real-driver MAME test is described in [MAME.md](MAME.md). Native MAME reads
+real-driver MAME test is described in [MAME.md](WILDBITS-MAME.md). Native MAME reads
 matched both an 8 KB diagnostic resource from `vol.15` at `$23456` and all
 2,752 bytes of King's Quest I picture 1 at `vol.1` offset `$E24A`.
 
@@ -212,7 +212,7 @@ Incomplete coordinates, invalid colors and bytes after the terminator also
 fail. King’s Quest I picture 1 now decodes natively with the exact CoCo reference
 buffer. This is still a decoder probe, not a playable interpreter.
 
-`../objs/platform/wildbits-picture-memory.asm` allocates four consecutive physical blocks through
+`objs/platform/wildbits-picture-memory.asm` allocates four consecutive physical blocks through
 `SS.GfxAlloc` and maps one block at a time through `F$MapBlk`. The current page
 is cached. `PicturePointer` accepts a logical byte offset and returns a pointer
 valid only until another mapping call; clients never retain it across pages.
@@ -221,7 +221,7 @@ The line and plot routines use this boundary, including lines crossing an
 are exported. A private 512-byte staging buffer lets output unmap before
 `I$Write`, including partial writes.
 
-`decoder-fill.asm` uses scanline flood fill with a private 4,096-byte stack
+`objs/platform/wildbits-decoder-fill.asm` uses scanline flood fill with a private 4,096-byte stack
 of 2,048 coordinate seeds. It paints a horizontal span and queues neighboring
 runs. Exhaustion returns `E$MemFul` instead of overwriting another buffer.
 It matches white color when color drawing is enabled, otherwise default
@@ -247,7 +247,7 @@ Differential CPU checks cover the complete CoCo reference buffer, two native
 code/data locations, different window addresses, malformed input, service
 errors, immutable code and the fill-stack boundary. The MAME diagnostic runs
 on `/term` and `/vt1`, compares both outputs and requires an unchanged
-free-memory map. See [MAME.md](MAME.md) for reproduction.
+free-memory map. See [MAME.md](WILDBITS-MAME.md) for reproduction.
 
 Pen commands, direct native presentation, compressed-resource storage and the
 interpreter core now exist. Game command integration remains. Performance optimization
@@ -264,10 +264,10 @@ wbrun /s0/kingsquest1 1
 ```
 
 Input and output must be the same Wild Bits terminal; any key exits this
-integration test. `presentation-data.asm`, `presentation-buffers.asm`,
-`../objs/platform/wildbits-presentation-helpers.asm`, `../objs/platform/wildbits-presentation-palette.asm` and `presentation.d`
+integration test. `objs/platform/wildbits-presentation-data.asm`, `objs/platform/wildbits-presentation-buffers.asm`,
+`objs/platform/wildbits-presentation-helpers.asm`, `objs/platform/wildbits-presentation-palette.asm` and `presentation.d`
 are shared with `wbpic`. Splitting these includes left `wbpic` byte-for-byte
-unchanged. `../objs/platform/wildbits-presentation.asm` copies source spans into private row staging,
+unchanged. `objs/platform/wildbits-presentation.asm` copies source spans into private row staging,
 unmaps them, then maps the framebuffer. Source and destination never require
 two simultaneous service windows. The integrated module is 3,294 bytes and
 requests 14,646 bytes of private data.
@@ -276,9 +276,9 @@ The MAME integration test passed with simultaneous gradient and King’s Quest I
 castle instances on `/term` and `/vt1`: every displayed pixel, terminal
 restoration, independent quit, relaunch and an unchanged free-memory map.
 It uses host rendering only to calculate the expected test pixels; the native
-program reads the game files itself. See [MAME.md](MAME.md).
+program reads the game files itself. See [MAME.md](WILDBITS-MAME.md).
 
-`decoder-pen.asm` retains the original CoCo circle tables, edge clamping and
+`objs/platform/wildbits-decoder-pen.asm` retains the original CoCo circle tables, edge clamping and
 splatter sequence. CPU tests cover every pen size and style at edges and
 mapping boundaries, relocated code/data, and malformed input. Native MAME
 picture 1 output matched SHA256
@@ -298,9 +298,9 @@ and export the combined buffer. It preserves the working renderer rather
 than introducing a second picture algorithm. For example, from this directory:
 
 ```sh
-python3 export_picture.py ../kingsquest1 1 /tmp/kq1-picture-1.bin \
+python3 sierra/tests/export_picture.py sierra/kingsquest1 1 /tmp/kq1-picture-1.bin \
   --assembler /path/to/lwasm --defs /path/to/nitros9/defs
-python3 ../tests/check_wbpic.py --picture /tmp/kq1-picture-1.bin
+python3 sierra/tests/check_wbpic.py --picture /tmp/kq1-picture-1.bin
 ```
 
 Transfer the exported file and run `wbpic` on the target as with the diagnostic
@@ -366,13 +366,13 @@ variable/flag tests and AND/OR/NOT expressions. Platform commands currently
 include typed resource loading/discard, cached/nested logic calls, scan-start
 management, `set.game.id`, bounded object/view state, menus, strings, screen
 configuration, keyboard bindings, replay records and room transitions.
-`logic-code.asm` follows the existing CoCo operand-count table; argument
+`objs/platform/wildbits-logic-code.asm` follows the existing CoCo operand-count table; argument
 staging and instruction/branch bounds prevent malformed scripts from reading
 messages as instructions. Script positions remain offsets across mapping
 changes. Messages use bounded relative offsets; plain logic strings are
 XOR-decoded with the original key, while compressed logic strings are plain.
 
-`logic-cache.asm` retains up to 32 owned typed resource slabs. Sixteen private call
+`objs/platform/wildbits-logic-cache.asm` retains up to 32 owned typed resource slabs. Sixteen private call
 frames save the caller's cache slot, instruction offset, code end and remaining
 instruction budget. Loading a callee unmaps the caller first; return restores
 its descriptor. Exit frees temporary allocations and all cache-owned slabs,
@@ -386,7 +386,7 @@ relocation, exact 16 KB plain and 65,535-byte expanded output, partial I/O, malf
 encrypted/malformed messages, nested/cached calls and recursion bounds.
 MAME verified real logic 0's 8,950 expanded bytes and a diagnostic cross-page
 script with cached/nested calls on `/term` and `/vt1`, with unchanged free memory.
-See [MAME.md](MAME.md) for the commands and hashes.
+See [MAME.md](WILDBITS-MAME.md) for the commands and hashes.
 
 Current probe modules: `wbasset` is 1,815 bytes with 9,989 private bytes;
 `wbexec` is 6,194 bytes with 17,069 private bytes. The latter now needs three
@@ -458,7 +458,7 @@ The native-owner MAME diagnostic passed on the existing 512 KB Jr2 test OS:
 repeated logic cycles, every castle/diagnostic pixel, two terminals, switching,
 independent controller-key exits, relaunch and unchanged free RAM. Its scripts
 exercise implemented picture commands; they are not the full King's Quest I
-logic. See [MAME.md](MAME.md). Two sprite-heavy games need additional memory;
+logic. See [MAME.md](WILDBITS-MAME.md). Two sprite-heavy games need additional memory;
 the guide's current RAM-capable kernel/core must be verified before claiming
 that configuration. An allocation failure is reported and cleaned up.
 
@@ -476,7 +476,7 @@ four codes exposed by the current driver. This input path has CPU-test coverage;
 real-driver gameplay acceptance is still pending. Arrow autorepeat currently
 keeps the selected direction; stop/toggle behavior needs game-level verification.
 
-The shared-source/backend migration is described in [ENGINE.md](ENGINE.md#architecture-correction).
+The shared-source/backend migration is described in [ENGINE.md](WILDBITS-ENGINE.md#architecture-correction).
 
 The Wild Bits owner currently starts with AGI sound flag 9 off because the
 existing global blocking `SS.Tone` service cannot safely play independent AGI
@@ -518,7 +518,7 @@ objects/fonts and cleanup. The real-resource MAME diagnostic now checks the
 inventory title against the shared font pixel by pixel, dismisses inventory,
 requires the castle scene to return, interrupts the process and compares free
 memory. This is inventory/startup acceptance, not parser, audio or full-game
-acceptance. See [MAME.md](MAME.md).
+acceptance. See [MAME.md](WILDBITS-MAME.md).
 
 Selection changes redraw only the old and new highlight rows. A page change
 redraws the list. The CPU suite tests selecting item 22, beyond the 21 visible

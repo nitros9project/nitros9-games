@@ -109,7 +109,7 @@ def main():
         binary = temp / 'lzwtest'
         subprocess.run(['lwasm.orig', '--6809', '--format=os9',
             '--pragma=pcaspcr,nosymbolcase,condundefzero',
-            '-I' + str(ROOT / 'wildbits'), '-I' + str(ROOT.parent.parent / 'nitros9/defs'),
+            '-I' + str(ROOT / 'objs'), '-I' + str(ROOT.parent.parent / 'nitros9/defs'),
             '--map=' + str(binary) + '.map', '-o', str(binary),
             str(ROOT / 'tests/lzw-harness.asm')], check=True)
         syms = symbols(Path(str(binary) + '.map'))
@@ -140,7 +140,10 @@ def main():
         finally:
             d.s.close()
             emulator.terminate()
-            emulator.wait(timeout=5)
+            try:
+                emulator.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                emulator.kill(); emulator.wait(timeout=5)
 
 
 if __name__ == '__main__':

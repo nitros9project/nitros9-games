@@ -2,11 +2,11 @@
 * Input is 160*168 combined bytes: low nibble color,high nibble priority.
                     nam       wbpic
                     ttl       Wild Bits AGI combined-buffer viewer
-                    use       defsfile
-                    use       presentation.d
+                    use       platform/wildbits-defsfile
+                    use       platform/wildbits-presentation.d
 
-                    use       presentation-data.asm
-                    use       presentation-buffers.asm
+                    use       platform/wildbits-presentation-data.asm
+                    use       platform/wildbits-presentation-buffers.asm
                     rmb       $2000-.
 size                equ       .
                     mod       eom,name,Prgrm+Objct,ReEnt+1,start,size

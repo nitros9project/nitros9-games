@@ -7,12 +7,12 @@ it does not emulate VICKY or verify the Wild Bits driver implementation.
 import argparse
 from pathlib import Path
 import re
-import socket
 import subprocess
-import time
-from check_instances import Debugger, symbols
+import tempfile
+from check_instances import symbols
+from check_wbres import idle_rom, start_cpu
 
-VIEWER = Path(__file__).resolve().parents[1] / 'wildbits'
+VIEWER = Path(__file__).resolve().parents[1] / 'objs'
 
 
 def exercise(d, base, payload, allocation_error=False, map_failure=0, unmap_failure=False, database=0x2000, terminal=b"v1", window=0x4000, terminal_mismatch=False):
@@ -147,22 +147,9 @@ def main():
     picture = args.picture.read_bytes() if args.picture else None
     if picture is not None and len(picture) != 160 * 168:
         parser.error('exported picture must contain exactly 26880 combined bytes')
-    with socket.socket() as reservation:
-        reservation.bind(('127.0.0.1', 0))
-        port = reservation.getsockname()[1]
-    emulator = subprocess.Popen(['xroar', '-machine', 'coco3', '-ui', 'null', '-ao', 'null',
-        '-ram', '2048', '-gdb', '-gdb-port', str(port), '-timeout', '300',
-        '-no-bas', '-no-extbas', '-no-altbas'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    temporary = tempfile.TemporaryDirectory(prefix='sierra-viewer-')
+    d, emulator = start_cpu(idle_rom(Path(temporary.name) / 'idle.rom'), timeout=900)
     try:
-        time.sleep(.1)
-        for attempt in range(50):
-            try:
-                d = Debugger(port)
-                break
-            except ConnectionRefusedError:
-                time.sleep(.1)
-        else:
-            raise RuntimeError('XRoar debugger did not start')
         d.write(0xFFDF, b'\0')
         d.write(0xFF90, b'\x4c')
         d.write(0xFF91, b'\x01')
@@ -203,6 +190,7 @@ def main():
         except subprocess.TimeoutExpired:
             emulator.kill()
             emulator.wait(timeout=2)
+        temporary.cleanup()
 
 
 if __name__ == '__main__':

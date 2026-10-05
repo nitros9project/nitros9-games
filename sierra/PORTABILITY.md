@@ -778,7 +778,7 @@ that all four module sources reject the unimplemented Wild Bits selection.
 
 ## Wild Bits implementation has started
 
-The follow-on `wildbits/wbpic.asm` is the first native presentation module.
+The follow-on `objs/wbpic.asm` is the first native presentation module.
 It implements the proposed combined-buffer-to-framebuffer path using OS-managed
 mapping, separate process data, and a terminal-owned bitmap. It accepts an
 uncompressed combined-buffer export rather than existing game resource files.
@@ -795,7 +795,7 @@ the actual OS/graphics driver: it verifies every displayed pixel, two-terminal
 picture restoration, independent exit, relaunch, and an unchanged free-memory
 map after two launch/quit cycles. The diagnostic pair and King's Quest I
 reference both passed. Physical hardware validation remains outstanding. See
-[wildbits/README.md](wildbits/README.md) for exact build/run instructions and
+[WILDBITS-README.md](WILDBITS-README.md) for exact build/run instructions and
 the acceptance checklist. The CoCo binaries continue to match `83e5fb4`.
 
 
@@ -806,11 +806,11 @@ native resource decoding. King's Quest I picture 1 was rendered and visually
 inspected as the castle scene. See the Wild Bits README for reproduction,
 supported resource encoding, and the reference hash.
 
-Native resource loading now exists as `wildbits/resource-code.asm`, exercised
+Native resource loading now exists as `objs/platform/wildbits-resource-code.asm`, exercised
 by the position-independent `wbres` probe. Real `wbjr2` MAME RBF reads matched
 the host reference for King's Quest I picture 1 and an 8 KB resource at a
 20-bit offset in volume 15. Native command decoding is described below.
-See [wildbits/ENGINE.md](wildbits/ENGINE.md) for the planned module structure:
+See [WILDBITS-ENGINE.md](WILDBITS-ENGINE.md) for the planned module structure:
 one native program may include converted routine bodies, but the old complete
 module sources cannot simply be included into an outer module. The untracked
 packed scaffold remains untouched and excluded from the build.
@@ -849,7 +849,7 @@ controller input. Real Wild Bits MAME checks cover two picture-command game
 instances, visibility switching, independent exits/relaunch and free-memory
 recovery. This is not full game acceptance: motion, vocabulary parsing, dialogs,
 sound and remaining commands still need integration. See
-[wildbits/README.md](wildbits/README.md) and [wildbits/MAME.md](wildbits/MAME.md)
+[WILDBITS-README.md](WILDBITS-README.md) and [WILDBITS-MAME.md](WILDBITS-MAME.md)
 for module budgets, exact test scope and the older test kernel's RAM limit.
 
 ## Shared-engine consolidation
@@ -870,11 +870,11 @@ mapping failures. Its emulated timeout is now 900 seconds so error-injection
 fixtures complete after the full picture comparisons.
 
 This does not complete the shared-engine migration. The native startup and
-bounded stream handling in `wildbits/decoder-code.asm` remain owner adapters;
+bounded stream handling in `objs/platform/wildbits-decoder-code.asm` remain owner adapters;
 flood-fill workspace, resource loading, logic execution, object state, and
-parser integration still require reconciliation. The `wildbits` directory
-remains needed for its active entry points and platform integration until
-those implementations are replaced. A file qualifies as shared only when
+parser integration still require reconciliation. The former `wildbits` directory has been removed: module owners now live
+in `objs`, native adapters in `objs/platform`, and host utilities in `tests`.
+Logic execution and state-layout reconciliation are still unfinished. A file qualifies as shared only when
 both platform owners assemble it.
 
 ### Shared variable and flag command execution
@@ -1024,3 +1024,32 @@ editing and path/slab cleanup. Its emulator shutdown now has a bounded kill
 fallback when the debugger is already closed and termination stalls.
 Dictionary loading/decoding, sentence normalization, input editing and full
 parser integration still need further consolidation.
+
+### Removal of the separate Wild Bits source directory
+
+The `sierra/wildbits` directory is removed. Build all Wild Bits modules with
+`make -C sierra/objs -f wildbits.mk all` from the games repository. Module
+entry points are `objs/wbgame.asm` and the diagnostic `objs/wb*.asm` owners;
+platform-specific bodies and storage definitions use `objs/platform/wildbits-*`.
+The menu construction component is `wildbits-menu-build-code.asm`, distinct
+from the existing modal `wildbits-menu-code.asm`. Host reference exporters
+and fixture generators live beside their consumers in `tests`. Port and
+emulator documentation is now `WILDBITS-README.md`, `WILDBITS-ENGINE.md` and
+`WILDBITS-MAME.md`. Test drivers read assembled products from `objs`.
+
+A forced rebuild produced byte-identical copies of all seven native modules
+and the font. The move adds no instructions, state or runtime dispatch.
+This removes the separate source/build tree but does not turn native-only
+logic into shared behavior: the remaining logic interpreter, resource and
+state-layout differences still need reconciliation. Components in `shared`
+continue to qualify as shared only when both platform owners assemble them.
+
+Validation for this layout change: all seven native modules and `wbfont`
+were byte-identical after a forced rebuild; CoCo `mnln` matched the existing
+consolidation baseline. The updated native MAME sustained test passed typed
+commands, unknown-word output, inventory, Pause/resume, subsequent input,
+interrupt exit and unchanged free memory. CPU tests cover shared commands,
+conditions, object state, parsing, rendering, compression, resource ownership
+and decoder/reference pixel equality. The host fixture and reference exporter
+were also exercised from the new build entry point. Emulator tests now bound
+shutdown and use the established idle-ROM startup helper for the viewer.

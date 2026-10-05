@@ -2,6 +2,7 @@
 """Picture replacement removes old credits while retaining outside text rows."""
 from pathlib import Path
 import re
+import subprocess
 import tempfile
 from check_wbres import exercise, idle_rom, start_cpu
 from check_wbplay import fixture
@@ -39,7 +40,11 @@ def main():
                 assert frame == expected, ('stale credits or outside text lost', top)
             print('PASS: all five picture offsets replace old credits, preserve outside text and survive repeated show.pic; complete cleanup')
         finally:
-            d.s.close(); emu.terminate(); emu.wait()
+            d.s.close(); emu.terminate()
+            try:
+                emu.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                emu.kill(); emu.wait(timeout=5)
 
 
 if __name__ == '__main__':

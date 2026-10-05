@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Erase/move sprites across pages and clips without leaving stale pixels."""
 from pathlib import Path
+import subprocess
 import tempfile
 from check_wbres import exercise, idle_rom, start_cpu
 from check_wbplay import fixture
@@ -32,7 +33,11 @@ def main():
                 assert not error and frame==expected, ('sprite trail',width,height,x,y,error)
             print('PASS: moved/erased sprites leave no trails across mapping pages, screen clips, offscreen positions or large-cel fallback; complete cleanup')
         finally:
-            d.s.close(); emu.terminate(); emu.wait()
+            d.s.close(); emu.terminate()
+            try:
+                emu.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                emu.kill(); emu.wait(timeout=5)
 
 
 if __name__=='__main__':main()

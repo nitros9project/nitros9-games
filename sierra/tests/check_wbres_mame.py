@@ -6,11 +6,9 @@ import json
 from pathlib import Path
 import shutil
 import subprocess
-import sys
 from check_wbres import fixture
 
-ROOT = Path(__file__).resolve().parents[1] / 'wildbits'
-sys.path.insert(0, str(ROOT))
+ROOT = Path(__file__).resolve().parents[1] / 'objs'
 from export_picture import resource, render
 
 

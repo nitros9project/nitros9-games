@@ -62,5 +62,7 @@ disabled. These checks do not exercise a complete playthrough or save/restore
 through the game UI.
 
 Wild Bits native presentation work and target-side testing are documented in
-[wildbits/README.md](wildbits/README.md). The first module is a combined-buffer
-viewer; the playable interpreter port is not yet implemented.
+[WILDBITS-README.md](WILDBITS-README.md). The interactive King’s Quest I port supports
+typed commands, movement, inventory and menus on the tested Wild Bits drivers.
+Build it with `make -C sierra/objs -f wildbits.mk all` from the games repository.
+Full AGI compatibility and common-engine consolidation remain unfinished.

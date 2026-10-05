@@ -1,7 +1,7 @@
-                    use       defsfile
+                    use       platform/wildbits-defsfile
 resourcebase        rmb       2
-                    use       logic-data.asm
-                    use       room-data.asm
+                    use       platform/wildbits-logic-data.asm
+                    use       platform/wildbits-room-data.asm
 scriptbase          rmb       2
 vmvariables         rmb       256
 vmflags             rmb       256
@@ -35,6 +35,6 @@ VmPlatformCommand  ldb       #E$UnkSvc
                     orcc      #1
                     rts
 VmPlatformTest      bra       VmPlatformCommand
-                    use       logic-code.asm
+                    use       platform/wildbits-logic-code.asm
                     emod
 eom                 equ       *

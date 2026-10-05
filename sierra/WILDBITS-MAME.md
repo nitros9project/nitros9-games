@@ -34,7 +34,7 @@ The test requires `os9` (ToolShed) on PATH and an already-built `wbpic`.
 
 ## Run
 
-From `sierra/wildbits`:
+From `sierra/objs`:
 
 ```sh
 python3 ../tests/check_wbpic_mame.py \

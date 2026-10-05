@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 """Execute native AGI picture commands through the integrated game owner."""
 from pathlib import Path
-import sys
 import subprocess
 import tempfile
 from check_wbres import exercise, idle_rom, start_cpu
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / 'wildbits'))
 from export_picture import resource, render
 
 

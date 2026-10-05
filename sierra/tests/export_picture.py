@@ -135,7 +135,7 @@ def main():
         parser.error('lwasm must be installed or specified with --assembler')
     try:
         payload, volume, offset = resource(args.game, args.picture)
-        output = render(args.game, payload, str(Path(args.assembler).resolve()), args.defs.resolve())
+        output = render(args.game, payload, shutil.which(args.assembler) or str(Path(args.assembler).resolve()), args.defs.resolve())
     except (ValueError, OSError, RuntimeError, subprocess.CalledProcessError) as error:
         parser.exit(1, str(error) + '\n')
     args.output.write_bytes(output)

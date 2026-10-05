@@ -1,5 +1,21 @@
 # Wild Bits engine structure
 
+## Current source layout
+
+There is no separate `sierra/wildbits` tree. Native module entry points are
+under `objs`, platform-specific bodies and private state definitions under
+`objs/platform/wildbits-*`, and routines assembled by both ports under
+`objs/shared`. The build entry point is `objs/wildbits.mk`; host exporters
+and fixtures live in `tests`.
+
+The directory integration preserves every module byte and process-data size.
+The native logic owner still differs from CoCo `mnln`: placing that owner’s
+components under `platform` identifies their current scope, but does not
+complete the common-engine migration. Shared command/condition/object/picture
+bodies continue to be used directly by both owners. Remaining native-only
+algorithms must be reconciled with the CoCo implementations as that work
+continues.
+
 ## What `objs/wildbits_engine.asm` does
 
 The existing untracked scaffold sets `WILDBITS` and includes `sierra.asm`,
@@ -53,10 +69,10 @@ The current native executables are probes for implemented interfaces. They
 are not separate processes intended to form the eventual game interpreter.
 
 `wbpic.asm` owns one OS-9 module and exercises combined-buffer presentation.
-`wbres.asm` owns another small test module and includes `resource-data.asm`
-and `resource-code.asm`. `wbdecode.asm` now includes those same resource routines
+`wbres.asm` owns another small test module and includes `objs/platform/wildbits-resource-data.asm`
+and `objs/platform/wildbits-resource-code.asm`. `wbdecode.asm` now includes those same resource routines
 directly, together with converted command, line, fill and mapped-storage bodies. It does not fork
-`wbres` or reimplement its loader. `resource-cli.asm` supplies shared probe
+`wbres` or reimplement its loader. `objs/platform/wildbits-resource-cli.asm` supplies shared probe
 argument/output handling. Each executable still has exactly one module header.
 
 The current flow is:
@@ -91,7 +107,7 @@ The interpreter follows the same include structure. `wbexec.asm` owns its
 module header and private data, includes `lzw-*`, `asset-*`, `logic-*` and
 `message-*` routine bodies, and calls them directly. It never starts `wbasset`
 as a subprocess. The eventual main game owner can use these same components
-alongside the picture/presentation includes. `logic-platform.asm` is currently
+alongside the picture/presentation includes. `objs/platform/wildbits-logic-platform.asm` is currently
 the command integration boundary, with explicit errors for unported behavior.
 The original CoCo `mnln.asm` remains the source/semantic reference; no complete
 CoCo module or fixed-address workspace is incorporated into the native owner.
@@ -266,7 +282,7 @@ been measured.
 reader, submitted IDs and saved input spans. `wildbits-format-code.asm` expands
 copied messages; `wildbits-dialog-code.asm`, `wildbits-line-input-code.asm` and
 `wildbits-menu-code.asm` provide modal interaction. The game owner selects these
-small components, while `logic-platform.asm` only routes commands and tests.
+small components, while `objs/platform/wildbits-logic-platform.asm` only routes commands and tests.
 No additional program module or merged CoCo module header is introduced.
 
 Follow and axis-direction bodies are shared includes, with an owner-specific
@@ -342,7 +358,7 @@ and resource switches still unmap through their existing paths.
 This removes the general address helper's register save/restore on common
 bytecode reads, with no additional private data. The mapped-fetch checkpoint used 6,509 bytes for `wbexec`;
 `wbgame` used 20,833 bytes with a 24,572-byte private allocation. The
-Makefile explicitly tracks `logic-fetch.asm` for the game target so edits
+Makefile explicitly tracks `objs/platform/wildbits-logic-fetch.asm` for the game target so edits
 cannot accidentally test a stale game binary.
 
 Commands 1–17 now dispatch to shared CoCo/native variable and flag handlers.

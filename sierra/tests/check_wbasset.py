@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise expanded-resource ownership, partial I/O and failing services."""
 from pathlib import Path
+import subprocess
 import tempfile
 from check_wbres import exercise, fixture, idle_rom, start_cpu
 from check_lzw import expand, packed, resources
@@ -59,7 +60,10 @@ def main():
         finally:
             d.s.close()
             emulator.terminate()
-            emulator.wait(timeout=5)
+            try:
+                emulator.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                emulator.kill(); emulator.wait(timeout=5)
 
 
 if __name__ == '__main__':

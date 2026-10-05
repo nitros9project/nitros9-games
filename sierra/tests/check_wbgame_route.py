@@ -6,6 +6,7 @@ This deliberately longer acceptance test is separate from the fixture suite.
 """
 import argparse
 from pathlib import Path
+import subprocess
 import tempfile
 from check_wbres import exercise,idle_rom,start_cpu
 
@@ -33,6 +34,10 @@ def main():
             assert state['vmobjects'][3]>0, 'ego did not move inside the new room'
             print('PASS: actual KQ1 Right/Down/Right route moves from room 1 into room 8, draws the new scene and continues movement; controlled abort, restored terminal options and complete cleanup')
         finally:
-            d.s.close();emu.terminate();emu.wait()
+            d.s.close(); emu.terminate()
+            try:
+                emu.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                emu.kill(); emu.wait(timeout=5)
 
 if __name__=='__main__':main()

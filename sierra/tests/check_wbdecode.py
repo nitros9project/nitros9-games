@@ -4,13 +4,11 @@ from pathlib import Path
 import random
 import shutil
 import subprocess
-import sys
 import tempfile
 from check_instances import symbols
 from check_wbres import exercise, fixture, idle_rom, start_cpu
 
 SIERRA = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(SIERRA / 'wildbits'))
 from export_picture import render
 
 
@@ -77,9 +75,9 @@ def main():
             assert error and not output, options
         # Execute the work-stack guard itself: the last seed fits; the next
         # must report exhaustion without overwriting the adjacent stage buffer.
-        syms = symbols(SIERRA / 'wildbits/wbdecode.map')
+        syms = symbols(SIERRA / 'objs/wbdecode.map')
         base, database = 0xE000, 0x2000
-        d.write(base, (SIERRA / 'wildbits/wbdecode').read_bytes())
+        d.write(base, (SIERRA / 'objs/wbdecode').read_bytes())
         d.write(database, bytes(syms['size']))
         d.write(database + syms['resourcebase'], database.to_bytes(2, 'big'))
         d.write(database + syms['filltop'], (4094).to_bytes(2, 'big'))

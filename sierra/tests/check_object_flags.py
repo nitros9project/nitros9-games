@@ -29,8 +29,8 @@ def main():
                         '--map='+str(image)+'.map', '-o'+str(image),
                         str(ROOT/'objs/mnln.asm')], check=True)
         coco, cs = image.read_bytes(), symbols(Path(str(image)+'.map'))
-        native = (ROOT/'wildbits/wbgame').read_bytes()
-        ns = symbols(ROOT/'wildbits/wbgame.map')
+        native = (ROOT/'objs/wbgame').read_bytes()
+        ns = symbols(ROOT/'objs/wbgame.map')
         d, emulator = start_cpu(idle_rom(folder/'idle.rom'), timeout=900)
         try:
             d.write(0xffdf,b'\0'); d.write(0xff90,b'\x4c')

@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
 """Resource-boundary checks for the host reference-picture bridge."""
 from pathlib import Path
-import sys
 import tempfile
 import unittest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'wildbits'))
 from export_picture import resource
 
 

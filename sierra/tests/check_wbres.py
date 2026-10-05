@@ -8,7 +8,7 @@ import time
 import tempfile
 from check_instances import Debugger, symbols
 
-ROOT = Path(__file__).resolve().parents[1] / 'wildbits'
+ROOT = Path(__file__).resolve().parents[1] / 'objs'
 
 
 def idle_rom(path):

@@ -56,6 +56,6 @@ implementation uses bounded OS-managed mapping windows. Selection takes place
 in `platform/picture-storage.asm` and emits no dispatch instructions.
 
 This is the first actual shared-source migration. The native logic interpreter
-and CoCo `mnln.asm` still have different state layouts and command implementations;
+(`platform/wildbits-logic-code.asm`) and CoCo `mnln.asm` still have different state layouts and command implementations;
 that reconciliation is unfinished. Moving a native-only file here would not,
 by itself, make it shared with CoCo.

@@ -1,5 +1,5 @@
-                    use       defsfile
-                    use       lzw-data.asm
+                    use       platform/wildbits-defsfile
+                    use       platform/wildbits-lzw-data.asm
 inputpointer        rmb       2
 inputend            rmb       2
 outputpointer       rmb       2
@@ -31,6 +31,6 @@ LzwWriteByte        pshs      x
                     puls      x
                     andcc     #$FE
                     rts
-                    use       lzw-code.asm
+                    use       platform/wildbits-lzw-code.asm
                     emod
 eom                 equ       *
