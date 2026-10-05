@@ -38,6 +38,7 @@ fixture:
 	python3 make_picture_fixture.py test-picture.bin
 check: all
 	python3 ../tests/check_wbgame.py
+	python3 ../tests/check_wbcredits.py
 	python3 ../tests/check_wbparser.py
 	python3 ../tests/check_wbplay.py
 	python3 ../tests/check_wbexec.py

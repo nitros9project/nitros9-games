@@ -36,6 +36,14 @@ def main():
                     window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,**options)
             error,_,_=run(fixture(bytes([134,1,0])),option_set_error=True)
             assert error==203, 'failed terminal setup did not retain its error and restore options'
+            # A five-second pause must not advance the game clock; the next
+            # ordinary second still must. Scene restoration uses the same
+            # modal backup path as print, without changing the input editor.
+            body=bytes([255,253,7,250,255,4,0,12,250,136,0,
+                        255,253,7,251,255,6,0,12,251,4,220,11,0,
+                        4,221,11,134,1,0])
+            error,_,s=run(fixture(body),keyboard=b'x',clock=(0,5,6))
+            assert not error and s['vmvariables'][220:222]==bytes([0,1]), ('pause advanced game time',error,s['vmvariables'][220:222])
             body=bytes([3,220,200,165,220,2,3,221,7,166,220,221,
                         167,220,5,168,220,221,130,255,255,222,130,0,255,223,134,1,0])
             error,_,s=run(fixture(body))
@@ -123,7 +131,7 @@ def main():
             for malformed in (b'%m1',b'%v256',b'%w0',b'%w20',b'%x1',b'%v220|3'):
                 error,_,_=run(fixture(bytes([101,1,134,1,0]),message=malformed))
                 assert error, ('malformed format accepted',malformed)
-            print('PASS: byte math, zero-divisor rejection, random range edges, follow completion/high flag, signed/absolute placement and blocked-position search, modal restoration, formatted variables/strings/words/nested messages and rejection bounds, and ownership cleanup')
+            print('PASS: byte math, zero-divisor rejection, random range edges, follow completion/high flag, signed/absolute placement and blocked-position search, pause/resume clock freezing, modal restoration, formatted variables/strings/words/nested messages and rejection bounds, and ownership cleanup')
         finally:
             d.s.close();emu.terminate();emu.wait()
 

@@ -1,5 +1,20 @@
 * print/print.v: modal text with private screen backup and no mapped wait.
 * The picture/LZW command workspace is idle until the window is dismissed.
+* Pause shares the modal restoration path. Rebaseline the game clock on
+* resume so the time spent waiting does not advance AGI seconds/minutes.
+GamePauseCommand    ldu       <resourcebase
+                    clr       dialoginputmode,u
+                    leax      GamePausePrompt,pcr
+                    lbsr      GamePrintText
+                    bcs       GamePauseReturn
+                    ldu       <resourcebase
+                    lda       #1
+                    sta       gameclockreset,u
+                    clrb
+GamePauseReturn     rts
+GamePausePrompt     fcc       /Game paused. Press a key to resume./
+                    fcb       0
+
 GamePrintCommand    ldu       <resourcebase
                     clr       dialoginputmode,u
                     ldb       vmarguments,u

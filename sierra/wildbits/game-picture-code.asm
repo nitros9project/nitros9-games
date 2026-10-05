@@ -54,7 +54,8 @@ GameCopyCommands    lda       ,u+
                     lbsr      DecodeLines
                     bcs       GamePictureReturn
                     lbsr      PictureUnmap
-                    bcs       GamePictureReturn
+                    lbcs      GamePictureReturn
+                    lbsr      GameTextClearPicture
                     ldx       <resourcebase
                     tst       gamebackgroundowned,x
                     lbne      GameSaveBackground
@@ -67,7 +68,7 @@ GamePictureInvalid  ldb       #E$BMode
                     orcc      #1
                     rts
 GameShowPicture     lbsr      AssetUnmap
-                    bcs       GamePictureReturn
+                    lbcs      GamePictureReturn
                     tst       <pictureowned
                     beq       GamePictureInvalid
                     lbsr      PresentPicture

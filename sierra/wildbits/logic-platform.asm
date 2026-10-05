@@ -47,6 +47,8 @@ VmNotInventoryCommand
                     lbeq      GameDisplayCommand
                     cmpb      #134
                     lbeq      GameQuitCommand
+                    cmpb      #136
+                    lbeq      GamePauseCommand
                     cmpb      #35
                     lbeq      GameObjectVisibility
                     cmpb      #36

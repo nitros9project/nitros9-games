@@ -289,7 +289,7 @@ restores the changed fields, retries a failed restoration once, and preserves
 the earlier failure status. Tests model non-default options and assert their
 restoration on every exit.
 
-The current module is 19,592 bytes and its private area 24,555 bytes, leaving
+The current module is 19,685 bytes and its private area 24,555 bytes, leaving
 21 bytes before a fourth data block. The code limit remains 23,808 bytes.
 Further persistent state needs a deliberate layout change. Timing/performance
 parity and complete game-command coverage are not established.

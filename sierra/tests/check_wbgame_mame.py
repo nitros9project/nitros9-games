@@ -12,6 +12,7 @@ def main():
     ap.add_argument('--module-file',type=Path)
     ap.add_argument('--typed-command', help='Exercise one command after inventory dismissal')
     ap.add_argument('--menu',action='store_true',help='Open and cancel the actual game menu')
+    ap.add_argument('--sustained',action='store_true',help='Repeat commands and select Pause through the real game menu')
     a=ap.parse_args(); out=a.output.resolve(); out.mkdir(parents=True,exist_ok=False)
     disk=out/'test.dsk'; shutil.copyfile(a.disk,disk)
     roms=out/'roms/wbjr2'; roms.mkdir(parents=True)
@@ -32,7 +33,8 @@ def main():
     install('feu.startup',b'bootos9 /s0/OS9Boot\n','FEU/startup',text=True)
     with disk.open('ab') as f:f.truncate(1 << (disk.stat().st_size-1).bit_length())
     response_frame=4000+max(700,120*len(a.typed_command or ""))
-    if a.menu and a.typed_command: ap.error("choose menu or typed-command")
+    if sum(bool(v) for v in (a.menu,a.typed_command,a.sustained))>1:
+        ap.error("choose menu, typed-command or sustained")
     if a.menu: response_frame=4700
     delay=response_frame+1000-3900 if a.typed_command or a.menu else 0
     command_events=''
@@ -51,6 +53,31 @@ def main():
  if frames==4750 then manager.machine.ioport.ports[":KEY2"].fields["Escape"]:set_value(1) end
  if frames==4760 then manager.machine.ioport.ports[":KEY2"].fields["Escape"]:clear_value() end
  if frames==5100 then shot("game-command-restored") end
+'''
+    if a.sustained:
+        delay=8000
+        command_events='''
+ if frames==4000 then post("look room\\n") end
+ if frames==5300 then shot("play-first-response") end
+ if frames==5350 then post(" ") end
+ if frames==5800 then post("nonsense\\n") end
+ if frames==7100 then shot("play-unknown-response") end
+ if frames==7150 then post(" ") end
+ if frames==7500 then manager.machine.ioport.ports[":KEY2"].fields["Escape"]:set_value(1) end
+ if frames==7510 then manager.machine.ioport.ports[":KEY2"].fields["Escape"]:clear_value() end
+ -- The twentieth item is Slow; four Up presses from item zero select Pause.
+ if frames==8000 or frames==8050 or frames==8100 or frames==8150 then keys["Up"]:set_value(1) end
+ if frames==8010 or frames==8060 or frames==8110 or frames==8160 then keys["Up"]:clear_value() end
+ if frames==8200 then shot("play-pause-selected") end
+ if frames==8250 then manager.machine.ioport.ports[":KEY2"].fields["Return"]:set_value(1) end
+ if frames==8260 then manager.machine.ioport.ports[":KEY2"].fields["Return"]:clear_value() end
+ if frames==8700 then shot("play-paused") end
+ if frames==9000 then post(" ") end
+ if frames==9300 then shot("play-resumed") end
+ if frames==9500 then post("look room\\n") end
+ if frames==10800 then shot("play-second-response") end
+ if frames==10850 then post(" ") end
+ if frames==11200 then shot("play-final-scene") end
 '''
     lua=out/'drive.lua'
     lua.write_text(f"""local frames=0
@@ -89,7 +116,7 @@ sub=emu.add_machine_frame_notifier(function()
  if frames=={5100+delay} then shot("game-closed");manager.machine:exit() end
 end)
 """)
-    command=[str(a.mame.resolve()),'wbjr2','-bios','turbo','-rompath',str(roms.parent),'-hard',str(disk),'-skip_gameinfo','-video','none','-sound','none','-nothrottle','-autoboot_script',str(lua),'-seconds_to_run',str((5100+delay)//60+10 if a.typed_command or a.menu else 100),'-nvram_directory',str(out/'nvram'),'-cfg_directory',str(out/'cfg')]
+    command=[str(a.mame.resolve()),'wbjr2','-bios','turbo','-rompath',str(roms.parent),'-hard',str(disk),'-skip_gameinfo','-video','none','-sound','none','-nothrottle','-autoboot_script',str(lua),'-seconds_to_run',str((5100+delay)//60+10 if a.typed_command or a.menu or a.sustained else 100),'-nvram_directory',str(out/'nvram'),'-cfg_directory',str(out/'cfg')]
     (out/'command.json').write_text(json.dumps(command,indent=2)+'\n')
     with (out/'mame.log').open('w') as log:subprocess.run(command,cwd=out,stdout=log,stderr=subprocess.STDOUT,check=True,timeout=180)
     exits=re.findall(r'wbgame error, opcode: ([0-9A-F]{2})', (out/'mame.log').read_text())
@@ -104,6 +131,14 @@ end)
     w,h,pixels=images['game-after-input']
     assert (w,h)==(640,480), 'inventory dimensions'
     font=(VIEWER/'wbfont').read_bytes()
+    # The first intro credit is a white D on black at row 17, column 12.
+    # It must not survive the switch to the castle or reappear after a modal.
+    for name in ('game-before-input','game-after-inventory'):
+        credit_width,credit_height,credit_pixels=images[name]
+        stale=all(credit_pixels[((272+gy*2)*credit_width+192+gx*2)*3:((272+gy*2)*credit_width+192+gx*2)*3+3]
+                  == (bytes([255])*3 if font[ord('D')*8+gy] & (128>>gx) else bytes(3))
+                  for gy in range(8) for gx in range(8))
+        assert not stale, ('intro credit returned over the castle',name)
     for col,char in enumerate('You are carrying:'):
         for gy in range(8):
             bits=font[ord(char)*8+gy]
@@ -126,6 +161,21 @@ end)
         else:
             assert colors == {bytes(3),bytes([255])*3}, 'typed command did not display a modal message'
         assert len(set(restored[2][i:i+3] for i in range(0,len(restored[2]),3)))>=12, 'command dismissal did not restore the scene'
+    if a.sustained:
+        for name in ('play-first-response','play-unknown-response','play-paused','play-second-response'):
+            w,h,pixels=png_rgb(out/(name+'.png'))
+            assert (w,h)==(640,480) and set(pixels[i:i+3] for i in range(0,len(pixels),3))=={bytes(3),bytes([255])*3}, ('modal missing',name)
+        w,h,pixels=png_rgb(out/'play-paused.png')
+        for col,char in enumerate('Game paused. Press a key to resume.'):
+            for gy in range(8):
+                for gx in range(8):
+                    expected=bytes(3) if font[ord(char)*8+gy] & (128>>gx) else bytes([255])*3
+                    address=((128+gy*2)*w+32+col*16+gx*2)*3
+                    assert pixels[address:address+3]==expected, 'Pause menu selection did not reach the pause command'
+        for name in ('play-resumed','play-final-scene'):
+            w,h,pixels=png_rgb(out/(name+'.png'))
+            assert len(set(pixels[i:i+3] for i in range(0,len(pixels),3)))>=12, ('scene missing',name)
+        print('PASS: sustained original-game commands, unknown-word response, real menu Pause selection, resume and subsequent command')
     print('PASS: real-resource startup, inventory glyphs, modal interaction/restoration, interrupt exit and unchanged memory on Wild Bits drivers; full gameplay/audio not claimed')
     print('Artifacts:',out)
 if __name__=='__main__':main()

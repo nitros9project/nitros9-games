@@ -338,3 +338,17 @@ not completion of the entire adventure.
 An optional `GAME_TRACE=1` module now appends room, last raw key and menu-entry
 count after the existing exit/opcode/stage fields. Normal builds omit these
 fields and their recording instructions.
+
+
+## Credits fix and sustained interaction
+
+The 19,685-byte build passed `--sustained` in
+`/tmp/sierra-kq1-sustained-credits-pause-verified`: original castle command, unknown-word
+response, actual Escape menu navigation to Pause, exact pause-message font
+pixels, resume, another castle command, interrupt exit and unchanged memory.
+The castle screenshot was also inspected: startup credits no longer cover it.
+The harness rejects the old credit glyph before and after inventory.
+
+`check_wbcredits.py` separately verifies exact picture/text replacement at all
+five allowed picture offsets on a real 6809 with mocked OS calls. The native
+play suite verifies clock freezing across Pause and resumed clock progression.

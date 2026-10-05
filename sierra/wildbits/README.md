@@ -432,7 +432,7 @@ survive picture refreshes. `display`/`display.v` support colors, wrapping and
 bounded `%v`, `%s`, `%w` and recursive `%m` message expansion. `print`/`print.v`
 show a modal response and restore the scene after dismissal.
 
-`wbgame` currently uses 19,592 code bytes and 24,555 private bytes. Three private
+`wbgame` currently uses 19,685 code bytes and 24,555 private bytes. Three private
 blocks, the kernel block and one mapping window leave a conservative
 23,808-byte code budget.
 Physical memory also holds resource caches, two picture slabs and the terminal
@@ -583,3 +583,25 @@ transition, a rendered new scene and continued movement. Its OS calls are
 mocked. MAME separately verifies `look room`, unknown-word formatting, real
 menu/inventory handling and cleanup. Full-game completion and two simultaneous
 full-resource games remain unverified.
+
+
+## Credits replacement and Pause
+
+`draw.pic` removes saved text cells within its configured 21-row picture
+area after the new picture successfully decodes. Previously the startup's
+“Designed and written by” credits remained in the text overlay and were drawn
+again on every castle refresh. `show.pic` still preserves text written after
+that draw; status/prompt text outside the picture area remains intact.
+`check_wbcredits.py` compares every pixel for all five picture positions,
+including repeated `show.pic` and retained outside text.
+
+The original game's Pause menu action now opens a modal pause window, restores
+the scene on a keypress and resets the clock sampling baseline. Time spent
+paused does not advance AGI game seconds; subsequent normal seconds do.
+No new private storage is required. The game still has 24,555 private bytes.
+
+The MAME harness's `--sustained` mode submits `look room`, submits an unknown
+word, selects Pause through the original game menu, resumes and submits
+`look room` again before verifying interrupt exit and unchanged free memory.
+This covers a longer interactive session; it does not establish full adventure
+completion, save/restore or sound support.

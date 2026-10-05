@@ -6,6 +6,18 @@ GameTextClear       clr       ,x+
                     bne       GameTextClear
                     rts
 
+* draw.pic replaces all pixels within the configured 21-row picture area.
+* Drop the corresponding saved text too, or the next frame resurrects old
+* credits/messages over the new picture. Keep status/input rows outside it.
+GameTextClearPicture ldu      <resourcebase
+                    lda       <vmpicturetop
+                    ldb       #40
+                    mul
+                    leax      textcharacters,u
+                    leax      d,x
+                    ldy       #840
+                    bra       GameTextClear
+
 * display/display.v. Messages are copied into private persistent cells;
 * a framebuffer refresh can redraw them without reopening the logic slab.
 GameDisplayCommand  ldu       <resourcebase
