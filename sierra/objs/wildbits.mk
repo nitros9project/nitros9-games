@@ -64,6 +64,7 @@ check: all probes
 	python3 ../tests/check_text_helpers.py
 	python3 ../tests/check_string_slots.py
 	python3 ../tests/check_object_coordinates.py
+	python3 ../tests/check_move_direction.py
 	python3 ../tests/check_said.py
 	python3 ../tests/check_wbgame.py
 	python3 ../tests/check_wbcredits.py

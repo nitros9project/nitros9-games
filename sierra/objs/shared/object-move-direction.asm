@@ -1,4 +1,7 @@
-* Stack arguments and thresholds are identical in both owners.
+* Common target-direction classifier for both owners. Stack arguments are
+* current X/Y, target X/Y, then a word-sized threshold. Native per-cycle
+* stepping supplies threshold one for exact sign classification; move setup
+* and CoCo stepping supply the actual step threshold.
 CalcMoveDir         leas      -$03,s    allocate three local bytes
                     clra                clear A = 0
                     sta       $09,s     clear computed direction slot

@@ -358,35 +358,21 @@ MotionNoCollision   clrb
 MotionCollided      ldb       #1
                     rts
 
-MotionMoveDirection clrb
-                    lda       4,u
-                    cmpa      $28,u
-                    beq       MotionMoveHorizontal
-                    blo       MotionMoveDown
-                    ldb       #1
-                    bra       MotionMoveHorizontal
-MotionMoveDown      ldb       #5
-MotionMoveHorizontal lda      3,u
-                    cmpa      $27,u
-                    beq       MotionMoveDirectionStore
-                    blo       MotionMoveRight
-                    tstb
-                    bne       MotionMoveLeftDiagonal
-                    ldb       #7
-                    bra       MotionMoveDirectionStore
-MotionMoveLeftDiagonal decb
-                    bne       MotionMoveDirectionStore
-                    ldb       #8
-                    bra       MotionMoveDirectionStore
-MotionMoveRight     tstb
-                    bne       MotionMoveRightDiagonal
-                    ldb       #3
-                    bra       MotionMoveDirectionStore
-MotionMoveRightDiagonal incb
-                    cmpb      #6
-                    bne       MotionMoveDirectionStore
-                    ldb       #4
-MotionMoveDirectionStore stb  $21,u
+* Native stepping chooses by sign, then clamps coordinates to the target.
+* Threshold one makes the shared axis classifier distinguish negative/zero/
+* positive byte deltas exactly; the object's real step remains in MotionTargetClamp.
+MotionMoveDirection pshs      x
+                    ldd       #1
+                    pshs      d
+                    ldd       $27,u
+                    pshs      d
+                    ldd       3,u
+                    pshs      d
+                    lbsr      CalcMoveDir
+                    leas      6,s
+                    puls      x
+                    tfr       a,b
+                    stb       $21,u
                     rts
 MotionArrived       lda       $29,u
                     sta       $1E,u

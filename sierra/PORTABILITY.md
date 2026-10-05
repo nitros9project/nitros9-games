@@ -2050,3 +2050,35 @@ repeated original-game commands, unknown-word response, inventory interaction,
 real menu Pause/resume, a subsequent command, interrupt exit and unchanged free
 memory. Artifacts: `/tmp/sierra-shared-dictionary-onepass-play`. CoCo sources and
 the common matching kernel are unchanged by this native adapter optimization.
+
+### Common native move-to direction classification
+
+The separate `MotionMoveDirection` eight-way calculation is removed. Native
+per-cycle stepping now calls `shared/object-move-direction.asm` through its
+existing `CalcMoveDir` entry. Threshold one classifies each byte-coordinate
+difference as negative, zero or positive, preserving native exact-target
+selection. The subsequent `MotionTargetClamp` still applies the real step and
+prevents overshooting. CoCo stepping and native command setup retain their
+existing actual-step threshold policy.
+
+The native wrapper saves/restores X, passes current/target coordinates and the
+threshold on the stack, stores the returned direction in object field `$21`,
+and preserves U/Y and process data. It adds up to nineteen transient stack bytes
+below the entry stack pointer, within the existing runtime stack reserve. This
+is not a zero-overhead substitution: it replaces inline classification with a
+call to the common algorithm. CoCo's production instructions are unchanged.
+The native module shrinks 28 bytes to 22,266, with private size still 24,570.
+
+The focused regression passed 9,280 calls through actual CoCo/native entries
+at two code addresses each. It covers every current/target coordinate byte,
+unsigned/signed-boundary edge combinations, all nine results (including stopped),
+record/context preservation, private state, stack guards and immutable code.
+
+The full native game regression also passed, including repeated move-to cycles,
+exact target completion, composition, inventory and cleanup. The gameplay helper
+suite passed. Wild Bits MAME ordinary movement remained approximately nine AGI
+pixels per 3.33 emulated seconds, with startup/inventory/modal restoration and
+unchanged free memory; artifacts are under
+`/tmp/sierra-shared-native-direction-movement`. That ordinary movement measurement
+does not benchmark the additional call cost of move-to mode. Native game and all
+probes build successfully.

@@ -176,3 +176,10 @@ indexes encoded groups in the idle formatter-output scratch area. That index is
 rebuilt after every `ParserParse`; no additional private bytes are allocated.
 Native parser tests bound dictionary file reads per line and include a second
 submission, protecting this scratch lifetime and avoiding repeated full scans.
+
+Native per-cycle move-to direction now calls the existing `CalcMoveDir` in
+`object-move-direction.asm`, removing its separate eight-way algorithm. Its
+wrapper supplies threshold one so negative/zero/positive coordinate differences
+retain the previous native direction choices; target clamping still uses the
+real step size. The wrapper preserves private context X and object cursor U.
+`check_move_direction.py` exercises both production paths at two addresses.
