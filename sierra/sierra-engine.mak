@@ -127,3 +127,6 @@ mnln: ../objs/shared/object-coordinate-step.asm ../objs/platform/coordinate-step
 
 mnln: ../objs/shared/object-coordinate-clamp.asm ../objs/platform/coordinate-clamp-operands.asm \
 	../objs/platform/coco-coordinate-clamp-operands.asm
+
+shdw: ../objs/shared/object-terrain-scan.asm ../objs/shared/object-terrain-constraints.asm \
+	../objs/platform/terrain-operands.asm ../objs/platform/coco-terrain-operands.asm

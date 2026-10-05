@@ -197,3 +197,13 @@ preserve dimension checks, comparison scheduling, early vertical exits and
 byte-versus-word horizon policy. Legacy entry aliases remain available. Native
 and all fourteen rebuilt CoCo title modules are byte-identical; terrain,
 object collision and position commit remain separate.
+
+`object-terrain-scan.asm` and `object-terrain-constraints.asm` now supply baseline
+control/water/trigger classification and water-only/land-only constraints for
+both production owners. Pixel access, packed-priority representation, counters,
+flag storage and blocked exits are bound in `platform/*-terrain-operands.asm`.
+CoCo preserves clearing water before conditional-control rejection; native
+clears it afterward. Native trigger counts and CoCo's raw signal value remain
+owner policies. Mapping, priority-15 bypass, ego flag publication and cleanup
+remain outside the common rules. The production-kernel regression covers all
+priorities/control/status bytes, mixed baselines and both owners at two addresses.

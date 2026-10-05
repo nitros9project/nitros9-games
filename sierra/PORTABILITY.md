@@ -2128,3 +2128,40 @@ The previously verified full native game and MAME results cover the identical
 production binary; no fresh emulator run is claimed. Native remains 22,266 code
 bytes and 24,570 private bytes. Target clamping, terrain/object collision,
 placement orchestration and final position commit remain further migration work.
+
+### Shared baseline terrain classification and constraints
+
+`shared/object-terrain-scan.asm` now classifies baseline pixels for both the CoCo
+`ObjChkControl` path and native `MotionTerrain`. Priority zero blocks, priority
+one requires ignore-control, priority two signals, and priority three is water.
+`shared/object-terrain-constraints.asm` applies the common water-only and land-only
+status bits after scanning. The two owner copies of these rules are removed.
+
+`platform/*-terrain-operands.asm` supplies pixel reads, width progression,
+control/status operands, metadata writes and rejected exits. CoCo reads mapped
+packed pixels directly and compares upper-nibble constants; native uses its
+picture-pointer provider and decoded priority values. The scan therefore adds
+no conversions to the CoCo pixel path. CoCo retains its raw signal value and
+water clearing before conditional-control rejection. Native retains its trigger
+count and clears water after accepting a conditional-control pixel. The explicit
+water-first trait preserves the differing metadata on rejected moves.
+
+Mapping and priority setup, CoCo's priority-15 bypass, native unmapping/error
+cleanup and ego flag publication remain owner responsibilities. Those lifecycle
+steps are not claimed as consolidated. This extraction reorders branches and is
+not byte-identical. KQ1 `shdw` grows from 2,484 to 2,486 bytes; native `wbgame`
+grows eight bytes to 22,274 / 23,808, with private size unchanged at 24,570.
+There is no runtime dispatch or added state. No CoCo hardware timing benchmark
+was performed; native ordinary movement retains its measured MAME rate.
+
+The focused CPU regression passed 3,328 production-owner scan/constraint calls
+at two code addresses each. It covers every priority, every control/status byte,
+mixed water/trigger/blocked baselines, owner metadata policies, record/private
+state, stack guards and immutable code. Only native pixel mapping is substituted;
+classification and constraints execute real assembled instructions. The native
+full-game regression passed, including water/land/control blocking, composition,
+move-to completion, inventory and cleanup. All fourteen CoCo `shdw` title builds
+and native probes pass. MAME movement remained approximately nine AGI pixels in
+3.33 emulated seconds; two-terminal pixel restoration, independent exit/relaunch
+and free-memory checks also passed. Artifacts: `/tmp/sierra-shared-terrain-movement`
+and `/tmp/sierra-shared-terrain-terminals`.

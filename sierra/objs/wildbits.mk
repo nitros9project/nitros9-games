@@ -65,6 +65,7 @@ check: all probes
 	python3 ../tests/check_string_slots.py
 	python3 ../tests/check_object_coordinates.py
 	python3 ../tests/check_move_direction.py
+	python3 ../tests/check_object_terrain.py
 	python3 ../tests/check_said.py
 	python3 ../tests/check_wbgame.py
 	python3 ../tests/check_wbcredits.py
@@ -177,3 +178,5 @@ wbgame: platform/dictionary-operands.asm
 wbgame: platform/coordinate-step-operands.asm
 
 wbgame: platform/coordinate-clamp-operands.asm
+
+wbgame: platform/terrain-operands.asm

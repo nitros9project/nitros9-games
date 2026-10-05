@@ -188,51 +188,15 @@ MotionTerrain       tst       <pictureowned
                     sta       motionwater,x
                     clr       motiontrigger,x
                     clr       motioncolumn,x
-MotionTerrainPixel  ldb       motiony+1,x
-                    lda       #160
-                    mul
-                    addd      motionx,x
-                    addb      motioncolumn,x
-                    adca      #0
-                    lbsr      PicturePointer
-                    tst       <decodeerror
-                    bne       MotionTerrainError
-                    lda       ,u
-                    lsra
-                    lsra
-                    lsra
-                    lsra
-                    ldu       motionobject,x
-                    tsta
-                    beq       MotionTerrainBlocked
-                    cmpa      #1
-                    bne       MotionTerrainTrigger
-                    ldb       $26,u
-                    bitb      #2
-                    beq       MotionTerrainBlocked
-MotionTerrainTrigger cmpa     #2
-                    bne       MotionTerrainWater
-                    inc       motiontrigger,x
-MotionTerrainWater  cmpa      #3
-                    beq       MotionTerrainAdvance
-                    clr       motionwater,x
-MotionTerrainAdvance inc      motioncolumn,x
-                    ldb       motioncolumn,x
-                    cmpb      $1C,u
-                    blo       MotionTerrainPixel
+                    use platform/terrain-operands.asm
+MotionTerrainPixel  equ TerrainPixelLoop
+MotionTerrainAdvance equ TerrainPixelAdvance
+                    use shared/object-terrain-scan.asm
                     lbsr      PictureUnmap
                     lbcs      MotionReturn
                     ldx       <resourcebase
                     ldu       motionobject,x
-                    lda       $25,u
-                    bita      #1
-                    beq       MotionTerrainLand
-                    tst       motionwater,x
-                    beq       MotionTerrainBlocked
-MotionTerrainLand   bita      #8
-                    beq       MotionTerrainAccept
-                    tst       motionwater,x
-                    bne       MotionTerrainBlocked
+                    use shared/object-terrain-constraints.asm
 MotionTerrainAccept tst       motionid,x
                     bne       MotionTerrainDone
                     lda       motionwater,x

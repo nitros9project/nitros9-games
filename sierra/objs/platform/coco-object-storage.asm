@@ -40,42 +40,14 @@ SkipPriCalc         lda       #$A0      set up PBUF_MULT()
 
 *  do while cx != 0
 
-PriLoop             lda       ,u+       (pri) put byte at pb in acca and bump pointer
-                    anda      #$F0      and that with $F0  (obstacle ??)
-                    beq       ClearFlagControl if it equals 0 set flag_control =0 and check_finish
-
-                    cmpa      #$30      compare pri to 48 (water ??)
-                    beq       PriLoopNext not equal  move to end of loop
-                    clr       ScratchA6 clear the water flag
-                    cmpa      #$10      compare it with 16 (conditional ??)
-                    beq       TestObserveBlocks if equal go test for observe blocks
-                    cmpa      #$20      compare with 32
-                    beq       StoreFlagSignal pri=$20 signal this object
-
-PriLoopNext         decb                decrement cx
-                    bne       PriLoop   not zero yet loop again
-
-                    lda       $25,x     load flags in  acca
-                    tst       ScratchA6 test flag_water
-                    bne       TestHrznIgnore not zero next test
-                    bita      #O_DRAWN  should be O_WATER Looks like a BUG in ours
-                    beq       CheckFinish if it equals one head for check_finish
-                    bra       ClearFlagControl clear that flag control first and leave
-TestHrznIgnore      bita      #O_HRZNIGNORE should be O_LAND  Looks like a BUG in ours
-                    beq       CheckFinish horizon-ignore clear go check finish
-
-ClearFlagControl    clr       FlagControl clear flag_control
-                    bra       CheckFinish head for check_finish
-
-TestObserveBlocks   lda       $26,x     load flags in acca
-                    bita      #O_BLKIGNORE and with $02 but don't change
-                    beq       ClearFlagControl equals zero clear flag_control and go check_finish
-                    bra       PriLoopNext then  head back in the loop
-
-StoreFlagSignal     sta       ScratchA5 store acca at flag signal (obj_picbuff.c has =1)
-                    bra       PriLoopNext continue with loop
-
-
+                    use platform/terrain-operands.asm
+PriLoop             equ TerrainPixelLoop
+PriLoopNext         equ TerrainPixelAdvance
+                    use shared/object-terrain-scan.asm
+                    use shared/object-terrain-constraints.asm
+                    bra       CheckFinish
+ClearFlagControl    clr       FlagControl
+                    bra       CheckFinish
 
 CheckFinish         lda       $02,x     load num
                     bne       ObjChkDone if not zero were done head out
