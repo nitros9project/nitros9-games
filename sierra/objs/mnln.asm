@@ -1610,8 +1610,7 @@ EraseObjScan        lbsr      SetWaterRange classify objects by water terrain
 EraseObjDone        leas      $04,s     release local stack frame
                     rts
 
-XorKeyStr           fcc       /Avis Durgan/
-                    fcb       0
+                    use shared/agi-xor-key.asm
 
 *
 *======================================================================
@@ -1620,20 +1619,7 @@ XorKeyStr           fcc       /Avis Durgan/
 *   on load before execution.
 *======================================================================
 *
-XorDecrypt          leas      -$02,s    allocate 2-byte stack slot for pointer
-                    stu       ,s        save end-of-buffer pointer
-                    leau      >XorKeyStr,pcr point U to start of XOR key string
-XorDecryptLoop      cmpx      ,s        compare X (current pos) to end pointer
-                    bcc       XorDecryptDone branch if past end of buffer
-                    tst       ,u        check if key pointer at null terminator
-                    bne       XorDecryptWrap branch if not at end of key
-                    leau      >XorKeyStr,pcr wrap key pointer back to start
-XorDecryptWrap      lda       ,x        load current ciphertext byte
-                    eora      ,u+       XOR with key byte, advance key pointer
-                    sta       ,x+       store decrypted byte, advance data pointer
-                    bra       XorDecryptLoop loop until all bytes decrypted
-XorDecryptDone      leas      $02,s     release stack pointer slot
-                    rts
+                    use shared/xor-decrypt.asm
 
 StrBell             fcb       7,0
 StrQuitMsg2         fcb       $0a

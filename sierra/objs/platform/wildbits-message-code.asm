@@ -106,4 +106,5 @@ MessageInvalid      ldb       #E$BMode
                     orcc      #1
                     rts
 
-MessageXorKey       fcc       /Avis Durgan/
+MessageXorKey       equ       XorKeyStr
+                    use shared/agi-xor-key.asm

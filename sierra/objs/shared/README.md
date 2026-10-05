@@ -119,3 +119,8 @@ substitution providers remain owner-specific.
 return and outer-scan continuation. CoCo generic/global substitutions and
 native message expansion use these pieces with their original argument ABI.
 The actual recursion frame layout and message readers remain owner-specific.
+
+`xor-decrypt.asm` is the in-place AGI buffer cipher used by CoCo and the
+native object-file loader. `agi-xor-key.asm` defines their immutable key;
+native streaming message decryption references it too. File/mapped-message
+bounds and object validation stay in their storage providers.

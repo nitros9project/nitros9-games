@@ -55,6 +55,7 @@ check: all probes
 	python3 ../tests/check_motion_setup.py
 	python3 ../tests/check_cel_advance.py
 	python3 ../tests/check_inventory_commands.py
+	python3 ../tests/check_xor_decrypt.py
 	python3 ../tests/check_text_helpers.py
 	python3 ../tests/check_string_slots.py
 	python3 ../tests/check_object_coordinates.py

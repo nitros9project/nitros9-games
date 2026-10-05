@@ -1767,3 +1767,43 @@ There is no new runtime dispatch, code growth or stack allocation. This shares
 recursive invocation/result continuation, not message-table acquisition,
 source-frame allocation or the full formatter. Those layers and word/message
 providers still need consolidation.
+
+### Shared AGI buffer decryption and key
+
+`shared/xor-decrypt.asm` is now the actual in-place XOR implementation for
+both CoCo and native object-file loading. The native loader computes the
+exclusive end of its already-bounded private object buffer and calls that
+same routine instead of maintaining a second counted loop. The helper uses
+X as the advancing data pointer, stores the end pointer in two stack bytes,
+and cycles an immutable key pointer at its NUL sentinel. It leaves Y/DP
+unchanged; the native caller explicitly restores Y to zero, retaining the
+old counted-loop result before object validation. The native caller reloads
+its process context afterward. Buffer length/table/name validation and
+error handling remain unchanged.
+
+`shared/agi-xor-key.asm` supplies the single immutable `Avis Durgan` key and
+sentinel for each assembled owner. The native message reader aliases that
+same key instead of containing another copy. Message strings still use the
+existing checked streaming reader and per-message modulo/key index; this
+change does not replace its bounds or decryption phase logic. The key is
+included by the message component so the bytecode-only probe, which has no
+inventory loader, also builds independently.
+
+All fourteen CoCo engines remain byte-identical. Native game code is five
+bytes smaller (21,786 bytes); private data remains 24,568 bytes. The native
+decryptor removes per-byte stack-based key-end comparisons. It temporarily
+adds the call return address and one two-byte local end pointer, released
+before validation; no process-owned storage or writable code is introduced.
+The direct CPU test passed 2,108 real helper calls across both owners and
+two load addresses, covering lengths 0–256, key-wrap boundaries, 511/512,
+1023/1024 and 2047/2048-byte buffers, symmetric encryption/decryption,
+empty/reversed spans, guards, stack/register contracts and immutable code/key.
+The native engine regression passed real encrypted object files, inventory
+transfers/predicates/selection/scrolling, malformed/truncated/oversized object
+rejection and complete cleanup. Gameplay regression also passed nested
+messages and all supported formatting providers. Real Wild Bits MAME passed
+sustained commands, inventory/modal restoration, pause/resume, interrupt exit
+and unchanged free memory.
+
+The corresponding two-terminal MAME run also passed every displayed pixel,
+restoration, independent exit/relaunch and unchanged free-memory maps.

@@ -48,22 +48,10 @@ InventoryReadEnd    cmpb      #E$EOF
                     ldd       inventorylength,u
                     cmpd      #3
                     lblo      InventoryInvalid
-                    tfr       d,y
                     leax      inventoryfile,u
-                    leau      InventoryCipherKey,pcr
-InventoryDecrypt    lda       ,x
-                    eora      ,u+
-                    sta       ,x+
-* Compare the key pointer directly against the position-independent end.
-                    pshs      x
-                    leax      InventoryKeyEnd,pcr
-                    pshs      x
-                    cmpu      ,s++
-                    puls      x
-                    bne       InventoryKeyReady
-                    leau      InventoryCipherKey,pcr
-InventoryKeyReady   leay      -1,y
-                    bne       InventoryDecrypt
+                    leau      d,x
+                    lbsr      XorDecrypt
+                    ldy       #0        ; retain the old countdown-loop result
                     ldu       <resourcebase
                     leax      inventoryfile,u
                     ldb       ,x
@@ -134,8 +122,7 @@ InventoryInvalid    ldb       #E$BMode
                     rts
 InventoryFilename   fcc       /object/
                     fcb       C$CR
-InventoryCipherKey  fcc       /Avis Durgan/
-InventoryKeyEnd     equ       *
+                    use shared/xor-decrypt.asm
 
 * Command rules shared with CoCo; item/name loading and storage stay native.
                     use       platform/wildbits-inventory-operands.asm

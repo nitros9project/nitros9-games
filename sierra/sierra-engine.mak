@@ -97,4 +97,6 @@ mnln: ../objs/shared/unsigned-decimal.asm \
 	../objs/shared/format-recursive-call.asm \
 	../objs/shared/format-expansion.asm \
 	../objs/platform/format-recursion-operands.asm \
-	../objs/platform/coco-format-recursion-operands.asm
+	../objs/platform/coco-format-recursion-operands.asm \
+	../objs/shared/agi-xor-key.asm \
+	../objs/shared/xor-decrypt.asm
