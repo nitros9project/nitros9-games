@@ -1503,28 +1503,9 @@ TestSaid            lda       ,y+       load word count argument (said test)
                     anda      #$20      test player-input flag
                     beq       SaidCheckDone branch if no input to check
                     ldx       #$0194    point to parsed-words buffer
-SaidMatchLoop       lda       <$0072    load remaining words to match
-                    beq       SaidCheckDone branch if all words matched (success)
-                    ldb       ,y+       load first byte of word ID
-                    lda       ,y+       load second byte of word ID
-                    dec       <$0072    decrement remaining word count
-                    cmpd      #$270F    check for "any word" wildcard ($270F)
-                    bne       SaidCheckWild branch if not wildcard
-                    lda       <$0072    load remaining count after wildcard
-                    beq       SaidSetMatch branch if at end of word list (match)
-                    lsla                multiply remaining count by 2
-                    leay      a,y       skip remaining word IDs in script
-                    lbra      SaidSetMatch signal match
-SaidCheckWild       tst       <$0073    check if any parsed words remain
-                    bne       SaidWordCompare branch if more parsed words to check
-                    inc       <$0073    indicate out of parsed words (no match)
-                    lbra      SaidCheckDone
-SaidWordCompare     cmpd      ,x++      compare word ID to parsed word (advance X)
-                    beq       SaidWordMatch branch if word matches
-                    cmpd      #$0001    check for "any/rest" wildcard ($0001)
-                    bne       SaidCheckDone branch if no match and not wildcard
-SaidWordMatch       dec       <$0073    decrement remaining parsed word count
-                    bra       SaidMatchLoop loop to match next word
+SaidExpected        equ       $0072
+SaidParsed          equ       $0073
+                    use       shared/said-match.asm
 SaidCheckDone       ldd       <$0072    load remaining words + remaining parsed words
                     bne       SaidNoMatch branch if unmatched words remain
 SaidSetMatch        lda       >$01AE    load game state flags
@@ -1972,12 +1953,9 @@ StrZeroPadDo        clr       b,u       null-terminate at the correct position
                     puls      x         restore original destination X
                     leas      $0B,s     release local stack frame
                     rts
-ToLower             cmpa      #$41      check if char is below 'A'
-                    bcs       ToLowerRet branch if below 'A' (not uppercase)
-                    cmpa      #$5A      check if char is above 'Z'
-                    bhi       ToLowerRet branch if above 'Z' (not uppercase)
-                    ora       #$20      set bit 5 to convert to lowercase
-ToLowerRet          rts
+ToLower             equ       LowercaseByte
+ToLowerRet          equ       LowercaseReturn
+                    use       shared/ascii-lower.asm
 *
 *======================================================================
 * RANDOM NUMBER COMMAND

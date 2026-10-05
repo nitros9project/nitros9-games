@@ -419,3 +419,9 @@ The shared-cycle/motion build (21,230 code / 24,572 private bytes) passed
 `--sustained` at `/tmp/sierra-shared-cycle-motion-sustained`. The later rate
 extraction produces the identical native binary. Native pixel/motion tests
 and cross-platform state/rate/completion-flag checks also passed.
+
+The shared-said/case-folding build (21,235 code / 24,572 private bytes) passed
+`--sustained` at `/tmp/sierra-shared-said-sustained`, including typed original
+commands, unknown-word response, inventory/modal restoration, Pause/resume,
+subsequent input, interrupt exit and unchanged free memory. Cross-platform
+said/folding and native compressed-vocabulary parser checks also passed.

@@ -994,3 +994,33 @@ rate/countdown edge values 0/1/127/255 resolved through variable index 255.
 Native pixel/motion/animation and real-driver sustained-play checks passed.
 Animation progression, coordinate stepping, resource ownership and parser
 integration are still separate and require further consolidation.
+
+### Shared said matching and case folding
+
+`objs/shared/said-match.asm` is now the actual matching loop assembled by
+both CoCo `TestSaid` and native `ParserSaid`. Script word IDs are read little
+endian; parsed dictionary IDs are compared big endian. ID 1 consumes any one
+word and ID 9999 accepts the remaining input, advancing over remaining script
+operands as in CoCo. Ordinary matches require both lists to end together.
+The owners gate input/already-accepted flags and store the acceptance result.
+Their existing packed-bit/byte flags and A/B boolean conventions remain intact.
+
+The loop uses owner-provided adjacent remaining-count scratch. CoCo retains
+$72/$73; native reuses `vmleft`/`vmright`, which are dead comparison scratch
+during this external test. No process-private data is added. The native VM
+continues bounding and copying said operands before calling the matcher.
+
+`ascii-lower.asm` supplies both `ToLower` and `ParserLower` with ASCII-only
+folding. B/X/Y/U remain unchanged; condition flags are unspecified. The CoCo
+module remains byte-for-byte identical. Native game code is now 21,235 bytes
+with unchanged 24,572 private bytes; the non-game interpreter is unchanged.
+
+`tests/check_said.py` executes both real engine adapters, including exact and
+length/mismatch cases, both wildcards (including ignored trailing operands),
+16-bit ID byte order, no-input/already-accepted gates, cursor guards, repeated
+acceptance, and exhaustive folding of all 256 byte values. The original typed
+parser test covers compressed vocabulary phrases, ignored/unknown words,
+editing and path/slab cleanup. Its emulator shutdown now has a bounded kill
+fallback when the debugger is already closed and termination stalls.
+Dictionary loading/decoding, sentence normalization, input editing and full
+parser integration still need further consolidation.

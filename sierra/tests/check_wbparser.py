@@ -2,6 +2,7 @@
 """Execute typed vocabulary/said scenarios with native 6809 instructions."""
 from pathlib import Path
 import tempfile
+import subprocess
 from check_wbres import exercise, idle_rom, start_cpu
 
 
@@ -64,6 +65,9 @@ def main():
                 assert error, ('malformed vocabulary accepted',malformed[:60])
             print('PASS: typed commands, case folding, prefix-compressed phrases, ignored words, backspace, unknown indexes, said wildcards and single acceptance; closed paths and freed slabs')
         finally:
-            d.s.close(); emulator.terminate(); emulator.wait()
+            d.s.close(); emulator.terminate()
+            try: emulator.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                emulator.kill(); emulator.wait(timeout=5)
 
 if __name__ == '__main__': main()

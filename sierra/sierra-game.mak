@@ -130,3 +130,7 @@ mnln: ../objs/shared/object-cycle-state.asm
 mnln: ../objs/shared/object-motion-state.asm
 
 mnln: ../objs/shared/object-rate-state.asm
+
+mnln: ../objs/shared/said-match.asm
+
+mnln: ../objs/shared/ascii-lower.asm

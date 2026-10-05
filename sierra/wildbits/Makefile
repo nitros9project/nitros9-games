@@ -39,6 +39,7 @@ fixture:
 check: all
 	python3 ../tests/check_coco_conditions.py
 	python3 ../tests/check_object_flags.py
+	python3 ../tests/check_said.py
 	python3 ../tests/check_wbgame.py
 	python3 ../tests/check_wbcredits.py
 	python3 ../tests/check_wbsprite_damage.py
@@ -109,3 +110,7 @@ wbexec wbgame: ../objs/shared/object-cycle-state.asm
 wbexec wbgame: ../objs/shared/object-motion-state.asm
 
 wbexec wbgame: ../objs/shared/object-rate-state.asm
+
+wbgame: ../objs/shared/said-match.asm
+
+wbgame: ../objs/shared/ascii-lower.asm

@@ -28,12 +28,9 @@ ParserCopy          lda       ,x+
                     blo       ParserCopy
 ParserCopyDone      clr       ,y
                     lbra      ParserParse
-ParserLower         cmpa      #'A
-                    blo       ParserLowerDone
-                    cmpa      #'Z
-                    bhi       ParserLowerDone
-                    adda      #32
-ParserLowerDone     rts
+ParserLower         equ       LowercaseByte
+ParserLowerDone     equ       LowercaseReturn
+                    use       shared/ascii-lower.asm
 ParserParse         lbsr      ParserNormalize
                     lbsr      AssetUnmap
                     lbcs      ParserReturn
@@ -253,37 +250,25 @@ ParserSaid          ldu       <resourcebase
                     beq       ParserFalse
                     tst       vmflags+4,u
                     bne       ParserFalse
-                    leax      vmarguments,u
-                    leay      parserids,u
+                    leax      parserids,u
+                    leay      vmarguments,u
                     lda       parsercount,u
-                    sta       parserseen,u
-                    ldb       <vmargcount
-                    pshs      b
-ParserSaidWord      tst       ,s
-                    beq       ParserSaidEnd
-                    ldb       ,x+
-                    lda       ,x+
-                    dec       ,s
-                    dec       ,s
-                    cmpd      #9999
-                    beq       ParserSaidTrue
-                    tst       parserseen,u
-                    beq       ParserSaidFalse
-                    cmpd      ,y++
-                    beq       ParserSaidMatched
-                    cmpd      #1
-                    bne       ParserSaidFalse
-ParserSaidMatched   dec       parserseen,u
-                    bra       ParserSaidWord
-ParserSaidEnd       tst       parserseen,u
-                    bne       ParserSaidFalse
-ParserSaidTrue      leas      1,s
-                    lda       #1
+                    sta       <vmright
+                    lda       <vmargcount
+                    lsra
+                    sta       <vmleft
+SaidExpected        equ       vmleft
+SaidParsed          equ       vmright
+                    use       shared/said-match.asm
+SaidCheckDone       ldd       <SaidExpected
+                    bne       SaidNoMatch
+SaidSetMatch        lda       #1
                     sta       vmflags+4,u
                     ldb       #1
                     andcc     #$FE
                     rts
-ParserSaidFalse     leas      1,s
+SaidNoMatch         lsla
+                    leay      a,y
 ParserFalse         clrb
                     rts
 * Unbound printable keys feed the input line; controllers retain precedence.

@@ -15,6 +15,9 @@ owners. They allocate no state and contain no OS-9 module header.
   flag storage adapters for set, clear and toggle.
 - `condition-tests.asm`: the six unsigned comparisons and direct/indirect
   flag predicates, with owner-provided operands and boolean return adapters.
+- `said-match.asm`: word-ID matching, single-word/rest wildcards, and expected
+  operand cursor advancement; owners supply input flags and result adapters.
+- `ascii-lower.asm`: ASCII-only folding with register preservation.
 - `agi-test-table.asm`: one 19-entry condition catalog, expanded into CoCo
   handler/operand descriptors or native operand counts.
 - `agi-command-table.asm`: one command catalog, expanded into CoCo handler
