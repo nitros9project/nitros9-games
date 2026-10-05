@@ -2082,3 +2082,23 @@ unchanged free memory; artifacts are under
 `/tmp/sierra-shared-native-direction-movement`. That ordinary movement measurement
 does not benchmark the additional call cost of move-to mode. Native game and all
 probes build successfully.
+
+### Shared direction-vector coordinate stepping
+
+`shared/object-coordinate-step.asm` now computes candidate coordinates in both
+`UpdateAllMotion` and `GameUpdateObjects`: zero direction components leave the
+axis alone; negative/positive components subtract/add the word-sized step. It
+consumes the existing common X/Y direction tables. The owner bindings expose
+candidate X/Y and step operands plus direction lookup; CoCo uses its private
+stack frame and X table cursor, while native uses private context X and table
+cursor Y. No new state or runtime dispatch is allocated.
+
+The store-joining trait preserves CoCo's separate minus-path store and native's
+joined stores. All fourteen rebuilt CoCo title modules and native `wbgame` are
+byte-identical to the preceding revision, preserving instruction cost, sizes,
+register behavior and stack use. Native probes also build. The preceding full
+native game regression and MAME checks cover the identical production binary;
+no additional emulator run is claimed for this source-only extraction. This
+shares vector stepping, not the complete movement pipeline: initialization,
+clamping/horizon policy, collision/terrain checks and position commit remain
+further consolidation work.

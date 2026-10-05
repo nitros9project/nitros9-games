@@ -121,3 +121,6 @@ mnln: ../objs/shared/unsigned-decimal.asm \
 
 mnln: ../objs/shared/dictionary-lookup.asm ../objs/platform/dictionary-operands.asm \
 	../objs/platform/coco-dictionary-operands.asm
+
+mnln: ../objs/shared/object-coordinate-step.asm ../objs/platform/coordinate-step-operands.asm \
+	../objs/platform/coco-coordinate-step-operands.asm

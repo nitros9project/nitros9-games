@@ -4536,30 +4536,8 @@ UpdateObjCycle      lda       ,u        load step-time reset value
                     lda       <$25,u    load object status flags
                     bita      #$04      check "ignore-blocks" flag
                     bne       ClampObjXLeft branch if ignoring blocks
-                    leax      >x_dir_mult,pcr point to X-direction table
-                    lda       <$21,u    load current motion direction
-                    lda       a,x       look up X delta for direction
-                    beq       UpdateObjY branch if X delta is zero
-                    bpl       UpdateObjXPlus branch if positive X delta
-                    ldd       $03,s     load current X (16-bit)
-                    subd      $09,s     subtract step size
-                    std       $03,s     store new X
-                    bra       UpdateObjY update Y too
-UpdateObjXPlus      ldd       $03,s     load current X
-                    addd      $09,s     add step size
-                    std       $03,s     store new X
-UpdateObjY          leax      >y_dir_mult,pcr point to Y-direction table
-                    lda       <$21,u    load current motion direction
-                    lda       a,x       look up Y delta for direction
-                    beq       ClampObjXLeft branch if Y delta is zero
-                    bpl       UpdateObjYPlus branch if positive Y delta
-                    ldd       $05,s     load current Y (16-bit)
-                    subd      $09,s     subtract step size
-                    std       $05,s     store new Y
-                    bra       ClampObjXLeft clamp to screen bounds
-UpdateObjYPlus      ldd       $05,s     load current Y
-                    addd      $09,s     add step size
-                    std       $05,s     store new Y
+                    use platform/coordinate-step-operands.asm
+                    use shared/object-coordinate-step.asm
 ClampObjXLeft       ldd       #$0000    left boundary = X < 0
                     cmpd      $03,s     compare new X to 0
                     ble       ClampObjXRight branch if X >= 0 (no left clamp)

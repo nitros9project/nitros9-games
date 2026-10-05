@@ -65,28 +65,8 @@ MotionDirectionReady ldb      $21,u
                     ldb       $1E,u
                     std       motionstep,x
                     clr       motionedge,x
-                    leay      MotionXDelta,pcr
-                    ldb       $21,u
-                    lda       b,y
-                    beq       MotionCalculateY
-                    bpl       MotionAddX
-                    ldd       motionx,x
-                    subd      motionstep,x
-                    bra       MotionStoreX
-MotionAddX          ldd       motionx,x
-                    addd      motionstep,x
-MotionStoreX        std       motionx,x
-MotionCalculateY    leay      MotionYDelta,pcr
-                    ldb       $21,u
-                    lda       b,y
-                    beq       MotionClampX
-                    bpl       MotionAddY
-                    ldd       motiony,x
-                    subd      motionstep,x
-                    bra       MotionStoreY
-MotionAddY          ldd       motiony,x
-                    addd      motionstep,x
-MotionStoreY        std       motiony,x
+                    use platform/coordinate-step-operands.asm
+                    use shared/object-coordinate-step.asm
 MotionClampX        ldd       motionx,x
                     bpl       MotionClampRight
                     ldd       #0

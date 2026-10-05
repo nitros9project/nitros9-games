@@ -183,3 +183,10 @@ wrapper supplies threshold one so negative/zero/positive coordinate differences
 retain the previous native direction choices; target clamping still uses the
 real step size. The wrapper preserves private context X and object cursor U.
 `check_move_direction.py` exercises both production paths at two addresses.
+
+`object-coordinate-step.asm` owns direction-vector application to candidate X/Y
+coordinates for both production runtimes. `platform/*-coordinate-step-operands.asm`
+binds candidate/step storage and direction-table cursors. Store-joining policy
+preserves each owner's original branch schedule, so all fourteen CoCo title
+modules and native `wbgame` remain byte-identical. Candidate initialization,
+clamping, terrain/collision checks and commit are still owner-specific.
