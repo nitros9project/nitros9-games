@@ -32,3 +32,25 @@ StringReturn        rts
 StringInvalid       ldb       #E$IllArg
                     orcc      #1
                     rts
+
+                    ifne      GAME_PRESENTATION
+* Condition 15 uses the CoCo normalization/comparison body on private slots.
+StringCompareTest   ldu       <resourcebase
+                    ldd       vmarguments,u
+                    cmpa      #12
+                    lbhs      StringInvalid
+                    cmpb      #12
+                    lbhs      StringInvalid
+                    lbsr      MatchWord
+                    ldu       <resourcebase
+                    tfr       a,b
+                    andcc     #$FE
+                    rts
+NORMAL_STRING_TABLE macro
+                    ldu       <resourcebase
+                    leau      vmstrings,u
+                    endm
+NORMAL_STRING_FOLD  equ       ParserLower
+                    use       shared/compare-strings.asm
+                    use       shared/string-punctuation.asm
+                    endc

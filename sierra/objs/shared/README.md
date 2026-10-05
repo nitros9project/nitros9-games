@@ -18,6 +18,14 @@ owners. They allocate no state and contain no OS-9 module header.
 - `said-match.asm`: word-ID matching, single-word/rest wildcards, and expected
   operand cursor advancement; owners supply input flags and result adapters.
 - `ascii-lower.asm`: ASCII-only folding with register preservation.
+- `find-byte.asm`: NUL-terminated byte-set search, shared by text normalization.
+- `tokenize-string.asm`: sentence delimiter collapsing, dropped punctuation and
+  edge trimming; owners supply buffers and case-folding conventions.
+- `parser-punctuation.asm`: common sentence delimiter/drop sets.
+- `compare-strings.asm`: normalized 40-byte string-slot comparison for condition
+  15, with owner-provided string-table and ASCII-fold interfaces.
+- `string-punctuation.asm`: comparison-specific ignored bytes, kept distinct
+  from sentence tokenization rules.
 - `agi-test-table.asm`: one 19-entry condition catalog, expanded into CoCo
   handler/operand descriptors or native operand counts.
 - `agi-command-table.asm`: one command catalog, expanded into CoCo handler

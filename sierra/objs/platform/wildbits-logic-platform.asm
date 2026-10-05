@@ -200,6 +200,8 @@ VmPlatformUnsupported ldb     #E$UnkSvc
                     rts
 VmPlatformTest      ldb       <vmopcode
                     ifne      GAME_PRESENTATION
+                    cmpb      #15
+                    lbeq      StringCompareTest
                     cmpb      #9
                     lbeq      InventoryTest
                     cmpb      #10

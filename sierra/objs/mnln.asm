@@ -1984,14 +1984,7 @@ CmdRandomStore      ldx       #$0431    point to variable table
 *   string to lowercase in place.
 *======================================================================
 *
-FindByte            tst       ,x        check for null terminator at current position
-                    bne       FindByteLoop branch if not null (search continues)
-                    ldx       #$0000    null found, return null pointer (not found)
-                    bra       FindByteRet
-FindByteLoop        cmpa      ,x+       compare search byte to current, advance X
-                    bne       FindByte  branch if not matching (retry from top)
-                    leax      -$01,x    back up to point at the matching byte
-FindByteRet         rts
+                    use       shared/find-byte.asm
 StrToLower          tfr       u,x       transfer string pointer to X
 StrToLowerLoop      lda       ,x        load current character
                     beq       StrToLowerDone branch if null terminator (end of string)
@@ -5266,10 +5259,7 @@ SortObjsBuf         fcb       0,0
                     fcb       0,0
                     fcb       0
 SortObjsPtr         fcb       0,0
-PunctChars1         fcc       / ,.?!();:[]{}/
-                    fcb       0
-PunctChars2         fcc       /'`-"/
-                    fcb       0
+                    use       shared/parser-punctuation.asm
 
 *
 *======================================================================
@@ -5360,47 +5350,14 @@ cmd_parse           lda       >$01AE    load AGI flags byte
                     lbsr      ParseSentence parse the string as input
 CmdParseRet         rts
 
-TokenizeString      leas      -$02,s    allocate output-pointer slot
-                    leax      >SortObjsBuf,pcr point to tokenize output buffer
-                    stx       ,s        save output pointer on stack
-TokenizeLoop        lda       ,u+       load next input character
-                    beq       TokenizeDone done if null terminator
-                    leax      >PunctChars1,pcr point to punctuation set 1
-                    lbsr      FindByte  check if char is punctuation
-                    bne       TokenizeLoop skip if found (discard punct)
-                    leax      >PunctChars2,pcr point to punctuation set 2
-                    lbsr      FindByte  check second punct set
-                    bne       TokenizeLoop skip if found (discard)
-                    bra       TokenizeStoreChar non-punct: store it
-TokenizeCharLoop    leax      >PunctChars1,pcr point to punct set 1
-                    lbsr      FindByte  check if char is punctuation
-                    bne       TokenizeAddSpace if punct: insert space first
-                    leax      >PunctChars2,pcr point to punct set 2
-                    lbsr      FindByte  check second punct set
-                    bne       TokenizeNextChar if punct: skip char
-TokenizeStoreChar   ldx       ,s        load output pointer
-                    sta       ,x+       store character to output
-                    stx       ,s        update output pointer
-TokenizeNextChar    lda       ,u+       load next input character
-                    bne       TokenizeCharLoop loop if not null terminator
-                    bra       TokenizeDone null: finish up
-TokenizeAddSpace    lda       #$20      space character
-                    ldx       ,s        load output pointer
-                    sta       ,x+       write space to output
-                    stx       ,s        update output pointer
-                    bra       TokenizeLoop continue scanning
-TokenizeDone        leax      >SortObjsBuf,pcr point to output buffer start
-                    cmpx      ,s        compare to end-of-output ptr
-                    bcc       TokenizeTerminate skip trim if empty
-                    ldx       ,s        load end-of-output pointer
-                    lda       -$01,x    look at last character written
-                    cmpa      #$20      check if trailing space
-                    bne       TokenizeTerminate no trailing space: done
-                    leax      -$01,x    back up to overwrite space
-                    stx       ,s        update end-of-output pointer
-TokenizeTerminate   clr       [,s]      null-terminate the output
-                    leas      $02,s     release local frame
-                    rts
+TOKENIZE_OUTPUT     macro
+                    leax      >SortObjsBuf,pcr
+                    endm
+TOKENIZE_FOLD       macro
+                    endm
+TOKENIZE_FINISH     macro
+                    endm
+                    use       shared/tokenize-string.asm
 
 *
 *======================================================================
@@ -8943,8 +8900,7 @@ cmd_status_line_off clr       >$0246    ; disable status line
                     lbsr      ClearTextLine ; erase the status line
                     rts
 
-StrPunctuation      fcc       / .,;:'!-/
-                    fcb       0
+                    use       shared/string-punctuation.asm
 
 *
 *======================================================================
@@ -9110,47 +9066,11 @@ cmd_set_game_id     ldb       ,y+       ; fetch message number
                     lbsr      MemCopyNull ; copy game ID string
                     rts
 
-MatchWord           leas      <-$53,s   ; allocate 83-byte local frame
-                    stb       ,s        ; save word index (1 = word2)
-                    leau      $01,s     ; first normalized word buffer
-                    bsr       NormWord  ; normalize first input word
-                    lda       ,s        ; second word index
-                    leau      <$2A,s    ; second normalized word buffer
-                    bsr       NormWord  ; normalize second input word
-                    leau      $01,s     ; start of first word
-                    leax      <$2A,s    ; start of second word
-MatchWordLoop       lda       ,u+       ; read char from first word
-                    beq       MatchWordFound ; null = end of first word
-                    cmpa      ,x+       ; compare with second word char
-                    beq       MatchWordLoop ; loop if chars match
-                    bra       MatchWordNoMatch ; mismatch
-MatchWordFound      lda       #$01      ; match result = true
-                    ldb       ,x        ; remaining char in second word
-                    beq       MatchWordRet ; both at null = full match
-MatchWordNoMatch    clra                ; match result = false
-MatchWordRet        leas      <$53,s    ; release local frame
-                    rts
-
-NormWord            leas      -$02,s    ; allocate 2-byte local frame
-                    stu       ,s        ; save output buffer pointer
-                    ldb       #$28      ; 40 chars per slot
-                    mul                 ; offset = slot index × 40
-                    ldu       #$0251    ; base of string table
-                    leau      d,u       ; point to input string slot
-NormWordLoop        lda       ,u+       ; read char from input
-                    beq       NormWordNull ; stop at null terminator
-                    leax      >StrPunctuation,pcr ; punctuation character set
-                    lbsr      FindByte  ; check if char is punctuation
-                    bne       NormWordLoop ; skip punctuation characters
-                    lbsr      ToLower   ; convert letter to lowercase
-                    ldx       ,s        ; output buffer pointer
-                    sta       ,x+       ; store normalized char
-                    stx       ,s        ; update output pointer
-                    bra       NormWordLoop ; process next char
-NormWordNull        ldx       ,s        ; output pointer at end
-                    clr       ,x        ; null-terminate normalized word
-                    leas      $02,s     ; release local frame
-                    rts
+NORMAL_STRING_TABLE macro
+                    ldu       #$0251
+                    endm
+NORMAL_STRING_FOLD  equ       ToLower
+                    use       shared/compare-strings.asm
 
 *
 *======================================================================

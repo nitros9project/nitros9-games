@@ -134,3 +134,7 @@ mnln: ../objs/shared/object-rate-state.asm
 mnln: ../objs/shared/said-match.asm
 
 mnln: ../objs/shared/ascii-lower.asm
+
+mnln: ../objs/shared/tokenize-string.asm ../objs/shared/find-byte.asm ../objs/shared/parser-punctuation.asm
+
+mnln: ../objs/shared/compare-strings.asm ../objs/shared/string-punctuation.asm

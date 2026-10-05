@@ -357,50 +357,27 @@ ParserCursor        lda       <vmcursor
                     sta       ,x
                     lbra      GameCycleSuccess
 
-* Match CoCo punctuation classes: delimiters become spaces; quotes/hyphens
-* disappear. Normalize in place, collapsing delimiters and trimming ends.
+* In-place adapter to the same sentence tokenizer assembled by CoCo.
 ParserNormalize     ldu       <resourcebase
-                    leax      parserline,u
-                    tfr       x,y
-                    clr       parserlength,u
-                    lda       #1
-                    sta       parserseen,u
-ParserNormalizeByte lda      ,x+
-                    beq       ParserNormalizeEnd
-                    lbsr      ParserLower
-                    pshs      x
-                    leax      ParserDelimiters,pcr
-ParserDelimiterTest tst      ,x
-                    beq       ParserDropTestStart
-                    cmpa      ,x+
-                    bne       ParserDelimiterTest
-                    puls      x
-                    tst       parserseen,u
-                    bne       ParserNormalizeByte
-                    lda       #1
-                    sta       parserseen,u
-                    lda       #32
-                    bra       ParserNormalizeStore
-ParserDropTestStart leax     ParserDropChars,pcr
-ParserDropTest      tst       ,x
-                    beq       ParserKeepChar
-                    cmpa      ,x+
-                    bne       ParserDropTest
-                    puls      x
-                    bra       ParserNormalizeByte
-ParserKeepChar      puls      x
-                    clr       parserseen,u
-ParserNormalizeStore sta     ,y+
-                    inc       parserlength,u
-                    bra       ParserNormalizeByte
-ParserNormalizeEnd  tst       parserlength,u
-                    beq       ParserNormalizeZero
-                    tst       parserseen,u
-                    beq       ParserNormalizeZero
-                    leay      -1,y
-                    dec       parserlength,u
-ParserNormalizeZero clr      ,y
+                    leau      parserline,u
+                    lbsr      TokenizeString
+                    ldu       <resourcebase
                     rts
-ParserDelimiters    fcc       / ,.?!();:[]{}/
-                    fcb       0
-ParserDropChars     fcb       39,96,45,34,0
+TOKENIZE_OUTPUT     macro
+                    ldx       <resourcebase
+                    leax      parserline,x
+                    endm
+TOKENIZE_FOLD       macro
+                    lbsr      ParserLower
+                    endm
+TOKENIZE_FINISH     macro
+                    ldu       <resourcebase
+                    leax      parserline,u
+                    pshs      x
+                    ldd       2,s
+                    subd      ,s++
+                    stb       parserlength,u
+                    endm
+                    use       shared/tokenize-string.asm
+                    use       shared/find-byte.asm
+                    use       shared/parser-punctuation.asm

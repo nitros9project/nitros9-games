@@ -1053,3 +1053,45 @@ conditions, object state, parsing, rendering, compression, resource ownership
 and decoder/reference pixel equality. The host fixture and reference exporter
 were also exercised from the new build entry point. Emulator tests now bound
 shutdown and use the established idle-ROM startup helper for the viewer.
+
+### Shared sentence and string normalization
+
+Both owners now assemble `objs/shared/tokenize-string.asm`, `find-byte.asm`
+and `parser-punctuation.asm`. The tokenizer removes leading delimiters,
+collapses adjacent delimiters to one space, discards apostrophes/backticks/
+hyphens/double quotes, and removes trailing delimiters. Delimiters and dropped
+characters come from one shared pair of immutable byte sets. The algorithm
+supports a separate output buffer or in-place normalization without letting
+the output cursor overtake unread input.
+
+CoCo supplies its existing PCR output buffer and empty folding/finish macros,
+so the entire rebuilt `mnln` binary remains identical. Wild Bits supplies its
+private input/output buffer, ASCII folding, and an output-length adapter. Its
+previous separate normalization loop and punctuation tables are removed.
+No private state or per-frame work was added; native normalization executes
+when a sentence is submitted.
+
+`objs/shared/compare-strings.asm` also supplies the existing CoCo `MatchWord`
+and `NormWord` algorithms to Wild Bits. This enables native condition 15,
+which previously returned an unsupported-service error. Both owners ignore
+exactly the comparison punctuation set and compare ASCII case-insensitively;
+that set intentionally differs from the sentence delimiter/drop sets. Native
+adapters validate both indices against the 12 private 40-byte slots, restore
+U, and return the interpreter's B boolean with carry clear. String input must
+be NUL-terminated within its slot, as ensured by the native string producers.
+Normalization scratch is on the stack, not new process-private allocation.
+
+The native game is 21,409 code bytes out of its 23,808-byte mapping budget,
+with unchanged 24,572-byte private data. Tests execute both actual owners at
+two code/data locations, check all 255 non-NUL byte classes, buffer guards,
+empty/max-length cases, case folding and distinct punctuation semantics.
+The condition test also runs loaded message strings through actual native
+bytecode argument decoding and IF branches, and rejects indices 12/255.
+
+Validation: both new 6809 regression tests passed; the existing typed-command
+parser test passed; the final native MAME sustained acceptance passed original
+commands, unknown-word output, inventory, Pause/resume, subsequent input, exit
+and unchanged free memory. Artifacts are in `/tmp/sierra-shared-text-mame`.
+CoCo `mnln` and all six diagnostic modules remain byte-identical to the
+pre-extraction builds. This consolidates text normalization; the remaining
+logic execution, resource and object-update differences are still unfinished.

@@ -37,6 +37,8 @@ clean:
 fixture:
 	python3 ../tests/make_picture_fixture.py test-picture.bin
 check: all
+	python3 ../tests/check_tokenizer.py
+	python3 ../tests/check_string_compare.py
 	python3 ../tests/check_coco_conditions.py
 	python3 ../tests/check_object_flags.py
 	python3 ../tests/check_said.py
