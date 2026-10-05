@@ -1,5 +1,6 @@
 * Native logic execution probe; not yet the game main loop.
                     nam       wbexec
+WILDBITS            equ       1
                     use       platform/wildbits-defsfile
 AGI_ASSET           equ       1
 AGI_VM              equ       1

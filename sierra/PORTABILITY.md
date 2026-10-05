@@ -1095,3 +1095,53 @@ and unchanged free memory. Artifacts are in `/tmp/sierra-shared-text-mame`.
 CoCo `mnln` and all six diagnostic modules remain byte-identical to the
 pre-extraction builds. This consolidates text normalization; the remaining
 logic execution, resource and object-update differences are still unfinished.
+
+### Shared object coordinate and animation commands
+
+Both owners assemble `objs/shared/object-coordinate-state.asm` for commands
+37–40 and 147–148. Position assignments write the current coordinate pair and,
+for ordinary position commands, its saved pair. Position queries preserve
+last-write behavior when both result operands select the same variable.
+Relative reposition interprets each variable as a signed byte, clamps negative
+sums to zero, and retains the existing byte wrap for positive sums above 255.
+Absolute literal/variable reposition uses the same operand-to-coordinate body.
+
+The `platform/object-coordinate-operands.asm` selector supplies CoCo or Wild
+Bits macros for reading their literal/variable operands,
+resolving result variables, and saving/adding signed deltas on the stack.
+CoCo retains its existing stack locals and streamed operands; Wild Bits retains
+its decoded argument array and balanced push/pop delta storage. The shared
+macros expand directly into instructions, without runtime platform dispatch.
+Placement validation remains an owner boundary: CoCo calls `FindObjPos`;
+Wild Bits enters `RepositionPlace` and its bounded collision/terrain search.
+The new coordinate regression stops at those real boundaries so it tests the
+common arithmetic without implying that the placement algorithms are shared.
+Existing gameplay tests cover completed native searches separately.
+
+Command 33 now uses `objs/shared/object-animation-state.asm`. It preserves
+an already animated record; otherwise it sets the initial flags and clears
+motion type, cycling mode and direction. CoCo’s entire rebuilt `mnln` remains
+byte-identical. Native initialization uses the same zero/store body in place
+of three memory clear instructions. Native `wbgame` is 21,415 bytes and
+`wbexec` 6,908 bytes; both private-data sizes are unchanged. Reposition and
+initialization ownership, error checks and render invalidation remain in the
+platform adapters.
+
+The new real-6809 test checks the first and last records, variable indices
+0/255, aliased outputs, repeated animation, signed clamp/wrap edges, both
+absolute operand forms, stack balance, whole-array guards, native invalid
+object indices and immutable code. The broader logic/resource/object-update
+reconciliation remains unfinished.
+
+The native execution probe now declares `WILDBITS=1` explicitly, matching
+the game owner, so the new assembly-time selector cannot choose CoCo operand
+bindings for that probe. The coordinate regression also executes the probe's
+position/query/animation handlers to verify that selection, rather than
+relying on its normal startup path, which stops before those commands.
+
+Validation: the complete native placement/play and composition regressions
+passed, as did the bytecode execution probe. The MAME movement acceptance
+measured approximately 9 AGI pixels in 3.33 emulated seconds, matching the
+previous benchmark; inventory, modal restoration, exit and unchanged free
+memory also passed. Artifacts are in `/tmp/sierra-shared-coordinates-mame`.
+CoCo `mnln` and the five unaffected diagnostic modules remain byte-identical.

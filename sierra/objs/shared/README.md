@@ -36,6 +36,10 @@ owners. They allocate no state and contain no OS-9 module header.
   collision/cycling mask rules, used by both owners.
 - `object-flag-mask.asm`: common compile-time mask mutation body; owner supplies
   the record pointer register. Identity operations emit no instructions.
+- `object-animation-state.asm`: idempotent animate.obj initialization.
+- `object-coordinate-state.asm`: literal/variable position assignment, position
+  queries, and signed reposition arithmetic; owners provide operand/storage
+  adapters and retain their placement/collision boundaries.
 - `object-cycle-state.asm`: continuous/endpoint animation modes and flags.
 - `object-motion-state.asm`: normal/start/stop record transitions; ego control
   effects remain owner adapters.

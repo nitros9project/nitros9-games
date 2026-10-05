@@ -138,3 +138,6 @@ mnln: ../objs/shared/ascii-lower.asm
 mnln: ../objs/shared/tokenize-string.asm ../objs/shared/find-byte.asm ../objs/shared/parser-punctuation.asm
 
 mnln: ../objs/shared/compare-strings.asm ../objs/shared/string-punctuation.asm
+
+mnln: ../objs/shared/object-coordinate-state.asm ../objs/shared/object-animation-state.asm
+mnln: ../objs/platform/object-coordinate-operands.asm ../objs/platform/coco-object-coordinate-operands.asm

@@ -1,3 +1,6 @@
+                    use       platform/object-coordinate-operands.asm
+                    use       shared/object-coordinate-state.asm
+                    use       shared/object-animation-state.asm
 * Private object-state commands adapted from mnln.asm's 43-byte records.
 * The owner supplies 64 records. Drawing, cel selection and motion updates
 * remain separate; these commands never retain a foreign resource pointer.
@@ -68,14 +71,7 @@ ObjectCommand       ldb       <vmopcode
                     ldb       #E$UnkSvc
                     orcc      #1
 ObjectReturn        rts
-ObjectAnimate       lda       $26,x
-                    bita      #$40
-                    bne       ObjectDone
-                    lda       #$70
-                    sta       $26,x
-                    clr       $22,x
-                    clr       $23,x
-                    clr       $21,x
+ObjectAnimate       OBJECT_ANIMATE_STATE x,ObjectDone
 ObjectDone          clrb
                     rts
 ObjectsUnanimate    ldu       <resourcebase
@@ -89,36 +85,13 @@ ObjectsUnanimateNext lda      $26,x
                     bne       ObjectsUnanimateNext
                     clrb
                     rts
-ObjectPosition      ldd       vmarguments+1,u
-                    std       3,x
-                    std       $1A,x
+ObjectPosition      OBJECT_POSITION x,0,1
                     clrb
                     rts
-ObjectPositionVariables leay  vmvariables,u
-                    ldb       vmarguments+1,u
-                    clra
-                    lda       d,y
-                    pshs      a
-                    clra
-                    ldb       vmarguments+2,u
-                    ldb       d,y
-                    puls      a
-                    std       3,x
-                    std       $1A,x
+ObjectPositionVariables OBJECT_POSITION x,1,1
                     clrb
                     rts
-ObjectGetPosition   leay      vmvariables,u
-                    clra
-                    ldb       vmarguments+1,u
-                    leay      d,y
-                    lda       3,x
-                    sta       ,y
-                    leay      vmvariables,u
-                    clra
-                    ldb       vmarguments+2,u
-                    leay      d,y
-                    lda       4,x
-                    sta       ,y
+ObjectGetPosition   OBJECT_GET_POSITION x,y
                     clrb
                     rts
 ObjectFixLoop       lbra      CmdFixLoop

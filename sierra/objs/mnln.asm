@@ -752,6 +752,9 @@ StartUpdateReturn   rts
 *   Commands to start or stop animation for an object or all objects.
 *======================================================================
 *
+                    use       platform/object-coordinate-operands.asm
+                    use       shared/object-coordinate-state.asm
+                    use       shared/object-animation-state.asm
 CmdAnimateObj       lda       ,y+       load object number from script
                     bsr       AnimateObjHelper
                     rts
@@ -766,15 +769,7 @@ AnimateObjHelper    leas      -$01,s    save one byte for object number
                     lda       #$0D      load "animate invalid object" error code
                     ldb       ,s        reload object number for error report
                     lbsr      ReportError
-AnimObjBadIndex     lda       <$26,u    load object state flags
-                    bita      #$40      check if already animated
-                    bne       AnimObjAlready branch if already in animated state
-                    lda       #$70      initial state: stopped, no loop fix
-                    sta       <$26,u    store initial animation flags
-                    lda       #$00      zero value
-                    sta       <$22,u    clear object's step timer
-                    sta       <$23,u    clear cycle mode
-                    sta       <$21,u    clear direction (stopped)
+AnimObjBadIndex     OBJECT_ANIMATE_STATE u,AnimObjAlready
 AnimObjAlready      leas      $01,s     release stack byte
                     rts
 CmdUnanimateAll     lbsr      ClearBothRanges erase all objects from range lists
@@ -5774,9 +5769,7 @@ cmd_position        lda       ,y+       ; fetch object number from script
                     mul                 ; multiply A*$2B for object array offset
                     addd      <$0030    ; add object table base
                     tfr       d,u       ; U = pointer to object struct
-                    ldd       ,y++      ; fetch X,Y from script
-                    std       $03,u     ; set object position
-                    std       <$1A,u    ; set destination to same
+                    OBJECT_POSITION u,0,1
                     rts
 
 cmd_position_v      lda       ,y+       ; fetch object number from script
@@ -5784,16 +5777,7 @@ cmd_position_v      lda       ,y+       ; fetch object number from script
                     mul                 ; multiply A*$2B for object array offset
                     addd      <$0030    ; add object table base
                     tfr       d,u       ; U = pointer to object struct
-                    ldx       #$0431    ; point to variable table
-                    ldb       ,y+       ; fetch X var index
-                    abx                 ; index into variable table
-                    lda       ,x        ; dereference X variable
-                    ldx       #$0431    ; point to variable table
-                    ldb       ,y+       ; fetch Y var index
-                    abx                 ; index into variable table
-                    ldb       ,x        ; dereference Y variable
-                    std       $03,u     ; set object position X,Y
-                    std       <$1A,u    ; set destination to same
+                    OBJECT_POSITION u,1,1
                     rts
 
 cmd_get_position    lda       ,y+       ; fetch object number from script
@@ -5801,16 +5785,7 @@ cmd_get_position    lda       ,y+       ; fetch object number from script
                     mul                 ; multiply A*$2B for object array offset
                     addd      <$0030    ; add object table base
                     tfr       d,u       ; U = pointer to object struct
-                    ldx       #$0431    ; point to variable table
-                    ldb       ,y+       ; fetch X result var index
-                    abx                 ; index into variable table
-                    lda       $03,u     ; get object X position
-                    sta       ,x        ; store into X variable
-                    ldx       #$0431    ; point to variable table
-                    ldb       ,y+       ; fetch Y result var index
-                    abx                 ; index into variable table
-                    lda       $04,u     ; get object Y position
-                    sta       ,x        ; store into Y variable
+                    OBJECT_GET_POSITION u,x
                     rts
 
 cmd_reposition      leas      -$02,s    ; allocate 2-byte local frame
@@ -5826,26 +5801,12 @@ cmd_reposition      leas      -$02,s    ; allocate 2-byte local frame
                     ldb       ,y+       ; fetch dX var index
                     abx                 ; index into variable table
                     ldb       ,x        ; dereference dX variable (signed)
-                    sex                 ; sign-extend B to D
-                    std       ,s        ; save signed delta X
-                    clra                ; zero A for unsigned add
-                    ldb       $03,u     ; get current X position
-                    addd      ,s        ; add signed delta
-                    bpl       ReposXDone ; result positive, ok
-                    clrb                ; clamp to zero
-ReposXDone          stb       $03,u     ; store new X position
+                    OBJECT_SIGNED_DELTA u,$03,ReposXDone
                     ldx       #$0431    ; point to variable table
                     ldb       ,y+       ; fetch dY var index
                     abx                 ; index into variable table
                     ldb       ,x        ; dereference dY variable (signed)
-                    sex                 ; sign-extend B to D
-                    std       ,s        ; save signed delta Y
-                    clra                ; zero A for unsigned add
-                    ldb       $04,u     ; get current Y position
-                    addd      ,s        ; add signed delta
-                    bpl       ReposYDone ; result positive, ok
-                    clrb                ; clamp to zero
-ReposYDone          stb       $04,u     ; store new Y position
+                    OBJECT_SIGNED_DELTA u,$04,ReposYDone
                     lbsr      FindObjPos ; recalculate object bounds
                     leas      $02,s     ; release local frame
                     rts
@@ -5855,8 +5816,7 @@ cmd_reposition_to   lda       ,y+       ; fetch object number from script
                     mul                 ; multiply A*$2B for object array offset
                     addd      <$0030    ; add object table base
                     tfr       d,u       ; U = pointer to object struct
-                    ldd       ,y++      ; fetch absolute X,Y from script
-                    std       $03,u     ; set object position
+                    OBJECT_POSITION u,0,0
                     lda       <$25,u    ; load motion flags
                     ora       #$04      ; set reposition flag
                     sta       <$25,u    ; store updated flags
@@ -5868,15 +5828,7 @@ cmd_reposition_to_v lda       ,y+       ; fetch object number from script
                     mul                 ; multiply A*$2B for object array offset
                     addd      <$0030    ; add object table base
                     tfr       d,u       ; U = pointer to object struct
-                    ldx       #$0431    ; point to variable table
-                    ldb       ,y+       ; fetch X var index
-                    abx                 ; index into variable table
-                    lda       ,x        ; dereference X variable
-                    ldx       #$0431    ; point to variable table
-                    ldb       ,y+       ; fetch Y var index
-                    abx                 ; index into variable table
-                    ldb       ,x        ; dereference Y variable
-                    std       $03,u     ; set object position
+                    OBJECT_POSITION u,1,0
                     lda       <$25,u    ; load motion flags
                     ora       #$04      ; set reposition flag
                     sta       <$25,u    ; store updated flags

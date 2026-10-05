@@ -41,6 +41,7 @@ check: all
 	python3 ../tests/check_string_compare.py
 	python3 ../tests/check_coco_conditions.py
 	python3 ../tests/check_object_flags.py
+	python3 ../tests/check_object_coordinates.py
 	python3 ../tests/check_said.py
 	python3 ../tests/check_wbgame.py
 	python3 ../tests/check_wbcredits.py
@@ -119,3 +120,4 @@ wbgame: shared/ascii-lower.asm
 
 # Keep every owner current when an adapter or common algorithm changes.
 wbpic wbres wbdecode wbrun wbasset wbexec wbgame: $(wildcard platform/wildbits-*.asm) platform/wildbits-defsfile platform/wildbits-presentation.d $(wildcard shared/*.asm)
+wbexec wbgame: platform/object-coordinate-operands.asm

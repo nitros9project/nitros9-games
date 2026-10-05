@@ -11,42 +11,18 @@ GameReposition      lbsr      ObjectAddress
                     clra
                     ldb       vmarguments+1,u
                     ldb       d,y
-                    sex
-                    pshs      d
-                    clra
-                    ldb       3,x
-                    addd      ,s++
-                    bpl       RepositionX
-                    clrb
-RepositionX         stb       3,x
+                    OBJECT_SIGNED_DELTA x,3,RepositionX
                     clra
                     ldb       vmarguments+2,u
                     ldb       d,y
-                    sex
-                    pshs      d
-                    clra
-                    ldb       4,x
-                    addd      ,s++
-                    bpl       RepositionY
-                    clrb
-RepositionY         stb       4,x
+                    OBJECT_SIGNED_DELTA x,4,RepositionY
                     bra       RepositionPlace
-RepositionAbsolute  ldd       vmarguments+1,u
-                    pshs      d
-                    lda       <vmopcode
+RepositionAbsolute  lda       <vmopcode
                     cmpa      #148
-                    bne       RepositionLiteral
-                    leay      vmvariables,u
-                    clra
-                    ldb       ,s
-                    lda       d,y
-                    sta       ,s
-                    clra
-                    ldb       1,s
-                    ldb       d,y
-                    stb       1,s
-RepositionLiteral   puls      d
-                    std       3,x
+                    beq       RepositionVariables
+                    OBJECT_POSITION x,0,0
+                    bra       RepositionPlace
+RepositionVariables OBJECT_POSITION x,1,0
 RepositionPlace     stx       motionobject,u
                     lda       2,x
                     sta       motionid,u
