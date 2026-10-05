@@ -104,4 +104,8 @@ mnln: ../objs/shared/unsigned-decimal.asm \
 	../objs/shared/object-unanimate.asm \
 	../objs/shared/object-step-deltas.asm \
 	../objs/platform/object-control-operands.asm \
-	../objs/platform/coco-object-control-operands.asm
+	../objs/platform/coco-object-control-operands.asm \
+	../objs/shared/object-field-query.asm \
+	../objs/shared/object-scalar-state.asm \
+	../objs/platform/object-scalar-operands.asm \
+	../objs/platform/coco-object-scalar-operands.asm

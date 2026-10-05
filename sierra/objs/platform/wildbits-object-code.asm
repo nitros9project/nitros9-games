@@ -3,6 +3,8 @@
                     use       shared/object-animation-state.asm
                     use platform/object-control-operands.asm
                     use shared/object-unanimate.asm
+                    use platform/object-scalar-operands.asm
+                    use shared/object-scalar-state.asm
 * Private object-state commands adapted from mnln.asm's 43-byte records.
 * The owner supplies 64 records. Drawing, cel selection and motion updates
 * remain separate; these commands never retain a foreign resource pointer.
@@ -101,34 +103,13 @@ ObjectArgumentValue leay      vmvariables,u
 ObjectPriority      ldb       vmarguments+1,u
                     bra       ObjectSetPriority
 ObjectPriorityVariable lbsr   ObjectArgumentValue
-ObjectSetPriority   cmpb      #15
-                    lbhi      ObjectBadIndex
-                    stb       $24,x
-                    lda       $26,x
-                    ora       #4
-                    sta       $26,x
+ObjectSetPriority   OBJECT_SET_PRIORITY x,0
                     lbra      ObjectDone
 ObjectReleasePriority lbra    cmd_release_priority
-ObjectGetPriority   lda       $24,x
-                    bra       ObjectStoreResult
-ObjectDirection     lbsr      ObjectArgumentValue
-                    cmpb      #8
-                    lbhi      ObjectBadIndex
-                    stb       $21,x
-                    tst       vmarguments,u
-                    lbne      ObjectDone
-                    stb       vmvariables+6,u
+                    OBJECT_FIELD_QUERY ObjectGetPriority,$24,0
+ObjectDirection     OBJECT_SET_DIRECTION x,b,ObjectDone
                     lbra      ObjectDone
-ObjectGetDirection  lda       $21,x
-ObjectStoreResult   pshs      a
-                    leay      vmvariables,u
-                    clra
-                    ldb       vmarguments+1,u
-                    leay      d,y
-                    puls      a
-                    sta       ,y
-                    clrb
-                    rts
+                    OBJECT_FIELD_QUERY ObjectGetDirection,$21,0
 * CoCo terrain/interaction flag operations; masks and offsets are immutable.
 ObjectFlagCommand   ldb       <vmopcode
                     cmpb      #63

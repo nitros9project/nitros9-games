@@ -152,6 +152,7 @@ ViewQuery           cmpb      #49
                     lbra      cmd_number_of_loops
 * ObjectAddress already validated the object and left its record in X.
                     use       platform/object-view-query-operands.asm
+                    use       shared/object-field-query.asm
                     use       shared/object-view-queries.asm
 ViewInvalidQuery    ldb       #E$BMode
                     orcc      #1

@@ -4529,29 +4529,14 @@ cmd_step_time       lda       ,y+       load object number from script
                     OBJECT_RATE_STATE a,u,$00,1
                     rts
 
-cmd_set_dir         lda       ,y+       load object number from script
-                    ldb       #$2B      view-object struct size = 43
-                    mul                 compute object offset
-                    addd      <$0030    add view-object array base
-                    tfr       d,u       point U to object struct
-                    ldb       ,y+       load direction-variable number
-                    ldx       #$0431    point to variable table
-                    abx                 index to variable
-                    lda       ,x        load direction from variable
-                    sta       <$21,u    store as object motion direction
-                    rts
-
-cmd_get_dir         lda       ,y+       load object number from script
-                    ldb       #$2B      view-object struct size = 43
-                    mul                 compute object offset
-                    addd      <$0030    add view-object array base
-                    tfr       d,u       point U to object struct
-                    ldb       ,y+       load output-variable number
-                    ldx       #$0431    point to variable table
-                    abx                 index to variable
-                    lda       <$21,u    load current object direction
-                    sta       ,x        store direction in variable
-                    rts
+                    use platform/object-view-query-operands.asm
+                    use shared/object-field-query.asm
+                    use platform/object-scalar-operands.asm
+                    use shared/object-scalar-state.asm
+cmd_set_dir         QUERY_OBJECT
+                    OBJECT_SET_DIRECTION u,a,ObjectDirectionDone
+ObjectDirectionDone rts
+                    OBJECT_FIELD_QUERY cmd_get_dir,$21,0
 
 cmd_program_control clr       >$0250    hide ego (program controls ego)
                     rts
@@ -6254,46 +6239,17 @@ PrintFmtOutputCharRet puls      u,x       ; restore U and X
 *   set_priority_v to fix or release an object's draw priority.
 *======================================================================
 *
-cmd_set_priority    lda       ,y+       ; fetch object number from script
-                    ldb       #$2B
-                    mul                 ; multiply A*$2B for object array offset
-                    addd      <$0030    ; add object table base
-                    tfr       d,u       ; U = pointer to object struct
-                    lda       <$26,u    ; load priority flags
-                    ora       #$04      ; set fixed-priority flag
-                    sta       <$26,u    ; store updated flags
-                    lda       ,y+       ; fetch priority value from script
-                    sta       <$24,u    ; store object priority
+cmd_set_priority    QUERY_OBJECT
+                    OBJECT_SET_PRIORITY u,0
                     rts
 
 OBJECT_FLAG_OPCODE  set       56
                     use       shared/object-flag-rules.asm
 
-cmd_get_priority    lda       ,y+       ; fetch object number from script
-                    ldb       #$2B
-                    mul                 ; multiply A*$2B for object array offset
-                    addd      <$0030    ; add object table base
-                    tfr       d,u       ; U = pointer to object struct
-                    lda       <$24,u    ; get object's current priority
-                    ldx       #$0431    ; point to variable table
-                    ldb       ,y+       ; fetch result var index
-                    abx                 ; index into variable table
-                    sta       ,x        ; store priority into variable
-                    rts
+                    OBJECT_FIELD_QUERY cmd_get_priority,$24,0
 
-cmd_set_priority_v  lda       ,y+       ; fetch object number from script
-                    ldb       #$2B
-                    mul                 ; multiply A*$2B for object array offset
-                    addd      <$0030    ; add object table base
-                    tfr       d,u       ; U = pointer to object struct
-                    lda       <$26,u    ; load priority flags
-                    ora       #$04      ; set fixed-priority flag
-                    sta       <$26,u    ; store updated flags
-                    ldx       #$0431    ; point to variable table
-                    ldb       ,y+       ; fetch priority var index
-                    abx                 ; index into variable table
-                    lda       ,x        ; dereference priority variable
-                    sta       <$24,u    ; store object priority
+cmd_set_priority_v  QUERY_OBJECT
+                    OBJECT_SET_PRIORITY u,1
                     rts
 
 *
@@ -9569,7 +9525,6 @@ SetCelWidthClip     decb                ; height - 1 (bottom row offset)
 SetCelRet           leas      $01,s     ; release local frame
                     rts
 
-                    use       platform/object-view-query-operands.asm
                     use       shared/object-view-queries.asm
 
 cmd_discard_view    ldb       ,y+       ; fetch view number

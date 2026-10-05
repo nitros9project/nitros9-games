@@ -1840,3 +1840,43 @@ unrelated record fields, empty/single/two/64-record bounds, all direction-table
 entries, guards, stack/cursor preservation and immutable code. This shares
 those motion-state operations and data; stepping arithmetic, terrain/collision
 validation and complete per-cycle object orchestration remain separate work.
+
+### Shared object priority/direction setters and field queries
+
+`shared/object-scalar-state.asm` now owns fixed-priority updates and direction
+assignment for both owners. Platform operand adapters preserve the original
+register/read ordering: CoCo sets the fixed-priority bit before fetching its
+literal/variable priority; native validates a preloaded B value, stores it,
+then sets that bit. Native still rejects priorities above fifteen and directions
+above eight before mutation; CoCo retains its existing unrestricted byte
+assignments. Native direction assignment mirrors ego's direction into variable
+six, while CoCo keeps its original command policy. Object addressing and
+native invalid-index checks remain in their existing entry adapters.
+
+`shared/object-field-query.asm` provides the record-to-variable query used
+by `get.priority`, `get.dir` and the five existing view queries. The latter
+remain a small handler catalog in `object-view-queries.asm`. All seven queries
+now resolve the object/operand, load the field, apply any last-cel adjustment,
+address the destination variable, store and return using one implementation.
+Native scalar queries no longer use a separate stack-based result-store
+helper. Their X/Y scratch results now follow the common query path; the native
+executor retains stream/state in private fields and does not rely on those
+scratch registers. The existing native view-selection/query component remains
+byte-identical (466 bytes), as confirmed against the preceding module.
+
+CoCo code size is unchanged in all fourteen variants. Binary differences are
+confined to the two scalar-query instruction sequences and module CRC (17
+changed bytes in each build); setters and all other code remain identical.
+The reordered CoCo queries retain the same operations and instruction costs.
+Native `wbgame` is 21,795 bytes, nine bytes larger, with unchanged 24,568-byte
+private data. The focused CPU test passed 7,188 real command calls across both
+owners and two load addresses: every priority/direction value and control byte,
+first/last objects and variables, native range/index rejection, ego behavior
+and variable-six aliasing, unrelated fields/state, guards, stack and immutable
+code. Full native engine regression passed rendering, movement/collision,
+inventory, malformed resources and cleanup. Real MAME movement remained nine
+AGI pixels in 3.33 emulated seconds with startup, inventory/modal restoration,
+interrupt exit and unchanged free memory. Two-terminal MAME passed every
+picture pixel, restoration, independent exit/relaunch and free-memory maps.
+This shares these commands; full placement, view acquisition, collision and
+per-cycle orchestration remain further consolidation work.

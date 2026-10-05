@@ -131,3 +131,9 @@ visible-bit clearing over owned records. `platform/*-object-control-operands.asm
 binds ego state and record iteration. `object-step-deltas.asm` supplies the
 nine signed X/Y deltas used by both motion implementations. Arithmetic and
 collision orchestration still remain in their owner components.
+
+`object-scalar-state.asm` shares priority/direction mutations with operand,
+range and ego-state interfaces. `object-field-query.asm` is the common
+record-to-variable query used by priority, direction and the five view-state
+handlers in `object-view-queries.asm`. Native range policies and the CoCo
+byte-assignment policy remain explicit in `platform/*-object-scalar-operands.asm`.
