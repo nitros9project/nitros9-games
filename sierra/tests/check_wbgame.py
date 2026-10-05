@@ -2,6 +2,7 @@
 """Execute native AGI picture commands through the integrated game owner."""
 from pathlib import Path
 import sys
+import subprocess
 import tempfile
 from check_wbres import exercise, idle_rom, start_cpu
 ROOT = Path(__file__).resolve().parents[1]
@@ -298,7 +299,11 @@ def main():
         finally:
             d.s.close()
             emulator.terminate()
-            emulator.wait(timeout=5)
+            try:
+                emulator.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                emulator.kill()
+                emulator.wait(timeout=5)
 
 
 if __name__ == '__main__':

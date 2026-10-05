@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Exercise native gameplay math, following, placement and modal restoration."""
+import subprocess
 from pathlib import Path
 import tempfile
 from check_wbres import exercise, idle_rom, start_cpu
@@ -133,6 +134,12 @@ def main():
                 assert error, ('malformed format accepted',malformed)
             print('PASS: byte math, zero-divisor rejection, random range edges, follow completion/high flag, signed/absolute placement and blocked-position search, pause/resume clock freezing, modal restoration, formatted variables/strings/words/nested messages and rejection bounds, and ownership cleanup')
         finally:
-            d.s.close();emu.terminate();emu.wait()
+            d.s.close()
+            emu.terminate()
+            try:
+                emu.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                emu.kill()
+                emu.wait(timeout=5)
 
 if __name__=='__main__':main()

@@ -432,7 +432,7 @@ survive picture refreshes. `display`/`display.v` support colors, wrapping and
 bounded `%v`, `%s`, `%w` and recursive `%m` message expansion. `print`/`print.v`
 show a modal response and restore the scene after dismissal.
 
-`wbgame` currently uses 20,741 code bytes and 24,570 private bytes. Three private
+`wbgame` currently uses 20,808 code bytes and 24,572 private bytes. Three private
 blocks, the kernel block and one mapping window leave a conservative
 23,808-byte code budget.
 Physical memory also holds resource caches, two picture slabs and the terminal
@@ -599,7 +599,7 @@ The original game's Pause menu action now opens a modal pause window, restores
 the scene on a keypress and resets the clock sampling baseline. Time spent
 paused does not advance AGI game seconds; subsequent normal seconds do.
 Pause itself requires no new private storage. The credits/Pause checkpoint
-used 24,555 private bytes; the rendering changes below add 15 bytes.
+used 24,555 private bytes; the rendering changes below add 17 bytes.
 
 The MAME harness's `--sustained` mode submits `look room`, submits an unknown
 word, selects Pause through the original game menu, resumes and submits
@@ -626,7 +626,8 @@ The native backends now:
   unchanged.
 - Mark both erased and newly drawn eight-pixel picture bands. Present only
   those bands; new pictures and modal restoration force a full repaint.
-- Render text by scanline, leaving pixels for empty text cells untouched.
+- Render text by scanline over the first through last occupied columns,
+  leaving pixels for empty text cells untouched.
 - Configure the palette/layer once, then invalidate that cached setup when the
   process receives its foreground signal so terminal switching remains safe.
 

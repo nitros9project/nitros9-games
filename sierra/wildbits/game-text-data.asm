@@ -14,3 +14,7 @@ textbits            rmb      1
 textcolor           rmb      1
 textforeground      rmb      1
 textbackground      rmb      1
+
+* Inclusive occupied span for the scanline text renderer.
+textfirstcolumn     rmb      1
+textlastcolumn      rmb      1

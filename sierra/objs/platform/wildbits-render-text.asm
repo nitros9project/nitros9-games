@@ -21,12 +21,30 @@ TextFastFind        lda       ,u+
                     decb
                     bne       TextFastFind
                     lbra      TextFastAdvanceRow
-TextFastOccupied    clr       textglyphrow,x
+TextFastOccupied    negb
+                    addb      #40
+                    stb       textfirstcolumn,x
+* Locate the final occupied cell. Render the bounded span, preserving holes.
+                    lda       textrow,x
+                    ldb       #40
+                    mul
+                    leau      textcharacters+40,x
+                    leau      d,u
+                    ldb       #39
+TextFastFindLast    lda       ,-u
+                    bne       TextFastLastFound
+                    decb
+                    bra       TextFastFindLast
+TextFastLastFound   stb       textlastcolumn,x
+                    clr       textglyphrow,x
 TextFastGlyphRow    lda       textrow,x
                     ldb       #40
                     mul
+                    addb      textfirstcolumn,x
+                    adca      #0
                     std       textindex,x
-                    clr       textcolumn,x
+                    lda       textfirstcolumn,x
+                    sta       textcolumn,x
                     leay      rowoutput,x
 TextFastCell        ldd       textindex,x
                     leau      textcharacters,x
@@ -73,8 +91,8 @@ TextFastNextCell    ldd       textindex,x
                     std       textindex,x
                     inc       textcolumn,x
                     lda       textcolumn,x
-                    cmpa      #40
-                    blo       TextFastCell
+                    cmpa      textlastcolumn,x
+                    lbls      TextFastCell
                     leay      rowoutput,x
                     sty       textfontpointer,x
                     lda       textrow,x
@@ -86,8 +104,17 @@ TextFastNextCell    ldd       textindex,x
                     mul
                     lslb
                     rola
+                    pshs      d
+                    lda       textfirstcolumn,x
+                    ldb       #8
+                    mul
+                    addd      ,s++
                     std       textindex,x
-                    ldd       #320
+                    lda       textlastcolumn,x
+                    suba      textfirstcolumn,x
+                    inca
+                    ldb       #8
+                    mul
                     std       textend,x
 TextFastWriteSpan   ldd       textindex,x
                     lbsr      GameFramePointer

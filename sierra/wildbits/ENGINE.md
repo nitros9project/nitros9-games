@@ -289,8 +289,8 @@ restores the changed fields, retries a failed restoration once, and preserves
 the earlier failure status. Tests model non-default options and assert their
 restoration on every exit.
 
-The current module is 20,741 bytes and its private area 24,570 bytes, leaving
-6 bytes before a fourth data block. The code limit remains 23,808 bytes.
+The current module is 20,808 bytes and its private area 24,572 bytes, leaving
+4 bytes before a fourth data block. The code limit remains 23,808 bytes.
 Further persistent state needs a deliberate layout change. Timing/performance
 parity and complete game-command coverage are not established.
 
@@ -319,7 +319,13 @@ existing range renderer. The full renderer no longer maps pages by character.
 
 Palette/layer setup is cached per process, with foreground notification
 invalidating the cache. Real two-terminal tests cover restoration and exits.
-The added rendering controls total 15 private bytes and require no extra
-physical allocation. Six bytes remain before a fourth data block (three with
+The added rendering controls total 17 private bytes and require no extra
+physical allocation. Four bytes remain before a fourth data block (one with
 optional exit tracing). CPU tests now load the larger module at $A000 rather
 than $B000, and reject any fixture overlapping the CoCo I/O page at $FE00.
+
+The scanline text renderer bounds each occupied row to its first and last
+nonzero character. Interior zero cells still preserve framebuffer pixels.
+Two private bytes retain the inclusive columns across glyph rows. This avoids
+generating and copying unused leading/trailing columns without changing the
+font, colors, wrapping, or bounded line-editor path.

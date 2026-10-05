@@ -385,3 +385,8 @@ The headless MAME harnesses disable the UI cursor and host mouse provider.
 This prevents host pointer movement from adding a hardware cursor to pixel
 comparison screenshots; the rendered game and terminal pixels remain checked
 without masking.
+
+The subsequent bounded-text build (20,808 code / 24,572 private bytes) passed
+the same movement harness at `/tmp/sierra-movement-text-spans`. It still
+measured approximately nine pixels in 200 frames; the shorter text span
+reduces work but did not improve this coarse movement measurement.
