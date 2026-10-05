@@ -148,3 +148,7 @@ The frozen CoCo step under `tests/probes` is a differential fixture only.
 validation. `platform/*-object-bounds-operands.asm` binds horizon/flags storage
 and the explicit native zero-width rejection policy. CoCo's Boolean return
 and native candidate branches retain their original instruction sequences.
+
+`object-collision-filter.asm` shares actor/candidate ignore and activity/self
+eligibility. Owner bindings preserve ID-versus-pointer identity and scratch
+registers. Geometric collision rules and iteration remain owner-specific.

@@ -312,20 +312,12 @@ MotionTerrainError  ldb       <decodeerror
                     rts
 
 * Baseline collisions, including crossing another baseline between steps.
-MotionObjectCollision lda    $25,u
-                    bita      #2
-                    bne       MotionNoCollision
+                    use platform/object-collision-operands.asm
+                    use shared/object-collision-filter.asm
+MotionObjectCollision COLLISION_IGNORE u,a,MotionNoCollision
                     clr       motioncollision,x
                     leay      vmobjects,x
-MotionCollisionNext cmpy      motionobject,x
-                    beq       MotionCollisionAdvance
-                    lda       $26,y
-                    anda      #$41
-                    cmpa      #$41
-                    bne       MotionCollisionAdvance
-                    lda       $25,y
-                    bita      #2
-                    bne       MotionCollisionAdvance
+MotionCollisionNext COLLISION_CANDIDATE y,a,MotionCollisionAdvance
                     clra
                     ldb       3,u
                     addb      $1C,u

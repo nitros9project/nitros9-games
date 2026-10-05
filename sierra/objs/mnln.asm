@@ -954,23 +954,14 @@ BlockRight          equ       $023C
 BlockTop            equ       $024F
 BlockBottom         equ       $023D
                     use       shared/object-block-test.asm
+                    use platform/object-collision-operands.asm
+                    use shared/object-collision-filter.asm
 CheckObjCollision   clra                assume no collision
-                    ldb       <$25,u    load object animation flags
-                    bitb      #$02      test ignore-objects flag
-                    bne       CollisionReturn branch if ignoring other objects
+                    COLLISION_IGNORE u,b,CollisionReturn
                     ldx       <$0030    load pointer to first object
 CheckCollisionLoop  cmpx      <$0032    compare to end-of-object-table pointer
                     bcc       CollisionReturn branch if past all objects (no collision)
-                    ldb       <$26,x    load candidate object state flags
-                    andb      #$41      isolate animated+visible bits
-                    cmpb      #$41      check if candidate is animated and visible
-                    bne       NextCollisionObj branch if candidate not active
-                    ldb       <$25,x    load candidate animation flags
-                    bitb      #$02      test ignore-objects flag
-                    bne       NextCollisionObj branch if candidate ignores objects
-                    ldb       $02,x     load candidate object number
-                    cmpb      $02,u     compare to current object number
-                    beq       NextCollisionObj branch if same object (skip self)
+                    COLLISION_CANDIDATE x,b,NextCollisionObj
                     ldb       $03,u     load current object Y bottom
                     addb      <$1C,u    add height to get bottom edge
                     cmpb      $03,x     compare to candidate Y top

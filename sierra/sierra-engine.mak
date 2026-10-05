@@ -114,4 +114,7 @@ mnln: ../objs/shared/unsigned-decimal.asm \
 	../objs/platform/coco-object-placement-operands.asm \
 	../objs/shared/object-bounds.asm \
 	../objs/platform/object-bounds-operands.asm \
-	../objs/platform/coco-object-bounds-operands.asm
+	../objs/platform/coco-object-bounds-operands.asm \
+	../objs/shared/object-collision-filter.asm \
+	../objs/platform/object-collision-operands.asm \
+	../objs/platform/coco-object-collision-operands.asm

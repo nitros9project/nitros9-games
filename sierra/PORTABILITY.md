@@ -1956,3 +1956,24 @@ and instruction cost. Native probes also build. The preceding placement,
 gameplay and MAME movement/two-terminal checks therefore cover the identical
 production instructions. Full collision/terrain validation and placement
 orchestration remain further consolidation work.
+
+### Shared collision eligibility
+
+`shared/object-collision-filter.asm` now supplies actor ignore-objects checks
+and candidate activity/ignore/self filtering for both collision routines.
+It requires both animated/visible bits (`$41`), excludes ignored candidates,
+and binds self identity through `platform/*-object-collision-operands.asm`.
+CoCo preserves its ID comparison after flag checks and B scratch register;
+native preserves pointer comparison before flag checks and A scratch register.
+The actor's result accumulator and early-ignore behavior remain unchanged.
+Candidate iteration, geometric edge rules and baseline-crossing histories
+remain separate; this does not claim a shared complete collision algorithm.
+
+The focused regression passed 3,084 calls through the real collision routines
+at two load addresses, covering every actor/candidate ignore byte and candidate
+control byte, self exclusion and the preserved duplicate-ID/pointer distinction,
+record/private-state preservation, scan bounds, guards/stack and immutable code.
+All fourteen CoCo engines and native `wbgame` rebuilt byte-identically to the
+preceding verified revision. Native probes also build. This extraction changes
+source ownership only, preserving size and instruction cost; previous gameplay
+and MAME acceptance results cover the identical production instructions.
