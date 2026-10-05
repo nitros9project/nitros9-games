@@ -67,3 +67,7 @@ mnln: ../objs/shared/object-position-test.asm
 mnln: ../objs/shared/object-follow.asm ../objs/shared/object-move-direction.asm
 
 mnln: ../objs/shared/math-commands.asm
+
+mnln: ../objs/shared/object-view-queries.asm \
+	../objs/platform/object-view-query-operands.asm \
+	../objs/platform/coco-object-view-query-operands.asm

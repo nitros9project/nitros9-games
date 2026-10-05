@@ -142,34 +142,17 @@ ViewInvalid         ldb       #E$BMode
                     bra       ViewRestore
 ViewReturn          rts
 ViewQuery           cmpb      #49
-                    bne       ViewNotLast
-                    lda       $0F,x
-                    beq       ViewInvalidQuery
-                    deca
-                    bra       ViewStoreQuery
-ViewNotLast         cmpb      #50
-                    bne       ViewNotCel
-                    lda       $0E,x
-                    bra       ViewStoreQuery
-ViewNotCel          cmpb      #51
-                    bne       ViewNotLoop
-                    lda       $0A,x
-                    bra       ViewStoreQuery
-ViewNotLoop         cmpb      #52
-                    bne       ViewLoops
-                    lda       5,x
-                    bra       ViewStoreQuery
-ViewLoops           lda       $0B,x
-ViewStoreQuery      pshs      a
-                    ldu       <resourcebase
-                    leay      vmvariables,u
-                    clra
-                    ldb       vmarguments+1,u
-                    leay      d,y
-                    puls      a
-                    sta       ,y
-                    clrb
-                    rts
+                    lbeq      cmd_last_cel
+                    cmpb      #50
+                    lbeq      cmd_current_cel
+                    cmpb      #51
+                    lbeq      cmd_current_loop
+                    cmpb      #52
+                    lbeq      cmd_current_view
+                    lbra      cmd_number_of_loops
+* ObjectAddress already validated the object and left its record in X.
+                    use       platform/object-view-query-operands.asm
+                    use       shared/object-view-queries.asm
 ViewInvalidQuery    ldb       #E$BMode
                     orcc      #1
                     rts

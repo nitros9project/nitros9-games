@@ -9660,66 +9660,8 @@ SetCelWidthClip     decb                ; height - 1 (bottom row offset)
 SetCelRet           leas      $01,s     ; release local frame
                     rts
 
-cmd_last_cel        lda       ,y+       ; fetch object number
-                    ldb       #$2B      ; 43 bytes per object struct
-                    mul                 ; offset = obj × 43
-                    addd      <$0030    ; add object array base
-                    tfr       d,u       ; U = object struct pointer
-                    lda       $0F,u     ; get cel count
-                    deca                ; last cel index = count - 1
-                    ldb       ,y+       ; fetch destination variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to variable
-                    sta       ,x        ; store last cel index
-                    rts
-
-cmd_current_cel     lda       ,y+       ; fetch object number
-                    ldb       #$2B      ; 43 bytes per object struct
-                    mul                 ; offset = obj × 43
-                    addd      <$0030    ; add object array base
-                    tfr       d,u       ; U = object struct pointer
-                    lda       $0E,u     ; get current cel index
-                    ldb       ,y+       ; fetch destination variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to variable
-                    sta       ,x        ; store current cel index
-                    rts
-
-cmd_current_loop    lda       ,y+       ; fetch object number
-                    ldb       #$2B      ; 43 bytes per object struct
-                    mul                 ; offset = obj × 43
-                    addd      <$0030    ; add object array base
-                    tfr       d,u       ; U = object struct pointer
-                    lda       $0A,u     ; get current loop index
-                    ldb       ,y+       ; fetch destination variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to variable
-                    sta       ,x        ; store current loop index
-                    rts
-
-cmd_current_view    lda       ,y+       ; fetch object number
-                    ldb       #$2B      ; 43 bytes per object struct
-                    mul                 ; offset = obj × 43
-                    addd      <$0030    ; add object array base
-                    tfr       d,u       ; U = object struct pointer
-                    lda       $05,u     ; get current view number
-                    ldb       ,y+       ; fetch destination variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to variable
-                    sta       ,x        ; store current view number
-                    rts
-
-cmd_number_of_loops lda       ,y+       ; fetch object number
-                    ldb       #$2B      ; 43 bytes per object struct
-                    mul                 ; offset = obj × 43
-                    addd      <$0030    ; add object array base
-                    tfr       d,u       ; U = object struct pointer
-                    lda       $0B,u     ; get total loop count
-                    ldb       ,y+       ; fetch destination variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to variable
-                    sta       ,x        ; store loop count
-                    rts
+                    use       platform/object-view-query-operands.asm
+                    use       shared/object-view-queries.asm
 
 cmd_discard_view    ldb       ,y+       ; fetch view number
                     bsr       DiscardViewHelper ; discard the view

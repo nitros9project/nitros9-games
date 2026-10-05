@@ -1488,3 +1488,54 @@ presented pixel, visibility switching, restored pictures, independent exits,
 relaunch, and the free-memory map. Artifacts are under
 `/tmp/sierra-shared-math-movement` and `/tmp/sierra-shared-math-terminals`.
 These checks do not claim complete gameplay or audio support.
+
+### Shared object view-state queries
+
+AGI commands 49–53 (`last.cel`, `current.cel`, `current.loop`, `current.view`,
+`number.of.loops`) now assemble from `objs/shared/object-view-queries.asm`.
+The shared bodies read offsets 15, 14, 10, 5, and 11 of the 43-byte object
+record, decrementing the cel count only for `last.cel`, then store the result
+in the destination variable. Both owners provide record access and variable
+storage through `platform/object-view-query-operands.asm`, which selects
+`coco-object-view-query-operands.asm` or
+`wildbits-object-view-query-operands.asm` at assembly time. No hardware access
+is added to the common component.
+
+CoCo resolves the script's object operand into U and retains its original
+empty-loop behavior. Its generated query bytes are unchanged. Wild Bits
+retains `ObjectAddress` validation before entering the common bodies and
+rejects an empty loop for `last.cel` before storing a result. Its adapter
+supplies the already-resolved record in X, decoded operands, and private
+variable storage. The shared bodies consume both operands on success; the
+native return convention remains zero B with clear carry, or an explicit
+error with set carry.
+
+`tests/check_view_queries.py` exercises these actual owners at two load
+addresses, including every byte field value, object/variable boundaries,
+zero-count and invalid-object policies, whole-record and native private-state
+preservation, argument/stack guards, and immutable code. All 14 CoCo engine
+binaries remain unchanged. The current native game is 21,807 of 23,808 code
+bytes, with unchanged 24,568-byte private storage.
+
+The complete regression run started for the common-entry checkpoint finished
+successfully, including resource loading, decoder equivalence, parser, sprite
+damage, dialog/play commands, relocation, mapping boundaries and cleanup.
+The separately added arithmetic regression also passed. Those results do not
+replace the focused verification of each subsequent common component.
+
+The native view-query build passed sustained original-game commands and
+unknown-word handling, menu Pause/resume, graphics restoration and subsequent
+input in Wild Bits MAME. The independent two-terminal run passed every
+displayed pixel, visibility switching, independent exits, relaunch and the
+free-memory map. Artifacts are in `/tmp/sierra-shared-view-query-mame` and
+`/tmp/sierra-shared-view-query-terminals`. Full gameplay/audio coverage is
+still outside these tests.
+
+The focused view-query regression completed successfully: 5,140 actual
+command calls across both owners and two load addresses. Every byte value
+was exercised in every queried field, including CoCo's wrapped zero-count
+result and the native empty-loop error. Every native call checked the whole
+private area for changes outside the result variable and documented record
+pointer scratch field. Invalid native object indices left all private state
+unchanged. The CPU run and both MAME runs therefore validate this extraction;
+they do not prove the remaining engine migration complete.

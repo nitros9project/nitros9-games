@@ -43,6 +43,7 @@ check: all probes
 	python3 ../tests/check_logic_executor.py
 	python3 ../tests/check_random_command.py
 	python3 ../tests/check_math_commands.py
+	python3 ../tests/check_view_queries.py
 	python3 ../tests/check_condition_flow.py
 	python3 ../tests/check_tokenizer.py
 	python3 ../tests/check_string_compare.py
@@ -133,3 +134,5 @@ wbgame: shared/ascii-lower.asm
 # Keep every owner current when an adapter or common algorithm changes.
 wbpic wbres wbdecode wbrun wbasset wbexec wbgame: $(wildcard platform/wildbits-*.asm) platform/wildbits-defsfile platform/wildbits-presentation.d $(wildcard shared/*.asm)
 wbexec wbgame: platform/object-coordinate-operands.asm
+
+wbgame: platform/object-view-query-operands.asm
