@@ -184,3 +184,5 @@ wbgame: platform/terrain-operands.asm
 wbgame: platform/position-commit-operands.asm
 
 wbgame: platform/target-motion-operands.asm
+
+wbgame: platform/animation-update-operands.asm

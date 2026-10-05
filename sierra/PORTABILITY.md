@@ -2257,3 +2257,16 @@ production instructions; no new emulator acceptance run is claimed. Code,
 private allocation, stack use and instruction cost are unchanged. Per-cycle
 orchestration, resource/view acquisition, rendering and remaining presentation
 behavior still require consolidation.
+
+### Shared per-object animation update
+
+Direction-driven loop selection and cycle countdown now live in
+`objs/shared/object-animation-update.asm`, used by CoCo `mnln.asm` and the
+Wild Bits motion owner. Platform bindings retain view acquisition, error
+returns, reverse-enable storage and iteration versus subroutine continuation.
+The existing loop eligibility and timer reload order differences are explicit
+assembly-time policies. All 14 CoCo main-loop modules and the native game are
+byte-identical after rebuilding; native remains 22,274 code bytes and 24,570
+private-data bytes. Existing emulator evidence therefore applies to identical
+production bytes; no new runtime or speed improvement is claimed here.
+Outer update traversal, motion scheduling and rendering remain to consolidate.

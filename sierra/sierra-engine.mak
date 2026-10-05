@@ -138,3 +138,5 @@ mnln: ../objs/shared/object-position-commit.asm ../objs/platform/position-commit
 
 mnln: ../objs/shared/object-target-motion.asm ../objs/platform/target-motion-operands.asm \
 	../objs/platform/coco-target-motion-operands.asm
+
+mnln: ../objs/shared/object-animation-update.asm ../objs/platform/animation-update-operands.asm

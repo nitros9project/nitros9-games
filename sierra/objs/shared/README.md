@@ -11,7 +11,7 @@ owners. They allocate no state and contain no OS-9 module header.
   accumulation and a first-nondigit stop, using only stack-local scratch.
 - `divide-byte.asm`: unsigned byte quotient/remainder with private DP scratch.
 - `object-wander.asm`: direction/countdown changes shared with CoCo; native
-  random state is process-private. Coordinate stepping remains separate.
+  random state is process-private. Coordinate stepping uses `object-coordinate-step.asm`.
 - `object-position-test.asm`: inclusive rectangle checks for left/center/right/
   full object extents, with owner-provided scratch and boolean return adapters.
 - `variable-commands.asm`: commands 1–11, including saturating increment/
@@ -238,3 +238,20 @@ threshold and zero-direction completion trigger; native retains threshold one
 and its caller's exact-position trigger. CoCo flag-before-stop and native
 stop-before-flag order are preserved, as are their different record/ego updates.
 All fourteen CoCo `mnln` modules and native `wbgame` remain byte-identical.
+
+`object-animation-update.asm` now owns the per-object direction-driven loop
+selection and cycle countdown stage in both `mnln.asm` and the native motion
+owner. It checks fixed-loop state, selects a direction loop, skips unchanged
+loops, checks/decrements the cycle timer, invokes the existing shared cel
+advance routine and reloads the timer. View selection, native error/context
+handling, CoCo reverse-enable storage and continuation ABI are provided by
+`platform/animation-update-operands.asm`.
+
+Assembly-time policy preserves the existing differences: CoCo may use the
+reverse table for views with more than four loops when its enable bit is set,
+and only changes a loop when the record's step countdown equals one. Native
+limits automatic selection to two through four loops and validates direction.
+CoCo reloads cycle time after cel advancement; native reloads before its tail
+call. The outer object traversal, motion scheduling and rendering remain
+owner-specific. This extraction changes no instructions: all 14 CoCo `mnln`
+modules and native `wbgame` were rebuilt and compared byte for byte.

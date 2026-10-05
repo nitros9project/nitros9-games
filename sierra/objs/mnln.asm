@@ -745,45 +745,9 @@ UpdateAllLoop       cmpu      <$0032    compare to end-of-object-table pointer
                     cmpa      #$51      check if object is animated and visible
                     bne       NextObjInUpdateLoop branch if not active
                     inc       ,s        mark that at least one object updated
-                    ldb       #$04      default loop direction: 4 (no change)
-                    lda       <$25,u    load animation control flags
-                    bita      #$20      test loop-fix flag
-                    bne       CheckCycleTick branch if loop is fixed (skip dir table)
-                    lda       $0B,u     load number of loops in view
-                    cmpa      #$03      compare to 3 loops
-                    bhi       CheckCycleType4 branch if more than 3 loops
-                    cmpa      #$02      compare to 2 loops
-                    bcs       CheckCycleTick branch if fewer than 2 loops
-                    lda       <$21,u    load current movement direction
-                    leay      >DirTableFwd,pcr point to forward direction table
-                    ldb       a,y       look up loop index from direction
-                    bra       CheckObjVisible go validate the loop index
-CheckCycleType4     cmpa      #$04      check if exactly 4 loops
-                    beq       LookupRevDirTable branch if 4 loops (use reverse table)
-                    lda       >$01B0    load player control flags
-                    anda      #$08      test reverse-direction enable bit
-                    beq       CheckCycleTick branch if reverse dir not enabled
-LookupRevDirTable   lda       <$21,u    load current movement direction
-                    leay      >DirTableRev,pcr point to reverse direction table
-                    ldb       a,y       look up reverse loop index
-CheckObjVisible     lda       $01,u     load object visibility/draw flag
-CheckObjIsEgo       cmpa      #$01      check if this is the ego object
-                    bne       CheckCycleTick branch if not ego
-                    cmpb      #$04      check if loop 4 (special ego loop)
-                    beq       CheckCycleTick branch if loop 4 (skip set-loop for ego)
-                    cmpb      $0A,u     compare to current loop
-                    beq       CheckCycleTick branch if already on correct loop
-                    lbsr      SetLoopHelper
-CheckCycleTick      lda       <$26,u    load object state flags
-                    bita      #$20      test cycling-enabled flag
-                    beq       NextObjInUpdateLoop branch if cycling disabled
-                    lda       <$20,u    load cycle delay counter
-                    beq       NextObjInUpdateLoop branch if delay not expired yet
-                    dec       <$20,u    decrement cycle delay counter
-                    bne       NextObjInUpdateLoop branch if counter not zero
-                    lbsr      AdvanceCelFrame advance animation one frame
-                    lda       <$1F,u    load cycle time (delay reset value)
-                    sta       <$20,u    reset cycle delay counter
+                    use platform/animation-update-operands.asm
+                    use shared/object-animation-update.asm
+CheckCycleTick equ AnimationCycleTick
 NextObjInUpdateLoop leau      <$2B,u    advance U to next object struct
                     bra       UpdateAllLoop loop to process next object
 UpdateAllPostLoop   lda       ,s        check update-happened flag

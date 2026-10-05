@@ -215,43 +215,11 @@ MotionArrivedDone   equ TargetReachedReturn
                     use shared/object-target-motion.asm
 
 * Animation modes match the CoCo forward/reverse/end-of-loop transitions.
-MotionAdvanceCel    lda       $25,u
-                    bita      #$20
-                    bne       MotionCycleTick
-                    lda       $0B,u
-                    cmpa      #2
-                    blo       MotionCycleTick
-                    cmpa      #4
-                    bhi       MotionCycleTick
-                    leay      DirTableFwd,pcr
-                    cmpa      #4
-                    bne       MotionChooseLoop
-                    leay      DirTableRev,pcr
-MotionChooseLoop    ldb       $21,u
-                    cmpb      #8
-                    lbhi      MotionInvalid
-                    ldb       b,y
-                    cmpb      #4
-                    beq       MotionCycleTick
-                    cmpb      $0A,u
-                    beq       MotionCycleTick
-                    lda       #43
-                    lbsr      MotionSelectView
-                    lbcs      MotionReturn
-                    ldx       <resourcebase
-                    ldu       motionobject,x
-MotionCycleTick     lda       $26,u
-                    bita      #$20
-                    beq       MotionCycleDone
-                    lda       $20,u
-                    beq       MotionCycleDone
-                    dec       $20,u
-                    bne       MotionCycleDone
-                    lda       $1F,u
-                    sta       $20,u
-                    lbra      AdvanceCelFrame
-MotionCycleDone     clrb
-                    rts
+                    use platform/animation-update-operands.asm
+MotionAdvanceCel equ *
+                    use shared/object-animation-update.asm
+MotionCycleTick equ AnimationCycleTick
+MotionCycleDone equ AnimationCycleDone
                     use       platform/wildbits-cel-advance.asm
                     use       shared/object-cel-advance.asm
                     use       shared/object-direction-tables.asm
