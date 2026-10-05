@@ -137,58 +137,58 @@ InventoryFilename   fcc       /object/
 InventoryCipherKey  fcc       /Avis Durgan/
 InventoryKeyEnd     equ       *
 
-* get/get.v/drop/put/put.v/get.room.v use process-private item locations.
+* Command rules shared with CoCo; item/name loading and storage stay native.
+                    use       platform/wildbits-inventory-operands.asm
+                    use       shared/inventory-commands.asm
 InventoryCommand    lbsr      InventoryLoad
-                    bcs       InventoryReturn
+                    lbcs      InventoryReturn
                     ldu       <resourcebase
-                    ldb       vmarguments,u
-                    lda       <vmopcode
-                    cmpa      #93
-                    beq       InventoryVariableItem
-                    cmpa      #96
-                    beq       InventoryVariableItem
-                    cmpa      #97
-                    bne       InventoryItem
-InventoryVariableItem leax    vmvariables,u
-                    clra
-                    ldb       d,x
-InventoryItem       clra
-                    cmpd      inventorycount,u
-                    bhs       InventoryInvalid
-                    leax      inventoryrooms,u
+                    leay      vmarguments,u
+                    ldb       <vmopcode
+                    subb      #92
+                    cmpb      #5
+                    lbhi      InventoryInvalid
+                    lslb
+                    leax      InventoryCommands,pcr
+                    ldd       b,x
                     leax      d,x
-                    lda       <vmopcode
-                    cmpa      #97
-                    beq       InventoryGetRoom
-                    cmpa      #94
-                    beq       InventoryDrop
-                    cmpa      #95
-                    beq       InventoryPut
-                    cmpa      #96
-                    beq       InventoryPutVariable
-                    lda       #255
-                    bra       InventoryStore
-InventoryDrop       clra
-                    bra       InventoryStore
-InventoryPutVariable ldb      vmarguments+1,u
-                    leay      vmvariables,u
-                    clra
-                    ldb       d,y
-                    tfr       b,a
-                    bra       InventoryStore
-InventoryPut        bra       InventoryPutVariable
-InventoryStore      sta       ,x
+                    jmp       ,x
+InventoryCommands   fdb       InventoryGet-InventoryCommands
+                    fdb       InventoryGetVariable-InventoryCommands
+                    fdb       InventoryDrop-InventoryCommands
+                    fdb       InventoryPut-InventoryCommands
+                    fdb       InventoryPutVariable-InventoryCommands
+                    fdb       InventoryGetRoom-InventoryCommands
+InventoryGet        INVENTORY_SET_LOCATION 0,$FF
                     clrb
                     rts
-InventoryGetRoom    lda       ,x
-                    ldb       vmarguments+1,u
-                    leay      vmvariables,u
-                    pshs      a
-                    clra
-                    leay      d,y
-                    puls      a
-                    sta       ,y
+InventoryGetVariable INVENTORY_SET_LOCATION 1,$FF
                     clrb
+                    rts
+InventoryDrop       INVENTORY_SET_LOCATION 0,$00
+                    clrb
+                    rts
+InventoryPut        INVENTORY_PUT_LOCATION 0
+                    clrb
+                    rts
+InventoryPutVariable INVENTORY_PUT_LOCATION 1
+                    clrb
+                    rts
+InventoryGetRoom    INVENTORY_GET_LOCATION
+                    clrb
+                    rts
+InventoryVariableItemAddress ldb ,y+
+                    leax      vmvariables,u
+                    clra
+                    ldb       d,x
+                    bra       InventoryResolveItem
+InventoryItemAddress ldb      ,y+
+InventoryResolveItem clra
+                    cmpd      inventorycount,u
+                    lbhs      InventoryInvalid
+                    leax      inventoryrooms,u
+                    leax      d,x
+                    andcc     #$FE
                     rts
 
 * Modal status screen. Picture-command staging is dead after decoding and
@@ -447,24 +447,13 @@ InventorySelectText fcc       /ENTER selects; ESC cancels/
 InventoryTest       lbsr      InventoryLoad
                     lbcs      InventoryReturn
                     ldu       <resourcebase
-                    ldb       vmarguments,u
-                    clra
-                    cmpd      inventorycount,u
-                    lbhs      InventoryInvalid
-                    leax      inventoryrooms,u
-                    leax      d,x
-                    lda       #255
+                    leay      vmarguments,u
                     ldb       <vmopcode
                     cmpb      #9
-                    beq       InventoryCompare
-                    ldb       vmarguments+1,u
-                    leay      vmvariables,u
-                    clra
-                    lda       d,y
-InventoryCompare    cmpa      ,x
-                    beq       InventoryTrue
-                    clrb
-                    rts
-InventoryTrue       ldb       #1
-                    andcc     #$FE
+                    beq       InventoryHas
+                    cmpb      #10
+                    lbne      InventoryInvalid
+                    INVENTORY_ROOM_TEST
+InventoryHas        INVENTORY_HAS_TEST
+InventoryFalse      clrb
                     rts

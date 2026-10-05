@@ -149,3 +149,5 @@ mnln: ../objs/shared/logic-executor.asm ../objs/platform/coco-logic-stream.asm
 mnln: ../objs/shared/random-command.asm ../objs/platform/coco-random-operands.asm
 
 mnln: ../objs/shared/object-motion-setup.asm ../objs/platform/coco-motion-setup.asm
+
+mnln: ../objs/shared/inventory-commands.asm ../objs/platform/coco-inventory-operands.asm

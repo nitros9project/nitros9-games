@@ -1313,3 +1313,47 @@ interrupt exit and free-memory checks also passed, with movement unchanged at
 approximately 9 AGI pixels in 3.33 emulated seconds. Artifacts are in
 `/tmp/sierra-shared-motion-setup-movement`. This checkpoint does not establish
 full gameplay, audio support or completion of the remaining source migration.
+
+### Shared inventory rules
+
+`shared/inventory-commands.asm` now supplies all six inventory commands
+(`get`, `get.v`, `drop`, `put`, `put.v`, `get.room.v`) and both inventory
+predicates (`has`, `obj.in.room`) to CoCo and Wild Bits. Carried objects use
+room $FF; dropped objects use room $00. Both put forms read their destination
+room from a variable. The variable forms resolve the item through a variable,
+while `get.room.v` resolves the item before writing the destination variable,
+so aliasing the item and destination variable remains valid. Both predicates
+use literal item numbers; `obj.in.room` resolves its expected room variable.
+
+The CoCo adapter binds its three-byte object-file entries, packed resource
+layout, original item-pointer helpers and A-valued condition returns. The
+native adapter binds its separate private room-byte table, cached bounded
+item lookup and B/carry status conventions. Native command dispatch now uses
+an immutable relative table for opcodes 92–97; pointer helpers reject item
+indices outside the loaded count before any store. Inventory file loading,
+name validation/decryption and the modal inventory screen stay in their owner
+implementations. Sharing rules does not require changing those storage/I/O
+boundaries.
+
+The CoCo module remains byte-identical, including predicate cursor advancement
+and command helper branch distances. The native game uses 21,613 code bytes,
+87 more than the preceding motion-setup checkpoint, and unchanged 24,568-byte
+private data; both stay within the existing limits. No runtime platform
+selector, extra private state or mapped resource pointer is introduced.
+
+`tests/check_inventory_commands.py` runs both actual owners at two load
+addresses. It covers every command and predicate, items/variable indexes 0 and
+255, carried/dropped/ordinary room values, variable-indirect items and rooms,
+aliased room queries, CoCo name-byte preservation, native whole-private-state
+preservation, argument/cursor/stack guards and native bounds errors. The native
+cached loader remains active; the test supplies a validated loaded table.
+`check_wbgame.py` separately exercises actual object-file loading, transfers,
+queries, predicates, modal selection and scrolling through the interpreter.
+
+The comparative suite and loaded-file gameplay regression passed. The final
+build also passed sustained original-game input, inventory/modal restoration,
+Pause/resume, interrupt exit and free-memory checks in real Wild Bits MAME.
+Two-terminal tests passed pixel restoration, independent exit and relaunch.
+Artifacts are in `/tmp/sierra-shared-inventory-rules-mame` and
+`/tmp/sierra-shared-inventory-rules-terminals`. These checks do not establish
+full gameplay, audio support or completion of the remaining engine migration.

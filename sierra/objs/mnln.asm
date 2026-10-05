@@ -1444,27 +1444,10 @@ TEST_VARIABLE_TABLE macro
                     endm
                     use       shared/condition-tests.asm
                     rts
-TestHasObject       ldb       ,y+       load object number (has-object test)
-                    ldx       <$0038    load pointer to object table
-                    abx                 add object offset
-                    abx                 (3 bytes per object entry)
-                    abx                 now pointing to object location
-                    lda       #$FF      load "in room" value
-                    cmpa      $02,x     compare to object's room byte
-                    lbne      RetFalse  branch if object not carried
-                    lbra      RetTrue   has-object matched, return true
-TestObjectRoom      ldb       $01,y     load variable number (obj.in.room test)
-                    ldx       #$0431    point to variable table
-                    abx                 index to the variable
-                    lda       ,x        load room number from variable
-                    ldb       ,y++      load object number, advance Y by 2
-                    ldx       <$0038    load pointer to object table
-                    abx                 add object offset
-                    abx                 (3 bytes per object entry)
-                    abx                 now pointing to object location
-                    cmpa      $02,x     compare room# to object location
-                    lbne      RetFalse  branch if object not in that room
-                    lbra      RetTrue   obj.in.room matched, return true
+                    use       platform/coco-inventory-operands.asm
+                    use       shared/inventory-commands.asm
+TestHasObject       INVENTORY_HAS_TEST
+TestObjectRoom      INVENTORY_ROOM_TEST
 TestController      lda       ,y+       load string index (get-string test)
                     ldx       #$05BA    point to string storage area
                     lda       a,x       load character from string slot
@@ -4987,17 +4970,11 @@ NewRoomFlagSetup    lda       >$01AE    load initialized-flag byte
 *   inventory.
 *======================================================================
 *
-cmd_get             bsr       GetObjPtr get pointer to object struct
-                    lda       #$FF      room = $FF = carried by player
-                    sta       $02,u     set object room to $FF (in inventory)
+cmd_get             INVENTORY_SET_LOCATION 0,$FF
                     rts
-cmd_get_v           bsr       GetObjPtrV get pointer via variable number
-                    lda       #$FF      room = $FF = carried
-                    sta       $02,u     set object room to $FF
+cmd_get_v           INVENTORY_SET_LOCATION 1,$FF
                     rts
-cmd_drop            bsr       GetObjPtr get pointer to object struct
-                    lda       #$00      room = 0 = dropped (not carried)
-                    sta       $02,u     clear object room (drop)
+cmd_drop            INVENTORY_SET_LOCATION 0,$00
                     rts
 GetObjPtr           ldx       <$0038    load object-data base pointer
                     ldb       ,y+       load object number from script
@@ -5026,26 +5003,11 @@ GetObjPtrV          ldb       ,y+       load variable number from script
                     ldb       -$01,y    load object number for message
                     lbsr      ReportError report the error
 GetObjPtrVRet       rts
-cmd_put             bsr       GetObjPtr get pointer to object struct
-                    ldb       ,y+       load room-variable number from script
-                    ldx       #$0431    point to variable table
-                    abx                 index to variable
-                    lda       ,x        load destination room from variable
-                    sta       $02,u     store room number in object
+cmd_put             INVENTORY_PUT_LOCATION 0
                     rts
-cmd_put_v           bsr       GetObjPtrV get pointer via variable number
-                    ldb       ,y+       load room-variable number
-                    ldx       #$0431    point to variable table
-                    abx                 index to variable
-                    lda       ,x        load destination room from variable
-                    sta       $02,u     store room number in object
+cmd_put_v           INVENTORY_PUT_LOCATION 1
                     rts
-cmd_get_room_v      bsr       GetObjPtrV get pointer via variable number
-                    ldb       ,y+       load destination-variable number
-                    ldx       #$0431    point to variable table
-                    abx                 index to variable
-                    lda       $02,u     load object's current room
-                    sta       ,x        store room number in variable
+cmd_get_room_v      INVENTORY_GET_LOCATION
                     rts
 PriBaseFlag         fcb       1
 *

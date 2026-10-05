@@ -13,6 +13,9 @@ owners. They allocate no state and contain no OS-9 module header.
 - `variable-commands.asm`: commands 1–11, including saturating increment/
   decrement, byte wrapping and both indirect assignment directions. Owners
   provide the variable-table address at assembly time.
+- `inventory-commands.asm`: carried/dropped/room transfers, indirect item and
+  room variables, room queries, and possession/room predicates; owners bind
+  item lookup, bounds, room storage and condition-return conventions.
 - `flag-commands.asm`: commands 12–17, using owner-specific packed-bit/byte
   flag storage adapters for set, clear and toggle.
 - `condition-flow.asm`: common short-circuit AND/OR/NOT traversal, with owner
