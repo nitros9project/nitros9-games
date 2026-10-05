@@ -1,6 +1,8 @@
                     use       platform/object-coordinate-operands.asm
                     use       shared/object-coordinate-state.asm
                     use       shared/object-animation-state.asm
+                    use platform/object-control-operands.asm
+                    use shared/object-unanimate.asm
 * Private object-state commands adapted from mnln.asm's 43-byte records.
 * The owner supplies 64 records. Drawing, cel selection and motion updates
 * remain separate; these commands never retain a foreign resource pointer.
@@ -77,12 +79,7 @@ ObjectDone          clrb
 ObjectsUnanimate    ldu       <resourcebase
                     leax      vmobjects,u
                     ldy       #64
-ObjectsUnanimateNext lda      $26,x
-                    anda      #$BE
-                    sta       $26,x
-                    leax      43,x
-                    leay      -1,y
-                    bne       ObjectsUnanimateNext
+                    OBJECT_UNANIMATE_ALL x,ObjectsUnanimateNext,ObjectsUnanimateDone
                     clrb
                     rts
 ObjectPosition      OBJECT_POSITION x,0,1

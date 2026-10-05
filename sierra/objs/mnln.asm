@@ -722,16 +722,13 @@ AnimateObjHelper    leas      -$01,s    save one byte for object number
 AnimObjBadIndex     OBJECT_ANIMATE_STATE u,AnimObjAlready
 AnimObjAlready      leas      $01,s     release stack byte
                     rts
+                    use platform/object-control-operands.asm
+                    use shared/object-block-state.asm
+                    use shared/object-unanimate.asm
 CmdUnanimateAll     lbsr      ClearBothRanges erase all objects from range lists
                     ldu       <$0030    load pointer to first object
-UnanimateAllLoop    cmpu      <$0032    compare to end of object table
-                    bcc       UnanimateAllDone branch if past last object
-                    lda       <$26,u    load object state flags
-                    anda      #$BE      clear animated and visible flags
-                    sta       <$26,u    store updated flags
-                    leau      <$2B,u    advance to next object struct
-                    bra       UnanimateAllLoop loop through all objects
-UnanimateAllDone    rts
+                    OBJECT_UNANIMATE_ALL u,UnanimateAllLoop,UnanimateAllDone
+                    rts
 *
 *======================================================================
 * PER-CYCLE OBJECT UPDATE
@@ -918,17 +915,9 @@ MoveDir8            ldd       $01,s     load saved X,Y (direction 8: up-left)
 CheckMoveCollision  lbsr      InBlockRect check if new position is in block rect
                     cmpa      ,s        compare to original block status
                     bne       MoveIsBlocked branch if collision state changed
-MoveNoBlock         lda       <$26,u    load object state flags
-                    anda      #$7F      clear blocked flag
-                    sta       <$26,u    store updated flags
+MoveNoBlock         OBJECT_BLOCK_CLEAR u
                     bra       MoveOneStepReturn done, object moved successfully
-MoveIsBlocked       lda       <$26,u    load object state flags
-                    ora       #$80      set blocked flag
-                    sta       <$26,u    store updated flags
-                    clr       <$21,u    stop object (direction = 0)
-                    cmpu      <$0030    check if this is the ego object
-                    bne       MoveOneStepReturn branch if not ego
-                    clr       >$0437    clear ego direction variable too
+MoveIsBlocked       OBJECT_BLOCK_STOP u,MoveOneStepReturn
 MoveOneStepReturn   leas      $03,s     release 3-byte stack frame
                     rts
 *
@@ -4573,16 +4562,9 @@ cmd_player_control  lda       #$01      show ego (player controls ego)
                     lda       #$00      motion type = normal
                     sta       <$22,u    clear ego motion type
                     rts
-x_dir_mult          fcb       0,0
-                    fcb       1,1
-                    fcb       1,0
-                    fcb       $ff,$ff
-                    fcb       $ff
-y_dir_mult          fcb       0
-                    fcb       $ff,$ff
-                    fcb       0,1
-                    fcb       1,1
-                    fcb       0,$ff
+x_dir_mult          equ StepXDelta
+y_dir_mult          equ StepYDelta
+                    use shared/object-step-deltas.asm
 
 *
 *======================================================================

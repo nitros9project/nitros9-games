@@ -99,4 +99,9 @@ mnln: ../objs/shared/unsigned-decimal.asm \
 	../objs/platform/format-recursion-operands.asm \
 	../objs/platform/coco-format-recursion-operands.asm \
 	../objs/shared/agi-xor-key.asm \
-	../objs/shared/xor-decrypt.asm
+	../objs/shared/xor-decrypt.asm \
+	../objs/shared/object-block-state.asm \
+	../objs/shared/object-unanimate.asm \
+	../objs/shared/object-step-deltas.asm \
+	../objs/platform/object-control-operands.asm \
+	../objs/platform/coco-object-control-operands.asm

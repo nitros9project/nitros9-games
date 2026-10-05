@@ -52,6 +52,7 @@ check: all probes
 	python3 ../tests/check_string_compare.py
 	python3 ../tests/check_coco_conditions.py
 	python3 ../tests/check_object_flags.py
+	python3 ../tests/check_object_block_state.py
 	python3 ../tests/check_motion_setup.py
 	python3 ../tests/check_cel_advance.py
 	python3 ../tests/check_inventory_commands.py
@@ -154,3 +155,5 @@ wbgame: platform/format-directive-operands.asm
 wbgame: platform/format-string-operands.asm
 
 wbgame: platform/format-recursion-operands.asm
+
+wbexec wbgame: platform/object-control-operands.asm

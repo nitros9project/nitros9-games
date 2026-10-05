@@ -236,8 +236,9 @@ MotionInvalid       ldb       #E$BMode
 MotionUnsupported   ldb       #E$UnkSvc
                     orcc      #1
                     rts
-MotionXDelta        fcb       0,0,1,1,1,0,-1,-1,-1
-MotionYDelta        fcb       0,-1,-1,0,1,1,1,0,-1
+MotionXDelta        equ StepXDelta
+MotionYDelta        equ StepYDelta
+                    use shared/object-step-deltas.asm
 
 * Each baseline pixel participates in control/water checks. Sprite colors
 * are restored out of the composition buffer before this function is called.

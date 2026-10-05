@@ -15,9 +15,8 @@ GameBlockClear      clr       gameblockenabled,x
                     rts
 BLOCK_PRIVATE_STATE equ       1
                     use       shared/object-block-test.asm
-GameCheckBlock      lda       $26,u
-                    anda      #$7F
-                    sta       $26,u
+                    use shared/object-block-state.asm
+GameCheckBlock      OBJECT_BLOCK_CLEAR u
                     bita      #2
                     bne       GameBlockAllowed
                     tst       gameblockenabled,x
@@ -30,13 +29,7 @@ GameCheckBlock      lda       $26,u
                     lbsr      InBlockRect
                     cmpa      motioncollision,x
                     beq       GameBlockAllowed
-                    lda       $26,u
-                    ora       #$80
-                    sta       $26,u
-                    clr       $21,u
-                    tst       motionid,x
-                    bne       GameBlockStopped
-                    clr       vmvariables+6,x
+GameBlockCrossing   OBJECT_BLOCK_STOP u,GameBlockStopped
 GameBlockStopped    ldb       #1
                     rts
 GameBlockAllowed    clrb

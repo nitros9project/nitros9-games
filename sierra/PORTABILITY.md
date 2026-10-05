@@ -1807,3 +1807,36 @@ and unchanged free memory.
 
 The corresponding two-terminal MAME run also passed every displayed pixel,
 restoration, independent exit/relaunch and unchanged free-memory maps.
+
+### Shared blocked-motion state, bulk unanimation and step deltas
+
+`shared/object-block-state.asm` owns the object-control mutations used after
+blocking checks: clear the crossing bit when allowed, or set it and stop the
+object's direction after a crossing. The owner supplies ego identification
+and the address of ego's direction variable through
+`platform/*-object-control-operands.asm`. CoCo identifies ego by its first
+record pointer; native motion identifies it by record ID zero in private
+context. Only a stopped ego clears variable six. The prior block rectangle
+classification, ignore/disabled policy and collision sequencing remain at
+their existing callers.
+
+`shared/object-unanimate.asm` owns the complete record traversal for
+`unanimate.all`: preserve all control bits except animated/visible, advance
+by 43 bytes and continue until the owner boundary is reached. CoCo supplies
+an exclusive end pointer and keeps the preceding draw-range cleanup; native
+supplies a positive record count, currently 64. The native count interface
+requires a nonempty range, as its original loop did; CoCo's end-pointer loop
+also accepts an empty range. All other record fields remain untouched.
+`shared/object-step-deltas.asm` now provides the actual nine signed X/Y
+movement deltas for both engines, under their existing label aliases. Each
+owner keeps its arithmetic width and boundary policy.
+
+All fourteen CoCo engines and native `wbgame` rebuilt byte-identically to
+the verified shared-XOR revision. Production size, state and instruction cost
+therefore remain unchanged. Native probes also build. The focused CPU test
+passed 3,086 calls through the real owner routines at two load addresses:
+every control byte, allowed/stopped transitions, ego/non-ego direction policy,
+unrelated record fields, empty/single/two/64-record bounds, all direction-table
+entries, guards, stack/cursor preservation and immutable code. This shares
+those motion-state operations and data; stepping arithmetic, terrain/collision
+validation and complete per-cycle object orchestration remain separate work.

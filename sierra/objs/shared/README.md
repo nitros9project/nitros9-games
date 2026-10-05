@@ -124,3 +124,10 @@ The actual recursion frame layout and message readers remain owner-specific.
 native object-file loader. `agi-xor-key.asm` defines their immutable key;
 native streaming message decryption references it too. File/mapped-message
 bounds and object validation stay in their storage providers.
+
+`object-block-state.asm` shares allowed/crossing control-bit updates and
+stopped-direction/ego handling. `object-unanimate.asm` shares bulk animated/
+visible-bit clearing over owned records. `platform/*-object-control-operands.asm`
+binds ego state and record iteration. `object-step-deltas.asm` supplies the
+nine signed X/Y deltas used by both motion implementations. Arithmetic and
+collision orchestration still remain in their owner components.
