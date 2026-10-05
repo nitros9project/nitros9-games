@@ -19,11 +19,11 @@ CASES=[
 ]
 
 
-def compile_module(source,target):
+def compile_module(source,target,defines=()):
     subprocess.run(['lwasm.orig','--6809','--format=os9','--no-warn=ifp1',
         '--pragma=pcaspcr,nosymbolcase,condundefzero','-I'+str(ROOT/'kingsquest1'),
         '-I'+str(ROOT/'objs'),'-I'+str(ROOT.parent.parent/'nitros9/defs'),
-        '--map='+str(target)+'.map','-o'+str(target),str(source)],check=True)
+        '--map='+str(target)+'.map','-o'+str(target),*['-D'+value for value in defines],str(source)],check=True)
     return target.read_bytes(),symbols(Path(str(target)+'.map'))
 
 

@@ -2,8 +2,9 @@
 
 ## Current source layout
 
-There is no separate `sierra/wildbits` tree. Native module entry points are
-under `objs`, platform-specific bodies and private state definitions under
+There is no separate `sierra/wildbits` tree. The game entry point is
+`objs/sierra.asm` with `WILDBITS=1`, optional development probe entry points are under
+`tests/probes`, platform-specific bodies and private state definitions under
 `objs/platform/wildbits-*`, and routines assembled by both ports under
 `objs/shared`. The build entry point is `objs/wildbits.mk`; host exporters
 and fixtures live in `tests`.
@@ -15,6 +16,33 @@ complete the common-engine migration. Shared command/condition/object/picture
 bodies continue to be used directly by both owners. Remaining native-only
 algorithms must be reconciled with the CoCo implementations as that work
 continues.
+
+## Game versus development probes
+
+`wbgame` is the runnable game. It assembles the resource loader, decoder,
+logic executor, and game loop directly; it does not load any probe modules.
+Both production builds now assemble `objs/sierra.asm`. With `-DWILDBITS=1`,
+that entry includes `platform/wildbits-runtime.asm`, which defines the native
+module header, private storage, and component composition. Otherwise it
+assembles the existing CoCo setup module. Selection adds no runtime dispatch.
+The Wild Bits executable and internal module name remain `wbgame` so existing
+launch commands and emulator harnesses keep working.
+
+The runtime layouts still differ: CoCo starts its separate `mnln` engine,
+whereas the native composition owns the full game. A common build entry is
+an intermediate step, not proof that the remaining engine behavior is shared.
+
+The other executables are optional diagnostics: `wbasset` exercises expanded
+resource loading, `wbdecode` picture decoding, `wbexec` logic execution,
+`wbres` raw resource loading, `wbpic` presentation, and `wbrun` the combined
+resource/decoder/presentation path. They belong to test tooling rather than
+the production game. Their sources live in `tests/probes`; generated binaries,
+listings, and maps remain in `objs` for the existing regression harnesses.
+
+From `sierra/objs`, `make -f wildbits.mk all` builds only the game and its font
+and checks the game memory budget. `make -f wildbits.mk probes` builds the
+optional diagnostics and checks their budgets. `make -f wildbits.mk check`
+builds both groups before running the regression suite.
 
 ## What `objs/wildbits_engine.asm` does
 
@@ -68,9 +96,9 @@ The required conversion is deeper than removing module headers:
 The current native executables are probes for implemented interfaces. They
 are not separate processes intended to form the eventual game interpreter.
 
-`wbpic.asm` owns one OS-9 module and exercises combined-buffer presentation.
-`wbres.asm` owns another small test module and includes `objs/platform/wildbits-resource-data.asm`
-and `objs/platform/wildbits-resource-code.asm`. `wbdecode.asm` now includes those same resource routines
+`tests/probes/wbpic.asm` owns one OS-9 module and exercises combined-buffer presentation.
+`tests/probes/wbres.asm` owns another small test module and includes `objs/platform/wildbits-resource-data.asm`
+and `objs/platform/wildbits-resource-code.asm`. `tests/probes/wbdecode.asm` now includes those same resource routines
 directly, together with converted command, line, fill and mapped-storage bodies. It does not fork
 `wbres` or reimplement its loader. `objs/platform/wildbits-resource-cli.asm` supplies shared probe
 argument/output handling. Each executable still has exactly one module header.
@@ -96,14 +124,14 @@ Pen conversion and direct presentation now work together in `wbrun`.
 Compressed logic/view storage now exists in the shared asset components.
 The old fixed-address `shdw` body cannot simply be linked into the new module.
 
-`wbrun.asm` now owns one module and includes the resource loader, decoder and
+`tests/probes/wbrun.asm` now owns one module and includes the resource loader, decoder and
 shared presentation routines directly. It does not fork the probes. The same
 small presentation includes are used by the existing viewer, whose binary is
 unchanged. This proves the single-program source structure before bringing in
 the main interpreter; it does not claim that displaying a resource is gameplay.
 
 
-The interpreter follows the same include structure. `wbexec.asm` owns its
+The interpreter follows the same include structure. `tests/probes/wbexec.asm` owns its
 module header and private data, includes `lzw-*`, `asset-*`, `logic-*` and
 `message-*` routine bodies, and calls them directly. It never starts `wbasset`
 as a subprocess. The eventual main game owner can use these same components
@@ -113,7 +141,7 @@ The original CoCo `mnln.asm` remains the source/semantic reference; no complete
 CoCo module or fixed-address workspace is incorporated into the native owner.
 
 
-`wbgame.asm` is now the integration owner. The `object-*`, `view-*`, `room-*`,
+`sierra.asm` with `WILDBITS=1` is now the integration owner. The `object-*`, `view-*`, `room-*`,
 `menu-*`, `input-*`, `screen-*`, `string-*` and `replay-*` bodies keep small AGI
 command groups separate. `game-picture-*` connects script picture commands to
 the existing decoder. `game-background-*` owns an immutable decoded background;

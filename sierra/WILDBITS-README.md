@@ -394,7 +394,7 @@ private 8 KB blocks and one mapping window, leaving 23,808 code bytes.
 
 ## Native game owner
 
-`wbgame.asm` has one OS-9 module header and includes the same small loader,
+`sierra.asm` with `WILDBITS=1` has one OS-9 module header and includes the same small loader,
 logic, decoder and presentation components directly. It also includes separate
 `game-background-*`, `game-render-*`, `game-cycle-*` and `game-text-*` components.
 It does not concatenate complete CoCo modules or run the probes as subprocesses.

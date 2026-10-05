@@ -1,3 +1,7 @@
+* Common game build entry; runtime layout is selected at assembly time.
+                    ifne      WILDBITS
+                    use       platform/wildbits-runtime.asm
+                    else
                     use       buffer-layout.d
 
 ********************************************************************
@@ -698,4 +702,5 @@ SierraNameStr       fcb       $73,$69,$65,$72,$72,$61,$00 sierra.
 
                     emod
 eom                 equ       *
+                    endc
                     end

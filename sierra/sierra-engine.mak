@@ -1,4 +1,6 @@
 # Shared interpreter compilation and backend dependencies for all titles.
+# sierra.asm selects the runtime composition at assembly time; these title
+# builds use the CoCo branch (Wild Bits supplies -DWILDBITS=1 in wildbits.mk).
 vpath %.asm ../objs
 
 AFLAGS		+= -I. -I../objs

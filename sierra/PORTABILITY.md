@@ -778,7 +778,7 @@ that all four module sources reject the unimplemented Wild Bits selection.
 
 ## Wild Bits implementation has started
 
-The follow-on `objs/wbpic.asm` is the first native presentation module.
+The follow-on `tests/probes/wbpic.asm` is the first native presentation module.
 It implements the proposed combined-buffer-to-framebuffer path using OS-managed
 mapping, separate process data, and a terminal-owned bitmap. It accepts an
 uncompressed combined-buffer export rather than existing game resource files.
@@ -1027,15 +1027,16 @@ parser integration still need further consolidation.
 
 ### Removal of the separate Wild Bits source directory
 
-The `sierra/wildbits` directory is removed. Build all Wild Bits modules with
+The `sierra/wildbits` directory is removed. Build the Wild Bits game with
 `make -C sierra/objs -f wildbits.mk all` from the games repository. Module
-entry points are `objs/wbgame.asm` and the diagnostic `objs/wb*.asm` owners;
+entry points are `objs/sierra.asm` with `WILDBITS=1` and the optional diagnostic `tests/probes/wb*.asm` owners;
 platform-specific bodies and storage definitions use `objs/platform/wildbits-*`.
 The menu construction component is `wildbits-menu-build-code.asm`, distinct
 from the existing modal `wildbits-menu-code.asm`. Host reference exporters
 and fixture generators live beside their consumers in `tests`. Port and
 emulator documentation is now `WILDBITS-README.md`, `WILDBITS-ENGINE.md` and
-`WILDBITS-MAME.md`. Test drivers read assembled products from `objs`.
+`WILDBITS-MAME.md`. Test drivers read assembled products from `objs`. Build the diagnostic executables
+with the separate `probes` target; `check` builds both groups.
 
 A forced rebuild produced byte-identical copies of all seven native modules
 and the font. The move adds no instructions, state or runtime dispatch.

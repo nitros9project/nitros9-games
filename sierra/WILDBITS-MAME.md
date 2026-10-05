@@ -260,7 +260,7 @@ python3 ../tests/check_wbgame_mame.py \
   --output /tmp/sierra-real-kq1-inventory-ctrl-i-v20
 ```
 
-That optional trace module is assembled from `wbgame.asm` with
+That optional trace module is assembled from `sierra.asm` with `-DWILDBITS=1` and
 `-DGAME_TRACE=1`. The harness installs the generated `wbfont` in `CMDS` with
 read/execute attributes. It checks castle graphics, the inventory title's
 pixels against the shared font, dismissal, restored graphics, interrupt exit

@@ -13,7 +13,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix='sierra-cel-advance-') as name:
         tmp=Path(name)
         coco,cs=compile_module(ROOT/'objs/mnln.asm',tmp/'mnln')
-        native,ns=compile_module(ROOT/'objs/wbgame.asm',tmp/'wbgame')
+        native,ns=compile_module(ROOT/'objs/sierra.asm',tmp/'wbgame',defines=('WILDBITS=1',))
         d,emulator=start_cpu(idle_rom(tmp/'idle.rom'),timeout=900)
         try:
             d.write(0xffdf,b'\0');d.write(0xff90,b'\x4c')
