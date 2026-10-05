@@ -1,3 +1,7 @@
+DICTIONARY_LONG_BRANCHES equ 0
+DICTIONARY_ALPHA_REQUIRED equ 1
+DICTIONARY_RETURN macro
+                    endm
 * Mapped original vocabulary: X is a resident words.tok cursor.
 DICTIONARY_FOLD     macro
                     lbsr      ToLower

@@ -1,3 +1,5 @@
-* Native streaming binding is integrated separately; this kernel currently
-* has the mapped production owner. Do not substitute a mapped read on Wild Bits.
+                    ifne WILDBITS
+                    use       platform/wildbits-dictionary-operands.asm
+                    else
                     use       platform/coco-dictionary-operands.asm
+                    endc

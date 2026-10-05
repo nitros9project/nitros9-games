@@ -153,13 +153,20 @@ and native candidate branches retain their original instruction sequences.
 eligibility. Owner bindings preserve ID-versus-pointer identity and scratch
 registers. Geometric collision rules and iteration remain owner-specific.
 
-The dictionary migration is in progress. `dictionary-lookup.asm` owns the
-complete mapped lookup algorithm: prefix traversal, character matching, longest
-phrase selection, ignored-word IDs, and next-word boundaries. Its dictionary
-cursor operations come from `platform/coco-dictionary-operands.asm`; the CoCo
-module remains byte-identical. `check_dictionary_lookup.py` runs this production
-routine at two load addresses. Wild Bits still uses its streaming implementation
-in `wildbits-parser-code.asm`; the common kernel does **not** yet have a native
-production caller. A streaming provider must preserve file-error validation,
-private phrase offsets, and the bounded input contract before that duplicate
-can be removed. Moving the CoCo routine alone does not complete consolidation.
+`dictionary-lookup.asm` is now used by both production owners. It owns prefix
+traversal, character matching, longest phrase selection, ignored-word IDs, and
+next-word boundaries. `platform/*-dictionary-operands.asm` binds dictionary
+cursor reads and text policy: mapped addresses on CoCo, file offsets on Wild
+Bits. CoCo retains case folding, its single-letter defaults, and in-place phrase
+termination; native input is normalized beforehand and remains intact for its
+private offsets/lengths. The native provider validates streamed records, locates
+the encoded group, and performs cached reads without retaining a mapped slab.
+It accepts zero letter indexes and an optional trailing zero as before.
+
+`check_dictionary_lookup.py` executes the common kernel through both real owners
+at two addresses each, checking immutable code, state and guards. The native
+parser regression additionally covers dictionaries larger than its 512-byte
+buffer, malformed records, typed input and `said` integration. CoCo binaries are
+unchanged. Sentence orchestration, vocabulary acquisition/validation, and result
+storage still have owner-specific implementations; sharing lookup does not
+complete the broader engine migration.

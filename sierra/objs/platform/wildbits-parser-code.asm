@@ -88,74 +88,49 @@ ParserNextInput     ldu       <resourcebase
                     bne       ParserSearch
                     inc       parserposition,u
                     bra       ParserNextInput
-ParserSearch        clr       parserbestlength,u
-                    clr       parserwordlength,u
+ParserSearch        clr       parserwordlength,u
                     clr       parserreadindex,u
                     clr       parserreadindex+1,u
                     clr       parserreadlength,u
                     clr       parserreadlength+1,u
+                    leax      parserline,u
+                    ldb       parserposition,u
+                    lda       b,x
+                    sta       parserseen,u
+                    ldd       #$FFFF
+                    std       dictionaryentry,u
+                    ldd       parserstart,u
+                    std       dictionarycachebase,u
                     lda       <resourcepath
                     ldx       #0
                     ldu       parserstart,u
                     os9       I$Seek
                     lbcs      ResourceFailed
-ParserEntry         lbsr      ParserByte
-                    bcc       ParserPrefix
-                    cmpb      #E$EOF
-                    lbne      ResourceFailed
-                    lbra      ParserSearchDone
-ParserPrefix        cmpb      parserwordlength,u
-                    lbhi      ParserMalformed
-                    stb       parserwordlength,u
-ParserSuffix        lbsr      ParserByte
-                    bcc       ParserSuffixByte
-                    cmpb      #E$EOF
-                    lbne      ResourceFailed
-                    tst       parserwordlength,u
-                    lbeq      ParserSearchDone
-                    lbra      ParserMalformed
-ParserSuffixByte
-                    stb       parsercharacter,u
-                    andb      #$7F
-                    eorb      #$7F
-                    cmpb      #32
-                    lblo      ParserMalformed
-                    lda       parserwordlength,u
-                    cmpa      #39
-                    lbhs      ParserMalformed
-                    leax      parserword,u
-                    stb       a,x
-                    inc       parserwordlength,u
-                    tst       parsercharacter,u
-                    bpl       ParserSuffix
-                    lbsr      ParserByte
-                    lbcs      ParserTruncated
-                    stb       parserid,u
-                    lbsr      ParserByte
-                    lbcs      ParserTruncated
-                    stb       parserid+1,u
-* Compare dictionary phrases at a word boundary; prefer the longest match.
-                    leax      parserword,u
-                    leay      parserline,u
+                    ldu       <resourcebase
+                    lbra      DictionaryValidateEntry
+ParserLookup        leax      parserline,u
                     ldb       parserposition,u
-                    leay      b,y
-                    ldb       parserwordlength,u
-ParserCompare       lda       ,x+
-                    cmpa      ,y+
-                    lbne      ParserEntry
-                    decb
-                    bne       ParserCompare
-                    lda       ,y
-                    beq       ParserCandidate
+                    leau      b,x
+                    pshs      u
+                    lbsr      LookupWord
+                    bcc       ParserLookupResult
+                    leas      2,s
+                    lbra      ResourceFailed
+ParserLookupResult  pshs      d
+                    tfr       u,d
+                    subd      2,s
+                    cmpb      #0
+                    beq       ParserLookupLength
+                    lda       -1,u
                     cmpa      #32
-                    lbne      ParserEntry
-ParserCandidate     lda       parserwordlength,u
-                    cmpa      parserbestlength,u
-                    lbls      ParserEntry
-                    sta       parserbestlength,u
-                    ldd       parserid,u
+                    bne       ParserLookupLength
+                    decb
+ParserLookupLength  ldu       <resourcebase
+                    stb       parserbestlength,u
+                    puls      d
                     std       parserbestid,u
-                    lbra      ParserEntry
+                    leas      2,s
+                    lbra      ParserSearchDone
 ParserSearchDone    lda       parserbestlength,u
                     beq       ParserUnknown
                     adda      parserposition,u
@@ -213,16 +188,73 @@ ParserInvalid       ldb       #E$IllArg
 ParserReturn        rts
 ParserFilename      fcc       /words.tok/
                     fcb       C$CR
+DictionaryValidateEntry ldd dictionarycachebase,u
+                    addd      parserreadindex,u
+                    std       parserbestid,u
+                    lbsr      ParserByte
+                    bcc       ParserPrefix
+                    cmpb      #E$EOF
+                    lbne      ResourceFailed
+                    lbra      DictionaryValidateDone
+ParserPrefix        cmpb      parserwordlength,u
+                    lbhi      ParserMalformed
+                    stb       parserwordlength,u
+ParserSuffix        lbsr      ParserByte
+                    bcc       ParserSuffixByte
+                    cmpb      #E$EOF
+                    lbne      ResourceFailed
+                    tst       parserwordlength,u
+                    lbeq      DictionaryValidateDone
+                    lbra      ParserMalformed
+ParserSuffixByte
+                    stb       parsercharacter,u
+                    andb      #$7F
+                    eorb      #$7F
+                    cmpb      #32
+                    lblo      ParserMalformed
+                    lda       parserwordlength,u
+                    cmpa      #39
+                    lbhs      ParserMalformed
+                    leax      parserword,u
+                    stb       a,x
+                    inc       parserwordlength,u
+                    tst       parsercharacter,u
+                    bpl       ParserSuffix
+                    lbsr      ParserByte
+                    lbcs      ParserTruncated
+                    lbsr      ParserByte
+                    lbcs      ParserTruncated
+                    lda       parserword,u
+                    cmpa      parserseen,u
+                    lbne      DictionaryValidateEntry
+                    ldd       dictionaryentry,u
+                    cmpd      #$FFFF
+                    lbne      DictionaryValidateEntry
+                    ldd       parserbestid,u
+                    std       dictionaryentry,u
+                    lbra      DictionaryValidateEntry
+DictionaryValidateDone ldd  #0
+                    std       parserreadlength,u
+                    clrb
+                    lbra      ParserLookup
+
+                    use platform/dictionary-operands.asm
+                    use shared/dictionary-lookup.asm
+                    use platform/wildbits-dictionary-code.asm
+
 * Buffered partial reads, with EOF accepted only between complete entries.
 ParserByte          ldu       <resourcebase
                     ldd       parserreadindex,u
                     cmpd      parserreadlength,u
                     blo       ParserBuffered
+                    ldd       dictionarycachebase,u
+                    addd      parserreadlength,u
+                    std       dictionarycachebase,u
                     lda       <resourcepath
                     leax      assetinput,u
                     ldy       #512
                     os9       I$Read
-                    bcs       ParserReturn
+                    lbcs      ParserReturn
                     ldu       <resourcebase
                     cmpy      #0
                     beq       ParserReadInvalid

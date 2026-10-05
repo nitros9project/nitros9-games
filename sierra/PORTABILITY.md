@@ -1977,3 +1977,46 @@ All fourteen CoCo engines and native `wbgame` rebuilt byte-identically to the
 preceding verified revision. Native probes also build. This extraction changes
 source ownership only, preserving size and instruction cost; previous gameplay
 and MAME acceptance results cover the identical production instructions.
+
+### Shared dictionary lookup
+
+Both `mnln` and the native game now assemble `shared/dictionary-lookup.asm`.
+The former native `ParserCompare`/`ParserCandidate` matching implementation is
+removed. A common six-byte stack frame holds the ID, best phrase boundary,
+matched-prefix length and comparison byte. Cursor operations are selected at
+assembly time; the common algorithm has no hardware or file-service access.
+
+CoCo cursor reads remain direct mapped reads, with the original instruction
+sequence. Its case-folding, single-letter defaults and in-place word boundary
+termination remain CoCo policies. Wild Bits calls the same lookup with normalized
+input and leaves that input intact. Its adapter converts the returned boundary
+into the existing private phrase length and word ID; sentence/unknown-word
+state still belongs to the native parser.
+
+The native file provider retains full prefix/length/character/ID validation,
+including EOF/trailing-zero rules, before using the shared matcher. It locates
+the first encoded group with the input's first character, including dictionaries
+with zeroed letter indexes. Cached cursor reads preserve X/Y/U and use the
+existing 512-byte buffer. Real I/O errors unwind the common frame before reaching
+the existing resource cleanup path. No slab is mapped during file I/O. The old
+decoded-ID scratch now holds the selected entry offset; only the two-byte cache
+base is added to private data.
+
+All fourteen CoCo title modules rebuilt byte-identically. Native game/probe
+builds pass: `wbgame` is 22,261 / 23,808 code bytes with 24,570 private bytes,
+415 code bytes and two private bytes above the preceding revision. This is a
+maintenance consolidation, not a speed improvement: native validation is retained
+and the shared matcher adds cursor work. Focused tests cover both production
+owners at two addresses, full native parsing/said, dictionaries beyond the
+buffer size, malformed files, immutable code/private state and stack/guards.
+
+Wild Bits MAME movement remained approximately nine AGI pixels per 3.33
+emulated seconds. Two-terminal pixel restoration, independent exit, relaunch
+and free-memory checks passed. The tested module matches the final build.
+Artifacts are under `/tmp/sierra-shared-dictionary-movement` and
+`/tmp/sierra-shared-dictionary-terminals`. The final-module typed-command check also passed in
+`/tmp/sierra-shared-dictionary-command-recheck`. An earlier run with the identical
+module did not reach any scheduled screenshots or its exit marker; its cause
+has not been established. The fresh repeat, movement and two-terminal runs
+passed, alongside the CPU parser regression. These checks do not constitute
+a full adventure playthrough or physical-hardware timing measurement.

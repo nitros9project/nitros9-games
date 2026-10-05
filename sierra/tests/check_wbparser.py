@@ -28,12 +28,21 @@ def main():
              (b'a look\r', [2], 0), (b'  look, at  tree!\r', [3,4], 0), (b'lo-ok\r', [2], 0), (b'loox\x08k\r', [2], 0),
              (b'look tree\r', [1, 4], 0), (b'look tree\r', [9999], 0),
              (b'look unknown\r', [2], 2), (b'unknown\r', [2], 1)]
+    # Exercise a dictionary larger than the stream buffer. Encoded groups before
+    # and after the matched phrases force both validation and cursor refill paths.
+    large = dictionary([('a',0), ('look',2), ('look at',3), ('tree',4)] +
+        [('aardvark%03d' % i,100+i) for i in range(180)] +
+        [('zebra%03d' % i,500+i) for i in range(180)]) + b'\0'
+    assert len(large) > 1024
+    scenarios = [(vocab,case) for case in cases] + [(large,case) for case in cases[:5]]
+    scenarios += [(vocab,(b'look at unknown\r',[3],2)),
+                  (vocab,(b'looker\r',[2],1))]
     with tempfile.TemporaryDirectory(prefix='wbparser-') as tmp:
         d, emulator = start_cpu(idle_rom(Path(tmp) / 'idle.rom'), timeout=900)
         try:
             d.write(0xffdf, b'\0'); d.write(0xff90, b'\x4c')
             d.write(0xff91, b'\x01'); d.write(0xffa8, bytes(range(8)))
-            for keys, ids, unknown in cases:
+            for vocabulary, (keys, ids, unknown) in scenarios:
                 # Capture unknown-word index while input flag is live. Repeated
                 # identical said predicates may accept the sentence only once.
                 script = bytearray([255,7,2,255,3,0,4,222,9])
@@ -50,7 +59,7 @@ def main():
                 logic = len(script).to_bytes(2,'little') + script
                 files = {'/game/logDir': b'\xff'*3 + bytes(3),
                     '/game/vol.0': b'\x12\x34\0' + len(logic).to_bytes(2,'little')*2 + logic,
-                    '/game/words.tok': vocab}
+                    '/game/words.tok': vocabulary}
                 error, output, state = exercise(d,files,module='wbgame',base=0xa000,
                     database=0x1000,window=0x8000,blocks=None,multiple=True,
                     firstblock=0x10,capture=True,keyboard=keys)
@@ -68,7 +77,7 @@ def main():
                 error,_=exercise(d,files,module='wbgame',base=0xa000,database=0x1000,
                     window=0x8000,blocks=None,multiple=True,firstblock=0x10,keyboard=b'look\r')
                 assert error, ('malformed vocabulary accepted',malformed[:60])
-            print('PASS: typed commands, case folding, prefix-compressed phrases, ignored words, backspace, unknown indexes, said wildcards and single acceptance; closed paths and freed slabs')
+            print('PASS: typed commands, case folding, prefix-compressed phrases across stream refills, ignored words, backspace, unknown indexes, said wildcards and single acceptance; closed paths and freed slabs')
         finally:
             d.s.close(); emulator.terminate()
             try: emulator.wait(timeout=5)

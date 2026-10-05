@@ -170,3 +170,5 @@ wbgame: platform/object-placement-operands.asm
 wbgame: platform/object-bounds-operands.asm
 
 wbgame: platform/object-collision-operands.asm
+
+wbgame: platform/dictionary-operands.asm
