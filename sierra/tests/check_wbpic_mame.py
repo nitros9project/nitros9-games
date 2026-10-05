@@ -179,7 +179,7 @@ end)
     lua = out / 'drive.lua'
     lua.write_text(script)
     command = [str(mame), 'wbjr2', '-bios', 'turbo', '-rompath', str(roms.parent),
-               '-hard', str(disk), '-skip_gameinfo', '-video', 'none', '-sound', 'none',
+               '-hard', str(disk), '-skip_gameinfo', '-noui_mouse', '-mouseprovider', 'none', '-video', 'none', '-sound', 'none',
                '-nothrottle', '-autoboot_script', str(lua), '-seconds_to_run', str(120 * factor),
                '-nvram_directory', str(out / 'nvram'), '-cfg_directory', str(out / 'cfg')]
     (out / 'command.json').write_text(json.dumps(command, indent=2) + '\n')

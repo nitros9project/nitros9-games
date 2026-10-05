@@ -38,6 +38,7 @@ signalforeground    cmpb      #SignalFg
                     bne       signalabort
                     clr       paused,u
                     ifne      GAME_PRESENTATION
+                    clr       presentationconfigured,u
                     inc       gameclockreset,u
                     endc
                     rti

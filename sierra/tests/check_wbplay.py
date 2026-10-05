@@ -32,7 +32,7 @@ def main():
         try:
             d.write(0xffdf,b'\0');d.write(0xff90,b'\x4c');d.write(0xff91,b'\x01');d.write(0xffa8,bytes(range(8)))
             def run(files, **options):
-                return exercise(d,files,module='wbgame',base=0xb000,database=0x1000,
+                return exercise(d,files,module='wbgame',base=0xa000,database=0x1000,
                     window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,**options)
             error,_,_=run(fixture(bytes([134,1,0])),option_set_error=True)
             assert error==203, 'failed terminal setup did not retain its error and restore options'

@@ -22,7 +22,7 @@ def main():
         try:
             d.write(0xffdf,b'\0');d.write(0xff90,b'\x4c');d.write(0xff91,b'\x01');d.write(0xffa8,bytes(range(8)))
             error,frame,state=exercise(d,files,module='wbgame',arguments=b'/game 0\r',
-                base=0xb000,database=0x1000,window=0x8000,blocks=None,multiple=True,
+                base=0xa000,database=0x1000,window=0x8000,blocks=None,multiple=True,
                 firstblock=0x10,capture=True,frame_capture=True,cycle_limit=110,
                 os_call_limit=600000,clock=tuple(range(60))*100,
                 keyboard_by_cycle={1:(b' \r',0),2:(b'\x09',0x40),

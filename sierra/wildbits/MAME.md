@@ -352,3 +352,36 @@ The harness rejects the old credit glyph before and after inventory.
 `check_wbcredits.py` separately verifies exact picture/text replacement at all
 five allowed picture offsets on a real 6809 with mocked OS calls. The native
 play suite verifies clock freezing across Pause and resumed clock progression.
+
+
+## Movement optimization acceptance
+
+Identical timed Right input on the 19,685-byte reference build and the
+20,741-byte optimized build measured approximately 1 and 9 AGI pixels,
+respectively, over 200 frames (3.33 emulated seconds). The estimate uses the
+centre of Graham's visible shirt; animation can shift that centre slightly.
+Artifacts: `/tmp/sierra-movement-before` and
+`/tmp/sierra-movement-layer-cache` (includes `movement.json`). Use `--movement`
+and optionally `--module-file` on `check_wbgame_mame.py` to reproduce it.
+This establishes a substantial improvement in the castle scene; it does not
+establish a general frame rate or original-interpreter timing parity.
+
+The dirty-band build also passed sustained command/menu/Pause/restore and
+free-memory checks in `/tmp/sierra-movement-sustained-final`.
+The final palette-cached build repeats terminal-switch, exact-pixel,
+independent-exit, relaunch and free-memory checks in
+`/tmp/sierra-movement-two-terminals-no-mouse`. These are picture-command diagnostics,
+not two simultaneous full-resource adventures.
+
+Separate CPU acceptance covers every reference picture and glyph pixel,
+normal and follow/move stepping, clipped/cross-page sprite erasure, the
+large-cel fallback, all five picture offsets, bounded editors and modal
+backups, Pause clocks and the real KQ1 room 1 to room 8 route. The deterministic
+5/6-cycle KQ1 workload used 5,848/6,626 map calls before and 1,423/1,478 after the
+dirty-band change: 778 versus 55 for the recurring cycle. Counts include mapped
+source and destination slabs. OS calls are mocked for that measurement.
+
+The headless MAME harnesses disable the UI cursor and host mouse provider.
+This prevents host pointer movement from adding a hardware cursor to pixel
+comparison screenshots; the rendered game and terminal pixels remain checked
+without masking.

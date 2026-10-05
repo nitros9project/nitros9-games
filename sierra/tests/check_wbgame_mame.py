@@ -13,6 +13,7 @@ def main():
     ap.add_argument('--typed-command', help='Exercise one command after inventory dismissal')
     ap.add_argument('--menu',action='store_true',help='Open and cancel the actual game menu')
     ap.add_argument('--sustained',action='store_true',help='Repeat commands and select Pause through the real game menu')
+    ap.add_argument('--movement',action='store_true',help='Measure KQ1 movement over 200 emulated frames')
     a=ap.parse_args(); out=a.output.resolve(); out.mkdir(parents=True,exist_ok=False)
     disk=out/'test.dsk'; shutil.copyfile(a.disk,disk)
     roms=out/'roms/wbjr2'; roms.mkdir(parents=True)
@@ -33,8 +34,8 @@ def main():
     install('feu.startup',b'bootos9 /s0/OS9Boot\n','FEU/startup',text=True)
     with disk.open('ab') as f:f.truncate(1 << (disk.stat().st_size-1).bit_length())
     response_frame=4000+max(700,120*len(a.typed_command or ""))
-    if sum(bool(v) for v in (a.menu,a.typed_command,a.sustained))>1:
-        ap.error("choose menu, typed-command or sustained")
+    if sum(bool(v) for v in (a.menu,a.typed_command,a.sustained,a.movement))>1:
+        ap.error("choose menu, typed-command, sustained or movement")
     if a.menu: response_frame=4700
     delay=response_frame+1000-3900 if a.typed_command or a.menu else 0
     command_events=''
@@ -79,6 +80,14 @@ def main():
  if frames==10850 then post(" ") end
  if frames==11200 then shot("play-final-scene") end
 '''
+    if a.movement:
+        delay=2000
+        command_events='''
+ if frames==3900 then shot("move-before") end
+ if frames==4000 then keys["Right"]:set_value(1) end
+ if frames==4190 then keys["Right"]:clear_value() end
+ if frames==4200 then shot("move-after") end
+'''
     lua=out/'drive.lua'
     lua.write_text(f"""local frames=0
 local keys=manager.machine.ioport.ports[":KEY3"].fields
@@ -116,7 +125,7 @@ sub=emu.add_machine_frame_notifier(function()
  if frames=={5100+delay} then shot("game-closed");manager.machine:exit() end
 end)
 """)
-    command=[str(a.mame.resolve()),'wbjr2','-bios','turbo','-rompath',str(roms.parent),'-hard',str(disk),'-skip_gameinfo','-video','none','-sound','none','-nothrottle','-autoboot_script',str(lua),'-seconds_to_run',str((5100+delay)//60+10 if a.typed_command or a.menu or a.sustained else 100),'-nvram_directory',str(out/'nvram'),'-cfg_directory',str(out/'cfg')]
+    command=[str(a.mame.resolve()),'wbjr2','-bios','turbo','-rompath',str(roms.parent),'-hard',str(disk),'-skip_gameinfo', '-noui_mouse', '-mouseprovider', 'none','-video','none','-sound','none','-nothrottle','-autoboot_script',str(lua),'-seconds_to_run',str((5100+delay)//60+10 if a.typed_command or a.menu or a.sustained or a.movement else 100),'-nvram_directory',str(out/'nvram'),'-cfg_directory',str(out/'cfg')]
     (out/'command.json').write_text(json.dumps(command,indent=2)+'\n')
     with (out/'mame.log').open('w') as log:subprocess.run(command,cwd=out,stdout=log,stderr=subprocess.STDOUT,check=True,timeout=180)
     exits=re.findall(r'wbgame error, opcode: ([0-9A-F]{2})', (out/'mame.log').read_text())
@@ -176,6 +185,24 @@ end)
             w,h,pixels=png_rgb(out/(name+'.png'))
             assert len(set(pixels[i:i+3] for i in range(0,len(pixels),3)))>=12, ('scene missing',name)
         print('PASS: sustained original-game commands, unknown-word response, real menu Pause selection, resume and subsequent command')
+    if a.movement:
+        # The castle's other bright-red pixels are below this region. Graham's
+        # shirt gives an observable centre; cel shape may shift it slightly.
+        centres=[]
+        for name in ('move-before','move-after'):
+            w,h,pixels=png_rgb(out/(name+'.png'))
+            assert (w,h)==(640,480)
+            shirt=[i//3%w for i in range(0,len(pixels),3)
+                   if pixels[i:i+3]==bytes([255,85,85])
+                   and 120<=i//3//w<260 and 300<=i//3%w]
+            assert shirt, ('Graham absent from movement measurement',name)
+            centres.append((min(shirt)+max(shirt))/2)
+        distance=(centres[1]-centres[0])/4
+        assert distance>0, 'Right input did not move Graham'
+        result={'frames':200,'seconds':200/60,'shirt_centres':centres,
+                'estimated_agi_pixels':distance,'module_bytes':len((a.module_file or VIEWER/'wbgame').read_bytes())}
+        (out/'movement.json').write_text(json.dumps(result,indent=2)+'\n')
+        print(f'Movement: approximately {distance:g} AGI pixels in {200/60:.2f} emulated seconds')
     print('PASS: real-resource startup, inventory glyphs, modal interaction/restoration, interrupt exit and unchanged memory on Wild Bits drivers; full gameplay/audio not claimed')
     print('Artifacts:',out)
 if __name__=='__main__':main()

@@ -56,6 +56,7 @@ GameCopyCommands    lda       ,u+
                     lbsr      PictureUnmap
                     lbcs      GamePictureReturn
                     lbsr      GameTextClearPicture
+                    lbsr      GameDamageAll
                     ldx       <resourcebase
                     tst       gamebackgroundowned,x
                     lbne      GameSaveBackground

@@ -1,5 +1,6 @@
 * Keep the decoded background separate from the sprite composition buffer.
-* Copy through private 512-byte staging; only one foreign mapping is live.
+* Copy through the idle private 8K command workspace; one foreign mapping.
+* Decoder/asset loading and modal backup restoration finish before entry.
 GameSaveBackground  lbsr      AssetUnmap
                     lbcs      GameBackgroundReturn
                     ldx       <resourcebase
@@ -21,8 +22,9 @@ GameRestoreBackground lbsr   AssetUnmap
                     ldx       <resourcebase
                     tst       gamebackgroundowned,x
                     lbeq      GameBackgroundInvalid
-                    lda       #1
-                    sta       gamecopydirection,x
+                    tst       gamebackgroundclean,x
+                    lbne      GameBackgroundDone
+                    lbra      GameRestoreSprites
 GameCopyBackground  lbsr      PictureUnmap
                     lbcs      GameBackgroundReturn
                     ldx       <resourcebase
@@ -36,9 +38,9 @@ GameCopyBackground  lbsr      PictureUnmap
 GameBackgroundChunk ldd       #26880
                     subd      <pictureoutoffset
                     lbeq      GameBackgroundDone
-                    cmpd      #512
+                    cmpd      #8192
                     bls       GameBackgroundSize
-                    ldd       #512
+                    ldd       #8192
 GameBackgroundSize  std       <picturechunk
                     tfr       d,y
                     ldd       <pictureoutoffset
@@ -51,10 +53,10 @@ GameBackgroundSize  std       <picturechunk
 GameReadBackground  lbsr      AssetPointer
                     tst       <asseterror
                     lbne      GameBackgroundAssetError
-GameStageBackground leax      picturestage,x
-GameBackgroundRead  lda       ,u+
-                    sta       ,x+
-                    leay      -1,y
+GameStageBackground leax      resourcecommands,x
+GameBackgroundRead  ldd       ,u++
+                    std       ,x++
+                    leay      -2,y
                     bne       GameBackgroundRead
                     lbsr      PictureUnmap
                     lbcs      GameBackgroundReturn
@@ -71,11 +73,11 @@ GameBackgroundRead  lda       ,u+
 GameWritePicture    lbsr      PicturePointer
                     tst       <decodeerror
                     lbne      GameBackgroundDecodeError
-GameWriteBackground leax      picturestage,x
+GameWriteBackground leax      resourcecommands,x
                     ldy       <picturechunk
-GameBackgroundWrite lda       ,x+
-                    sta       ,u+
-                    leay      -1,y
+GameBackgroundWrite ldd       ,x++
+                    std       ,u++
+                    leay      -2,y
                     bne       GameBackgroundWrite
                     lbsr      PictureUnmap
                     bcs       GameBackgroundReturn
@@ -86,7 +88,11 @@ GameBackgroundWrite lda       ,x+
                     std       <pictureoutoffset
                     ldx       <resourcebase
                     lbra      GameBackgroundChunk
-GameBackgroundDone  ldb       <vmcurrent
+GameBackgroundDone  ldx       <resourcebase
+                    lbsr      GameForgetSprites
+                    lda       #1
+                    sta       gamebackgroundclean,x
+                    ldb       <vmcurrent
                     lbsr      VmSlotAddress
                     lbsr      VmRestoreAsset
                     clrb
@@ -117,3 +123,5 @@ GameReleaseBackground lbsr   PictureUnmap
                     clr       gamebackgroundowned,x
                     clrb
                     rts
+
+                    use       platform/wildbits-sprite-background.asm

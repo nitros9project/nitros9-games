@@ -39,6 +39,7 @@ fixture:
 check: all
 	python3 ../tests/check_wbgame.py
 	python3 ../tests/check_wbcredits.py
+	python3 ../tests/check_wbsprite_damage.py
 	python3 ../tests/check_wbparser.py
 	python3 ../tests/check_wbplay.py
 	python3 ../tests/check_wbexec.py
@@ -79,3 +80,6 @@ wbfont: export_font.py ../objs/font-data.asm
 wbgame: wbfont
 
 wbgame: ../objs/shared/object-follow.asm ../objs/shared/object-move-direction.asm
+wbgame: ../objs/platform/wildbits-render-text.asm
+wbgame: ../objs/platform/wildbits-sprite-background.asm
+wbgame: ../objs/platform/wildbits-present-damage.asm

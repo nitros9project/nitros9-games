@@ -29,11 +29,11 @@ def main():
             d.write(0xff90, b'\x4c')
             d.write(0xff91, b'\x01')
             d.write(0xffa8, bytes(range(8)))
-            error, frame = exercise(d, files, module='wbgame', base=0xb000,
+            error, frame = exercise(d, files, module='wbgame', base=0xa000,
                 database=0x1000, window=0x8000, blocks=None, multiple=True,
                 firstblock=0x10, frame_capture=True)
             assert not error, error
-            failed, unused = exercise(d, files, module='wbgame', base=0xb000,
+            failed, unused = exercise(d, files, module='wbgame', base=0xa000,
                 database=0x1000, window=0x8000, blocks=None, multiple=True,
                 firstblock=0x10, bitmap_error=True)
             assert failed == 32 and not unused, 'bitmap allocation refusal did not clean up'
@@ -68,7 +68,7 @@ def main():
                     '/game/logDir': b'\xff' * 3 + offsets[0].to_bytes(3, 'big'),
                     '/game/picDir': b'\xff' * 3 + offsets[1].to_bytes(3, 'big'),
                     '/game/viewDir': offsets[2].to_bytes(3, 'big')}
-                error, frame = exercise(d, files, module='wbgame', base=0xb000,
+                error, frame = exercise(d, files, module='wbgame', base=0xa000,
                     database=0x1000, window=0x8000, blocks=None, multiple=True,
                     firstblock=0x10, frame_capture=True)
                 assert not error, (error, mirrored, xpos, ypos, priority, erase)
@@ -138,7 +138,7 @@ def main():
                     '/game/logDir': b'\xff' * 3 + offsets[0].to_bytes(3,'big'),
                     '/game/picDir': b'\xff' * 3 + offsets[1].to_bytes(3,'big'),
                     '/game/viewDir': offsets[2].to_bytes(3,'big')}
-                error, output, state = exercise(d, files, module='wbgame', base=0xb000,
+                error, output, state = exercise(d, files, module='wbgame', base=0xa000,
                     database=0x1000, window=0x8000, blocks=None, multiple=True,
                     firstblock=0x10, capture=True,
                     keyboard=b'\x09' if mode in ('arrow','programarrow') else (b'\x08' if mode == 'backspace' else b''),
@@ -176,7 +176,7 @@ def main():
             logic += bytes([1]) + (4+len(message)).to_bytes(2,'little') + bytes([4,0]) + encrypted
             files = {'/game/logDir': b'\xff' * 3 + bytes(3),
                 '/game/vol.0': b'\x12\x34\0' + len(logic).to_bytes(2,'little') * 2 + logic}
-            error, frame = exercise(d, files, module='wbgame', base=0xb000,
+            error, frame = exercise(d, files, module='wbgame', base=0xa000,
                 database=0x1000, window=0x8000, blocks=None, multiple=True,
                 firstblock=0x10, frame_capture=True)
             assert not error, error
@@ -197,7 +197,7 @@ def main():
                 logic += bytes([1]) + (4+len(message)).to_bytes(2,'little') + bytes([4,0]) + encrypted
                 files = {'/game/logDir': b'\xff'*3 + bytes(3),
                     '/game/vol.0': b'\x12\x34\0' + len(logic).to_bytes(2,'little')*2 + logic}
-                error, frame = exercise(d, files, module='wbgame', base=0xb000,
+                error, frame = exercise(d, files, module='wbgame', base=0xa000,
                     database=0x1000, window=0x8000, blocks=None, multiple=True,
                     firstblock=0x10, frame_capture=True)
                 assert not error, error
@@ -215,7 +215,7 @@ def main():
                 files = {'/game/logDir': b'\xff'*3 + bytes(3),
                     '/game/vol.0': b'\x12\x34\0' + len(logic).to_bytes(2,'little')*2 + logic,
                     '/game/object': encrypted}
-                error, output, state = exercise(d, files, module='wbgame', base=0xb000,
+                error, output, state = exercise(d, files, module='wbgame', base=0xa000,
                     database=0x1000, window=0x8000, blocks=None, multiple=True,
                     firstblock=0x10, capture=True, frame_capture=True, keyboard=keys)
                 assert not error, ('inventory',error)
@@ -238,20 +238,20 @@ def main():
             files = {'/game/logDir': b'\xff'*3 + bytes(3),
                 '/game/vol.0': b'\x12\x34\0' + len(logic).to_bytes(2,'little')*2 + logic,
                 '/game/object': encrypted}
-            error, output, state = exercise(d, files, module='wbgame', base=0xb000,
+            error, output, state = exercise(d, files, module='wbgame', base=0xa000,
                 database=0x1000, window=0x8000, blocks=None, multiple=True,
                 firstblock=0x10, capture=True, frame_capture=True, keyboard=b'\n'*22 + b'\r', os_call_limit=100000)
             assert not error and state['vmvariables'][25] == 22, 'inventory scrolling lost item identity'
             assert output == bytes([1])*76800, 'scrolled inventory left an overlay'
             for bad_font in (b'', bytes(1023), bytes(1025)):
                 failed_files = {**files, 'wbfont': bad_font}
-                error, output, state = exercise(d, failed_files, module='wbgame', base=0xb000,
+                error, output, state = exercise(d, failed_files, module='wbgame', base=0xa000,
                     database=0x1000, window=0x8000, blocks=None, multiple=True,
                     firstblock=0x10, capture=True)
                 assert error, 'malformed font accepted'
             for malformed in (b'bad', encrypted[:10], encrypted + bytes(4096)):
                 files['/game/object'] = malformed
-                error, output, state = exercise(d, files, module='wbgame', base=0xb000,
+                error, output, state = exercise(d, files, module='wbgame', base=0xa000,
                     database=0x1000, window=0x8000, blocks=None, multiple=True,
                     firstblock=0x10, capture=True)
                 assert error, 'malformed object file accepted'
@@ -260,7 +260,7 @@ def main():
                 logic = len(script).to_bytes(2,'little') + script
                 files = {'/game/logDir': b'\xff' * 3 + bytes(3),
                     '/game/vol.0': b'\x12\x34\0' + len(logic).to_bytes(2,'little') * 2 + logic}
-                error, output, state = exercise(d, files, module='wbgame', base=0xb000,
+                error, output, state = exercise(d, files, module='wbgame', base=0xa000,
                     database=0x1000, window=0x8000, blocks=None, multiple=True,
                     firstblock=0x10, capture=True)
                 assert not error and state['vmflags'][200] == 1, 'sound-off completion flag missing'
@@ -278,7 +278,7 @@ def main():
             logic = len(script).to_bytes(2, 'little') + script
             files = {'/game/logDir': b'\xff' * 3 + bytes(3),
                 '/game/vol.0': b'\x12\x34\0' + len(logic).to_bytes(2, 'little') * 2 + logic}
-            error, output, state = exercise(d, files, module='wbgame', base=0xb000,
+            error, output, state = exercise(d, files, module='wbgame', base=0xa000,
                 database=0x1000, window=0x8000, blocks=None, multiple=True,
                 firstblock=0x10, capture=True, keyboard=b'abcdefgh')
             assert not error and not output, (error, output)
@@ -288,7 +288,7 @@ def main():
             logic = len(script).to_bytes(2, 'little') + script
             files = {'/game/logDir': b'\xff' * 3 + bytes(3),
                 '/game/vol.0': b'\x12\x34\0' + len(logic).to_bytes(2, 'little') * 2 + logic}
-            error, output, state = exercise(d, files, module='wbgame', base=0xb000,
+            error, output, state = exercise(d, files, module='wbgame', base=0xa000,
                 database=0x1000, window=0x8000, blocks=None, multiple=True,
                 firstblock=0x10, capture=True, keyboard=b'q', clock=(59,0))
             assert not error and not output

@@ -289,7 +289,37 @@ restores the changed fields, retries a failed restoration once, and preserves
 the earlier failure status. Tests model non-default options and assert their
 restoration on every exit.
 
-The current module is 19,685 bytes and its private area 24,555 bytes, leaving
-21 bytes before a fourth data block. The code limit remains 23,808 bytes.
+The current module is 20,741 bytes and its private area 24,570 bytes, leaving
+6 bytes before a fourth data block. The code limit remains 23,808 bytes.
 Further persistent state needs a deliberate layout change. Timing/performance
 parity and complete game-command coverage are not established.
+
+
+## Native render phases and damage state
+
+The command workspace is reused only after asset/picture decoding or modal
+backup restoration has finished. Full background copies and small cel staging
+use its whole 8K. Presentation reserves bytes 0..2047 for any live modal/text
+editor backup, staging picture input at +2048 and expanded output at +4096.
+The maximum 12-row batch fits; ordinary damaged bands contain eight rows.
+No operation maps a source slab and framebuffer/picture slab simultaneously.
+
+In native `wbgame` records only, the unused bytes 6..9 hold the last clipped
+sprite footprint: x, top, width, height. Zero height means nothing to erase.
+Restoration consumes that footprint, and successful plotting remembers the new
+one. Both rectangles mark the 21-bit picture-band damage mask. Large footprints
+fall back to a full background restore and mark every band. New picture draws
+and full bitmap refreshes also mark every band. Damage clears only after a
+successful presentation. The CoCo record implementation is unchanged.
+
+`wildbits-render-text.asm` stages a glyph scanline in the private 320-byte
+row-output buffer; palette index zero is a skip marker for absent text cells.
+Actual text colors remain indices 1..16. Bounded editor updates retain their
+existing range renderer. The full renderer no longer maps pages by character.
+
+Palette/layer setup is cached per process, with foreground notification
+invalidating the cache. Real two-terminal tests cover restoration and exits.
+The added rendering controls total 15 private bytes and require no extra
+physical allocation. Six bytes remain before a fourth data block (three with
+optional exit tracing). CPU tests now load the larger module at $A000 rather
+than $B000, and reject any fixture overlapping the CoCo I/O page at $FE00.

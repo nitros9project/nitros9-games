@@ -432,7 +432,7 @@ survive picture refreshes. `display`/`display.v` support colors, wrapping and
 bounded `%v`, `%s`, `%w` and recursive `%m` message expansion. `print`/`print.v`
 show a modal response and restore the scene after dismissal.
 
-`wbgame` currently uses 19,685 code bytes and 24,555 private bytes. Three private
+`wbgame` currently uses 20,741 code bytes and 24,570 private bytes. Three private
 blocks, the kernel block and one mapping window leave a conservative
 23,808-byte code budget.
 Physical memory also holds resource caches, two picture slabs and the terminal
@@ -598,10 +598,48 @@ including repeated `show.pic` and retained outside text.
 The original game's Pause menu action now opens a modal pause window, restores
 the scene on a keypress and resets the clock sampling baseline. Time spent
 paused does not advance AGI game seconds; subsequent normal seconds do.
-No new private storage is required. The game still has 24,555 private bytes.
+Pause itself requires no new private storage. The credits/Pause checkpoint
+used 24,555 private bytes; the rendering changes below add 15 bytes.
 
 The MAME harness's `--sustained` mode submits `look room`, submits an unknown
 word, selects Pause through the original game menu, resumes and submits
 `look room` again before verifying interrupt exit and unchanged free memory.
 This covers a longer interactive session; it does not establish full adventure
 completion, save/restore or sound support.
+
+
+## Movement performance
+
+The original interactive build restored the full background twice per cycle,
+transferred the full picture row by row and rendered text by character. A
+character crossing a framebuffer page repeatedly mapped those same pages.
+Small sprites also alternated view and picture mappings for every cel row.
+Those operations made normal movement visibly slow.
+
+The native backends now:
+
+- Copy a full background in 8K word-sized chunks when a full copy is needed.
+- Remember each sprite's clipped previous footprint and erase just that area.
+  Cels larger than the 8K staging workspace retain the full-copy fallback.
+- Stage a complete small cel before plotting it, keeping the picture mapping
+  while painting consecutive rows. Transparency, mirroring and priority stay
+  unchanged.
+- Mark both erased and newly drawn eight-pixel picture bands. Present only
+  those bands; new pictures and modal restoration force a full repaint.
+- Render text by scanline, leaving pixels for empty text cells untouched.
+- Configure the palette/layer once, then invalidate that cached setup when the
+  process receives its foreground signal so terminal switching remains safe.
+
+The timed KQ1 castle test measured approximately **9 AGI pixels instead of 1**
+for the same 200-frame (3.33-second) Right input. This is a short, scene-specific
+movement measurement, not a general FPS or performance-parity claim. The
+preceding dirty-band build reduced recurring map calls from 778 to 55 in a
+separate deterministic CPU workload; the subsequent palette cache removes
+additional setup calls.
+
+Run the real-driver harness with `--movement` to produce `movement.json` and
+before/after screenshots. `--module-file` can select an earlier build for
+comparison. `check_wbsprite_damage.py` verifies moved/erased sprites, page
+boundaries, clipping, offscreen positions and the large-cel fallback.
+The native pixel/motion, modal/editor, credits and real-game room-route tests
+also passed. Save/restore, sound and full adventure completeness remain open.

@@ -1,9 +1,16 @@
 * Private renderer state outside the direct page. No mapped pointers persist.
 gamebackgroundfirst rmb      2
 gamebackgroundowned rmb      1
+gamebackgroundclean rmb      1
 gamecopydirection   rmb      1
+dirtyobject         rmb      2
+dirtyrows           rmb      1
+dirtycolumns        rmb      1
 spriteobject        rmb      2
 spriteoffset        rmb      2
+spritecachepointer  rmb      2
+spritecachemode     rmb      1
+spritecacherows     rmb      1
 spriterowy          rmb      2
 spritewidth         rmb      1
 spriteheight        rmb      1

@@ -62,6 +62,7 @@ SpriteBackgroundReady ldx    <resourcebase
 SpriteDrawNext      ldb       spriteorder,x
                     cmpb      spritecount,x
                     bhs       SpriteSceneDone
+                    clr       gamebackgroundclean,x
                     lda       #4
                     mul
                     leay      spritelist,x
@@ -139,6 +140,18 @@ SpriteNotMirrored   clra
                     lbsr      VmLoadResource
                     lbcs      SpriteReturn
                     lbsr      VmRestoreAsset
+                    ldx       <resourcebase
+                    clr       spritecachemode,x
+                    lda       spritewidth,x
+                    ldb       spriteheight,x
+                    mul
+                    cmpd      #8192
+                    bhi       SpriteReadRow
+                    inc       spritecachemode,x
+                    lda       spriteheight,x
+                    sta       spritecacherows,x
+                    leay      resourcecommands,x
+                    sty       spritecachepointer,x
 SpriteReadRow       ldx       <resourcebase
                     leay      spriterow,x
                     ldb       #160
@@ -182,7 +195,34 @@ SpriteOpaqueRun     sta       ,y+
                     dec       spriterun,x
                     bne       SpriteOpaqueRun
                     bra       SpriteReadRun
-SpriteRowReady      lbsr      AssetUnmap
+SpriteRowReady      lda       spritecachemode,x
+                    cmpa      #1
+                    bne       SpritePlotReady
+                    leau      spriterow,x
+                    ldy       spritecachepointer,x
+                    ldb       spritewidth,x
+SpriteCacheStore    lda       ,u+
+                    sta       ,y+
+                    decb
+                    bne       SpriteCacheStore
+                    sty       spritecachepointer,x
+                    dec       spritecacherows,x
+                    lbne      SpriteReadRow
+                    inc       spritecachemode,x
+                    leay      resourcecommands,x
+                    sty       spritecachepointer,x
+                    lbsr      AssetUnmap
+                    lbcs      SpriteRestoreLogic
+                    ldx       <resourcebase
+SpriteReadCached    ldu       spritecachepointer,x
+                    leay      spriterow,x
+                    ldb       spritewidth,x
+SpriteCacheRead     lda       ,u+
+                    sta       ,y+
+                    decb
+                    bne       SpriteCacheRead
+                    stu       spritecachepointer,x
+SpritePlotReady     lbsr      AssetUnmap
                     lbcs      SpriteRestoreLogic
                     ldx       <resourcebase
                     ldd       spriterowy,x
@@ -207,7 +247,7 @@ SpriteSourceColumn  leay      spriterow,x
                     lda       b,y
                     puls      b
                     cmpa      #$FF
-                    beq       SpriteNextColumn
+                    lbeq      SpriteNextColumn
                     sta       spritecolor,x
                     pshs      b
                     ldb       spriterowy+1,x
@@ -235,7 +275,18 @@ SpriteSourceColumn  leay      spriterow,x
                     ora       spritecolor,x
                     sta       ,u
                     bra       SpriteNextColumn
-SpriteControlPixel  ldd       <pictureoffset
+* Priority 15 cannot be occluded by any four-bit picture priority. Avoid
+* rescanning down to the bottom for every flag pixel and mapping all pages
+* along the way. Keep the original control nibble in the composed buffer.
+SpriteControlPixel  lda       spritepriority,x
+                    cmpa      #15
+                    bne       SpriteControlNeedsSearch
+                    lda       ,u
+                    anda      #$F0
+                    ora       spritecolor,x
+                    sta       ,u
+                    bra       SpriteNextColumn
+SpriteControlNeedsSearch ldd  <pictureoffset
                     pshs      d
 SpriteControlSearch addd      #160
                     cmpd      #26880
@@ -273,15 +324,24 @@ SpriteNextColumn    inc       spritecolumn,x
                     ldb       spritecolumn,x
                     cmpb      spritewidth,x
                     lblo      SpritePlotNext
-SpriteNextRow       lbsr      PictureUnmap
+SpriteNextRow       lda       spritecachemode,x
+                    cmpa      #2
+                    beq       SpriteKeepPicture
+                    lbsr      PictureUnmap
                     bcs       SpriteRestoreLogic
+SpriteKeepPicture   equ       *
                     ldx       <resourcebase
                     ldd       spriterowy,x
                     addd      #1
                     std       spriterowy,x
                     dec       spriteheight,x
-                    lbne      SpriteReadRow
-                    clrb
+                    beq       SpriteRememberDone
+                    lda       spritecachemode,x
+                    cmpa      #2
+                    lbeq      SpriteReadCached
+                    lbra      SpriteReadRow
+SpriteRememberDone  equ       *
+                    lbsr      GameRememberSprite
 SpriteRestoreLogic  pshs      cc,b
                     lbsr      PictureUnmap
                     bcs       SpriteRestoreError

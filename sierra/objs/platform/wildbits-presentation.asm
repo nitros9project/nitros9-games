@@ -70,7 +70,11 @@ PresentPicture      lbsr      PictureUnmap
                     endc
                     lbcs      PresentFailure
                     inc       <registered
-PresentClearBitmap  clr       <blockindex
+PresentClearBitmap  equ       *
+                    ifne      GAME_PRESENTATION
+                    lbsr      GameDamageAll
+                    endc
+                    clr       <blockindex
 clearblock          lbsr      foreground
                     lbcs      PresentFailure
                     lbsr      mapblock
@@ -91,22 +95,55 @@ clearbyte           sta       ,u+
                     ifne      GAME_PRESENTATION
 PresentReuseBitmap  clr       <presentoffset
                     clr       <presentoffset+1
+                    clr       <presentband
+PresentBandNext     lda       <presentband
+                    cmpa      #21
+                    lbhs      PresentFinishBands
+                    lbsr      GameDamageTest
+                    bne       PresentBandReady
+                    inc       <presentband
+                    bra       PresentBandNext
+PresentBandReady    lda       <presentband
+                    ldb       #5
+                    mul
+                    tfr       b,a
+                    clrb
+                    std       <presentoffset
                     lda       <vmpicturetop
+                    adda      <presentband
                     ldb       #10
                     mul
                     tfr       b,a
                     clrb
                     std       <frameoffset   picture top row * 8 * 320
                     endc
+                    ifne      GAME_PRESENTATION
+                    lda       #8
+                    else
                     lda       #PictureHeight
+                    endc
                     sta       <rows
 PresentReadRow      lbsr      foreground
                     lbcs      PresentFailure
                     ldu       <dbase
+                    ifne      GAME_PRESENTATION
+* The first 2048 command bytes may hold a modal/line-editor backup.
+* The remaining idle workspace holds 12 input rows and 12 expanded rows.
+                    lda       <rows
+                    cmpa      #12
+                    bls       PresentBatchSize
+                    lda       #12
+PresentBatchSize    sta       <presentbatchrows
+                    ldb       #160
+                    mul
+                    std       <remaining
+                    leax      resourcecommands+2048,u
+                    else
                     leax      rowinput,u
-                    stx       <sourceptr
                     ldd       #PictureWidth
                     std       <remaining
+                    endc
+                    stx       <sourceptr
 PresentReadSpan     ldd       <presentoffset
                     anda      #$1F
                     pshs      d
@@ -122,9 +159,16 @@ PresentReadSize     std       <chunk
                     lbne      PresentDecodeFailure
                     ldx       <sourceptr
                     ldy       <chunk
-PresentCopySource   lda       ,u+
+PresentCopySource   equ       *
+                    ifne      GAME_PRESENTATION
+                    ldd       ,u++
+                    std       ,x++
+                    leay      -2,y
+                    else
+                    lda       ,u+
                     sta       ,x+
                     leay      -1,y
+                    endc
                     bne       PresentCopySource
                     stx       <sourceptr
                     lbsr      PictureUnmap
@@ -143,6 +187,24 @@ PresentCopySource   lda       ,u+
                     std       <remaining
                     bne       PresentReadSpan
                     ldu       <dbase
+                    ifne      GAME_PRESENTATION
+                    leax      resourcecommands+2048,u
+                    leay      resourcecommands+4096,u
+                    ldb       <presentbatchrows
+                    pshs      b
+PresentConvertBatch lbsr      ConvertRow
+                    dec       ,s
+                    bne       PresentConvertBatch
+                    leas      1,s
+                    ldu       <dbase
+                    leax      resourcecommands+4096,u
+                    stx       <sourceptr
+                    lda       <presentbatchrows
+                    ldb       #160
+                    mul
+                    lslb
+                    rola
+                    else
                     leax      rowinput,u
                     leay      rowoutput,u
                     lbsr      ConvertRow
@@ -150,6 +212,7 @@ PresentCopySource   lda       ,u+
                     leax      rowoutput,u
                     stx       <sourceptr
                     ldd       #320
+                    endc
                     std       <remaining
 writespan           ldd       <frameoffset
                     anda      #$1F
@@ -174,9 +237,16 @@ writespan           ldd       <frameoffset
 sized               std       <chunk
                     tfr       d,y
                     ldx       <sourceptr
-copyspan            lda       ,x+
+copyspan            equ       *
+                    ifne      GAME_PRESENTATION
+                    ldd       ,x++
+                    std       ,u++
+                    leay      -2,y
+                    else
+                    lda       ,x+
                     sta       ,u+
                     leay      -1,y
+                    endc
                     bne       copyspan
                     stx       <sourceptr
                     ldd       <frameoffset
@@ -191,10 +261,25 @@ copyspan            lda       ,x+
                     lbne      PresentAbort
                     ldd       <remaining
                     bne       writespan
+                    ifne      GAME_PRESENTATION
+                    lda       <rows
+                    suba      <presentbatchrows
+                    sta       <rows
+                    else
                     dec       <rows
+                    endc
                     lbne      PresentReadRow
+                    ifne      GAME_PRESENTATION
+                    inc       <presentband
+                    lbra      PresentBandNext
+PresentFinishBands  equ       *
+                    endc
                     lbsr      foreground
                     lbcs      PresentFailure
+                    ifne      GAME_PRESENTATION
+                    tst       <presentationconfigured
+                    lbne      PresentDrawTextOnly
+                    endc
                     leax      palette,pcr
                     ldy       #0
                     ldu       #17
@@ -245,6 +330,9 @@ copyspan            lda       ,x+
                     endc
                     lbcs      PresentFailure
                     ifne      GAME_PRESENTATION
+                    lda       #1
+                    sta       <presentationconfigured
+PresentDrawTextOnly equ       *
                     lbsr      GameDrawText
                     ifne      GAME_TRACE
                     pshs      cc,a
@@ -253,6 +341,9 @@ copyspan            lda       ,x+
                     puls      cc,a
                     endc
                     lbcs      PresentFailure
+                    clr       <gamepresentdirty
+                    clr       <gamepresentdirty+1
+                    clr       <gamepresentdirty+2
                     endc
                     ifeq      GAME_PRESENTATION
                     lda       #0

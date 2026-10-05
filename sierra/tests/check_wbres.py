@@ -59,6 +59,7 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
         r'^([0-9A-F]{4}) 103F([0-9A-F]{2}).*os9', (ROOT / (module + '.list')).read_text(), re.M)}
     d.write(database, bytes(syms['size']))
     code = (ROOT / module).read_bytes()
+    assert base+len(code)<=0xfe00, 'CPU fixture code overlaps the CoCo I/O page; relocate its load address'
     d.write(base, code)
     argv = database + syms['size'] - 160
     d.write(argv, arguments)
@@ -75,6 +76,7 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
     clocksecond = clock[0]
     cycles = 0
     maps = 0
+    map_sites = {}
     unmap_failed = False
     original_options=bytearray(32)
     original_options[0]=0 if terminal else 1
@@ -89,6 +91,9 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
         d.call('c')
         r = d.regs()
         service = calls[r['pc']]
+        if service == syms.get('F$MapBlk'):
+            site=r['pc']-base
+            map_sites[site]=map_sites.get(site,0)+1
         updates = {'pc': r['pc'] + 3, 'cc': r['cc'] & ~1}
         if service == syms['F$Exit']:
             assert not paths, f'leaked file paths: {paths}'
@@ -98,7 +103,10 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
             for address in calls:
                 d.breakpoint(address, False)
             if capture:
-                return r['b'], bytes(frame if frame_capture else output), {name: d.read(database + syms[name], length) for name, length in [('vmopcode', 1), ('vmip', 2), ('vmvariables', 256), ('vmflags', 256), ('vmgameid', 8), ('messagebuffer', 512), ('vmobjects', 2752), ('vmkeys',150), ('vmkeycount',1), ('menucount', 1), ('menuitems', 1), ('menuready', 1), ('menutext', 768), ('asseterror', 1), ('vmerror', 1), ('vmend', 2), ('resourcelength', 2), ('vmcurrent', 1)]}
+                state={name: d.read(database + syms[name], length) for name, length in [('vmopcode', 1), ('vmip', 2), ('vmvariables', 256), ('vmflags', 256), ('vmgameid', 8), ('messagebuffer', 512), ('vmobjects', 2752), ('vmkeys',150), ('vmkeycount',1), ('menucount', 1), ('menuitems', 1), ('menuready', 1), ('menutext', 768), ('asseterror', 1), ('vmerror', 1), ('vmend', 2), ('resourcelength', 2), ('vmcurrent', 1)]}
+                state['map_calls']=maps
+                state['map_sites']=map_sites
+                return r['b'], bytes(frame if frame_capture else output), state
             return r['b'], bytes(frame if frame_capture else output)
         elif service == syms.get('F$Time'):
             assert not mapped

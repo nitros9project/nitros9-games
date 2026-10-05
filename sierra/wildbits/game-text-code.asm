@@ -178,13 +178,7 @@ GameTextDecodeError ldb       <decodeerror
                     orcc      #1
                     rts
 
-GameDrawText        ldx       <resourcebase
-                    clr       textindex,x
-                    clr       textindex+1,x
-                    clr       textrow,x
-                    clr       textcolumn,x
-                    ldd       #1000
-                    std       textend,x
+                    use       platform/wildbits-render-text.asm
 * A bounded contiguous cell range; caller sets index/end/row/column.
 GameDrawTextRange   lbsr      AssetUnmap
                     lbcs      GameTextReturn
