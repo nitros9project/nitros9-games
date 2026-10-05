@@ -5954,18 +5954,8 @@ FormatStr           leas      -$02,s    ; allocate 2-byte local frame
                     use platform/format-scan-operands.asm
                     use shared/format-scan.asm
 FormatStrEscape     ldd       ,x++      ; read format code byte and advance X
-                    cmpb      #$77
-                    beq       FormatStrEscapeW ; %w = window width
-                    cmpb      #$73
-                    beq       FormatStrEscapeS ; %s = save-game string
-                    cmpb      #$6D
-                    beq       FormatStrEscapeM ; %m = message reference
-                    cmpb      #$67
-                    beq       FormatStrEscapeG ; %g = global message
-                    cmpb      #$76
-                    lbeq      FormatStrEscapeV ; %v = variable value
-                    cmpb      #$6F
-                    bne       FormatStrLoop ; unknown escape, skip
+                    use platform/format-directive-operands.asm
+                    use shared/format-directives.asm
                     stu       $08,s     ; save output pointer
                     lbsr      ParseDecStr ; parse decimal index from input
                     clra                ; A = 0 (high byte of variable index)

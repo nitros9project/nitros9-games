@@ -1683,3 +1683,28 @@ This establishes unchanged executable behavior, code size and instruction
 cost for this extraction. Substitution providers, recursive source frames and
 wrapping/output helpers still require further consolidation; this does not
 claim a complete shared formatter or engine.
+
+### Shared formatter directive selection
+
+`shared/format-directives.asm` selects word (`w`), string (`s`), message
+(`m`) and variable (`v`) substitutions for both owners. An assembly-time
+capability also includes CoCo's global-message (`g`) and object-name (`o`)
+branches. Platform macros supply the directive register and existing branch
+targets/widths; substitution handlers and their source/storage contracts
+remain unchanged. CoCo still skips unknown directives; Wild Bits still
+rejects unsupported directives with `E$UnkSvc` after operand validation.
+Neither owner gains a runtime table lookup or indirect dispatch.
+
+All fourteen CoCo engine modules rebuilt byte-identically. Wild Bits remains
+21,791 code bytes and 24,568 private-data bytes. Its comparison order now
+matches the common catalog (word/string/message/variable), changing the number
+of comparisons for some substitutions but introducing no new allocations.
+The extended index/formatter test passed 4,080 actual calls at two load
+addresses, including every unsupported non-NUL directive byte and frame/stack
+cleanup. Gameplay regression covered all supported substitutions, nested
+messages and malformed expansion. Real MAME sustained commands, unknown-word
+response, menu pause/resume, inventory/dialog restoration, interrupt exit and
+unchanged free memory also passed. The two-terminal MAME test passed exact
+picture restoration, independent exit/relaunch and unchanged free memory.
+Full formatting source acquisition,
+substitution handlers and recursion remain separate work.

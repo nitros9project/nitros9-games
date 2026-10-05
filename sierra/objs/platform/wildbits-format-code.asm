@@ -46,14 +46,8 @@ FormatDispatch      lda       ,x
                     lbeq      FormatPartInvalid
                     lda       parsercharacter,u
                     ldb       parserwordlength,u
-                    cmpa      #'w
-                    lbeq      FormatWord
-                    cmpa      #'v
-                    lbeq      FormatVariable
-                    cmpa      #'s
-                    lbeq      FormatString
-                    cmpa      #'m
-                    lbeq      FormatMessage
+                    use platform/format-directive-operands.asm
+                    use shared/format-directives.asm
 FormatUnsupported   ldb       #E$UnkSvc
                     orcc      #1
                     bra       FormatPartError

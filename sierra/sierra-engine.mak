@@ -85,4 +85,7 @@ mnln: ../objs/shared/unsigned-decimal.asm \
 	../objs/platform/coco-decimal-output-operands.asm \
 	../objs/shared/format-scan.asm \
 	../objs/platform/format-scan-operands.asm \
-	../objs/platform/coco-format-scan-operands.asm
+	../objs/platform/coco-format-scan-operands.asm \
+	../objs/shared/format-directives.asm \
+	../objs/platform/format-directive-operands.asm \
+	../objs/platform/coco-format-directive-operands.asm

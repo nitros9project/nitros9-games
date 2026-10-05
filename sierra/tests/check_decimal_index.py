@@ -86,6 +86,10 @@ def main():
                         cases_full += [(s, None, syms['E$BMode']) for s in
                                        [b'%v256', b'%v0000256', b'%v999', b'%v', b'%s12', b'%w0', b'%v'+b'0'*256]]
                         cases_full += [(b'%v0|2', None, syms['E$UnkSvc'])]
+                        # Every other non-NUL directive must retain the native
+                        # unsupported policy, including CoCo's global/object forms.
+                        cases_full += [(b'%' + bytes([letter]) + b'1', None, syms['E$UnkSvc'])
+                                       for letter in range(1, 256) if letter not in b'wvsm%']
                         output = private+syms['fillstack']+2048
                         for source, wanted, error in cases_full:
                             d.write(address, source+b'\0')
