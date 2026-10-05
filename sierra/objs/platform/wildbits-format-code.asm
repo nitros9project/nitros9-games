@@ -41,24 +41,8 @@ FormatDirective     lda       ,x+
 FormatNumberStart   sta       parsercharacter,u
                     clr       parserwordlength,u
                     clr       parserbestlength,u
-FormatNumber        lda       ,x
-                    cmpa      #'0
-                    blo       FormatDispatch
-                    cmpa      #'9
-                    bhi       FormatDispatch
-                    leax      1,x
-                    suba      #'0
-                    pshs      a
-                    lda       parserwordlength,u
-                    ldb       #10
-                    mul
-                    addb      ,s+
-                    adca      #0
-                    tsta
-                    lbne      FormatPartInvalid
-                    stb       parserwordlength,u
-                    inc       parserbestlength,u
-                    bra       FormatNumber
+FormatNumber        lbsr      ParseDecStr
+                    lbcs      FormatPartError
 FormatDispatch      lda       ,x
                     cmpa      #'|
                     beq       FormatUnsupported
@@ -178,3 +162,9 @@ FormatOnes          lda       parserbestlength,u
                     lbsr      FormatPut
                     lbcs      FormatPartError
                     lbra      FormatNext
+
+                    use       platform/decimal-index-operands.asm
+                    use       shared/decimal-index.asm
+DecimalIndexOverflow ldb     #E$BMode
+                    orcc      #1
+                    rts

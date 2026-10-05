@@ -75,3 +75,7 @@ mnln: ../objs/shared/object-view-queries.asm \
 sierra: ../objs/shared/game-clock-tick.asm \
 	../objs/platform/game-clock-operands.asm \
 	../objs/platform/coco-game-clock-operands.asm
+
+mnln: ../objs/shared/decimal-index.asm \
+	../objs/platform/decimal-index-operands.asm \
+	../objs/platform/coco-decimal-index-operands.asm

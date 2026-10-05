@@ -1577,3 +1577,44 @@ switching, restored pictures, independent exits, relaunch and free-memory
 recovery. Artifacts are `/tmp/sierra-shared-clock-mame` and
 `/tmp/sierra-shared-clock-terminals`; these are bounded runtime checks rather
 than complete gameplay/audio acceptance.
+
+### Shared decimal substitution-index scanner
+
+The formatters now use `objs/shared/decimal-index.asm` for decimal indices
+following substitutions such as `%v123`. It peeks at the next byte, consumes
+only decimal digits, accumulates `value * 10 + digit`, and leaves X at the
+first nondigit. It does not skip spaces or interpret the substitution itself.
+
+`platform/decimal-index-operands.asm` selects the owner policy. The CoCo
+binding preserves modulo-256 arithmetic and the original return flags,
+producing identical `mnln` bytes. The native binding keeps the complete
+multiply/add result until the overflow check, rejects a value above 255,
+and records each accepted value and digit count in existing formatter
+scratch fields. A failing digit is consumed but not committed to those
+fields. The native formatter still rejects missing indices and unwinds its
+source frame on error; this extraction preserves the original byte-sized
+digit-count wrapping too. No additional private storage is allocated.
+
+`tests/check_decimal_index.py` passed 3,580 real scanner/formatter calls at
+two load addresses per owner. It covers every byte result, every nondigit
+terminator, CoCo wrapping versus native overflow rejection, exact source
+cursors, leading zeroes, digit-count edges, native variable expansion and
+escape errors, frame cleanup, whole-state edge comparisons, source/buffer/
+stack guards, and immutable code. The existing `check_wbplay.py` also passed
+formatted variables, strings, words, nested messages, dialog restoration,
+rejection bounds, and ownership cleanup. All 14 CoCo engine binaries remain
+unchanged. The native game is 21,797 of 23,808 code bytes, with unchanged
+24,568-byte private storage.
+
+The scanner is a shared component of the formatter, not the complete
+formatter. CoCo's word wrapping, global/object message substitutions and
+padding, and the native bounded source-frame/output organization still need
+reconciliation behind common formatting interfaces.
+
+The same native scanner build passed sustained original-game input and menu
+Pause/resume in private Wild Bits MAME. The two-terminal interpreter run
+passed every displayed pixel, visibility switching, restored pictures,
+independent exits, relaunch and free-memory recovery. Artifacts are
+`/tmp/sierra-shared-format-index-mame` and
+`/tmp/sierra-shared-format-index-terminals`; complete gameplay/audio support
+is not asserted by those bounded checks.

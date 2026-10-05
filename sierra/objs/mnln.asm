@@ -6201,18 +6201,8 @@ cmd_display_v       leas      >-$03E8,s ; allocate 1000-byte text buffer
 *   %x, %c) used throughout the message and status display code.
 *======================================================================
 *
-ParseDecStr         clrb                ; start with value 0
-ParseDecStrLoop     lda       ,x        ; peek at next char
-                    cmpa      #$30
-                    bcs       ParseDecStrRet ; below '0', done
-                    cmpa      #$39
-                    bhi       ParseDecStrRet ; above '9', done
-                    lda       #$0A
-                    mul                 ; multiply current value by 10
-                    subb      #$30      ; subtract ASCII '0'
-                    addb      ,x+       ; add digit and advance X
-                    bra       ParseDecStrLoop ; continue
-ParseDecStrRet      rts
+                    use       platform/decimal-index-operands.asm
+                    use       shared/decimal-index.asm
 IncrLineCount       inc       >$015B    ; increment line count
                     lda       >$0157    ; get current line's char count
                     clr       >$0157    ; reset char count for next line
