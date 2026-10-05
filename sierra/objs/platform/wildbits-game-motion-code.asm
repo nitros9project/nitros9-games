@@ -208,37 +208,11 @@ MotionCollided      equ CollisionScanHit
 MotionCrossDown     equ CollisionCrossDown
                     use shared/object-collision-scan.asm
 
-* Native stepping chooses by sign, then clamps coordinates to the target.
-* Threshold one makes the shared axis classifier distinguish negative/zero/
-* positive byte deltas exactly; the object's real step remains in MotionTargetClamp.
-MotionMoveDirection pshs      x
-                    ldd       #1
-                    pshs      d
-                    ldd       $27,u
-                    pshs      d
-                    ldd       3,u
-                    pshs      d
-                    lbsr      CalcMoveDir
-                    leas      6,s
-                    puls      x
-                    tfr       a,b
-                    stb       $21,u
-                    rts
-MotionArrived       lda       $29,u
-                    sta       $1E,u
-                    clr       $21,u
-                    clr       $22,u
-                    ldb       $2A,u
-                    leay      vmflags,x
-                    clra
-                    leay      d,y
-                    lda       #1
-                    sta       ,y
-                    tst       motionid,x
-                    bne       MotionArrivedDone
-                    clr       vmvariables+6,x
-                    sta       <vmplayercontrol
-MotionArrivedDone   rts
+                    use platform/target-motion-operands.asm
+MotionMoveDirection equ TargetDirection
+MotionArrived       equ TargetReached
+MotionArrivedDone   equ TargetReachedReturn
+                    use shared/object-target-motion.asm
 
 * Animation modes match the CoCo forward/reverse/end-of-loop transitions.
 MotionAdvanceCel    lda       $25,u

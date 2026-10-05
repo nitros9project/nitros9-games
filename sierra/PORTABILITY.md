@@ -8,7 +8,7 @@ direction-vector stepping, screen/horizon clamping, terrain classification and
 constraints, complete object collision scanning, and candidate-position
 transactions. Platform bindings retain
 storage, mapping and intentionally different legacy policies. The broader
-migration is unfinished: per-cycle orchestration, arrival handling, resource/view
+migration is unfinished: per-cycle orchestration, destination triggering, resource/view
 acquisition, rendering and remaining presentation/formatter behavior still need
 consolidation. Historical sections below describe their stage when written;
 the latest sections record the ongoing shared-engine work.
@@ -2232,3 +2232,28 @@ MAME results cover the identical binary; no new emulator run is claimed.
 Native remains 22,274 code bytes and 24,570 private bytes. Arrival handling,
 per-cycle orchestration and the broader resource/rendering migration remain
 unfinished.
+
+### Shared target direction and arrival transition
+
+`shared/object-target-motion.asm` replaces the CoCo `SetObjMotion`/`ObjMoveReached`
+and native `MotionMoveDirection`/`MotionArrived` bodies. It owns argument setup
+for the common direction classifier, direction storage, the optional zero-result
+completion call, saved-step restoration, completion flag/state sequencing and
+ego-only completion handling. Legacy entries remain aliases.
+
+Owner operands retain the actual-step CoCo threshold versus native threshold
+one, private X context preservation, A/B result handling, packed/byte flag writes
+and ego control storage. CoCo sets its completion flag before clearing motion
+type and does not add a new record-direction clear. Native clears record direction
+and motion before flag publication. Their existing ego-variable/control changes
+remain in the same order. Exact-position and boundary-based completion triggers
+at the callers are unchanged; those differing orchestration policies are not
+claimed as merged.
+
+Native and all fourteen rebuilt CoCo `mnln` modules compare byte-identically to
+the preceding revision. Native probes build. The previously verified direction,
+full-game move-to completion and MAME checks therefore cover the identical
+production instructions; no new emulator acceptance run is claimed. Code,
+private allocation, stack use and instruction cost are unchanged. Per-cycle
+orchestration, resource/view acquisition, rendering and remaining presentation
+behavior still require consolidation.

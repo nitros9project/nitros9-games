@@ -4549,33 +4549,13 @@ MoveTableData       fcb       8,1,2,7,0,3,6,5,4
 *   the 8-way direction from delta X/Y.
 *======================================================================
 *
-SetObjMotion        ldb       $1e,u     load object step size
-                    pshs      b,a       push step size argument
-                    ldd       <$27,u    load move target X and Y
-                    pshs      b,a       push target position
-                    ldd       $03,u     load current position X and Y
-                    pshs      b,a       push current position
-                    lbsr      CalcMoveDir compute direction toward target
-                    leas      $06,s     discard three arguments
-                    cmpu      <$0030    check if this is ego object
-                    bne       SetObjMotionStore branch if not ego
-                    sta       >$0437    update ego direction variable
-SetObjMotionStore   sta       <$21,u    store computed direction in object
-                    bne       SetObjMotionRet branch if direction is non-zero
-                    bsr       ObjMoveReached target reached, signal completion
-SetObjMotionRet     rts
-ObjMoveReached      lda       <$29,u    load saved step size (from move setup)
-                    sta       <$1E,u    restore step size to object
-                    lda       <$2A,u    load completion-flag variable index
-                    lbsr      SetFlag   set the completion flag
-                    lda       #$00      motion type = stopped
-                    sta       <$22,u    clear motion type
-                    cmpu      <$0030    check if this is ego
-                    bne       ObjMoveReachedRet branch if not ego
-                    lda       #$01      visible flag = true
-                    sta       >$0250    show ego again
-                    clr       >$0437    clear ego direction variable
-ObjMoveReachedRet   rts
+                    use platform/target-motion-operands.asm
+SetObjMotion        equ TargetDirection
+SetObjMotionStore   equ TargetStoreDirection
+SetObjMotionRet     equ TargetDirectionReturn
+ObjMoveReached      equ TargetReached
+ObjMoveReachedRet   equ TargetReachedReturn
+                    use shared/object-target-motion.asm
                     use       shared/object-move-direction.asm
 *
 *======================================================================

@@ -229,4 +229,12 @@ after committing/testing collision and recovers rejected positions; native
 enters after terrain validation and sends rejected positions to its blocked
 handler. These sequencing policies are explicit and preserve the original
 binary. All fourteen CoCo `mnln` modules and native `wbgame` are byte-identical.
-Destination/arrival handling and per-cycle orchestration still remain separate.
+Destination triggering and per-cycle orchestration still remain separate.
+
+`object-target-motion.asm` shares the direction-call sequence and arrival
+transition. Bindings select the threshold, context/result registers, packed or
+byte completion flags, stopping order and ego state. CoCo retains its actual-step
+threshold and zero-direction completion trigger; native retains threshold one
+and its caller's exact-position trigger. CoCo flag-before-stop and native
+stop-before-flag order are preserved, as are their different record/ego updates.
+All fourteen CoCo `mnln` modules and native `wbgame` remain byte-identical.

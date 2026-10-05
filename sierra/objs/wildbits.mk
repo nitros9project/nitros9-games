@@ -182,3 +182,5 @@ wbgame: platform/coordinate-clamp-operands.asm
 wbgame: platform/terrain-operands.asm
 
 wbgame: platform/position-commit-operands.asm
+
+wbgame: platform/target-motion-operands.asm
