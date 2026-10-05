@@ -1664,3 +1664,22 @@ and the free-memory map. Artifacts are
 `/tmp/sierra-shared-decimal-output-terminals`. These bounded checks preserve
 the established movement/terminal behavior; they do not prove complete
 formatter, gameplay, or audio coverage.
+
+### Shared formatter character traversal
+
+`shared/format-scan.asm` now owns the character loop for both formatters:
+end-of-string detection, percent dispatch, ordinary-character output, and
+continuation. Assembly-time interfaces in `platform/*-format-scan-operands.asm`
+provide source consumption, completion/directive branches, output storage and
+line-buffer operands. CoCo peeks before dispatch and consumes during copying;
+Wild Bits consumes when reading and calls its existing bounded `FormatPut`.
+The CoCo line-tracking trait retains literal-next handling, newline counts,
+space wrap points and per-line character counts in the shared loop. These
+choices compile directly into the existing instruction sequences.
+
+Verification rebuilt all fourteen CoCo main engines and the native `wbgame`;
+every resulting module was byte-identical to its pre-extraction counterpart.
+This establishes unchanged executable behavior, code size and instruction
+cost for this extraction. Substitution providers, recursive source frames and
+wrapping/output helpers still require further consolidation; this does not
+claim a complete shared formatter or engine.

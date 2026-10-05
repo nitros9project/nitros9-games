@@ -82,4 +82,7 @@ mnln: ../objs/shared/decimal-index.asm \
 
 mnln: ../objs/shared/unsigned-decimal.asm \
 	../objs/platform/decimal-output-operands.asm \
-	../objs/platform/coco-decimal-output-operands.asm
+	../objs/platform/coco-decimal-output-operands.asm \
+	../objs/shared/format-scan.asm \
+	../objs/platform/format-scan-operands.asm \
+	../objs/platform/coco-format-scan-operands.asm

@@ -145,3 +145,5 @@ wbgame: platform/game-clock-operands.asm
 wbgame: platform/decimal-index-operands.asm
 
 wbgame: platform/decimal-output-operands.asm
+
+wbgame: platform/format-scan-operands.asm

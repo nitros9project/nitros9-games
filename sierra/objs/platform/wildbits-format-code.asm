@@ -25,13 +25,9 @@ FormatCopy          lda       ,x+
                     bne       FormatCopy
                     puls      x
                     inc       formatdepth,u
-FormatNext          lda       ,x+
-                    lbeq      FormatDone
-                    cmpa      #'%
-                    beq       FormatDirective
-                    lbsr      FormatPut
-                    lbcs      FormatPartError
-                    bra       FormatNext
+FormatNext          equ *
+                    use platform/format-scan-operands.asm
+                    use shared/format-scan.asm
 FormatDirective     lda       ,x+
                     cmpa      #'%
                     bne       FormatNumberStart

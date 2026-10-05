@@ -5951,28 +5951,8 @@ FormatStr           leas      -$02,s    ; allocate 2-byte local frame
                     lda       >$015B    ; check current line count
                     cmpa      #$13      ; max lines = 19
                     lbhi      FormatStrDone ; too many lines, stop
-FormatStrLoop       lda       >$0157    ; load current char count on line
-                    cmpa      >$0158    ; compare to max per line
-                    lbcc      FormatStrWordWrap ; overflow, do word wrap
-                    lda       ,x        ; load next character
-                    lbeq      FormatStrDone ; end of string
-                    cmpa      >$0101    ; check for literal-next prefix
-                    bne       FormatStrCheckEsc ; not literal, check for escape
-                    tst       ,x+       ; consume literal-next byte
-                    bra       FormatStrStoreChar ; store next char literally
-FormatStrCheckEsc   cmpa      #$25      ; check for '%' escape prefix
-                    beq       FormatStrEscape ; handle escape sequence
-                    cmpa      #$0A      ; check for newline
-                    bne       FormatStrCheckNl
-                    lbsr      IncrLineCount ; count this line
-                    bra       FormatStrCopyChar ; copy newline to output
-FormatStrCheckNl    cmpa      #$20      ; check for space (word break point)
-                    bne       FormatStrStoreChar
-                    stu       >$0155    ; save current output pointer as word-wrap point
-FormatStrStoreChar  inc       >$0157    ; increment char count on line
-FormatStrCopyChar   lda       ,x+       ; copy char from input
-                    sta       ,u+       ; to output buffer
-                    bra       FormatStrLoop
+                    use platform/format-scan-operands.asm
+                    use shared/format-scan.asm
 FormatStrEscape     ldd       ,x++      ; read format code byte and advance X
                     cmpb      #$77
                     beq       FormatStrEscapeW ; %w = window width
