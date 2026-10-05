@@ -93,4 +93,8 @@ mnln: ../objs/shared/unsigned-decimal.asm \
 	../objs/shared/nul-string-copy.asm \
 	../objs/platform/format-string-operands.asm \
 	../objs/platform/coco-format-string-operands.asm \
-	../objs/platform/coco-nul-string-write.asm
+	../objs/platform/coco-nul-string-write.asm \
+	../objs/shared/format-recursive-call.asm \
+	../objs/shared/format-expansion.asm \
+	../objs/platform/format-recursion-operands.asm \
+	../objs/platform/coco-format-recursion-operands.asm

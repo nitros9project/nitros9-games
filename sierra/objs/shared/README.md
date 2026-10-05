@@ -113,3 +113,9 @@ Their platform operands preserve each owner's storage, bounds and errors.
 frames/string/numeric emission; checked emitters stop before copying NUL,
 while direct copies include it. Full formatting recursion and several
 substitution providers remain owner-specific.
+
+`format-recursive-call.asm` binds recursive formatting arguments/call/release;
+`format-expansion.asm` shares substitution result application, checked error
+return and outer-scan continuation. CoCo generic/global substitutions and
+native message expansion use these pieces with their original argument ABI.
+The actual recursion frame layout and message readers remain owner-specific.

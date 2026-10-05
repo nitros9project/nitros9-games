@@ -5942,6 +5942,8 @@ MsgTextSetup        ldd       #$0000    ; zero
 MsgTextSetupNoStr   ldx       $02,s     ; return output buffer pointer
                     rts
 
+                    use platform/format-recursion-operands.asm
+                    use shared/format-recursive-call.asm
 FormatStr           leas      -$02,s    ; allocate 2-byte local frame
                     pshs      x         ; save X (output buffer pointer)
                     ldx       $06,s     ; get input string pointer
@@ -5998,11 +6000,7 @@ FormatStrEscapeG    stu       $08,s     ; save output pointer
                     lbsr      GetMsgPtr ; get pointer to message
                     cmpu      #$0000
                     beq       FormatStrEscapeGRet ; message not found
-                    ldd       $08,s     ; reload output pointer
-                    pshs      b,a       ; push for recursive FormatStr
-                    pshs      u         ; push message pointer
-                    lbsr      FormatStr ; recursively format message
-                    leas      $04,s     ; pop recursive FormatStr args
+                    FORMAT_RECURSIVE_CALL
 FormatStrEscapeGRet ldu       $02,s     ; restore saved logic pointer
                     stu       <$0062
                     ldd       $04,u     ; get saved logic page
@@ -6024,13 +6022,8 @@ FormatStrEscapeV    stu       $08,s     ; save output pointer
                     leax      $01,x     ; skip '|'
                     lbsr      ParseDecStr ; parse pad width
                     lbsr      StrZeroPad ; zero-pad to width
-FormatStrEscapeRec  ldd       $08,s     ; reload output pointer
-                    pshs      b,a       ; push output pointer for FormatStr
-                    pshs      u         ; push string pointer
-                    lbsr      FormatStr ; recursively format substitution string
-                    leas      $04,s     ; pop FormatStr args
-                    stu       $08,s     ; update output pointer
-                    lbra      FormatStrLoop ; continue main format loop
+FormatStrEscapeRec  equ *
+                    use shared/format-expansion.asm
 FormatStrWordWrap   ldd       >$0155    ; load saved word-wrap point
                     bne       FormatStrWordWrapMove ; have a wrap point, move word
                     lda       #$0A

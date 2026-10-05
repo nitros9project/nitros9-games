@@ -151,3 +151,5 @@ wbgame: platform/format-scan-operands.asm
 wbgame: platform/format-directive-operands.asm
 
 wbgame: platform/format-string-operands.asm
+
+wbgame: platform/format-recursion-operands.asm

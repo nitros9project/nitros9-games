@@ -1,6 +1,8 @@
 * Bounded formatter. Four 512-byte source frames and a 2048-byte output
 * share the idle fill stack; recursion never retains a mapped message pointer.
                     use shared/nul-string-copy.asm
+                    use platform/format-recursion-operands.asm
+                    use shared/format-recursive-call.asm
 NUL_FRAME_WRITE     macro
                     sta       ,y+
                     endm
@@ -112,11 +114,8 @@ FormatString        equ *
 FormatMessage       pshs      x
                     lbsr      ReadLogicMessage
                     bcs       FormatMessageReturn
-                    ldu       <resourcebase
-                    lbsr      FormatPart
-FormatMessageReturn puls     x
-                    lbcs      FormatPartError
-                    lbra      FormatNext
+FormatMessageReturn equ FormatExpansionReturn
+                    use shared/format-expansion.asm
 FormatVariable      leay      vmvariables,u
                     clra
                     ldb       d,y

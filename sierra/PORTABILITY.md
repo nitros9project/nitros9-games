@@ -1738,3 +1738,32 @@ The preceding CPU formatter/gameplay and MAME sustained/two-terminal results
 therefore exercise the identical machine code. Source acquisition, word and
 message providers, recursive frame policy and owner-specific expansion
 semantics still need further consolidation.
+
+### Shared recursive substitution call and resume
+
+`shared/format-recursive-call.asm` invokes recursive formatting after binding
+the owner's argument ABI and releases those arguments afterward.
+`shared/format-expansion.asm` applies the result, checks failure when the
+owner has an error return, and resumes the outer scan. CoCo's generic
+substitution continuation and native message expansion both use this sequence;
+CoCo's global-message path also uses the shared invocation before performing
+its existing logic-page restoration.
+
+The CoCo adapter supplies the output pointer and source pointer as four
+stack bytes, calls `FormatStr`, releases those four bytes and records the
+returned output pointer. The native adapter restores U to the private process
+context, calls `FormatPart`, and restores the outer X cursor already saved by
+the message provider. `FormatExpansionReturn` is also the native reader-error
+exit: failed acquisition skips recursion but still pops X and returns the
+error through the existing `FormatPartError` path. The result adapter's PULS
+X preserves carry, so that error is not overwritten during restoration.
+CoCo retains its unchecked recursive convention and existing null-message
+skip behavior; the native recursion depth and frame storage remain unchanged.
+
+Both production owners rebuilt byte-identically, as did all fourteen CoCo
+engine variants. Consequently the previous CPU nested-message/error checks
+and MAME command/dialog/two-terminal checks cover the identical instructions.
+There is no new runtime dispatch, code growth or stack allocation. This shares
+recursive invocation/result continuation, not message-table acquisition,
+source-frame allocation or the full formatter. Those layers and word/message
+providers still need consolidation.
