@@ -1198,3 +1198,40 @@ exit, relaunch and the free-memory map. Final artifacts are in
 `/tmp/sierra-final-condition-flow-mame`,
 `/tmp/sierra-final-condition-flow-movement`, and
 `/tmp/sierra-final-condition-flow-two-terminals`.
+
+### Shared complete logic executor
+
+The obsolete `sierra/wildbits` directory has been removed. Native modules build
+from `objs`, platform bindings live in `objs/platform`, and algorithms assembled
+by both platforms live in `objs/shared`. This layout does not yet imply that
+all command implementations have been reconciled.
+
+Both engines now include `shared/logic-executor.asm` for the complete execution
+loop, including return, jump, condition and command decisions. The stream
+adapters retain the CoCo page/contiguous-reader conventions and Wild Bits
+bounded offset reader, command operand staging, instruction budget and error
+statuses. Compile-time macros emit each owner's instructions directly. The
+CoCo `mnln` binary is unchanged, preserving its internal offsets and execution
+cost. Wild Bits false-condition and unconditional jumps now share one bounds
+check instead of maintaining duplicate implementations.
+
+The executor owns a two-byte stack frame for each logic invocation, including
+nested calls. Its common return releases that frame on both normal and native
+error exits. Helpers still return status to their immediate caller; they must
+not unwind the executor frame themselves.
+
+The resulting build uses 21,534 code / 24,568 private-data bytes for `wbgame`
+and 7,027 code / 16,841 private-data bytes for `wbexec`. The change removes 23
+native code bytes and adds no private data. The direct executor regression runs
+both actual owners at two load addresses, compares variable and flag results,
+and checks branch behavior, stack balance and code immutability. Native logic,
+parser, cached/nested execution and game-rendering regressions also pass.
+
+Real Wild Bits MAME validation of this build also passed sustained commands,
+inventory and modal restoration, Pause/resume, interrupt exit and free-memory
+checks. Two-terminal tests passed picture restoration, independent exits and
+relaunch. Movement remained approximately 9 AGI pixels in 3.33 emulated
+seconds. Artifacts are in `/tmp/sierra-shared-executor-mame`,
+`/tmp/sierra-shared-executor-terminals` and
+`/tmp/sierra-shared-executor-movement`. These checks do not establish complete
+gameplay or audio support.

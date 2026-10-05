@@ -73,3 +73,19 @@ This is the first actual shared-source migration. The native logic interpreter
 (`platform/wildbits-logic-code.asm`) and CoCo `mnln.asm` still have different state layouts and command implementations;
 that reconciliation is unfinished. Moving a native-only file here would not,
 by itself, make it shared with CoCo.
+
+`logic-executor.asm` now owns the complete opcode loop for both engines:
+return, relative jump, condition traversal, command dispatch, and cleanup.
+`platform/coco-logic-stream.asm` and `platform/wildbits-logic-stream.asm`
+provide reads, branch application, command dispatch, and status conventions.
+These are assembly-time bindings, with no runtime platform selector. Each
+invocation owns two stack bytes, and every native success/error exit releases
+that frame. Nested logic calls therefore keep independent condition state.
+Native false-condition and unconditional jumps use the same checked branch
+implementation. CoCo keeps its contiguous reader and existing dispatch tables.
+
+`tests/check_logic_executor.py` executes both real owners at two load addresses,
+including their actual command and condition handlers, and compares variables
+and flags across the packed CoCo and byte-per-flag native layouts. It verifies
+forward/backward branches, mixed conditions, stack guards and immutable code
+after CoCo table initialization. The CoCo module remains byte-identical.

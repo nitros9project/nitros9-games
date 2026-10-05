@@ -143,3 +143,5 @@ mnln: ../objs/shared/object-coordinate-state.asm ../objs/shared/object-animation
 mnln: ../objs/platform/object-coordinate-operands.asm ../objs/platform/coco-object-coordinate-operands.asm
 
 mnln: ../objs/shared/condition-flow.asm ../objs/platform/coco-condition-stream.asm
+
+mnln: ../objs/shared/logic-executor.asm ../objs/platform/coco-logic-stream.asm

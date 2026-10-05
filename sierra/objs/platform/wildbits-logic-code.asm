@@ -5,43 +5,15 @@
 * vmvariables and vmflags contain 256 bytes each; vmarguments holds 255 bytes.
 * Platform commands must implement their semantics or return an error, never
 * silently skip an unsupported command. This component is not a whole game.
-ExecuteLogic        clr       <vmerror
-                    ldd       #$FFFF
-                    std       <vmsteps
-VmNext              ldd       <vmsteps
-                    subd      #1
-                    std       <vmsteps
-                    lbeq      VmInvalid
-                    lbsr      VmFetchByte
-                    lbcs      VmReturn
-                    stb       <vmopcode
-                    cmpb      #0
-                    lbeq      VmSuccess
-                    cmpb      #$FF
-                    lbeq      VmConditionStart
-                    cmpb      #$FE
-                    lbeq      VmJump
-                    cmpb      #181
-                    lbhi      VmInvalid
-                    leax      VmArgumentCounts,pcr
-                    clra
-                    ldb       d,x
-                    stb       <vmargcount
-                    lbsr      VmReadArguments
-                    lbcs      VmReturn
-                    ldb       <vmopcode
-                    cmpb      #17
-                    bls       VmArithmetic
-                    lbsr      VmPlatformCommand
-                    lbcs      VmReturn
-                    ifne      GAME_PRESENTATION
-                    ldu       <resourcebase
-                    tst       gamequit,u
-                    lbne      VmSuccess
-                    endc
-                    tst       <vmroompending
-                    lbne      VmSuccess
-                    lbra      VmNext
+                    use       platform/wildbits-logic-stream.asm
+                    use       platform/wildbits-condition-stream.asm
+ExecuteLogic        equ       ExecLogicScript
+VmNext              equ       ExecScriptLoop
+VmJump              equ       ExecScriptJump
+VmConditionStart    equ       ExecScriptIf
+                    use       shared/logic-executor.asm
+VmLogicInvalid      lbsr      VmInvalid
+VmLogicFailure      lbra      ExecLogicScriptRet
 VmReadArguments     clr       <vmargindex
 VmArgumentLoop      lda       <vmargindex
                     cmpa      <vmargcount
@@ -98,15 +70,6 @@ FLAG_VARIABLE_TABLE macro
                     use       shared/flag-commands.asm
                     use       platform/wildbits-flag-storage.asm
 
-VmJump              lbsr      VmReadWord
-                    lbcs      VmReturn
-                    addd      <vmip
-                    cmpd      #2
-                    lblo      VmInvalid
-                    cmpd      <vmend
-                    lbhs      VmInvalid
-                    std       <vmip
-                    lbra      VmNext
 VmReadWord          lbsr      VmFetchByte
                     lbcs      VmReturn
                     pshs      b
@@ -118,7 +81,6 @@ VmReadWord          lbsr      VmFetchByte
                     rts
 VmWordError         leas      1,s
                     rts
-                    use       platform/wildbits-condition-stream.asm
 VmEvaluateTest      ldu       <resourcebase
                     ldb       <vmopcode
                     cmpb      #8

@@ -35,12 +35,11 @@ CONDITION_TRUE_SCAN_BEGIN macro
 CONDITION_TRUE_BRANCH macro
                     lbsr      VmReadWord
                     lbcs      VmConditionFailure
-                    leas      2,s
                     lbra      VmNext
                     endm
-CONDITION_FALSE_LABEL equ     VmConditionFalse
-VmConditionStart    leas      -2,s
-                    use       shared/condition-flow.asm
+CONDITION_FALSE_LABEL equ     ExecScriptJump
+VmConditionInvalid  equ       VmLogicInvalid
+VmConditionFailure  equ       VmLogicFailure
 
 * A=test number. Decode operands for evaluated and skipped predicates alike.
 VmConditionOperands sta       <vmopcode
@@ -64,21 +63,6 @@ VmConditionSaid     lbsr      VmFetchByte
 VmConditionTest     lbsr      VmConditionOperands
                     lbcs      VmReturn
                     lbra      VmEvaluateTest
-VmConditionFalse    lbsr      VmReadWord
-                    bcs       VmConditionFailure
-                    addd      <vmip
-                    cmpd      #2
-                    blo       VmConditionInvalid
-                    cmpd      <vmend
-                    bhs       VmConditionInvalid
-                    std       <vmip
-                    leas      2,s
-                    lbra      VmNext
-VmConditionInvalid  leas      2,s
-                    lbra      VmInvalid
-VmConditionFailure  leas      2,s
-                    lbra      VmReturn
-
 * Validate grammar while skipping callbacks. Helper return occupies ,S;
 * the shared OR/NOT locals are therefore 2,S and 3,S. A remains the code byte.
 VmConditionScanControl cmpa   #$FE

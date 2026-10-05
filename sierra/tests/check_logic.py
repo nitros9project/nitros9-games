@@ -36,6 +36,7 @@ def main():
                 d.call('c')
                 r = d.regs()
                 assert r['pc'] == finish
+                assert r['s'] == 0xc000, 'executor frame leaked on success/error'
                 assert bool(r['cc'] & 1) != success, (r, script)
                 assert d.read(base, len(code)) == code
                 assert d.read(database + syms['size'], 5) == b'GUARD'

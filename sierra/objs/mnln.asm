@@ -7222,43 +7222,8 @@ GetDiskInfoRet      sta       <$44,s    ; store result flag
 *======================================================================
 *
                     use       platform/coco-condition-stream.asm
-ExecLogicScript     leas      -$02,s    ; allocate 2-byte local frame (if-state)
-                    ldy       <$0062    ; load current logic pointer
-                    ldd       $04,y     ; get logic page from logic slot
-                    lbsr      SetLogicPage ; switch to logic's page
-                    ldy       $08,y     ; load pointer to logic bytecode
-ExecScriptLoop      ldb       ,y+       ; fetch next opcode
-ExecScriptCheck     tstb                ; test opcode
-                    beq       ExecScriptDone ; opcode $00 = end of script
-                    cmpb      #$FF
-                    beq       ExecScriptIf ; opcode $FF = if block
-                    cmpb      #$FE
-                    bne       ExecScriptCmd ; not a jump
-ExecScriptJump      ldb       ,y+       ; fetch jump offset high byte
-                    lda       ,y+       ; fetch jump offset low byte
-                    leay      d,y       ; apply offset to Y
-                    bra       ExecScriptLoop
-ExecScriptCmd       lbsr      DispatchCmd ; dispatch command opcode
-                    leay      ,y        ; test Y (dispatch result)
-                    bne       ExecScriptCheck ; non-null = more to process
-ExecScriptDone      bra       ExecLogicScriptRet
-                    use       shared/condition-flow.asm
-ExecScriptExecCmd   cmpa      #$0E
-                    bne       ExecScriptExecCmdImpl ; not cmd $0E (return)
-                    lda       ,y+       ; fetch return target offset
-                    lsla                ; multiply by 2
-                    leay      a,y       ; apply offset
-                    rts
-
-ExecScriptExecCmdImpl lsla                ; multiply cmd by 2
-                    lsla                ; multiply by 2 again (*4)
-                    adda      #$02      ; add 2 for command dispatch table base
-                    leax      >eval_table,pcr ; point to command dispatch table
-                    lda       a,x       ; load relative offset for this command
-                    leay      a,y       ; advance Y past command arguments
-                    rts
-ExecLogicScriptRet  leas      $02,s     ; release if-state local frame
-                    rts
+                    use       platform/coco-logic-stream.asm
+                    use       shared/logic-executor.asm
 
 * Platform screen implementation, selected during assembly.
                     use       platform/game-palette-data.asm
