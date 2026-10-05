@@ -4552,6 +4552,8 @@ ReadPicChunkRet     rts
 *   program_control, and player_control.
 *======================================================================
 *
+                    use       platform/coco-motion-setup.asm
+                    use       shared/object-motion-setup.asm
 cmd_move_obj        lda       ,y+       load object number from script
                     ldb       #$2B      view-object struct size = 43 bytes
                     mul                 compute object offset
@@ -4563,21 +4565,7 @@ cmd_move_obj        lda       ,y+       load object number from script
                     sta       <$27,u    store target X
                     lda       ,y+       load target Y position
                     sta       <$28,u    store target Y
-                    lda       <$1E,u    load current step size
-                    sta       <$29,u    save step size as move speed
-                    lda       ,y+       load optional step-size override
-                    beq       MoveObjDir branch if zero (no override)
-                    sta       <$1E,u    store new step size
-MoveObjDir          lda       ,y+       load completion-flag variable
-                    sta       <$2A,u    store flag variable index
-                    lbsr      ClearFlag clear the completion flag
-                    lda       <$26,u    load object control flags
-                    ora       #$10      set position-update-needed bit
-                    sta       <$26,u    store updated flags
-                    cmpu      <$0030    check if this is ego object
-                    bne       MoveObjDone branch if not ego
-                    clr       >$0250    hide ego during move
-MoveObjDone         lbsr      SetObjMotion recalculate initial direction
+                    OBJECT_MOVE_SETUP u,0,MoveObjDir,MoveObjDone
                     rts
 cmd_move_obj_v      lda       ,y+       load object number from script
                     ldb       #$2B      view-object struct size = 43
@@ -4596,61 +4584,22 @@ cmd_move_obj_v      lda       ,y+       load object number from script
                     abx                 index to Y-variable
                     lda       ,x        load target Y from variable
                     sta       <$28,u    store target Y
-                    lda       <$1E,u    load current step size
-                    sta       <$29,u    save as move speed
-                    ldb       ,y+       load step-size variable number
-                    ldx       #$0431    point to variable table
-                    abx                 index to step-size variable
-                    lda       ,x        load step size from variable
-                    beq       MoveObjVDir branch if zero (no override)
-                    sta       <$1E,u    store new step size
-MoveObjVDir         lda       ,y+       load completion-flag variable index
-                    sta       <$2A,u    store flag variable index
-                    lbsr      ClearFlag clear the completion flag
-                    lda       <$26,u    load object control flags
-                    ora       #$10      set position-update-needed bit
-                    sta       <$26,u    store updated flags
-                    cmpu      <$0030    check if this is ego object
-                    bne       MoveObjVDone branch if not ego
-                    clr       >$0250    hide ego during move
-MoveObjVDone        lbsr      SetObjMotion recalculate initial direction
+                    OBJECT_MOVE_SETUP u,1,MoveObjVDir,MoveObjVDone
                     rts
 cmd_follow_ego      lda       ,y+       load follower object number
                     ldb       #$2B      view-object struct size = 43
                     mul                 compute object offset
                     addd      <$0030    add view-object array base
                     tfr       d,u       point U to follower object
-                    lda       #$02      motion type = follow-ego
-                    sta       <$22,u    set object motion type
-                    lda       <$1E,u    load current step size
-                    sta       <$27,u    store as follow step (default)
-                    lda       ,y+       load optional step-size override
-                    cmpa      <$1E,u    compare to current step
-                    bls       FollowEgoSpeed branch if not larger
-                    sta       <$27,u    use larger value as step size
-FollowEgoSpeed      lda       ,y+       load completion-flag variable index
-                    sta       <$28,u    store flag variable index
-                    lbsr      ClearFlag clear the completion flag
-                    lda       #$FF      distance = $FF (always follow)
-                    sta       <$29,u    store initial distance marker
-                    lda       <$26,u    load object control flags
-                    ora       #$10      set position-update-needed bit
-                    sta       <$26,u    store updated flags
+                    OBJECT_FOLLOW_SETUP u,FollowEgoSpeed
                     rts
 cmd_wander          lda       ,y+       load object number from script
                     ldb       #$2B      view-object struct size = 43
                     mul                 compute object offset
                     addd      <$0030    add view-object array base
                     tfr       d,u       point U to object struct
-                    lda       #$01      motion type = wander
-                    sta       <$22,u    set wander motion type
-                    lda       <$26,u    load object control flags
-                    ora       #$10      set position-update-needed bit
-                    sta       <$26,u    store updated flags
-                    cmpu      <$0030    check if this is ego
-                    bne       WanderDone branch if not ego
-                    clr       >$0250    hide ego while wandering
-WanderDone          rts
+                    OBJECT_WANDER_SETUP u,WanderDone
+                    rts
                     use       shared/object-motion-state.asm
 cmd_normal_motion   lda       ,y+       load object number from script
                     ldb       #$2B      view-object struct size = 43

@@ -126,13 +126,61 @@ def main():
                                 result=d.run(base+ns['ObjectCycleCommand'],u=0)
                                 assert not result['cc']&1 and result['b']==0
                             assert d.read(objects-1,len(before)+2)==b'G'+expected+b'H', (owner,opcode,index,value)
+                # Follow setup uses max(requested distance, current step),
+                # clears exactly its literal flag, and preserves other fields.
+                # Wander input ownership and counter reset are owner policies.
+                variables = 0x0431 if owner=='CoCo' else ns['vmvariables']
+                for opcode, name in [(83,'cmd_follow_ego'), (84,'cmd_wander')]:
+                    for index in (0,63):
+                        for step, distance in [(0,0),(1,0),(1,1),(1,255),(255,1),(255,255)]:
+                            for flag in (0,255):
+                                before=bytearray((i*37+11)&255 for i in range(64*43))
+                                at=index*43;before[at+2]=index;before[at+0x1e]=step
+                                expected=bytearray(before)
+                                expected[at+0x22]=2 if opcode==83 else 1
+                                expected[at+0x26]|=0x10
+                                flags=bytearray([255 if owner=='CoCo' else 1])*flagbytes
+                                if opcode==83:
+                                    expected[at+0x27]=max(step,distance)
+                                    expected[at+0x28]=flag;expected[at+0x29]=255
+                                    if owner=='CoCo':flags[flag>>3]&=~(128>>(flag&7))
+                                    else:flags[flag]=0
+                                    operands=bytes([index,distance,flag])
+                                else:
+                                    if owner=='native':expected[at+0x27]=0
+                                    operands=bytes([index])
+                                d.write(objects-1,b'G'+before+b'H')
+                                d.write(flagbase,bytes([255 if owner=='CoCo' else 1])*flagbytes)
+                                d.write(variables,b'\x77'*256);d.write(control,b'\x5a')
+                                if owner=='CoCo':
+                                    d.write(0x2000,operands+b'ARGS')
+                                    result=d.run(base+syms[name],y=0x2000)
+                                    assert result['y']==0x2000+len(operands)
+                                    assert d.read(result['y'],4)==b'ARGS'
+                                else:
+                                    d.write(ns['vmarguments'],operands+b'ARGS')
+                                    handler='GameFollowCommand' if opcode==83 else 'GameWanderCommand'
+                                    result=d.run(base+ns[handler],u=0)
+                                    assert not result['cc']&1 and result['b']==0
+                                    assert d.read(ns['vmarguments']+len(operands),4)==b'ARGS'
+                                assert result['s']==0x1df2
+                                assert d.read(objects-1,len(before)+2)==b'G'+expected+b'H',(owner,opcode,index,step,distance,flag)
+                                assert d.read(flagbase,flagbytes)==flags,(owner,opcode,index,step,distance,flag,'flags')
+                                assert d.read(variables,256)==b'\x77'*256
+                                assert d.read(control,1)==bytes([0 if opcode==84 and index==0 else 0x5a])
                 if owner == 'native':
+                    for handler in ('GameFollowCommand','GameWanderCommand'):
+                        before=d.read(objects,64*43);flags=d.read(flagbase,flagbytes)
+                        d.write(ns['vmarguments'],b'\x40\xff\xff')
+                        result=d.run(base+ns[handler],u=0)
+                        assert result['cc']&1 and result['s']==0x1df2
+                        assert d.read(objects,64*43)==before and d.read(flagbase,flagbytes)==flags
                     d.write(ns['vmarguments'],b'\x40')
                     d.write(ns['vmopcode'],b'\x3d')
                     assert d.run(base+ns['ObjectFlagCommand'],u=0)['cc']&1
                     d.write(ns['vmopcode'],b'\xfc')
                     assert d.run(base+ns['ObjectFlagCommand'],u=0)['cc']&1
-            print('PASS: 14 CoCo/native object flag commands, first/last records, bit preservation, record guards, cycle/motion transitions, completion/input effects, rate/countdown values and bounded native errors')
+            print('PASS: 14 CoCo/native object flag commands, first/last records, bit preservation, record guards, cycle/motion transitions, completion/input effects, rate/countdown values, follow/wander setup and bounded native errors')
         finally:
             d.s.close(); emulator.terminate()
             try:

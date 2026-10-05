@@ -44,6 +44,7 @@ check: all
 	python3 ../tests/check_string_compare.py
 	python3 ../tests/check_coco_conditions.py
 	python3 ../tests/check_object_flags.py
+	python3 ../tests/check_motion_setup.py
 	python3 ../tests/check_object_coordinates.py
 	python3 ../tests/check_said.py
 	python3 ../tests/check_wbgame.py

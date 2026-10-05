@@ -147,3 +147,5 @@ mnln: ../objs/shared/condition-flow.asm ../objs/platform/coco-condition-stream.a
 mnln: ../objs/shared/logic-executor.asm ../objs/platform/coco-logic-stream.asm
 
 mnln: ../objs/shared/random-command.asm ../objs/platform/coco-random-operands.asm
+
+mnln: ../objs/shared/object-motion-setup.asm ../objs/platform/coco-motion-setup.asm

@@ -1266,3 +1266,50 @@ original-game commands, inventory/modal restoration, Pause/resume, interrupt
 exit and free-memory checks passed in Wild Bits MAME; artifacts are in
 `/tmp/sierra-shared-random-mame`. This does not establish full gameplay or audio
 support.
+
+### Shared motion command setup
+
+`shared/object-motion-setup.asm` now supplies the state transitions used by
+`follow.ego`, `wander`, `move.obj` and `move.obj.v` in both owners. The existing
+CoCo command entry points and native command wrappers expand the same macros
+against their object pointer registers; no runtime platform selection is added.
+
+Follow setup records mode 2, chooses the greater of the current step size and
+requested follow distance, saves the literal completion flag, clears that flag,
+sets the initial $FF follow marker and requests a position update. Wander setup
+records mode 1, requests the update and transfers ego input ownership where
+applicable. The native adapter retains its existing wander-counter reset;
+CoCo retains its existing counter. The reset is an explicit owner policy.
+
+Move setup saves the previous step size before applying a nonzero override,
+stores and clears its literal completion flag, requests an update, transfers
+ego input ownership, then calls the owner's initial-direction routine. The
+variable form dereferences the coordinate and speed operands while retaining
+a literal completion-flag index. Native object/coordinate validation still
+runs before any record mutation. Target reads, initial direction and subsequent
+position/collision updates remain owner routines and need further reconciliation.
+
+`platform/coco-motion-setup.asm` binds packed flags, fixed input control and the
+existing CoCo operand/callback conventions. The native adapter binds private
+byte flags and input control, preserves the object pointer while clearing a
+flag, selects staged literal/variable speed, and prepares the existing native
+direction callback context. Shared includes emit the original CoCo bytes: the
+whole `mnln` module remains byte-identical. The native module uses 21,526 code
+bytes (seven more than the preceding random-command checkpoint), with private
+data unchanged at 24,568 bytes; it remains within the 23,808-byte code limit.
+
+The whole-record regression now checks follow/wander transitions on objects
+0 and 63, step/distance edges 0/1/255, completion flags 0/255, neighboring flags,
+variable preservation, ego control and native invalid-object rejection.
+`tests/check_motion_setup.py` executes both real move handlers at two code
+addresses and verifies literal/variable operands, speed preservation/override,
+flags, record/argument/stack guards, and native callback context. It substitutes
+only the direction callback so setup can be compared independently. The game
+regressions execute actual direction, following and motion updates.
+
+These comparative checks and `check_wbgame.py` / `check_wbplay.py` passed on the
+final build. Real Wild Bits MAME startup, inventory/modal restoration, movement,
+interrupt exit and free-memory checks also passed, with movement unchanged at
+approximately 9 AGI pixels in 3.33 emulated seconds. Artifacts are in
+`/tmp/sierra-shared-motion-setup-movement`. This checkpoint does not establish
+full gameplay, audio support or completion of the remaining source migration.

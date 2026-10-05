@@ -45,6 +45,9 @@ owners. They allocate no state and contain no OS-9 module header.
   queries, and signed reposition arithmetic; owners provide operand/storage
   adapters and retain their placement/collision boundaries.
 - `object-cycle-state.asm`: continuous/endpoint animation modes and flags.
+- `object-motion-setup.asm`: follow-distance selection and completion state,
+  wander initialization, and saved/optional move speed with literal completion
+  flags; owners provide flag, input-control and direction callbacks.
 - `object-motion-state.asm`: normal/start/stop record transitions; ego control
   effects remain owner adapters.
 - `object-rate-state.asm`: cycle/step preset and countdown writes.

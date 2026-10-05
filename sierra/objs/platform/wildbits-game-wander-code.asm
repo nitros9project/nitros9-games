@@ -1,14 +1,8 @@
+                    use       platform/wildbits-motion-setup.asm
+                    use       shared/object-motion-setup.asm
 GameWanderCommand   lbsr      ObjectAddress
                     lbcs      ObjectReturn
-                    lda       #1
-                    sta       $22,x
-                    clr       $27,x
-                    lda       $26,x
-                    ora       #$10
-                    sta       $26,x
-                    tst       2,x
-                    lbne      ObjectDone
-                    clr       <vmplayercontrol
+                    OBJECT_WANDER_SETUP x,GameWanderDone
                     lbra      ObjectDone
 * Private 16-bit Galois LFSR; no mapped pointers or global random state.
 GameRandomByte      ldx       <resourcebase

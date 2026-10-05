@@ -20,61 +20,16 @@ GameMoveTarget      cmpa      #160
                     cmpb      #168
                     lbhs      ObjectBadIndex
                     std       $27,x
-                    lda       $1E,x
-                    sta       $29,x
-                    ldb       vmarguments+3,u
-                    lda       <vmopcode
-                    cmpa      #82
-                    bne       GameMoveStep
-                    leay      vmvariables,u
-                    clra
-                    ldb       d,y
-GameMoveStep        tstb
-                    beq       GameMoveFlag
-                    stb       $1E,x
-GameMoveFlag        ldb       vmarguments+4,u
-                    stb       $2A,x
-                    leay      vmflags,u
-                    clra
-                    leay      d,y
-                    clr       ,y
                     lda       #3
                     sta       $22,x
-                    lda       $26,x
-                    ora       #$10
-                    sta       $26,x
-                    tst       2,x
-                    bne       GameMoveSetup
-                    clr       <vmplayercontrol
-GameMoveSetup       stx       motionobject,u
-                    lda       2,x
-                    sta       motionid,u
-                    tfr       x,y
-                    tfr       u,x
-                    tfr       y,u
-                    lbsr      MotionMoveDirection
+                    OBJECT_MOVE_SETUP x,0,GameMoveFlag,GameMoveSetup
                     clrb
                     rts
 
 GameFollowCommand   lbsr      ObjectAddress
                     lbcs      ObjectReturn
-                    lda       #2
-                    sta       $22,x
-                    lda       $1E,x
-                    cmpa      vmarguments+1,u
-                    bhs       GameFollowDistance
-                    lda       vmarguments+1,u
-GameFollowDistance  sta       $27,x
-                    ldb       vmarguments+2,u
-                    stb       $28,x
-                    leay      vmflags,u
-                    clra
-                    clr       d,y
-                    lda       #$FF
-                    sta       $29,x
-                    lda       $26,x
-                    ora       #$10
-                    sta       $26,x
+                    leay      vmarguments+1,u
+                    OBJECT_FOLLOW_SETUP x,GameFollowDistance
                     lbra      ObjectDone
 GameFollowSetFlag   pshs      a,x
                     ldx       <resourcebase
