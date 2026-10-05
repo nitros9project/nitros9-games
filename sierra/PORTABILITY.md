@@ -1539,3 +1539,41 @@ private area for changes outside the result variable and documented record
 pointer scratch field. Invalid native object indices left all private state
 unchanged. The CPU run and both MAME runs therefore validate this extraction;
 they do not prove the remaining engine migration complete.
+
+### Shared game-clock rollover
+
+`objs/shared/game-clock-tick.asm` advances four consecutive byte fields:
+seconds, minutes, hours, and days. Both ports use the same increment and
+60/60/24 rollover rules, including the original byte wrapping at 255. The
+common macro takes the owner's continuation label; it does not read an OS
+clock, sleep, change mappings, or decide whether time is paused.
+
+`platform/game-clock-operands.asm` selects matching CoCo/Wild Bits storage
+bindings. CoCo supplies its signal-handler `TimeOfDay` address and emits the
+original timer bytes unchanged. Its 32-bit timer, pause test, tick counters,
+and 20-tick second accumulator remain in the existing owner. Wild Bits
+supplies private AGI variables 11–14. Its `F$Time` call, sampled-second delta,
+minute wrap, initial sample, modal reset, invalid-second check, and OS-error
+handling remain in the native cycle owner. The common body uses X and D as
+scratch while preserving U; native clock callers consume its B/carry status
+and establish their own subsequent record/context pointers.
+
+`tests/check_game_clock.py` executes the actual CoCo signal-handler core and
+native `GameReadClock`, substituting only delivery of the native OS time
+sample. All 4,118 calls passed across two load addresses per owner. Coverage
+includes every byte value in each clock field, rollover through days, CoCo
+32-bit timer carry, pause/subsecond behavior, native single/multiple-second
+and minute-wrap deltas, initial/modal-reset samples, unchanged seconds,
+invalid OS seconds and OS failure. Full private-state comparisons at boundary
+values, surrounding guards, stack/context checks, and immutable module code
+also passed. All 14 CoCo setup binaries remain byte-for-byte unchanged. The
+native game is 17 bytes smaller: 21,790 of 23,808 code bytes, with unchanged
+24,568-byte private storage.
+
+The same clock build passed sustained original-game commands, unknown-word
+handling, menu Pause/resume and subsequent input in private Wild Bits MAME.
+The two-terminal interpreter run verified all displayed pixels, visibility
+switching, restored pictures, independent exits, relaunch and free-memory
+recovery. Artifacts are `/tmp/sierra-shared-clock-mame` and
+`/tmp/sierra-shared-clock-terminals`; these are bounded runtime checks rather
+than complete gameplay/audio acceptance.

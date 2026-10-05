@@ -71,3 +71,7 @@ mnln: ../objs/shared/math-commands.asm
 mnln: ../objs/shared/object-view-queries.asm \
 	../objs/platform/object-view-query-operands.asm \
 	../objs/platform/coco-object-view-query-operands.asm
+
+sierra: ../objs/shared/game-clock-tick.asm \
+	../objs/platform/game-clock-operands.asm \
+	../objs/platform/coco-game-clock-operands.asm

@@ -44,6 +44,7 @@ check: all probes
 	python3 ../tests/check_random_command.py
 	python3 ../tests/check_math_commands.py
 	python3 ../tests/check_view_queries.py
+	python3 ../tests/check_game_clock.py
 	python3 ../tests/check_condition_flow.py
 	python3 ../tests/check_tokenizer.py
 	python3 ../tests/check_string_compare.py
@@ -136,3 +137,5 @@ wbpic wbres wbdecode wbrun wbasset wbexec wbgame: $(wildcard platform/wildbits-*
 wbexec wbgame: platform/object-coordinate-operands.asm
 
 wbgame: platform/object-view-query-operands.asm
+
+wbgame: platform/game-clock-operands.asm

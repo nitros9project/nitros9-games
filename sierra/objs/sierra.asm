@@ -655,22 +655,9 @@ TickUpdate          ldd       <TickAccum load tick accumulator
                     bcs       TimerRet  not yet — return
                     subd      #$0014    subtract 20 (one second)
                     std       <TickAccum save remainder
-                    ldd       #$003C    60 = max value for seconds and minutes
-                    leax      >TimeOfDay,u point to time-of-day seconds field
-                    inc       ,x        increment seconds
-                    cmpb      ,x        compare seconds with 60
-                    bhi       TimerRet  less than 60 — done
-                    sta       ,x+       reset seconds to 0, advance to minutes
-                    inc       ,x        increment minutes
-                    cmpb      ,x        compare minutes with 60
-                    bhi       TimerRet  less than 60 — done
-                    sta       ,x+       reset minutes to 0, advance to hours
-                    inc       ,x        increment hours
-                    ldb       #$18      24 = max hours per day
-                    cmpb      ,x        compare hours with 24
-                    bhi       TimerRet  less than 24 — done
-                    sta       ,x+       reset hours to 0, advance to days
-                    inc       ,x        increment day counter
+                    use       platform/game-clock-operands.asm
+                    use       shared/game-clock-tick.asm
+                    AGI_CLOCK_TICK TimerRet
 TimerRet            rts                 return from timer handler
 
 * ====== CloseVirqPath: Release VIRQ Device ======

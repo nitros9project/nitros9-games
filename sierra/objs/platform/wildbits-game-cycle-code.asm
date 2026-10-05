@@ -82,9 +82,11 @@ GameCycleReturn     rts
 GameCycleSuccess    clrb
                     rts
 
+* Returns B=0/C clear or an OS/validation error; A/X/D are scratch.
+* Acquisition and modal reset policy stay here; rollover is common.
 GameReadClock       ldu       <resourcebase
                     leax      gametime,u
-                    os9       F$Time
+GameClockTimeCall   os9       F$Time
                     lbcs      GameCycleReturn
                     ldu       <resourcebase
                     ldb       gametime+5,u
@@ -102,22 +104,9 @@ GameClockComputeDelta stb       gameclockdelta,u
 GameClockTick       tst       gameclockdelta,u
                     beq       GameClockStoreCurrent
                     dec       gameclockdelta,u
-                    inc       vmvariables+11,u
-                    lda       vmvariables+11,u
-                    cmpa      #60
-                    blo       GameClockTick
-                    clr       vmvariables+11,u
-                    inc       vmvariables+12,u
-                    lda       vmvariables+12,u
-                    cmpa      #60
-                    blo       GameClockTick
-                    clr       vmvariables+12,u
-                    inc       vmvariables+13,u
-                    lda       vmvariables+13,u
-                    cmpa      #24
-                    blo       GameClockTick
-                    clr       vmvariables+13,u
-                    inc       vmvariables+14,u
+                    use       platform/game-clock-operands.asm
+                    use       shared/game-clock-tick.asm
+                    AGI_CLOCK_TICK GameClockTick
                     bra       GameClockTick
 GameClockStoreCurrent ldb     gametime+5,u
 GameClockStore      stb       gameclocklast,u
