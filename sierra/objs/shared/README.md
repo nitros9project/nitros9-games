@@ -25,6 +25,10 @@ owners. They allocate no state and contain no OS-9 module header.
   collision/cycling mask rules, used by both owners.
 - `object-flag-mask.asm`: common compile-time mask mutation body; owner supplies
   the record pointer register. Identity operations emit no instructions.
+- `object-cycle-state.asm`: continuous/endpoint animation modes and flags.
+- `object-motion-state.asm`: normal/start/stop record transitions; ego control
+  effects remain owner adapters.
+- `object-rate-state.asm`: cycle/step preset and countdown writes.
 - `object-block-test.asm`: strict rectangle containment, with owner-selected
   state addressing at assembly time.
 - `picture-command-table.asm`: a single F0-FA handler catalog, expanded as

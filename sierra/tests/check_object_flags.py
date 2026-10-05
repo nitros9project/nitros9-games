@@ -61,13 +61,78 @@ def main():
                                 result = d.run(base+ns['ObjectFlagCommand'],u=0)
                                 assert not result['cc']&1 and result['b']==0, result
                             assert d.read(objects-1,len(before)+2)==b'G'+expected+b'H', (owner,opcode,index,value)
+                # Whole transition checks include owner-specific flag/input effects.
+                states = [(72,'CmdNormalCycle',0), (73,'CmdEndOfLoop',1),
+                          (74,'CmdReverseCycle',3), (75,'CmdReverseLoop',2),
+                          (85,'cmd_normal_motion',None), (77,'cmd_stop_motion',None),
+                          (78,'cmd_start_motion',None)]
+                flagbase, flagbytes = (0x01ae,32) if owner=='CoCo' else (ns['vmflags'],256)
+                control = 0x0250 if owner=='CoCo' else ns['vmplayercontrol']
+                direction = 0x0437 if owner=='CoCo' else ns['vmvariables']+6
+                for opcode, name, mode in states:
+                    for index in (0,63):
+                        before = bytearray((i*37+11)&255 for i in range(64*43))
+                        d.write(objects-1,b'G'+before+b'H')
+                        flags = bytearray([255 if owner=='CoCo' else 1])*flagbytes
+                        d.write(flagbase,flags)
+                        d.write(control,b'\x5a'); d.write(direction,b'\x07')
+                        expected = bytearray(before)
+                        at=index*43
+                        endpoint=mode in (1,2)
+                        operands=bytes([index,255]) if endpoint else bytes([index])
+                        if mode is not None:
+                            expected[at+0x23]=mode
+                            expected[at+0x26]|=0x30 if endpoint else 0x20
+                            if endpoint:
+                                expected[at+0x25]|=0x10
+                                expected[at+0x27]=255
+                                if owner=='CoCo': flags[31]&=0xfe
+                                else: flags[255]=0
+                        else:
+                            expected[at+0x22]=0
+                            if opcode==77: expected[at+0x21]=0
+                        if owner=='CoCo':
+                            d.write(0x2000,operands)
+                            result=d.run(base+syms[name],y=0x2000)
+                            assert result['y']==0x2000+len(operands)
+                        else:
+                            d.write(ns['vmarguments'],operands)
+                            d.write(ns['vmopcode'],bytes([opcode]))
+                            result=d.run(base+ns['ObjectCycleCommand'],u=0)
+                            assert not result['cc']&1 and result['b']==0
+                        assert d.read(objects-1,len(before)+2)==b'G'+expected+b'H', (owner,opcode,index)
+                        assert d.read(flagbase,flagbytes)==flags, (owner,opcode,index,'flags')
+                        ego_effect=index==0 and opcode in (77,78)
+                        assert d.read(control,1)==bytes([opcode-77 if ego_effect else 0x5a])
+                        assert d.read(direction,1)==bytes([0 if ego_effect else 7])
+                for opcode, name, fields in [(76,'CmdSetCycleTime',(0x1f,0x20)),
+                                              (79,'cmd_step_size_v',(0x1e,)),
+                                              (80,'cmd_step_time',(0,1))]:
+                    for index in (0,63):
+                        for value in (0,1,127,255):
+                            before=bytearray((i*37+11)&255 for i in range(64*43))
+                            d.write(objects-1,b'G'+before+b'H')
+                            expected=bytearray(before)
+                            for field in fields: expected[index*43+field]=value
+                            variable=(0x0431 if owner=='CoCo' else ns['vmvariables'])+255
+                            d.write(variable,bytes([value]))
+                            if owner=='CoCo':
+                                d.write(0x2000,bytes([index,255]))
+                                result=d.run(base+syms[name],y=0x2000)
+                                assert result['y']==0x2002
+                            else:
+                                d.write(ns['vmarguments'],bytes([index,255]))
+                                d.write(ns['vmopcode'],bytes([opcode]))
+                                result=d.run(base+ns['ObjectCycleCommand'],u=0)
+                                assert not result['cc']&1 and result['b']==0
+                            assert d.read(objects-1,len(before)+2)==b'G'+expected+b'H', (owner,opcode,index,value)
                 if owner == 'native':
                     d.write(ns['vmarguments'],b'\x40')
                     d.write(ns['vmopcode'],b'\x3d')
                     assert d.run(base+ns['ObjectFlagCommand'],u=0)['cc']&1
                     d.write(ns['vmopcode'],b'\xfc')
                     assert d.run(base+ns['ObjectFlagCommand'],u=0)['cc']&1
-            print('PASS: 14 CoCo/native object flag commands, first/last records, bit preservation, record guards and bounded native errors')
+            print('PASS: 14 CoCo/native object flag commands, first/last records, bit preservation, record guards, cycle/motion transitions, completion/input effects, rate/countdown values and bounded native errors')
         finally:
             d.s.close(); emulator.terminate()
             try:

@@ -414,3 +414,8 @@ The shared-object-flags build (21,174 code / 24,572 private bytes) passed
 unknown-word handling, inventory/modal restoration, Pause/resume, subsequent
 input, interrupt exit and unchanged free memory. The native pixel/motion
 regression and cross-platform object-record checks also passed.
+
+The shared-cycle/motion build (21,230 code / 24,572 private bytes) passed
+`--sustained` at `/tmp/sierra-shared-cycle-motion-sustained`. The later rate
+extraction produces the identical native binary. Native pixel/motion tests
+and cross-platform state/rate/completion-flag checks also passed.

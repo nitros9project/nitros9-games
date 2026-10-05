@@ -1124,28 +1124,20 @@ KeyDone             rts
 *   Commands controlling how an object's cel sequence advances: normal, end-of-loop, reverse, reverse-end-of-loop, and cycle time.
 *======================================================================
 *
+                    use       shared/object-cycle-state.asm
 CmdNormalCycle      lda       ,y+       load object number from script
                     ldb       #$2B      object struct is $2B bytes wide
                     mul                 compute byte offset into object table
                     addd      <$0030    add base address of object table
                     tfr       d,u       transfer computed address to U
-                    lda       #$00      cycle mode 0 = normal forward
-                    sta       <$23,u    store cycle mode
-                    lda       <$26,u    load object state flags
-                    ora       #$20      set cycling-enabled flag
-                    sta       <$26,u    store updated flags
+                    OBJECT_CYCLE_STATE 0,u,0    store updated flags
                     rts
 CmdEndOfLoop        lda       ,y+       load object number from script
                     ldb       #$2B      object struct is $2B bytes wide
                     mul                 compute byte offset into object table
                     addd      <$0030    add base address of object table
                     tfr       d,u       transfer computed address to U
-                    lda       #$01      cycle mode 1 = end-of-loop
-                    sta       <$23,u    store cycle mode
-                    ldd       <$25,u    load animation flags (both bytes)
-                    ora       #$10      set single-advance flag in A
-                    orb       #$30      set loop-fix and cycling flags in B
-                    std       <$25,u    store updated animation flags
+                    OBJECT_CYCLE_STATE 1,u,1    store updated animation flags
                     lda       ,y+       load end-of-loop flag number
                     sta       <$27,u    store flag to set when loop ends
                     lbsr      ClearFlag clear end-of-loop flag before cycling
@@ -1155,27 +1147,19 @@ CmdReverseCycle     lda       ,y+       load object number from script
                     mul                 compute byte offset into object table
                     addd      <$0030    add base address of object table
                     tfr       d,u       transfer computed address to U
-                    lda       #$03      cycle mode 3 = reverse cycle
-                    sta       <$23,u    store cycle mode
-                    lda       <$26,u    load object state flags
-                    ora       #$20      set cycling-enabled flag
-                    sta       <$26,u    store updated flags
+                    OBJECT_CYCLE_STATE 3,u,0    store updated flags
                     rts
 CmdReverseLoop      lda       ,y+       load object number from script
                     ldb       #$2B      object struct is $2B bytes wide
                     mul                 compute byte offset into object table
                     addd      <$0030    add base address of object table
                     tfr       d,u       transfer computed address to U
-                    lda       #$02      cycle mode 2 = reverse-loop
-                    sta       <$23,u    store cycle mode
-                    ldd       <$25,u    load animation flags (both bytes)
-                    ora       #$10      set single-advance flag in A
-                    orb       #$30      set loop-fix and cycling flags in B
-                    std       <$25,u    store updated animation flags
+                    OBJECT_CYCLE_STATE 2,u,1    store updated animation flags
                     lda       ,y+       load end-of-loop flag number
                     sta       <$27,u    store flag to set when reverse loop ends
                     lbsr      ClearFlag clear end-of-reverse-loop flag
                     rts
+                    use       shared/object-rate-state.asm
 CmdSetCycleTime     lda       ,y+       load object number from script
                     ldb       #$2B      object struct is $2B bytes wide
                     mul                 compute byte offset into object table
@@ -1185,8 +1169,7 @@ CmdSetCycleTime     lda       ,y+       load object number from script
                     ldx       #$0431    point to variable table
                     abx                 index to the cycle-time variable
                     lda       ,x        load cycle time value from variable
-                    sta       <$1F,u    store as cycle time (delay preset)
-                    sta       <$20,u    store as current cycle counter
+                    OBJECT_RATE_STATE a,u,$1F,32
                     rts
 OBJECT_FLAG_OPCODE  set       70
                     use       shared/object-flag-rules.asm
@@ -4713,23 +4696,20 @@ cmd_wander          lda       ,y+       load object number from script
                     bne       WanderDone branch if not ego
                     clr       >$0250    hide ego while wandering
 WanderDone          rts
+                    use       shared/object-motion-state.asm
 cmd_normal_motion   lda       ,y+       load object number from script
                     ldb       #$2B      view-object struct size = 43
                     mul                 compute object offset
                     addd      <$0030    add view-object array base
                     tfr       d,u       point U to object struct
-                    lda       #$00      motion type = normal (user-controlled)
-                    sta       <$22,u    clear motion type
+                    OBJECT_MOTION_STATE u,0    clear motion type
                     rts
 cmd_stop_motion     lda       ,y+       load object number from script
                     ldb       #$2B      view-object struct size = 43
                     mul                 compute object offset
                     addd      <$0030    add view-object array base
                     tfr       d,u       point U to object struct
-                    lda       #$00      motion type = stopped
-                    sta       <$22,u    clear motion type
-                    clra                zero direction
-                    sta       <$21,u    stop object movement direction
+                    OBJECT_MOTION_STATE u,1    stop object movement direction
                     cmpu      <$0030    check if this is ego
                     bne       StopMotionDone branch if not ego
                     sta       >$0437    clear ego-direction variable
@@ -4740,8 +4720,7 @@ cmd_start_motion    lda       ,y+       load object number from script
                     mul                 compute object offset
                     addd      <$0030    add view-object array base
                     tfr       d,u       point U to object struct
-                    lda       #$00      motion type = normal
-                    sta       <$22,u    clear motion type
+                    OBJECT_MOTION_STATE u,0    clear motion type
                     cmpu      <$0030    check if this is ego
                     bne       StartMotionDone branch if not ego
                     clr       >$0437    clear ego-direction variable
@@ -4758,7 +4737,7 @@ cmd_step_size_v     lda       ,y+       load object number from script
                     ldx       #$0431    point to variable table
                     abx                 index to variable
                     lda       ,x        load step size from variable
-                    sta       <$1E,u    store as object step size
+                    OBJECT_RATE_STATE a,u,$1E,-1
                     rts
 
 cmd_step_time       lda       ,y+       load object number from script
@@ -4770,8 +4749,7 @@ cmd_step_time       lda       ,y+       load object number from script
                     ldx       #$0431    point to variable table
                     abx                 index to variable
                     lda       ,x        load step time from variable
-                    sta       ,u        store as step-time counter
-                    sta       $01,u     store as step-time reset value
+                    OBJECT_RATE_STATE a,u,$00,1
                     rts
 
 cmd_set_dir         lda       ,y+       load object number from script

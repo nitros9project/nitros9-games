@@ -966,3 +966,31 @@ The CoCo reference-picture utility now waits 100 ms for queued power-on reset
 before debugger memory setup, matching the other CPU harnesses, and uses a
 900-second emulated limit. Its former 10-ms/120-second setup disconnected
 during the real-picture reference phase on repeated regression runs.
+
+### Shared cycle, motion and rate state
+
+`objs/shared/object-cycle-state.asm` now emits mode 0/3 continuous cycling
+and mode 1/2 endpoint cycling for both owners. It changes the mode byte and
+enable/single-loop flags with the same instructions. Completion-flag storage
+remains an owner adapter (CoCo packed flags, native bytes).
+
+`object-motion-state.asm` resets the normal motion type and optionally clears
+direction for stop-motion. Normal, start and stop commands consume it; ego
+direction variables and player/program control state remain owner effects.
+`object-rate-state.asm` writes cycle delay, step size and step delay, resetting
+the corresponding countdown where required. Owner-selected accumulator and
+record registers preserve each calling convention. No private state or
+runtime platform selection is added.
+
+The CoCo interpreter remains byte-for-byte unchanged. Native code is now
+21,230 bytes (`wbgame`) or 6,906 bytes (`wbexec`), with the same private data.
+The rate extraction itself changes neither binary: the native artifact tested
+in `/tmp/sierra-shared-cycle-motion-sustained` matches the final build exactly.
+
+`check_object_flags.py` now also executes these transitions in both real
+engine binaries. It verifies whole-array guards, continuous/reverse/endpoint
+modes, completion flag 255, ego versus other-object control effects, and
+rate/countdown edge values 0/1/127/255 resolved through variable index 255.
+Native pixel/motion/animation and real-driver sustained-play checks passed.
+Animation progression, coordinate stepping, resource ownership and parser
+integration are still separate and require further consolidation.

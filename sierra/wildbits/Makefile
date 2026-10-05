@@ -103,3 +103,9 @@ wbexec wbgame: ../objs/shared/condition-tests.asm
 wbexec wbgame: ../objs/shared/agi-test-table.asm
 
 wbexec wbgame: ../objs/shared/object-flag-mask.asm ../objs/shared/object-flag-rules.asm
+
+wbexec wbgame: ../objs/shared/object-cycle-state.asm
+
+wbexec wbgame: ../objs/shared/object-motion-state.asm
+
+wbexec wbgame: ../objs/shared/object-rate-state.asm

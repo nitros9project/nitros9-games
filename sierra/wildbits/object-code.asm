@@ -210,25 +210,25 @@ ObjectCycleCommand  lbsr      ObjectAddress
                     lbcs      ObjectReturn
                     ldb       <vmopcode
                     cmpb      #70
-                    beq       ObjectStopCycle
+                    lbeq      ObjectStopCycle
                     cmpb      #71
-                    beq       ObjectStartCycle
+                    lbeq      ObjectStartCycle
                     cmpb      #72
-                    beq       ObjectNormalCycle
+                    lbeq      ObjectNormalCycle
                     cmpb      #74
-                    beq       ObjectReverseCycle
+                    lbeq      ObjectReverseCycle
                     cmpb      #73
-                    beq       ObjectEndCycle
+                    lbeq      ObjectEndCycle
                     cmpb      #75
-                    beq       ObjectReverseEnd
+                    lbeq      ObjectReverseEnd
                     cmpb      #76
-                    beq       ObjectCycleTime
+                    lbeq      ObjectCycleTime
                     cmpb      #79
-                    beq       ObjectStepSize
+                    lbeq      ObjectStepSize
                     cmpb      #80
-                    beq       ObjectStepTime
+                    lbeq      ObjectStepTime
                     cmpb      #85
-                    beq       ObjectNormalMotion
+                    lbeq      ObjectNormalMotion
                     cmpb      #77
                     lbeq      ObjectStopMotion
                     cmpb      #78
@@ -236,22 +236,17 @@ ObjectCycleCommand  lbsr      ObjectAddress
                     ldb       #E$UnkSvc
                     orcc      #1
                     rts
+                    use       shared/object-cycle-state.asm
 ObjectStopCycle     lbra      CmdStopCycling
-ObjectNormalCycle   clr       $23,x
 ObjectStartCycle    lbra      CmdStartCycling
-ObjectReverseCycle  lda       #3
-                    sta       $23,x
-                    bra       ObjectStartCycle
-ObjectEndCycle      lda       #1
-                    bra       ObjectEndCycleMode
-ObjectReverseEnd    lda       #2
-ObjectEndCycleMode  sta       $23,x
-                    lda       $25,x
-                    ora       #$10
-                    sta       $25,x
-                    lda       $26,x
-                    ora       #$30
-                    sta       $26,x
+ObjectNormalCycle   OBJECT_CYCLE_STATE 0,x,0
+                    lbra      ObjectDone
+ObjectReverseCycle  OBJECT_CYCLE_STATE 3,x,0
+                    lbra      ObjectDone
+ObjectEndCycle      OBJECT_CYCLE_STATE 1,x,1
+                    bra       ObjectEndCycleFlag
+ObjectReverseEnd    OBJECT_CYCLE_STATE 2,x,1
+ObjectEndCycleFlag  equ       *
                     ldb       vmarguments+1,u
                     stb       $27,x
                     leay      vmflags,u
@@ -259,27 +254,26 @@ ObjectEndCycleMode  sta       $23,x
                     leay      d,y
                     clr       ,y
                     lbra      ObjectDone
+                    use       shared/object-rate-state.asm
 ObjectCycleTime     lbsr      ObjectArgumentValue
-                    stb       $1F,x
-                    stb       $20,x
+                    OBJECT_RATE_STATE b,x,$1F,$20
                     lbra      ObjectDone
 ObjectStepSize      lbsr      ObjectArgumentValue
-                    stb       $1E,x
+                    OBJECT_RATE_STATE b,x,$1E,-1
                     lbra      ObjectDone
 ObjectStepTime      lbsr      ObjectArgumentValue
-                    stb       ,x
-                    stb       1,x
+                    OBJECT_RATE_STATE b,x,0,1
                     lbra      ObjectDone
-ObjectNormalMotion  clr       $22,x
+                    use       shared/object-motion-state.asm
+ObjectNormalMotion  OBJECT_MOTION_STATE x,0
                     lbra      ObjectDone
-ObjectStopMotion    clr       $22,x
-                    clr       $21,x
+ObjectStopMotion    OBJECT_MOTION_STATE x,1
                     tst       vmarguments,u
                     lbne      ObjectDone
                     clr       vmvariables+6,u
                     clr       <vmplayercontrol
                     lbra      ObjectDone
-ObjectStartMotion   clr       $22,x
+ObjectStartMotion   OBJECT_MOTION_STATE x,0
                     tst       vmarguments,u
                     lbne      ObjectDone
                     clr       vmvariables+6,u
