@@ -37,6 +37,11 @@ def main():
                 # Capture unknown-word index while input flag is live. Repeated
                 # identical said predicates may accept the sentence only once.
                 script = bytearray([255,7,2,255,3,0,4,222,9])
+                # A true OR arm must skip a matching said predicate so the
+                # following predicate can still accept the sentence once.
+                script.extend([255,252,1,255,0,14,len(ids)])
+                for group in ids: script.extend(group.to_bytes(2,'little'))
+                script.extend([252,255,0,0])
                 for _ in range(2):
                     script.extend([255,14,len(ids)])
                     for group in ids: script.extend(group.to_bytes(2,'little'))

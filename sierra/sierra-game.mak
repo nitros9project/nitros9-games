@@ -141,3 +141,5 @@ mnln: ../objs/shared/compare-strings.asm ../objs/shared/string-punctuation.asm
 
 mnln: ../objs/shared/object-coordinate-state.asm ../objs/shared/object-animation-state.asm
 mnln: ../objs/platform/object-coordinate-operands.asm ../objs/platform/coco-object-coordinate-operands.asm
+
+mnln: ../objs/shared/condition-flow.asm ../objs/platform/coco-condition-stream.asm

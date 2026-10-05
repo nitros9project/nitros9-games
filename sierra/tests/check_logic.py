@@ -72,8 +72,15 @@ def main():
             for script in [b'\x03\x00', b'\xff\x01\x00', b'\xfe\xff\x7f',
                            b'\xfe\xfd\xff', b'\xff\xfc\xff\0\0',
                            b'\xff\xfd\xff\0\0', b'\xb6', b'\x65\x01',
-                           b'\xff\x0d\xff\0\0\0']:
-                run(script, False)
+                           b'\xff\x0d\xff\0\0\0',
+                           # Malformed controls must fail even after an AND
+                           # result or an OR arm has short-circuited evaluation.
+                           bytes([255,1,0,0,253,255,0,0,0]),
+                           bytes([255,1,0,0,252,255,0,0,0]),
+                           bytes([255,1,0,0,254,255,0,0,0]),
+                           bytes([255,252,1,0,7,253,252,255,0,0,0]),
+                           bytes([255,252,1,0,7,255,0,0,0])]:
+                run(bytes([3,0,7])+script, False)
             print('PASS: AGI arithmetic/indirection/flags, AND/OR/NOT tests, bounded branches/arguments/instruction budget, relocation and immutable code')
         finally:
             d.s.close()

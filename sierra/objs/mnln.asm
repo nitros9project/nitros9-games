@@ -7221,6 +7221,7 @@ GetDiskInfoRet      sta       <$44,s    ; store result flag
 *   if/else blocks, jump offsets, and dispatching each command opcode.
 *======================================================================
 *
+                    use       platform/coco-condition-stream.asm
 ExecLogicScript     leas      -$02,s    ; allocate 2-byte local frame (if-state)
                     ldy       <$0062    ; load current logic pointer
                     ldd       $04,y     ; get logic page from logic slot
@@ -7241,50 +7242,7 @@ ExecScriptCmd       lbsr      DispatchCmd ; dispatch command opcode
                     leay      ,y        ; test Y (dispatch result)
                     bne       ExecScriptCheck ; non-null = more to process
 ExecScriptDone      bra       ExecLogicScriptRet
-ExecScriptIf        ldd       #$0000
-                    std       ,s        ; clear if-state (not-flag, depth)
-ExecScriptIfLoop    lda       ,y+       ; fetch condition byte
-                    cmpa      #$FC
-                    bhi       ExecScriptIfHi ; $FD/$FE/$FF are control bytes
-                    bne       ExecScriptEvalExpr ; non-$FC = condition to evaluate
-                    lda       ,s        ; load not-flag
-                    bne       ExecScriptSkipBlock ; not-flag set = skip block
-                    inc       ,s        ; set not-flag
-                    bra       ExecScriptIfLoop
-ExecScriptIfHi      cmpa      #$FF
-                    bne       ExecScriptIfFD ; not $FF
-                    leay      $02,y     ; skip 2-byte jump target
-                    bra       ExecScriptLoop ; return to main loop
-ExecScriptIfFD      cmpa      #$FD
-                    bne       ExecScriptEvalExpr ; not $FD
-                    lda       $01,s     ; load NOT-accumulator
-                    eora      #$01      ; toggle NOT flag
-                    sta       $01,s     ; store updated NOT flag
-                    bra       ExecScriptIfLoop
-ExecScriptEvalExpr  lbsr      EvalExpr  ; evaluate condition expression
-                    eora      $01,s     ; XOR with NOT flag
-                    clr       $01,s     ; clear NOT flag for next use
-                    tsta                ; test result
-                    bne       ExecScriptTrueBlock ; condition true
-                    lda       ,s        ; load not-flag
-                    bne       ExecScriptIfLoop ; not-flag still set
-ExecScriptSkipBlock clr       ,s        ; clear not-flag
-ExecScriptSkipLoop  lda       ,y+       ; scan through skipped block
-                    cmpa      #$FF
-                    beq       ExecScriptJump ; $FF = end of if block (with jump)
-                    cmpa      #$FC
-                    bcc       ExecScriptSkipLoop ; $FC/$FD/$FE = control bytes, skip
-                    bsr       ExecScriptExecCmd ; execute command (to skip args)
-                    bra       ExecScriptSkipLoop
-ExecScriptTrueBlock lda       ,s        ; load not-flag
-                    beq       ExecScriptIfLoop ; not set, execute block
-                    clr       ,s        ; clear not-flag
-ExecScriptTrueLoop  lda       ,y+       ; fetch next byte in true block
-                    cmpa      #$FC
-                    bhi       ExecScriptTrueLoop ; $FD/$FE/$FF = skip
-                    beq       ExecScriptIfLoop ; $FC = end of if block
-                    bsr       ExecScriptExecCmd ; execute command
-                    bra       ExecScriptTrueLoop
+                    use       shared/condition-flow.asm
 ExecScriptExecCmd   cmpa      #$0E
                     bne       ExecScriptExecCmdImpl ; not cmd $0E (return)
                     lda       ,y+       ; fetch return target offset

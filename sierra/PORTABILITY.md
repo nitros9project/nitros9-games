@@ -1145,3 +1145,56 @@ measured approximately 9 AGI pixels in 3.33 emulated seconds, matching the
 previous benchmark; inventory, modal restoration, exit and unchanged free
 memory also passed. Artifacts are in `/tmp/sierra-shared-coordinates-mame`.
 CoCo `mnln` and the five unaffected diagnostic modules remain byte-identical.
+
+### Shared short-circuit condition execution
+
+CoCo and Wild Bits now assemble `objs/shared/condition-flow.asm` for the
+condition control algorithm. It evaluates AND chains, OR groups and NOT
+prefixes in the same order, and consumes the operands of skipped predicates
+without calling them. This replaces Wild Bits’ separate eager evaluator.
+The difference matters for predicates with side effects: a skipped `said`
+match must not mark a submitted sentence as accepted, and a skipped keyboard
+predicate must not consume an event.
+
+For example, when the first arm of an OR group is true, a matching `said` in
+the remaining arm is now skipped. A subsequent `said` can accept that same
+sentence once. The regression failed with an isolated module verified
+byte-identical to the previous native binary: `LOOK` had an acceptance count
+of zero. The common traversal passes that regression.
+
+`platform/coco-condition-stream.asm` binds streamed reads, trace-aware
+`EvalExpr`, descriptor-based operand skipping, and existing branch labels.
+Its validation hooks emit no instructions, so the entire CoCo interpreter
+remains byte-identical. `platform/wildbits-condition-stream.asm` binds bounded
+mapped reads, decoded operand counts, native callbacks, checked branch offsets
+and balanced error exits. It validates OR/NOT controls while skipping, without
+invoking skipped predicates. Native errors release the two local bytes before
+returning. Four obsolete eager-evaluation bytes are removed from native
+private state; condition state now uses the common two-byte stack frame.
+
+The cross-owner test executes both actual control paths at two code locations
+with instrumented predicate callbacks. It checks all 16 truth combinations
+of mixed AND/OR/NOT groups, exact callback order, said/key skipping, control
+bytes inside operands, branch destinations, stack balance and immutable code.
+The parser regression separately exercises actual native `said` acceptance.
+The native bytecode test checks malformed controls in both evaluated and
+short-circuited paths. The remaining main command loop, cache/resource storage
+and object-update reconciliation are still unfinished.
+
+The final guarded native build uses 21,557 / 23,808 code bytes and 24,568
+private-data bytes (`wbgame`), or 7,050 code / 16,841 private-data bytes
+(`wbexec`). The four-byte private-state reduction does not change the number
+of OS-9 data blocks allocated. The CoCo build remains byte-identical.
+
+Validation: the full CPU suite passed with the reduced private-state layout.
+The final bounded skip-control hooks passed the malformed-input and cross-owner
+callback-order tests; the final game/probe builds also passed parser acceptance
+and cached/nested execution regressions. MAME sustained gameplay passed typed
+commands, unknown-word output, inventory, Pause/resume, subsequent input, exit
+and unchanged free memory. The final movement benchmark remained approximately
+9 AGI pixels in 3.33 emulated seconds. The two-terminal MAME acceptance passed
+every displayed pixel, terminal switches, picture restoration, independent
+exit, relaunch and the free-memory map. Final artifacts are in
+`/tmp/sierra-final-condition-flow-mame`,
+`/tmp/sierra-final-condition-flow-movement`, and
+`/tmp/sierra-final-condition-flow-two-terminals`.

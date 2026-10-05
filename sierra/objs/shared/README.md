@@ -13,6 +13,8 @@ owners. They allocate no state and contain no OS-9 module header.
   provide the variable-table address at assembly time.
 - `flag-commands.asm`: commands 12–17, using owner-specific packed-bit/byte
   flag storage adapters for set, clear and toggle.
+- `condition-flow.asm`: common short-circuit AND/OR/NOT traversal, with owner
+  stream callbacks and bounded native skipping/error handling.
 - `condition-tests.asm`: the six unsigned comparisons and direct/indirect
   flag predicates, with owner-provided operands and boolean return adapters.
 - `said-match.asm`: word-ID matching, single-word/rest wildcards, and expected
