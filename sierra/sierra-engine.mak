@@ -132,3 +132,6 @@ shdw: ../objs/shared/object-terrain-scan.asm ../objs/shared/object-terrain-const
 	../objs/platform/terrain-operands.asm ../objs/platform/coco-terrain-operands.asm
 
 mnln: ../objs/shared/object-collision-scan.asm
+
+mnln: ../objs/shared/object-position-commit.asm ../objs/platform/position-commit-operands.asm \
+	../objs/platform/coco-position-commit-operands.asm

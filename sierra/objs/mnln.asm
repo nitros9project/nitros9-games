@@ -4523,34 +4523,12 @@ ClampObjYTop        equ ClampTopLimit
 ClampObjYBot        equ ClampBottomLimit
 CheckObjPriority    equ ClampHorizon
                     use shared/object-coordinate-clamp.asm
-ApplyObjPosition    lda       $04,s     load X high byte
-                    ldb       $06,s     load priority/Y
-                    std       $03,u     store new position in object
-                    lbsr      CheckObjCollision check for collision with others
-                    tsta                test collision result
-                    bne       ObjHitRestore branch if collision detected
-                    stu       ,s        save U for MMU call
-                    pshs      u         push U for restoration
-                    lda       #$03      MMU twiddle opcode $03 = update
-                    sta       <$0021    store twiddle code
-                    ldx       <$0028    load update context pointer
-                    jsr       >$0701    call Sierra update-position routine
-                    leas      $02,s     discard pushed U
-                    ldu       ,s        restore object pointer
-                    lda       <$005C    load position-accept flag
-                    bne       CheckObjBoundary branch if position accepted
-ObjHitRestore       ldd       $07,s     load saved original X+Y
-                    std       $03,u     restore original position
-                    clr       $02,s     clear boundary-hit code
-                    lbsr      FindObjPos reposition object safely
-CheckObjBoundary    lda       $02,s     load boundary-hit code
-                    beq       UpdateObjFlags branch if no boundary hit
-                    ldb       $02,u     load object number
-                    bne       ObjBoundaryHit branch if not ego
-                    sta       >$0433    store ego boundary direction
-                    bra       CheckMoveTarget check if move-target reached
-ObjBoundaryHit      stb       >$0435    store object number that hit
-                    sta       >$0436    store boundary direction
+                    use platform/position-commit-operands.asm
+ApplyObjPosition    equ PositionCommit
+ObjHitRestore       equ PositionRejected
+CheckObjBoundary    equ PositionAccepted
+ObjBoundaryHit      equ PositionOtherBoundary
+                    use shared/object-position-commit.asm
 CheckMoveTarget     lda       <$22,u    load motion type
                     cmpa      #$03      check for move-to-position
                     bne       UpdateObjFlags skip if not move-to

@@ -190,8 +190,7 @@ real step size. The wrapper preserves private context X and object cursor U.
 coordinates for both production runtimes. `platform/*-coordinate-step-operands.asm`
 binds candidate/step storage and direction-table cursors. Store-joining policy
 preserves each owner's original branch schedule, so all fourteen CoCo title
-modules and native `wbgame` remain byte-identical. Candidate initialization,
-commit and per-cycle orchestration remain owner-specific; the common clamp,
+modules and native `wbgame` remain byte-identical. Candidate initialization and per-cycle orchestration remain owner-specific; the common clamp,
 terrain and collision components are described below.
 
 `object-coordinate-clamp.asm` now owns candidate screen/horizon clamping in both
@@ -199,8 +198,7 @@ movement pipelines. Bindings reuse the coordinate-step storage interface and
 preserve dimension checks, comparison scheduling, early vertical exits and
 byte-versus-word horizon policy. Legacy entry aliases remain available. Native
 and all fourteen rebuilt CoCo title modules were byte-identical for that
-extraction. Terrain and collision rules are now shared too; position commit
-remains separate.
+extraction. Terrain and collision rules are now shared too; position transactions are now shared as described below.
 
 `object-terrain-scan.asm` and `object-terrain-constraints.asm` now supply baseline
 control/water/trigger classification and water-only/land-only constraints for
@@ -221,3 +219,14 @@ byte sums/inclusive edge contact versus native word comparisons/exclusive
 contact, and their distinct baseline histories. The native first comparison's
 high-byte handling is preserved exactly. All fourteen CoCo `mnln` binaries and
 native `wbgame` remain byte-identical to the preceding revision.
+
+`object-position-commit.asm` owns candidate commit, collision result handling,
+rejection restoration, accepted-state transition and boundary publication for
+both production movement paths. `platform/*-position-commit-operands.asm` binds
+coordinate/variable storage, collision ABI, terrain validation and recovery,
+and continuation into each owner's destination stage. CoCo validates terrain
+after committing/testing collision and recovers rejected positions; native
+enters after terrain validation and sends rejected positions to its blocked
+handler. These sequencing policies are explicit and preserve the original
+binary. All fourteen CoCo `mnln` modules and native `wbgame` are byte-identical.
+Destination/arrival handling and per-cycle orchestration still remain separate.

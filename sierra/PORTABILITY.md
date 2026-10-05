@@ -5,9 +5,10 @@
 
 Both production runtimes now assemble common logic execution, dictionary lookup,
 direction-vector stepping, screen/horizon clamping, terrain classification and
-constraints, and complete object collision scanning. Platform bindings retain
+constraints, complete object collision scanning, and candidate-position
+transactions. Platform bindings retain
 storage, mapping and intentionally different legacy policies. The broader
-migration is unfinished: per-cycle orchestration, position commit, resource/view
+migration is unfinished: per-cycle orchestration, arrival handling, resource/view
 acquisition, rendering and remaining presentation/formatter behavior still need
 consolidation. Historical sections below describe their stage when written;
 the latest sections record the ongoing shared-engine work.
@@ -2202,3 +2203,32 @@ legacy entries, with activity/ignore/self filtering, owner identity semantics,
 scan limits and guarded records/private state. Previous full-game/MAME checks
 cover the identical native binary; no new emulator acceptance run is claimed.
 Position commit and per-cycle orchestration remain further migration work.
+
+### Common candidate-position transaction and boundary publication
+
+`shared/object-position-commit.asm` now supplies candidate writes, collision
+result branching, rejected-coordinate restoration, accepted-state transition
+and ego/other-object boundary publication for both movement paths. The owner
+routine bodies are replaced with one include and legacy entry aliases.
+`platform/*-position-commit-operands.asm` binds stack/private coordinate fields,
+collision calls/result registers, status and variable writes, terrain lifecycle,
+recovery and destination-stage continuations.
+
+The static terrain-prechecked policy preserves ordering. CoCo writes the
+candidate, checks object collision, then calls its banked terrain service. It
+restores rejected coordinates, clears the boundary code and calls `FindObjPos`
+before continuing. Native enters after its terrain check, tests the committed
+candidate for collision, restores rejected coordinates and branches to
+`MotionBlocked`. Its accepted-state blocked-bit clearing remains before boundary
+publication. CoCo's no-boundary path still skips directly to its flag update;
+native still proceeds to exact-destination checking. No existing policy is
+silently made to match the other owner.
+
+Final native `wbgame` and all fourteen rebuilt CoCo `mnln` modules compare
+byte-identically to the preceding revision. Native probes also build. This
+proves unchanged instruction cost, register/stack behavior, service call sites
+and storage for the extraction. The previously verified native full-game and
+MAME results cover the identical binary; no new emulator run is claimed.
+Native remains 22,274 code bytes and 24,570 private bytes. Arrival handling,
+per-cycle orchestration and the broader resource/rendering migration remain
+unfinished.

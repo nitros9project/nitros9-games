@@ -121,28 +121,10 @@ MotionCheckTerrain  lbsr      GameCheckBlock
                     lbcs      MotionReturn
                     tstb
                     lbne      MotionBlocked
-                    ldu       motionobject,x
-                    ldb       motionx+1,x
-                    stb       3,u
-                    ldb       motiony+1,x
-                    stb       4,u
-                    lbsr      MotionObjectCollision
-                    tstb
-                    beq       MotionAccept
-                    ldd       motionoldposition,x
-                    std       3,u
-                    lbra      MotionBlocked
-MotionAccept        lda       $25,u
-                    anda      #$BF
-                    sta       $25,u
-                    lda       motionedge,x
-                    beq       MotionCheckDestination
-                    ldb       motionid,x
-                    bne       MotionOtherEdge
-                    sta       vmvariables+2,x
-                    bra       MotionCheckDestination
-MotionOtherEdge     stb       vmvariables+4,x
-                    sta       vmvariables+5,x
+                    use platform/position-commit-operands.asm
+MotionAccept        equ PositionAccepted
+MotionOtherEdge     equ PositionOtherBoundary
+                    use shared/object-position-commit.asm
 MotionCheckDestination lda    $22,u
                     cmpa      #3
                     bne       MotionNextObject

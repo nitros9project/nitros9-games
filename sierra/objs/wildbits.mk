@@ -180,3 +180,5 @@ wbgame: platform/coordinate-step-operands.asm
 wbgame: platform/coordinate-clamp-operands.asm
 
 wbgame: platform/terrain-operands.asm
+
+wbgame: platform/position-commit-operands.asm
