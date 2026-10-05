@@ -1,3 +1,4 @@
+                    use       shared/bounded-string-copy.asm
 * Private 12-slot, 40-byte string table matching the existing CoCo layout.
 StringsInitialize   ldu       <resourcebase
                     leax      vmstrings,u
@@ -21,13 +22,8 @@ SetStringCommand    ldu       <resourcebase
                     mul
                     leay      d,y
                     ldb       #39
-StringCopy          lda       ,x+
-                    sta       ,y+
-                    beq       StringDone
-                    decb
-                    bne       StringCopy
-                    clr       ,y
-StringDone          clrb
+                    BOUNDED_STRING_COPY y,StringCopy,StringDone,BOUNDED_BYTE_COUNT
+                    clrb
 StringReturn        rts
 StringInvalid       ldb       #E$IllArg
                     orcc      #1

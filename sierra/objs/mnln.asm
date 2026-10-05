@@ -1813,18 +1813,13 @@ StrCopyLoop         lda       ,x+       load source byte, advance X
                     bne       StrCopyLoop loop until null terminator copied
                     puls      x         restore start-of-dest as X (return value)
                     rts
+                    use       platform/coco-string-copy-count.asm
+                    use       shared/bounded-string-copy.asm
 MemCopyNull         leas      -$04,s    allocate 4-byte local frame on stack
                     std       ,s        save max-copy-count (D) on stack
                     stu       $02,s     save original destination pointer
-MemCopyLoop         lda       ,x+       load source byte, advance X
-                    sta       ,u+       store to destination, advance U
-                    beq       MemCopyDone branch if null terminator copied
-                    ldd       ,s        reload remaining count
-                    subd      #$0001    decrement count
-                    std       ,s        save updated count
-                    bne       MemCopyLoop loop if more bytes remain
-                    clr       ,u        force null terminator at destination
-MemCopyDone         ldx       $02,s     reload original destination pointer into X
+                    BOUNDED_STRING_COPY u,MemCopyLoop,MemCopyDone,BOUNDED_COCO_COUNT
+                    ldx       $02,s     reload original destination pointer into X
                     leas      $04,s     release local stack frame
                     rts
 StrAppend           pshs      u         save source pointer (return dest in X)
@@ -1844,29 +1839,7 @@ StrCompareLoop      lda       ,x        load byte from first string (no advance 
                     bne       StrCompareLoop loop if not at end of first string
 StrCompareRet       puls      u,x       restore saved registers
                     rts
-AtoI                leas      -$02,s    allocate 2-byte accumulator on stack
-                    clra                clear A for accumulator init
-                    sta       ,s        clear accumulated result
-                    sta       $01,s     clear digit temp
-AtoISkipSpace       ldb       ,x+       load byte from input, advance X
-                    cmpb      #$20      check for space character
-                    beq       AtoISkipSpace loop to skip leading spaces
-AtoIDigitLoop       cmpb      #$30      compare to '0'
-                    bcs       AtoIDone  branch if below '0' (not a digit)
-                    cmpb      #$39      compare to '9'
-                    bhi       AtoIDone  branch if above '9' (not a digit)
-                    subb      #$30      convert ASCII digit to binary
-                    stb       $01,s     save digit value
-                    lda       #$0A      multiply accumulated result by 10
-                    ldb       ,s        load current accumulator
-                    mul                 compute accumulator * 10
-                    addb      $01,s     add new digit to product
-                    stb       ,s        save updated accumulator
-                    ldb       ,x+       load next input byte, advance X
-                    bne       AtoIDigitLoop loop if not null terminator
-AtoIDone            lda       ,s        load final converted integer
-                    leas      $02,s     release 2-byte accumulator
-                    rts
+                    use       shared/decimal-byte.asm
 UIntToDecStr        leax      >NumConvEnd,pcr point X to end of numeric conversion buffer
                     clr       ,x        null-terminate the buffer
 UIntToDecLoop       ldu       #$000A    divide by 10 for decimal conversion
@@ -8742,7 +8715,7 @@ cmd_set_string      lda       ,y+       ; fetch destination string slot
                     ldb       ,y+       ; fetch source message number
                     lbsr      GetMsgPtr ; get message text pointer in U
                     exg       u,x       ; X=msg ptr, U=dest slot
-                    ldd       #$0028    ; max 40 chars
+                    ldd       #$0027    ; 39 chars plus in-slot NUL
                     lbsr      MemCopyNull ; copy message text into string slot
                     rts
 
@@ -8755,7 +8728,7 @@ cmd_word_to_string  lda       ,y+       ; fetch destination string slot
                     lslb                ; double B for 2-byte pointer index
                     ldx       #$0180    ; base of word-string pointer table
                     ldx       b,x       ; dereference to get word string
-                    ldd       #$0028    ; max 40 chars
+                    ldd       #$0027    ; 39 chars plus in-slot NUL
                     lbsr      MemCopyNull ; copy word into string slot
                     rts
 

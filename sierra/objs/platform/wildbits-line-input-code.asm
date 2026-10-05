@@ -61,15 +61,8 @@ GameGetCommitString lda      ,x+
                     bne       GameGetCommitString
                     bra       GameGetRestore
 GameGetCommitNumber leax      parserline,u
-                    clrb
-GameGetDigit        lda       ,x+
-                    beq       GameGetNumberStore
-                    suba      #'0
-                    pshs      a
-                    lda       #10
-                    mul
-                    addb      ,s+
-                    bra       GameGetDigit
+                    lbsr      AtoI
+                    tfr       a,b
 GameGetNumberStore  leay      vmvariables,u
                     lda       vmarguments+1,u
                     pshs      b
@@ -92,6 +85,7 @@ GameGetRestoreByte  lda       ,x+
                     puls      cc,b,pc
 GameGetInvalid      clr       dialoginputmode,u
                     lbra      ObjectBadIndex
+                    use       shared/decimal-byte.asm
 * A=1 finished, A=0 continue; C/error B. No vocabulary submission here.
 GameLineKey         ldu       <resourcebase
                     lda       parsercharacter,u

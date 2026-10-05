@@ -151,3 +151,7 @@ mnln: ../objs/shared/random-command.asm ../objs/platform/coco-random-operands.as
 mnln: ../objs/shared/object-motion-setup.asm ../objs/platform/coco-motion-setup.asm
 
 mnln: ../objs/shared/inventory-commands.asm ../objs/platform/coco-inventory-operands.asm
+
+mnln: ../objs/shared/bounded-string-copy.asm ../objs/platform/coco-string-copy-count.asm
+
+mnln: ../objs/shared/decimal-byte.asm

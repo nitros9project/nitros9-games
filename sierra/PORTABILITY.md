@@ -1357,3 +1357,53 @@ Two-terminal tests passed pixel restoration, independent exit and relaunch.
 Artifacts are in `/tmp/sierra-shared-inventory-rules-mame` and
 `/tmp/sierra-shared-inventory-rules-terminals`. These checks do not establish
 full gameplay, audio support or completion of the remaining engine migration.
+
+### Shared string-copy and decimal helpers
+
+`shared/bounded-string-copy.asm` supplies the same NUL/limit loop to CoCo
+`MemCopyNull` and native `set.string`. CoCo retains its 16-bit stack-local
+count and destination return convention; native retains its byte counter and
+Y destination. The helper copies up to a positive character limit and then
+appends NUL, so truncation requires limit+1 destination bytes. The extraction
+alone produced byte-identical CoCo `mnln`, native `wbgame` and native `wbexec`
+binaries. No extra instructions or data were added to the copying loop.
+
+The caller regression then exposed an existing CoCo overflow: `set.string`
+and `word.to.string` allowed 40 characters in a 40-byte slot, and the copy
+helper wrote the trailing NUL at byte 40. This overwrote the next slot, or
+variable 0 after the last slot. Both callers now pass 39, reserving the final
+byte for NUL as native `set.string` already does. The first real-command
+regression failed on a 40-character source before the fix and passed afterward.
+The CoCo module differs from its preceding binary at exactly these two count
+immediates plus the module CRC; its instruction layout and size are unchanged.
+Inputs up to 39 characters retain their resulting string; shorter-than-39
+copy paths retain their instruction behavior. Long inputs now remain inside
+the selected slot.
+
+`shared/decimal-byte.asm` supplies CoCo `AtoI` and the native modal number
+editor. It skips leading ASCII spaces, accumulates unsigned decimal modulo
+256, stops at the first nondigit, returns A and preserves U/Y. Two stack-local
+bytes hold the accumulator/digit; no global/private scratch is required. The
+native editor still filters its input, restores the pending game input and
+writes the selected variable. Native `wbgame` adds 32 code bytes to 21,645,
+with private data unchanged at 24,568; `wbexec` remains byte-identical at 7,027
+code / 16,841 private bytes.
+
+`check_text_helpers.py` executes the actual routines at two code addresses,
+checking copy limits 1/2/39/40/127/255 and CoCo 256/257, every nonzero source
+byte, termination/truncation, registers, cursors, guards and balanced stacks.
+Decimal cases cover values 0–255, overflow, leading spaces, invalid prefixes
+and every nondigit byte class. `check_string_slots.py` executes actual CoCo
+`set.string`/`word.to.string` and native `set.string`, supplying only the
+message-source boundary. It verifies slots 0/11, long and boundary inputs,
+adjacent strings/variables, immutable sources/code and native invalid slots.
+The game regression also exercises the actual modal editor with blank input,
+256/999 overflow, ignored letters and cancellation, writing variable 255.
+
+All comparative helpers, slot-boundary, normalization and extended modal-input
+checks passed, as did cached/nested execution. All 14 configured CoCo `mnln`
+builds pass. The final native binary matches the MAME-tested artifact in
+`/tmp/sierra-shared-text-helpers-mame`, where sustained original-game commands,
+inventory/modal restoration, Pause/resume, interrupt exit and unchanged free
+memory passed. These checks do not establish full gameplay/audio support or
+completion of the remaining source migration.

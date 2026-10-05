@@ -117,6 +117,11 @@ def main():
                         for pixel in range(8):
                             wanted[(row*8+gy)*320+col*8+pixel]=16 if font[char*8+gy]&(128>>pixel) else 1
             assert frame==wanted, 'bounded get.string/get.num formatting or restore failed'
+            for keys, expected in [(b'\r',0),(b'256\r',0),(b'999\r',231),
+                                   (b'A2B5C5D\r',255),(b'\x1b',0)]:
+                body=bytes([3,255,42,118,1,255,134,1,0])
+                error,_,s=run(fixture(body,message=b'Number:'),keyboard=keys)
+                assert not error and s['vmvariables'][255]==expected, ('modal number conversion',keys,error,s['vmvariables'][255])
             body=bytes([114,0,1,117,0,116,2,1,103,3,0,2,134,1,0])
             files=fixture(body,message=[b'look tree',b'%s1'])
             from check_wbparser import dictionary

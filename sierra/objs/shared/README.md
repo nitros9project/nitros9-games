@@ -5,6 +5,10 @@ owners. They allocate no state and contain no OS-9 module header.
 
 - `random-command.asm`: inclusive random-range calculation and variable store;
   owners retain their seed generators, validation and variable-table bindings.
+- `bounded-string-copy.asm`: NUL-terminated copying with a positive character
+  limit; owners bind destination registers and byte/stack-word countdowns.
+- `decimal-byte.asm`: leading-space decimal conversion with modulo-256
+  accumulation and a first-nondigit stop, using only stack-local scratch.
 - `divide-byte.asm`: unsigned byte quotient/remainder with private DP scratch.
 - `object-wander.asm`: direction/countdown changes shared with CoCo; native
   random state is process-private. Coordinate stepping remains separate.
