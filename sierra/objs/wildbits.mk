@@ -149,3 +149,5 @@ wbgame: platform/decimal-output-operands.asm
 wbgame: platform/format-scan-operands.asm
 
 wbgame: platform/format-directive-operands.asm
+
+wbgame: platform/format-string-operands.asm

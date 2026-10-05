@@ -104,3 +104,12 @@ including their actual command and condition handlers, and compares variables
 and flags across the packed CoCo and byte-per-flag native layouts. It verifies
 forward/backward branches, mixed conditions, stack guards and immutable code
 after CoCo table initialization. The CoCo module remains byte-identical.
+
+The formatter now also shares `format-scan.asm` (character traversal),
+`format-directives.asm` (substitution selection), `format-string-slot.asm`
+(string-slot resolution), `decimal-index.asm` and `unsigned-decimal.asm`.
+Their platform operands preserve each owner's storage, bounds and errors.
+`nul-string-copy.asm` is used by CoCo `StrCopy` and native formatter source
+frames/string/numeric emission; checked emitters stop before copying NUL,
+while direct copies include it. Full formatting recursion and several
+substitution providers remain owner-specific.

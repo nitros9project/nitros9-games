@@ -1708,3 +1708,33 @@ unchanged free memory also passed. The two-terminal MAME test passed exact
 picture restoration, independent exit/relaunch and unchanged free memory.
 Full formatting source acquisition,
 substitution handlers and recursion remain separate work.
+
+### Shared string-slot provider and NUL traversal
+
+`shared/format-string-slot.asm` resolves a string index into a 40-byte slot
+for both formatters. Platform bindings prepare/validate the index, address
+the appropriate private string table, and choose expansion. CoCo retains
+its existing decimal parser, table at `$0251` and recursive `FormatStr`
+expansion. Wild Bits retains the twelve-slot bound, process-relative
+`vmstrings` table and literal bounded output. In particular, a percent sign
+inside a string slot still has the owner's existing meaning; this extraction
+does not silently reconcile that semantic difference.
+
+`shared/nul-string-copy.asm` supplies one traversal macro for CoCo's `StrCopy`
+and three native formatter loops: frame copying, literal string-slot output
+and numeric output. Its compile-time terminator trait places completion
+before writing for checked emitters, and after writing for direct copies.
+The latter copies the NUL and leaves the destination one byte beyond it;
+the former preserves the existing output terminator managed by `FormatPut`.
+Checked emitters provide completion/error branches, retaining their exact
+branch widths and numeric stack-frame cleanup. Each expansion reads once,
+advances its original source register and preserves the original stop policy.
+No call, private buffer or runtime branch was added by the abstraction.
+
+Verification rebuilt all fourteen CoCo engines and native `wbgame`. Every
+module is byte-identical to the preceding verified directive-selection
+revision, including native source-frame copying and the CoCo string helper.
+The preceding CPU formatter/gameplay and MAME sustained/two-terminal results
+therefore exercise the identical machine code. Source acquisition, word and
+message providers, recursive frame policy and owner-specific expansion
+semantics still need further consolidation.

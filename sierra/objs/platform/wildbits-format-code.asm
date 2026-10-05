@@ -1,5 +1,9 @@
 * Bounded formatter. Four 512-byte source frames and a 2048-byte output
 * share the idle fill stack; recursion never retains a mapped message pointer.
+                    use shared/nul-string-copy.asm
+NUL_FRAME_WRITE     macro
+                    sta       ,y+
+                    endm
 GameFormatMessage   ldu       <resourcebase
                     clr       formatdepth,u
                     clr       parserreadlength,u
@@ -20,9 +24,7 @@ FormatPart          lda       formatdepth,u
                     leay      fillstack,u
                     leay      d,y
                     pshs      y
-FormatCopy          lda       ,x+
-                    sta       ,y+
-                    bne       FormatCopy
+                    NUL_STRING_COPY x,FormatCopy,1,NUL_FRAME_WRITE,NUL_COPY_NOOP,NUL_COPY_NOOP
                     puls      x
                     inc       formatdepth,u
 FormatNext          equ *
@@ -103,17 +105,10 @@ FormatWordCopy      tstb
                     lbcs      FormatPartError
                     decb
                     bra       FormatWordCopy
-FormatString        cmpb      #12
-                    lbhs      FormatPartInvalid
-                    lda       #40
-                    mul
-                    leay      vmstrings,u
-                    leay      d,y
-FormatStringCopy    lda       ,y+
-                    lbeq      FormatNext
-                    lbsr      FormatPut
-                    lbcs      FormatPartError
-                    bra       FormatStringCopy
+FormatString        equ *
+                    use platform/format-string-operands.asm
+                    use shared/format-string-slot.asm
+                    NUL_STRING_COPY y,FormatStringCopy,0,FORMAT_STRING_WRITE,FORMAT_STRING_DONE,FORMAT_STRING_ERROR
 FormatMessage       pshs      x
                     lbsr      ReadLogicMessage
                     bcs       FormatMessageReturn
@@ -134,11 +129,7 @@ FormatVariable      leay      vmvariables,u
                     tfr       x,y
                     ldx       4,s
                     ldu       6,s
-FormatVariableCopy  lda       ,y+
-                    beq       FormatVariableDone
-                    lbsr      FormatPut
-                    bcs       FormatVariableError
-                    bra       FormatVariableCopy
+                    NUL_STRING_COPY y,FormatVariableCopy,0,FORMAT_STRING_WRITE,FORMAT_NUMBER_DONE,FORMAT_NUMBER_ERROR
 FormatVariableDone  leas      8,s
                     lbra      FormatNext
 FormatVariableError leas      8,s

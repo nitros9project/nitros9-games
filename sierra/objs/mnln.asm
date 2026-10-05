@@ -1758,9 +1758,9 @@ StrLenLoop          lda       ,x+       load byte from string, advance X
                     leas      $02,s     release 2-byte save slot
                     rts
 StrCopy             pshs      u         save destination pointer (return in X)
-StrCopyLoop         lda       ,x+       load source byte, advance X
-                    sta       ,u+       store to destination, advance U
-                    bne       StrCopyLoop loop until null terminator copied
+                    use platform/coco-nul-string-write.asm
+                    use shared/nul-string-copy.asm
+                    NUL_STRING_COPY x,StrCopyLoop,1,NUL_COCO_WRITE,NUL_COPY_NOOP,NUL_COPY_NOOP
                     puls      x         restore start-of-dest as X (return value)
                     rts
                     use       platform/coco-string-copy-count.asm
@@ -5977,13 +5977,9 @@ FormatStrEscapeW    stu       $08,s     ; save output pointer
                     ldu       #$0180    ; point to window table
                     leau      [b,u]     ; indirect load window pointer
                     lbra      FormatStrEscapeRec ; copy window string to output
-FormatStrEscapeS    stu       $08,s     ; save output pointer
-                    lbsr      ParseDecStr ; parse save slot index
-                    lda       #$28      ; size of save name entry = 40
-                    mul                 ; A*40 = slot offset
-                    addd      #$0251    ; add save name table base
-                    tfr       d,u       ; U = pointer to save slot name
-                    bra       FormatStrEscapeRec ; copy name to output
+FormatStrEscapeS    equ *
+                    use platform/format-string-operands.asm
+                    use shared/format-string-slot.asm
 FormatStrEscapeM    stu       $08,s     ; save output pointer
                     lbsr      ParseDecStr ; parse message number
                     lbsr      GetMsgPtr ; get pointer to message

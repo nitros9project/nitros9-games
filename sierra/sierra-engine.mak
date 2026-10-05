@@ -88,4 +88,9 @@ mnln: ../objs/shared/unsigned-decimal.asm \
 	../objs/platform/coco-format-scan-operands.asm \
 	../objs/shared/format-directives.asm \
 	../objs/platform/format-directive-operands.asm \
-	../objs/platform/coco-format-directive-operands.asm
+	../objs/platform/coco-format-directive-operands.asm \
+	../objs/shared/format-string-slot.asm \
+	../objs/shared/nul-string-copy.asm \
+	../objs/platform/format-string-operands.asm \
+	../objs/platform/coco-format-string-operands.asm \
+	../objs/platform/coco-nul-string-write.asm
