@@ -65,3 +65,5 @@ mnln: ../objs/shared/object-block-test.asm
 mnln: ../objs/shared/divide-byte.asm ../objs/shared/object-wander.asm
 mnln: ../objs/shared/object-position-test.asm
 mnln: ../objs/shared/object-follow.asm ../objs/shared/object-move-direction.asm
+
+mnln: ../objs/shared/math-commands.asm

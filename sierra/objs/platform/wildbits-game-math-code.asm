@@ -1,32 +1,36 @@
-* Byte arithmetic keeps AGI modulo-256 results and bounded divisors.
+* Native argument/validation adapter; byte arithmetic belongs to the common engine.
 GameMathCommand     ldu       <resourcebase
-                    leax      vmvariables,u
-                    clra
-                    ldb       vmarguments,u
-                    leax      d,x
+                    leay      vmarguments,u
+                    ldb       <vmopcode
+                    cmpb      #167
+                    blo       GameMathReady
                     ldb       vmarguments+1,u
                     lda       <vmopcode
-                    bita      #1
-                    bne       GameMathOperand
-                    leay      vmvariables,u
-                    clra
-                    ldb       d,y
-GameMathOperand     lda       <vmopcode
-                    cmpa      #167
-                    bhs       GameMathDivide
-                    lda       ,x
-                    mul
-                    stb       ,x
-                    clrb
-                    rts
-GameMathDivide      tstb
-                    lbeq      ObjectBadIndex
-                    tfr       b,a
+                    cmpa      #168
+                    bne       GameMathDivisor
+                    VARIABLE_TABLE
+                    abx
                     ldb       ,x
-                    lbsr      Div8
-                    stb       ,x
+GameMathDivisor     tstb
+                    lbeq      ObjectBadIndex
+GameMathReady       ldb       <vmopcode
+                    subb      #165
+                    lslb
+                    leax      GameMathHandlers,pcr
+                    ldd       b,x
+                    leax      d,x
+                    jsr       ,x
                     clrb
                     rts
+GameMathHandlers    fdb       cmd_multn-GameMathHandlers
+                    fdb       cmd_multv-GameMathHandlers
+                    fdb       cmd_divn-GameMathHandlers
+                    fdb       cmd_divv-GameMathHandlers
+MATH_DIVIDE         macro
+                    lbsr      Div8
+                    endm
+                    use       shared/math-commands.asm
+
 GameRandomCommand   ldu       <resourcebase
                     lda       vmarguments,u
                     cmpa      vmarguments+1,u

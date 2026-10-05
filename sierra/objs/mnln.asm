@@ -9356,47 +9356,10 @@ VARIABLE_TABLE      macro
                     endm
                     use       shared/variable-commands.asm
 
-cmd_multn           ldx       #$0431    ; variable table base
-                    ldb       ,y+       ; fetch destination variable index
-                    abx                 ; point to variable
-                    lda       ,x        ; load variable value
-                    ldb       ,y+       ; fetch immediate multiplier
-                    mul                 ; multiply A × B → D
-                    stb       ,x        ; store low byte of result
-                    rts
-
-cmd_multv           ldb       $01,y     ; fetch multiplier variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to multiplier variable
-                    lda       ,x        ; read multiplier
-                    ldb       ,y++      ; fetch destination variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to destination variable
-                    ldb       ,x        ; read destination value
-                    mul                 ; multiply A × B → D
-                    stb       ,x        ; store low byte of result
-                    rts
-
-cmd_divn            ldx       #$0431    ; variable table base
-                    ldb       ,y+       ; fetch destination variable index
-                    abx                 ; point to variable
-                    ldb       ,x        ; load variable value (dividend)
-                    lda       ,y+       ; fetch immediate divisor
-                    bsr       Div8      ; divide B ÷ A → B (quotient)
-                    stb       ,x        ; store quotient
-                    rts
-
-cmd_divv            ldb       $01,y     ; fetch dividend variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to dividend variable
-                    lda       ,x        ; read dividend
-                    ldb       ,y++      ; fetch divisor variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to divisor variable
-                    ldb       ,x        ; read divisor
-                    bsr       Div8      ; divide B ÷ A → B (quotient)
-                    stb       ,x        ; store quotient
-                    rts
+MATH_DIVIDE         macro
+                    bsr       Div8
+                    endm
+                    use       shared/math-commands.asm
 
 DivideDivisor       equ       $0088
 DivideBits          equ       $008D

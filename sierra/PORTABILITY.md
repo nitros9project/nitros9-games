@@ -1455,3 +1455,36 @@ passing. Two-terminal tests passed pixel restoration, independent exits and
 relaunch. Artifacts are in `/tmp/sierra-shared-cel-advance-movement` and
 `/tmp/sierra-shared-cel-advance-terminals`. This checkpoint does not establish
 full gameplay/audio support or completion of the remaining engine migration.
+
+### Shared multiply/divide commands
+
+AGI commands 165–168 (`multn`, `multv`, `divn`, `divv`) now assemble from
+`objs/shared/math-commands.asm` in both engines. `VARIABLE_TABLE` supplies
+the variable-table address, and `MATH_DIVIDE` calls the existing common
+`Div8` helper. Multiplication stores the low byte; division stores the
+unsigned quotient. The variable forms read the source before writing the
+destination, including when both indices designate the same variable.
+
+CoCo retains the original command bodies and short divide calls, producing
+identical `mnln` bytes. Wild Bits selects one of those bodies from its decoded
+arguments and rejects a zero divisor before entering it. That validation is
+an owner policy: this extraction does not change CoCo's existing behavior for
+zero divisors. Both successful bodies consume exactly two operand bytes.
+The native adapter returns its existing success/error convention separately
+from the arithmetic result in the destination variable.
+
+`tests/check_math_commands.py` executes both real owners at two load addresses.
+Its 2,478 calls cover every byte dividend, boundary products and quotients,
+variable indices 0/255, source/destination aliasing, native zero-divisor
+rejection, operand/table/stack guards, and immutable module code. All 14 CoCo
+engine builds remain byte-for-byte unchanged. The Wild Bits game now occupies
+21,750 of its 23,808 available code bytes, with unchanged 24,568-byte private
+storage. This command extraction does not complete the remaining common
+startup, resource, rendering, parser, or game-cycle work.
+
+The same native arithmetic build passed the private Wild Bits MAME movement
+check and the two-terminal interpreter check. The latter verified every
+presented pixel, visibility switching, restored pictures, independent exits,
+relaunch, and the free-memory map. Artifacts are under
+`/tmp/sierra-shared-math-movement` and `/tmp/sierra-shared-math-terminals`.
+These checks do not claim complete gameplay or audio support.
