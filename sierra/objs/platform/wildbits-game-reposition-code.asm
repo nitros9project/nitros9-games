@@ -83,40 +83,16 @@ RepositionBounds    ldd       3,u
                     tstb
                     bne       RepositionReject
                     lbsr      MotionTerrain
-                    bcs       RepositionError
+                    lbcs      RepositionError
                     tstb
                     beq       RepositionFound
 RepositionReject    ldu       motionobject,x
                     ldd       3,s
                     subd      #1
                     std       3,s
-                    beq       RepositionExhausted
-                    lda       ,s
-                    beq       RepositionLeft
-                    cmpa      #1
-                    beq       RepositionDown
-                    cmpa      #2
-                    beq       RepositionRight
-                    dec       4,u
-                    bra       RepositionNextStep
-RepositionLeft      dec       3,u
-                    bra       RepositionNextStep
-RepositionDown      inc       4,u
-                    bra       RepositionNextStep
-RepositionRight     inc       3,u
-RepositionNextStep  dec       2,s
-                    bne       RepositionCandidate
-                    inc       ,s
-                    lda       ,s
-                    anda      #3
-                    sta       ,s
-                    bita      #1
-                    bne       RepositionSameLength
-                    inc       1,s
-RepositionSameLength lda      1,s
-                    beq       RepositionExhausted
-                    sta       2,s
-                    lbra      RepositionCandidate
+                    lbeq      RepositionExhausted
+                    use platform/object-placement-operands.asm
+                    use shared/object-placement-step.asm
 RepositionFound     ldu       motionobject,x
                     lda       $25,u
                     ora       #4

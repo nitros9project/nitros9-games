@@ -108,4 +108,7 @@ mnln: ../objs/shared/unsigned-decimal.asm \
 	../objs/shared/object-field-query.asm \
 	../objs/shared/object-scalar-state.asm \
 	../objs/platform/object-scalar-operands.asm \
-	../objs/platform/coco-object-scalar-operands.asm
+	../objs/platform/coco-object-scalar-operands.asm \
+	../objs/shared/object-placement-step.asm \
+	../objs/platform/object-placement-operands.asm \
+	../objs/platform/coco-object-placement-operands.asm

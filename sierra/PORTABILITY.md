@@ -1880,3 +1880,49 @@ interrupt exit and unchanged free memory. Two-terminal MAME passed every
 picture pixel, restoration, independent exit/relaunch and free-memory maps.
 This shares these commands; full placement, view acquisition, collision and
 per-cycle orchestration remain further consolidation work.
+
+### Shared placement-search spiral
+
+`shared/object-placement-step.asm` now owns the left/down/right/up spiral
+used after a placement candidate is rejected. One leg implementation advances
+the coordinate, decrements the remaining count, changes direction, increases
+the next run length when needed and resumes candidate validation. It is
+expanded four times at assembly time, preserving CoCo's original unrolled
+instruction schedule. `platform/*-object-placement-operands.asm` supplies
+frame offsets, continuation branches and exhaustion policy.
+
+CoCo's frame contains the object pointer, run length, direction and remaining
+count. Native's frame contains direction, run length, remaining count and a
+16-bit search budget. Both keep their existing five-byte frame; U points to
+the record. Coordinates and counts retain byte wrapping. CoCo retains its
+zero-length counter behavior (a subsequent zero countdown gives 256 steps)
+and unbounded legacy search. Native retains budget and run-length exhaustion,
+restoring the saved coordinates and releasing the frame on either failure.
+Candidate bounds, horizon, object collision and terrain/MMU validation remain
+in the respective providers. The shared step's direction contract is 0..3,
+as established by initialization and every subsequent transition.
+
+All fourteen CoCo production modules rebuilt byte-identically, preserving
+instruction costs as well as behavior and size. Native code is 21,846 bytes,
+51 bytes larger; process data and stack-frame size are unchanged. Native
+continuations and the terrain-error/budget-exit branches use long encodings
+where the unrolled body exceeds short-branch range. This introduces no runtime
+platform dispatch or allocations. The observed MAME movement remains nine
+AGI pixels in 3.33 emulated seconds; that is not a physical-hardware placement
+search timing claim.
+
+The focused CPU regression passed 18,434 steps across both owners and two
+load addresses. It covers all four directions and every byte coordinate,
+run length and remaining count, verifies native run/budget exhaustion and
+position restoration, and checks frame/record guards, stack/cursors and
+immutable code. CoCo outcomes are also compared with its frozen original
+step in `tests/probes/coco-placement-step.asm`; that fixture is test-only and
+requires no Git history, so source archives/shallow checkouts work. Gameplay
+regression passed signed/absolute reposition and blocked-placement search.
+MAME passed real startup, movement, inventory/modal restoration, interrupt
+exit and unchanged free memory. The shared executor's actual CoCo dispatch/
+relocation regression also passed during this extraction. Full placement
+validation and collision acquisition remain further consolidation work.
+
+The final two-terminal MAME run also passed every displayed pixel,
+restoration, independent exit/relaunch and unchanged free-memory maps.

@@ -137,3 +137,9 @@ range and ego-state interfaces. `object-field-query.asm` is the common
 record-to-variable query used by priority, direction and the five view-state
 handlers in `object-view-queries.asm`. Native range policies and the CoCo
 byte-assignment policy remain explicit in `platform/*-object-scalar-operands.asm`.
+
+`object-placement-step.asm` shares rejected-candidate spiral advancement;
+one leg implementation expands to left/down/right/up, preserving the CoCo
+instruction schedule. Owner operands bind frame offsets, continuation branches
+and native exhaustion; bounds/collision/terrain validation remain providers.
+The frozen CoCo step under `tests/probes` is a differential fixture only.
