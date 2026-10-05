@@ -175,3 +175,5 @@ wbgame: platform/object-collision-operands.asm
 wbgame: platform/dictionary-operands.asm
 
 wbgame: platform/coordinate-step-operands.asm
+
+wbgame: platform/coordinate-clamp-operands.asm

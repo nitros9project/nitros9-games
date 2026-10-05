@@ -2102,3 +2102,29 @@ no additional emulator run is claimed for this source-only extraction. This
 shares vector stepping, not the complete movement pipeline: initialization,
 clamping/horizon policy, collision/terrain checks and position commit remain
 further consolidation work.
+
+### Shared movement coordinate clamping
+
+`shared/object-coordinate-clamp.asm` replaces the two owner implementations of
+left/right/top/bottom and horizon clamping. It reuses the candidate X/Y and step
+storage interfaces established for vector stepping. Separate clamp bindings
+supply width/height reads, boundary-code storage, horizon operands and native
+error branches. The engine still operates in AGI's 160-by-168 logical picture
+coordinates; no hardware or OS service is accessed by the shared component.
+
+Four explicit traits preserve existing policies: dimension checks, candidate-
+first comparison scheduling, early exits after vertical clamping, and byte-sized
+horizon arithmetic. CoCo keeps its signed width arithmetic, early top/bottom
+exits and horizon equality behavior. Native keeps its existing width/height
+validation points, unsigned right comparison, continued vertical checks and
+word-sized horizon-plus-one calculation. Thus this consolidates source ownership
+without silently making one owner's behavior match the other's. Legacy entry
+labels are retained as aliases for debugging and focused callers.
+
+Native `wbgame` and all fourteen rebuilt CoCo title modules compare byte-identical
+to the preceding revision, proving unchanged instructions, timing cost, storage,
+register behavior and stack use for this extraction. Native probes also build.
+The previously verified full native game and MAME results cover the identical
+production binary; no fresh emulator run is claimed. Native remains 22,266 code
+bytes and 24,570 private bytes. Target clamping, terrain/object collision,
+placement orchestration and final position commit remain further migration work.

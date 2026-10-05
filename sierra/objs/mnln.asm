@@ -4538,48 +4538,13 @@ UpdateObjCycle      lda       ,u        load step-time reset value
                     bne       ClampObjXLeft branch if ignoring blocks
                     use platform/coordinate-step-operands.asm
                     use shared/object-coordinate-step.asm
-ClampObjXLeft       ldd       #$0000    left boundary = X < 0
-                    cmpd      $03,s     compare new X to 0
-                    ble       ClampObjXRight branch if X >= 0 (no left clamp)
-                    std       $03,s     clamp X to 0
-                    lda       #$04      boundary code = left
-                    sta       $02,s     set left-boundary hit
-                    bra       ClampObjYTop check Y bounds
-ClampObjXRight      ldb       <$1C,u    load object width
-                    negb                negate width
-                    lda       #$FF      sign-extend to 16-bit
-                    addd      #$00A0    right limit = $A0 - width
-                    cmpd      $03,s     compare new X to limit
-                    bge       ClampObjYTop branch if X <= limit
-                    std       $03,s     clamp X to right limit
-                    lda       #$02      boundary code = right
-                    sta       $02,s     set right-boundary hit
-ClampObjYTop        clra                clear A for 16-bit Y check
-                    ldb       <$1D,u    load object height
-                    decb                height - 1
-                    cmpd      $05,s     compare new Y to top limit
-                    ble       ClampObjYBot branch if Y >= top
-                    std       $05,s     clamp Y to top
-                    lda       #$01      boundary code = top
-                    sta       $02,s     set top-boundary hit
-                    bra       ApplyObjPosition apply position
-ClampObjYBot        ldd       #$00A7    bottom boundary = Y > $A7
-                    cmpd      $05,s     compare new Y to bottom
-                    bge       CheckObjPriority branch if Y <= $A7
-                    std       $05,s     clamp Y to bottom
-                    lda       #$03      boundary code = bottom
-                    sta       $02,s     set bottom-boundary hit
-                    bra       ApplyObjPosition apply position
-CheckObjPriority    lda       <$26,u    load object control flags
-                    bita      #$08      check fixed-priority flag
-                    bne       ApplyObjPosition skip if priority is fixed
-                    lda       >$01D6    load priority-override value
-                    cmpa      $06,s     compare to saved priority
-                    bls       ApplyObjPosition branch if no change needed
-                    inca                increment priority
-                    sta       $06,s     store new priority
-                    lda       #$01      set boundary-hit code
-                    sta       $02,s     store boundary code
+                    use platform/coordinate-clamp-operands.asm
+ClampObjXLeft       equ ClampCoordinates
+ClampObjXRight      equ ClampRightLimit
+ClampObjYTop        equ ClampTopLimit
+ClampObjYBot        equ ClampBottomLimit
+CheckObjPriority    equ ClampHorizon
+                    use shared/object-coordinate-clamp.asm
 ApplyObjPosition    lda       $04,s     load X high byte
                     ldb       $06,s     load priority/Y
                     std       $03,u     store new position in object

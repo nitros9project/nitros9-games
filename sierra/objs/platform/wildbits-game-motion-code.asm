@@ -67,53 +67,13 @@ MotionDirectionReady ldb      $21,u
                     clr       motionedge,x
                     use platform/coordinate-step-operands.asm
                     use shared/object-coordinate-step.asm
-MotionClampX        ldd       motionx,x
-                    bpl       MotionClampRight
-                    ldd       #0
-                    std       motionx,x
-                    lda       #4
-                    sta       motionedge,x
-                    bra       MotionClampTop
-MotionClampRight    clra
-                    ldb       $1C,u
-                    lbeq      MotionInvalid
-                    cmpb      #160
-                    lbhi      MotionInvalid
-                    negb
-                    coma
-                    addd      #160
-                    cmpd      motionx,x
-                    bhs       MotionClampTop
-                    std       motionx,x
-                    lda       #2
-                    sta       motionedge,x
-MotionClampTop      clra
-                    ldb       $1D,u
-                    lbeq      MotionInvalid
-                    decb
-                    cmpd      motiony,x
-                    ble       MotionClampBottom
-                    std       motiony,x
-                    lda       #1
-                    sta       motionedge,x
-MotionClampBottom   ldd       motiony,x
-                    cmpd      #167
-                    ble       MotionHorizon
-                    ldd       #167
-                    std       motiony,x
-                    lda       #3
-                    sta       motionedge,x
-MotionHorizon       lda       $26,u
-                    bita      #8
-                    bne       MotionTargetClamp
-                    clra
-                    ldb       <vmhorizon
-                    addd      #1
-                    cmpd      motiony,x
-                    ble       MotionTargetClamp
-                    std       motiony,x
-                    lda       #1
-                    sta       motionedge,x
+                    use platform/coordinate-clamp-operands.asm
+MotionClampX        equ ClampCoordinates
+MotionClampRight    equ ClampRightLimit
+MotionClampTop      equ ClampTopLimit
+MotionClampBottom   equ ClampBottomLimit
+MotionHorizon       equ ClampHorizon
+                    use shared/object-coordinate-clamp.asm
 MotionTargetClamp   lda       $22,u
                     cmpa      #3
                     bne       MotionCheckTerrain

@@ -190,3 +190,10 @@ binds candidate/step storage and direction-table cursors. Store-joining policy
 preserves each owner's original branch schedule, so all fourteen CoCo title
 modules and native `wbgame` remain byte-identical. Candidate initialization,
 clamping, terrain/collision checks and commit are still owner-specific.
+
+`object-coordinate-clamp.asm` now owns candidate screen/horizon clamping in both
+movement pipelines. Bindings reuse the coordinate-step storage interface and
+preserve dimension checks, comparison scheduling, early vertical exits and
+byte-versus-word horizon policy. Legacy entry aliases remain available. Native
+and all fourteen rebuilt CoCo title modules are byte-identical; terrain,
+object collision and position commit remain separate.
