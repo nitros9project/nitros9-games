@@ -69,6 +69,7 @@ check: all probes
 	python3 ../tests/check_wbcredits.py
 	python3 ../tests/check_wbsprite_damage.py
 	python3 ../tests/check_wbparser.py
+	python3 ../tests/check_dictionary_lookup.py
 	python3 ../tests/check_wbplay.py
 	python3 ../tests/check_wbexec.py
 	python3 ../tests/check_logic.py
