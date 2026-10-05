@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Execute bytecode directly from a native owned physical resource slab."""
+import subprocess
 from pathlib import Path
 import tempfile
 from check_wbres import exercise, idle_rom, start_cpu
@@ -110,7 +111,11 @@ def main():
         finally:
             d.s.close()
             emulator.terminate()
-            emulator.wait(timeout=5)
+            try:
+                emulator.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                emulator.kill()
+                emulator.wait(timeout=5)
 
 
 if __name__ == '__main__':

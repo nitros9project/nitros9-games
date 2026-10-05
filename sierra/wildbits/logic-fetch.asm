@@ -64,10 +64,27 @@ VmFetchByte         pshs      x,y,u
                     ldd       <vmip
                     cmpd      <vmend
                     bhs       VmFetchEOF
-                    lbsr      AssetPointer
+* Sequential bytecode normally stays in the current mapped resource page.
+* Reconstruct the ephemeral address; never retain it across a kernel call.
+                    tst       <assetmapped
+                    beq       VmFetchMap
+                    lsra
+                    lsra
+                    lsra
+                    lsra
+                    lsra
+                    cmpa      <assetpage
+                    bne       VmFetchReloadOffset
+                    ldd       <vmip
+                    anda      #$1F
+                    ldu       <assetmapbase
+                    leau      d,u
+                    bra       VmFetchRead
+VmFetchReloadOffset ldd       <vmip
+VmFetchMap          lbsr      AssetPointer
                     tst       <asseterror
                     bne       VmFetchFailed
-                    ldb       ,u
+VmFetchRead         ldb       ,u
                     pshs      b
                     ldd       <vmip
                     addd      #1

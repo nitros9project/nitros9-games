@@ -390,3 +390,8 @@ The subsequent bounded-text build (20,808 code / 24,572 private bytes) passed
 the same movement harness at `/tmp/sierra-movement-text-spans`. It still
 measured approximately nine pixels in 200 frames; the shorter text span
 reduces work but did not improve this coarse movement measurement.
+
+The mapped-fetch build (20,833 bytes) passed the real-driver movement harness
+at `/tmp/sierra-movement-fetch-fast`, including inventory restoration and
+unchanged free memory. The result remains approximately nine pixels in
+200 frames; this test does not establish an additional movement speedup.

@@ -83,3 +83,5 @@ wbgame: ../objs/shared/object-follow.asm ../objs/shared/object-move-direction.as
 wbgame: ../objs/platform/wildbits-render-text.asm
 wbgame: ../objs/platform/wildbits-sprite-background.asm
 wbgame: ../objs/platform/wildbits-present-damage.asm
+
+wbgame: logic-fetch.asm

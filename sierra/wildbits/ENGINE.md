@@ -289,7 +289,7 @@ restores the changed fields, retries a failed restoration once, and preserves
 the earlier failure status. Tests model non-default options and assert their
 restoration on every exit.
 
-The current module is 20,808 bytes and its private area 24,572 bytes, leaving
+The current module is 20,833 bytes and its private area 24,572 bytes, leaving
 4 bytes before a fourth data block. The code limit remains 23,808 bytes.
 Further persistent state needs a deliberate layout change. Timing/performance
 parity and complete game-command coverage are not established.
@@ -329,3 +329,18 @@ nonzero character. Interior zero cells still preserve framebuffer pixels.
 Two private bytes retain the inclusive columns across glyph rows. This avoids
 generating and copying unused leading/trailing columns without changing the
 font, colors, wrapping, or bounded line-editor path.
+
+## Mapped bytecode fetch
+
+`VmFetchByte` checks the sticky asset error and code-end bound before every
+read. When the requested offset belongs to the current mapped asset page, it
+reconstructs U from the OS-returned map base and the low 13 offset bits. It
+does not retain a pointer between calls. An unmapped slab or a different page
+uses `AssetPointer`, preserving its mapping and error behavior. Nested calls
+and resource switches still unmap through their existing paths.
+
+This removes the general address helper's register save/restore on common
+bytecode reads, with no additional private data. `wbexec` is now 6,509 bytes;
+`wbgame` is 20,833 bytes with the same 24,572-byte private allocation. The
+Makefile explicitly tracks `logic-fetch.asm` for the game target so edits
+cannot accidentally test a stale game binary.
