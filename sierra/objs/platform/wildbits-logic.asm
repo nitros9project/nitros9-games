@@ -369,7 +369,8 @@ VmDiscardRestore    ldb       <vmcurrent
                     lbsr      VmRestoreAsset
                     clrb
                     rts
-VmDiscardFailed     clr       <assetowned
+VmDiscardFailed     clr       <assetowned    cache slot retains ownership
+                    orcc      #1             CLR must not hide the release error
                     rts
 VmReplayLoadKinds   fcb       0,2,1,3
 

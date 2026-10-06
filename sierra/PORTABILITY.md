@@ -2345,3 +2345,38 @@ calls: all 14 CoCo main-loop modules and native game bytes remain identical;
 all probes build. Cache allocation, loading, ownership and discard behavior
 remain separate because CoCo maintains a linked view list and native uses
 32 typed cache slots with slab ownership.
+
+### Resource lifetime audit and discard error correction
+
+The two caches have different allocation contracts. CoCo's view nodes occupy
+an ordered, stack-like heap: discard rewinds the data-block pointer to the
+selected node and the asset pointer to its mapped allocation boundary, then
+ends the predecessor link. Consequently the selected view and later views
+are removed as a suffix. Native has 32 typed cache slots, each with explicit
+slab ownership: discard removes only the matching kind/id and restores the
+executing logic's asset context after success. An absent native resource is
+already discarded. These policies must remain separate behind any future
+shared cache orchestration; changing CoCo unlinking alone would retain links
+into reclaimed allocations.
+
+`check_resource_lifetime.py` executes actual owner discard routines at two
+load addresses. It checks CoCo first/middle/last suffix rewinds and page
+restoration, native typed matching, absent discard, failed release retention
+and successful retry, cache ownership, stack guards and allowed module-data
+writes. Only replay/render/mapping boundaries and native asset service calls
+are mocked. It does not execute the mapped CoCo allocator or OS slab service.
+
+The test exposed a native error-path defect: `VmDiscardFailed` cleared
+`assetowned` to retain ownership solely in the cache slot, but 6809 `CLR` also
+clears carry. Added `ORCC #1` before returning so callers see the release error
+in B with carry set. The cache slot remains owned and can be retried. This
+adds two code bytes (native game 22,276; private data unchanged at 24,570).
+The direct CPU regression passes 18 calls, including failure then retry;
+CoCo executable code is unchanged by the correction.
+
+The native interpreter integration suite also passes after the carry fix:
+picture/view composition, transparent/mirrored/clipped/occluded/erased sprites,
+text and repeated cycles, controllers, clock rollover, motion completion,
+end-of-loop animation, parser input, inventory and cleanup. Fresh MAME
+acceptance is pending recreation of the temporary fork/boot image; the
+installed stock emulator does not provide `wbjr2`.
