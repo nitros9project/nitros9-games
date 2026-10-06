@@ -345,3 +345,8 @@ dictionary codes and bounded workspace-stack operations. Native animation
 aliases in that binding file are conditional on VM support, allowing a
 codec-only owner to load the resource bindings. All seven native modules and
 all 56 CoCo modules remain byte-identical after this extraction.
+
+Bounded picture callbacks own their cursor representation. Shared coordinate
+and relative-line helpers use the returned/retained byte rather than rereading
+`X-1`; native game input can therefore refill an 8-KiB private staging window
+from a larger owned resource. CoCo keeps its contiguous input path.

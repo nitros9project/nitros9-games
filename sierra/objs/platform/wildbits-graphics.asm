@@ -445,32 +445,19 @@ GameDrawPicture     lbsr      GamePictureArgument
                     bcs       GamePictureReturn
                     lbsr      VmRestoreAsset
                     ldd       <resourcelength
-                    cmpd      #8192
-                    bhi       GamePictureInvalid
                     std       <gamepicturelength
-                    ldd       #0
-                    lbsr      AssetPointer
-                    tst       <asseterror
-                    bne       GamePictureAssetError
-                    ldx       <resourcebase
-                    leax      resourcecommands,x
-                    ldy       <gamepicturelength
-GameCopyCommands    lda       ,u+
-                    sta       ,x+
-                    leay      -1,y
-                    bne       GameCopyCommands
                     lbsr      AssetUnmap
+                    bcs       GamePictureReturn
+                    lbsr      PictureRelease
+                    bcs       GamePictureReturn
+                    ldu       <resourcebase
+                    ldx       #0                logical input offset, not a mapped pointer
+                    ldy       <gamepicturelength
+                    lbsr      DecodeLines
                     bcs       GamePictureReturn
                     ldb       <vmcurrent
                     lbsr      VmSlotAddress
                     lbsr      VmRestoreAsset
-                    lbsr      PictureRelease
-                    bcs       GamePictureReturn
-                    ldu       <resourcebase
-                    leax      resourcecommands,u
-                    ldy       <gamepicturelength
-                    lbsr      DecodeLines
-                    bcs       GamePictureReturn
                     lbsr      PictureUnmap
                     lbcs      GamePictureReturn
                     lbsr      GameTextClearPicture
@@ -486,6 +473,37 @@ GamePictureAssetError ldb      <asseterror
 GamePictureInvalid  ldb       #E$BMode
                     orcc      #1
                     rts
+* Refill the private 8-KiB input chunk only at logical page boundaries.
+* The picture mapping is released before mapping its source slab; plotting
+* resumes with source unmapped. No command pointer survives an OS mapping.
+GameReadPictureChunk pshs    d,x,y,u
+                    tfr       x,d
+                    std       <resourcepointer
+                    ldd       <decodeend
+                    subd      <resourcepointer
+                    cmpd      #8192
+                    bls       GamePictureChunkSize
+                    ldd       #8192
+GamePictureChunkSize std     <resourceremaining
+                    lbsr      PictureUnmap
+                    bcs       GamePictureChunkError
+                    ldd       <resourcepointer
+                    lbsr      AssetPointer
+                    ldb       <asseterror
+                    bne       GamePictureChunkError
+                    ldx       <resourcebase
+                    leax      resourcecommands,x
+                    ldy       <resourceremaining
+GamePictureChunkCopy lda     ,u+
+                    sta       ,x+
+                    leay      -1,y
+                    bne       GamePictureChunkCopy
+                    lbsr      AssetUnmap
+                    bcs       GamePictureChunkError
+                    puls      d,x,y,u,pc
+GamePictureChunkError stb     <decodeerror
+                    puls      d,x,y,u,pc
+
 GameShowPicture     lbsr      GameCloseWindow
                     lbcs      GamePictureReturn
                     lbsr      AssetUnmap
@@ -2289,8 +2307,30 @@ ReadNext            tst       <decodeerror
                     bne       DecodeReadStop
                     cmpx      <decodeend
                     bhs       DecodeExhausted
+                    ifne      GAME_PRESENTATION
+                    pshs      b,y,u
+                    tfr       x,d
+                    anda      #$1F              offset in private input chunk
+                    cmpd      #0
+                    bne       DecodeBufferedByte
+                    lbsr      GameReadPictureChunk
+                    tst       <decodeerror
+                    beq       DecodeBufferedByte
+                    puls      b,y,u
+                    bra       DecodeReadStop
+DecodeBufferedByte  ldu       <resourcebase
+                    leay      resourcecommands,u
+                    lda       d,y
+                    leax      1,x
+                    else
                     lda       ,x+
+                    endc
+                    sta       <decodevalue      bounded callbacks retain the original byte
+                    ifne      GAME_PRESENTATION
+                    puls      b,y,u,pc
+                    else
                     rts
+                    endc
 DecodeExhausted     pshs      b
                     ldb       #E$BMode
                     stb       <decodeerror

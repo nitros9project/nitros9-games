@@ -561,3 +561,19 @@ relaunch, every displayed reference pixel and free-memory checks also pass at
 CPU tests additionally exercise held-window restoration and save/restore
 mapping failures; this MAME scenario does not itself keep a question window
 open during terminal switching.
+
+### Streamed picture input acceptance — 2026-10-06
+
+The 23,072-byte game (24,570 private bytes) passes real KQ1 startup, inventory,
+modal restoration, movement and interrupt cleanup at
+`/tmp/sierra-stream-kq1-movement`. Movement remains nine pixels per 200 frames.
+KQ4 picture 5, a 10,288-byte decoded packed resource, passes every displayed
+reference pixel, two-terminal restoration, independent exit/relaunch and
+free-memory checks at `/tmp/sierra-stream-large-picture-terminals`. That run
+uses synthetic diagnostic game logic around the actual KQ4 picture.
+
+The production game is byte-identical to the tested streaming prototype. All
+56 CoCo modules rebuild byte-identically, and native probe rendering,
+presentation and persistent-window regression checks pass. CPU tests compare
+all 23 actual pictures above 8 KiB against CoCo and cover 65,535-byte input,
+page-boundary/truncated commands, source map/unmap errors and ownership cleanup.

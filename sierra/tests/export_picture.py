@@ -61,8 +61,8 @@ def resource(game, number):
             raise ValueError('packed picture expanded length differs from header')
     elif decoded != stored:
         raise ValueError('reference bridge LZW support is pending')
-    if not payload or payload[-1] != 255 or len(payload) > 8192:
-        raise ValueError('picture does not fit the reference command window or lacks its end marker')
+    if not payload or payload[-1] != 255 or len(payload) > 16384:
+        raise ValueError('picture does not fit the 16-KiB reference command window or lacks its end marker')
     return payload, volume, offset
 
 

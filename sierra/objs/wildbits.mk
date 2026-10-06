@@ -96,6 +96,7 @@ check: all probes
 	python3 ../tests/check_add_to_picture.py
 	python3 ../tests/check_cancel_line.py
 	python3 ../tests/check_persistent_window.py
+	python3 ../tests/check_picture_stream.py
 	python3 ../tests/check_lzw.py
 	python3 ../tests/test_picture_resource.py
 	python3 ../tests/check_wbres.py

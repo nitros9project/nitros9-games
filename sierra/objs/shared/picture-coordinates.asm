@@ -1,6 +1,7 @@
 * Shared coordinate clamping and command-byte detection.
 * PICTURE_BOUNDED_READ selects bounded ReadNext/ReadNextB callbacks; otherwise
-* X is a contiguous command stream. It does not select hardware or add runtime
+* X is a contiguous command stream. Bounded cursors are owner-defined; returned
+* bytes must not be reread through X. It does not select hardware or add runtime
 * dispatch. The bounded stream also records incomplete coordinate-pair errors.
 ReadXyPos           lbsr      GetXPos   go get x position
                     lblo      CmdReturn prior subs return
@@ -43,7 +44,11 @@ GetYPos             equ       *
                     endc
                     cmpb      #cmd_start is it a command
                     blo       YPosClamp nope less than command
+                    ifne      PICTURE_BOUNDED_READ
+                    tfr       b,a       callback returned the command byte in B
+                    else
                     lda       -$01,x    was a command load x back in acca
+                    endc
                     bra       RetSetCC  go set CC
 YPosClamp           cmpb      #y_max    compare to 167
                     bls       YPosOk    is it less or same clear CC and return

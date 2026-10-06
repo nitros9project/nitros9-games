@@ -122,7 +122,11 @@ RelLineLoop         equ       *
                     lsra                and again
                     lsra                once more
                     lsra                and finally another for a /16
+                    ifne      PICTURE_BOUNDED_READ
+                    ldb       <decodevalue callback retained the original byte
+                    else
                     ldb       -$01,x    get the original value
+                    endc
                     bpl       XStepOk   if original value not negative move on
                     nega                else it was so flip the sign of the computed value
 XStepOk             adda      <PosInitX  add pos_init_x position

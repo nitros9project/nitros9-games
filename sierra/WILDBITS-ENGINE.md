@@ -12,7 +12,7 @@ for retry. Sprite visibility now uses the same shared per-cel rule for both
 owners; native publishes AGI flag 1 only for ego. Selected-cel positioning is also shared, including right-edge and
 height/horizon adjustment. Native platform commands now use an immutable relative dispatch table
 from the shared AGI catalog. Both decoders also expand the shared LZW
-window-alignment/mask and dictionary-walk core. The game is 23,009 bytes;
+window-alignment/mask and dictionary-walk core. The game is 23,072 bytes;
 process data is 24,570 bytes (six bytes below its three-page limit).
 The per-cel visibility byte reuses the sort key after collection completes.
 
@@ -464,3 +464,29 @@ restored character/color byte and pixel, LZW workspace reuse, full redraw,
 nested blocking print, repeated close, and errors during both saving and
 restoring. Existing gameplay/modal tests and all 1,024 dispatch destinations
 pass. The game is 23,009 code / 24,570 private bytes.
+
+### Pictures larger than the private command window — 2026-10-06
+
+The game decoder now uses a logical source offset instead of a pointer into
+`resourcecommands`. It refills that existing 8-KiB buffer at source-page
+boundaries, releases the output-picture mapping before mapping the owned
+resource slab, and releases the source before plotting resumes. The final
+chunk copies only the remaining decoded bytes. Source length and end-marker
+checks cover the full 65,535-byte resource limit, and the current logic asset
+is restored before execution continues after drawing.
+
+Two shared helpers previously reread `X-1` despite using a bounded read
+callback. They now use the callback's returned/retained byte: Y-command
+recognition uses B, and relative-line steps use `decodevalue`. CoCo's
+contiguous-reader instructions are unchanged. The native probe retains the
+last byte too, so both native owners use the same bounded-reader contract.
+This retains direct plotting calls and adds no private storage or platform
+files. The game is 23,072 code / 24,570 private bytes.
+
+Tests verify commands/operands on both sides of 8/16-KiB boundaries, a valid
+65,535-byte stream, truncated input, map/unmap failures, and resumption of the
+original logic. All 23 actual packed pictures larger than 8 KiB in King's
+Quest IV and Space Quest 0 match CoCo's reference pixels. KQ4 picture 5
+(10,288 decoded bytes) also passes every-pixel/two-terminal MAME checks at
+`/tmp/sierra-stream-large-picture-terminals`; this synthetic interpreter
+scenario does not establish full KQ4 adventure playability.
