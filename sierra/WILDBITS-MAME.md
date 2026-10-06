@@ -508,3 +508,20 @@ are `/tmp/sierra-native-table-dispatch-movement` and
 AGI pixels over 200 frames; this is not evidence of a walking-speed increase.
 The CPU destination test separately checks all opcode routes and preserved
 entry state in the game and probe at two load addresses.
+
+### Shared LZW window acceptance — 2026-10-06
+
+The 22,316-byte native game (24,570 private bytes) now uses CoCo's shared
+window shift/mask algorithm with bounded native byte acquisition. Both
+acceptance commands passed with this build: real compressed-game startup,
+inventory/modal/interrupt cleanup, movement, and independent two-terminal
+restoration, exit, relaunch and memory checks. Artifacts are
+`/tmp/sierra-shared-lzw-window-movement` and
+`/tmp/sierra-shared-lzw-window-terminals`. Movement remains nine AGI pixels
+over 200 frames; decoder correctness and per-code work are checked separately.
+
+The complete 45-command native check suite also passed, including 228
+compressed resources decoded by both actual owners and 528 direct code-window
+reads. Extracting the dictionary walk afterward preserved all seven native
+modules and all 56 CoCo modules byte for byte, including the exact game used
+for these MAME acceptance runs.

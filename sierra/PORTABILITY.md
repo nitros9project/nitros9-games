@@ -2495,3 +2495,82 @@ split checksum bytes, empty payloads, rejection and truncated EOF. It is
 part of `wildbits.mk check`. The 1,024 actual native dispatch cases also pass
 through buffered reception. This changes host test tooling only, with no
 game module or CoCo executable changes.
+
+### Shared LZW code-window extraction
+
+`PicRenderSetup` is CoCo's historical LZW resource decoder, despite its
+picture-oriented name. It is used for compressed logic, view and sound data.
+The nearby `RenderPicStrip` handles nibble-packed picture command data;
+neither function directly draws the picture. The section description now
+makes that distinction explicit.
+
+Before extraction, the actual CoCo and native decoders produced the same
+bytes for all 228 compressed KQ1 resources, checked against the independent
+byte-string dictionary oracle in `check_lzw.py`. CoCo file reads and shadow
+mapping are mocked at their service boundaries; its actual decoder, code
+reader, dictionary and hardware-stack string expansion execute. Native
+continues to use its bounded reader/writer fixture. The audit also checks
+the KwKwK special case, repeated clear codes and relocation. Native malformed
+stream/output-length rejection remains separate; this does not claim CoCo
+has the same validation policy.
+
+The common `resource-lzw.asm` component now supplies the window shift and
+mask algorithm to both production owners. It starts with a three-byte
+little-endian window, shifts it right by the starting bit alignment, then
+selects the 9-, 10- or 11-bit mask to return the code in D. The legacy 12-bit
+mask entry remains present to preserve CoCo's table bytes. CoCo still
+acquires its window directly from the buffered input and expands the same
+instructions and labels. Native supplies the same window with checked byte
+callbacks and retains the last raw byte plus its remaining-bit count.
+
+Native fetches two window bytes unless width plus alignment exceeds 16,
+in which case it fetches a third. It computes the unused bits from the final
+byte before alignment/masking, so the next code reuses that byte. For example:
+
+| Code width | Starting bit | Window bytes | Bits retained in last byte |
+| --- | --- | --- | --- |
+| 9 | 0 | 2 | 7 |
+| 9 | 7 | 2 | 0 |
+| 11 | 7 | 3 | 6 |
+
+A valid final code does not require a byte past the source. Direct reader
+fixtures verify exact native consumption, not just returned code values;
+even and odd starts cover every alignment for 10-bit codes. Dictionary
+traversal, bounded native string storage and output/error contracts remain
+owner-specific. No additional mapping is retained between callbacks.
+
+All 56 CoCo modules remain byte-identical after a forced rebuild of all 14
+titles. Native uses 22,316 code bytes and 24,570 private bytes: 52 additional
+code bytes and no new state. CoCo dependencies are now grouped in
+`sierra-engine.mak`: all shared bodies and CoCo feature/binding sources
+rebuild the four engine modules. Per-operation prerequisite lists in
+`sierra-game.mak` were removed. A make dry run and actual rebuild verify the
+shared LZW dependency selects the correct source for every module.
+
+A direct CPU instruction-count experiment compiled the preceding per-bit
+reader from commit `d9a761b` and the new reader with the same memory byte-read
+callbacks. Single-stepping 48 unique sampled code reads from zero/one byte
+streams at 9, 10 and 11 bits counted 6,312 old instructions versus 3,008 new
+instructions, a 52.3% reduction in that sample. Every sampled case used fewer
+instructions. Counts include the fixture callbacks and exclude dictionary
+expansion, OS mapping and output. This is an instruction-count comparison,
+not a CPU-cycle, full-resource or game-speed benchmark. Raw records are in
+`/tmp/sierra-lzw-window-instruction-counts.json`. Fresh MAME movement and
+two-terminal acceptance also pass with the new reader; movement remains
+nine AGI pixels over 200 frames.
+
+The same component now owns dictionary traversal through
+`RESOURCE_LZW_WALK`. It stops at literal codes below 256, computes the
+three-byte dictionary entry, pushes its suffix, reads its prefix and repeats.
+The existing resource binding files supply each owner's code bounds, cursor,
+address calculation and stack operation. CoCo retains its mapped table at
+`$6400` and stack/count scratch; native retains validation of codes from 258
+through `next-1` and its bounded private string stack. Byte-for-byte rebuild
+comparison passes for all seven native modules and all 56 CoCo modules. This
+step adds no instructions, calls, state or files under `platform`. Existing
+MAME acceptance therefore applies to the identical native executable.
+
+Native memory/resource bindings now gate their animation aliases on
+`AGI_VM`; a codec-only consumer can use those bindings without declaring VM
+state. The normal game and logic probe still expand the same animation
+aliases and instructions.

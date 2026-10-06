@@ -3,8 +3,10 @@ PLATFORM_WILDBITS_MEMORY_RESOURCES_BINDINGS equ 1
 
 * ===== wildbits-animation-operands =====
 * Native process-private scratch; X=private base, U=current object.
+                    ifne AGI_VM
 CycleCurrent        equ       vmleft
 CycleLast           equ       vmright
+                    endc
 CYCLE_READ_MODE     macro
                     lda       <$23,u
                     cmpa      #3
@@ -25,4 +27,29 @@ CYCLE_SET_CEL       macro
 CYCLE_RETURN        macro
                     clrb
                     rts
+                    endm
+
+* Native LZW dictionary cursor X and bounded private workspace stack.
+* Codec-only consumers need no VM state; animation aliases above are gated.
+LZW_CHAIN_VALIDATE macro
+                    cmpd      #258
+                    lblo      LzwInvalid
+                    cmpd      <lzwnext
+                    lbhs      LzwInvalid
+                    endm
+LZW_CHAIN_PREPARE macro
+                    std       <lzwchain
+                    endm
+LZW_CHAIN_SCALE macro
+                    addd      <lzwchain
+                    addd      <lzwchain
+                    endm
+LZW_CHAIN_BASE macro
+                    ldx       <lzwwork
+                    endm
+LZW_CHAIN_PUSH macro
+                    lbsr      LzwPush
+                    lbcs      LzwReturn
+                    endm
+LZW_CHAIN_RETAIN macro
                     endm

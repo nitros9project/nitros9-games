@@ -13,6 +13,7 @@ labels, branches and instruction order are preserved without runtime calls.
 | `formatter.asm` | Character scan, directive selection, string slots, recursive calls and expansion | CoCo/Wild Bits `text-ui-bindings.asm` |
 | `object-motion.asm` | Scheduling, coordinate steps, clamping, position commits and target motion | CoCo/Wild Bits `objects-bindings.asm` |
 | `object-animation.asm` | Animation update, all cel-cycle modes and direction tables | CoCo/Wild Bits `objects-bindings.asm` |
+| `resource-lzw.asm` | LZW code-window alignment, masks and dictionary traversal | Owner fields, bounded acquisition, dictionary cursor and stack bindings |
 
 For example, `FORMAT_EMIT_SCAN` expands the scan body in `formatter.asm`;
 `MOTION_EMIT_CLAMP` expands the clamp body in `object-motion.asm`. Algorithms
@@ -324,3 +325,23 @@ native expands operand counts and a separate relative dispatch table from the
 same rows. A probe redirects game-only rows to the explicit unsupported error
 handler. The production table replaces the native comparison chain and saves
 115 code bytes; it allocates no state and needs no initialization patching.
+
+`resource-lzw.asm` shares the actual three-byte window alignment and code
+masking used by CoCo `ReadPicPixel` and native `LzwReadCode`. The native reader
+now supplies that window from a raw pending byte and just enough bounded
+source bytes, rather than accumulating a code one bit at a time. CoCo retains
+its direct buffered window and original instructions. The mask table retains
+its legacy 12-bit entry; both production decoders cap growth at 11 bits.
+Dictionary management, string stacks and error/output policies remain with
+the owners. The 228 compressed KQ1 resources match both actual decoders and
+the independent byte-string oracle. Direct reader fixtures additionally check
+code values, bit alignment, source consumption and relocation.
+
+`RESOURCE_LZW_WALK` shares the dictionary prefix/suffix traversal as well.
+Its literal test, entry traversal and suffix/prefix ordering are common.
+`coco-memory-resources-bindings.asm` supplies direct mapped entries and the
+hardware stack; `wildbits-memory-resources-bindings.asm` supplies checked
+dictionary codes and bounded workspace-stack operations. Native animation
+aliases in that binding file are conditional on VM support, allowing a
+codec-only owner to load the resource bindings. All seven native modules and
+all 56 CoCo modules remain byte-identical after this extraction.

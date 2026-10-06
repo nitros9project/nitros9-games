@@ -18,3 +18,23 @@ CYCLE_SET_CEL       macro
 CYCLE_RETURN        macro
                     rts
                     endm
+
+* CoCo LZW dictionary cursor U, direct mapped entries and hardware stack.
+LZW_CHAIN_VALIDATE macro
+                    endm
+LZW_CHAIN_PREPARE macro
+                    endm
+LZW_CHAIN_SCALE macro
+                    addd      <$00A6
+                    addd      <$00A6
+                    endm
+LZW_CHAIN_BASE macro
+                    ldu       #$6400
+                    endm
+LZW_CHAIN_PUSH macro
+                    pshs      b
+                    inc       <$00B6
+                    endm
+LZW_CHAIN_RETAIN macro
+                    std       <$00A6
+                    endm

@@ -342,6 +342,12 @@ AssetWriteFail    ldb       <asseterror
 * Callbacks LzwReadByte and LzwWriteByte take/return B, carry/error in B,
 * and preserve X/Y/U/DP. The writer must not retain mapped pointers.
 * Dictionary width grows from 9 to 11 bits; clear=256, end=257.
+                    ifndef PLATFORM_WILDBITS_MEMORY_RESOURCES_BINDINGS
+                    use platform/wildbits-memory-resources-bindings.asm
+                    endc
+                    ifndef SHARED_RESOURCE_LZW_DEFINED
+                    use shared/resource-lzw.asm
+                    endc
 DecodeLzw           stu       <lzwbase
                     stx       <lzwwork
                     sty       <lzwexpected
@@ -378,22 +384,7 @@ LzwString           clr       <lzwtop
                     lbsr      LzwPush
                     lbcs      LzwReturn
                     ldd       <lzwprevious
-LzwWalk             cmpd      #256
-                    blo       LzwLiteral
-                    cmpd      #258
-                    lblo      LzwInvalid
-                    cmpd      <lzwnext
-                    lbhs      LzwInvalid
-                    std       <lzwchain
-                    addd      <lzwchain
-                    addd      <lzwchain
-                    ldx       <lzwwork
-                    leax      d,x
-                    ldb       2,x
-                    lbsr      LzwPush
-                    lbcs      LzwReturn
-                    ldd       ,x
-                    bra       LzwWalk
+                    RESOURCE_LZW_WALK LzwWalk,LzwLiteral,x
 LzwLiteral          stb       <lzwfirst
                     lbsr      LzwPush
                     lbcs      LzwReturn
@@ -486,34 +477,47 @@ LzwInvalid          ldb       #E$BMode
                     stb       <lzwerror
                     orcc      #1
                     rts
-LzwReadCode         clr       <lzwcode
-                    clr       <lzwcode+1
-                    ldd       #1
-                    std       <lzwweight
-                    lda       <lzwwidth
-                    sta       <lzwcount
-LzwReadBit          tst       <lzwbits
-                    bne       LzwHaveBit
+* Keep the raw last byte plus its remaining-bit count. Fetch only the
+* bytes needed for this code; a valid final code must not require padding
+* beyond the compressed source. Align/mask the window with the CoCo core.
+LzwReadCode         tst       <lzwbits
+                    bne       LzwWindowFirst
                     lbsr      LzwReadByte
                     bcs       LzwReadError
                     stb       <lzwbyte
                     lda       #8
                     sta       <lzwbits
-LzwHaveBit          lsr       <lzwbyte
-                    bcc       LzwZeroBit
-                    ldd       <lzwcode
-                    addd      <lzwweight
-                    std       <lzwcode
-LzwZeroBit          dec       <lzwbits
-                    lsl       <lzwweight+1
-                    rol       <lzwweight
-                    dec       <lzwcount
-                    bne       LzwReadBit
-                    ldd       <lzwcode
+LzwWindowFirst      ldb       <lzwbyte
+                    stb       <lzwcode+1
+                    lda       #8
+                    suba      <lzwbits
+                    sta       <lzwcount
+                    lbsr      LzwReadByte
+                    bcs       LzwReadError
+                    stb       <lzwcode
+                    stb       <lzwbyte
+                    lda       <lzwwidth
+                    adda      <lzwcount
+                    cmpa      #16
+                    bls       LzwWindowTwo
+                    lbsr      LzwReadByte
+                    bcs       LzwReadError
+                    stb       <lzwweight
+                    stb       <lzwbyte
+                    lda       #24
+                    bra       LzwWindowCount
+LzwWindowTwo        clr       <lzwweight
+                    lda       #16
+LzwWindowCount      suba      <lzwcount
+                    suba      <lzwwidth
+                    sta       <lzwbits
+                    ldb       <lzwcount
+                    RESOURCE_LZW_EXTRACT lzwweight,lzwcode,lzwwidth,LzwCodeMasks,LzwWindowShift,LzwWindowMask
                     andcc     #$FE
                     rts
 LzwReadError        stb       <lzwerror
                     rts
+LzwCodeMasks        RESOURCE_LZW_MASKS
 
                     else
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_LZW_DATA
@@ -529,13 +533,13 @@ lzwcurrent          rmb       2
 lzwchain            rmb       2
 lzwtop              rmb       2
 lzwcode             rmb       2
-lzwweight           rmb       2
+lzwweight           rmb       2        ; first byte is the window high byte
 lzwexpected         rmb       2
 lzwproduced         rmb       2
 lzwwidth            rmb       1
-lzwbyte             rmb       1
-lzwbits             rmb       1
-lzwcount            rmb       1
+lzwbyte             rmb       1        ; raw last source byte
+lzwbits             rmb       1        ; remaining bits in raw byte
+lzwcount            rmb       1        ; window alignment (0..7)
 lzwhasprevious      rmb       1
 lzwfirst            rmb       1
 lzwpreviousfirst    rmb       1

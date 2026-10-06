@@ -4161,10 +4161,10 @@ CalcMenuItemGeometry leas      -$01,s    allocate one byte for item count
                     stb       >MenuItemHeight,pcr store dropdown pixel height
                     leas      $01,s     release one-byte local frame
                     rts
-JoySpeedTable       fcb       1,$ff
-                    fcb       3,$ff
-                    fcb       7,$ff
-                    fcb       $f,$ff
+                    ifndef SHARED_RESOURCE_LZW_DEFINED
+                    use shared/resource-lzw.asm
+                    endc
+JoySpeedTable       RESOURCE_LZW_MASKS
 
 *
 *======================================================================
@@ -4197,10 +4197,11 @@ FillMemLoop         stb       ,u+       store fill byte, advance pointer
                     rts
 *
 *======================================================================
-* PICTURE DECODING AND RENDERING
-*   Decodes the Sierra AGI picture format (nibble-packed commands) and
-*   renders visual and priority data into the screen buffer via the shdw
-*   module.
+* RESOURCE DECOMPRESSION
+*   PicRenderSetup is the legacy LZW decoder for logic/view/sound resources.
+*   RenderPicStrip expands nibble-packed picture commands. Neither routine
+*   draws the decoded picture. The mapped shadow block holds a 1-KiB input
+*   buffer at $6000 and the three-byte LZW dictionary entries at $6400.
 *======================================================================
 *
 PicRenderSetup      lda       $02,s     load picture file descriptor
@@ -4257,18 +4258,7 @@ PicDataProcess      std       <$00A6    store current pixel data
                     inc       <$00B6    increment run count
                     ldd       <$00B4    load saved color
                     std       <$00A6    restore as current color
-PicDataCheck        cmpd      #$0100    check if color code >= $0100
-                    bcs       PicColorStore branch if simple color (< $0100)
-                    addd      <$00A6    add current to D
-                    addd      <$00A6    add again (×3 for table index)
-                    ldu       #$6400    point to color-decode table base
-                    leau      d,u       index into table
-                    ldb       $02,u     load color byte from table
-                    pshs      b         push color byte
-                    inc       <$00B6    increment run count
-                    ldd       ,u        load color entry word
-                    std       <$00A6    store as new current color
-                    bra       PicDataCheck check again (multi-step decode)
+                    RESOURCE_LZW_WALK PicDataCheck,PicColorStore,u
 PicColorStore       stb       <$00A8    store final color byte A
                     stb       <$00AD    store final color byte D
                     pshs      b         push final color byte
@@ -4415,20 +4405,7 @@ ReadPicPixelInner   ldu       <$00A4    load decode state (color index offset)
                     ldb       <$00BB    load bit sub-position
                     stu       <$00BA    store bit position (from U)
                     andb      #$07      mask to 0-7
-                    beq       PicPixelMask branch if no shift needed
-PicShiftLoop        lsr       <$00B0    right-shift the three-byte window
-                    ror       <$00AE    rotate through middle byte
-                    ror       <$00AF    rotate into low byte
-                    decb                decrement shift count
-                    bne       PicShiftLoop loop until aligned
-PicPixelMask        ldb       <$00A5    load current bit-depth
-                    subb      #$09      subtract base depth (9)
-                    lslb                multiply by 2 for table index
-                    leax      >JoySpeedTable,pcr point to bit-mask table
-                    abx                 index to entry for this depth
-                    ldd       <$00AE    load extracted pixel word
-                    anda      ,x        mask high byte with table
-                    andb      $01,x     mask low byte with table
+                    RESOURCE_LZW_EXTRACT $00B0,$00AE,$00A5,JoySpeedTable,PicShiftLoop,PicPixelMask
 PicPixelRet         ldx       <$00B7    restore X
                     rts
 PicBufReadWord      ldu       #$6000    base of decode buffer
