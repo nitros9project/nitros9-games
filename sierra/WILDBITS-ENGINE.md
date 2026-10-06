@@ -8,7 +8,9 @@ CoCo/native loop/cel table traversal. The resource lifetime audit preserves
 CoCo suffix-based view-heap discard and native single-slot slab ownership;
 these are distinct backend policies. The native discard failure path now
 preserves carry after clearing transient ownership, with failed slots retained
-for retry. The game is 22,276 bytes; process data remains 24,570 bytes.
+for retry. Sprite visibility now uses the same shared per-cel rule for both
+owners; native publishes AGI flag 1 only for ego. The game is 22,322 bytes;
+process data is 24,571 bytes (five bytes below its three-page limit).
 
 
 There is no separate `sierra/wildbits` tree. The game entry point is

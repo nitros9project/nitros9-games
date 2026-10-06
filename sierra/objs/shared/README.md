@@ -290,3 +290,17 @@ loop/cel error labels and CoCo cel/loop helper entry points are unchanged.
 All 14 CoCo main-loop modules and native `wbgame` are byte-identical after
 rebuilding. Resource loading, cache lifetime and metadata validation policies
 outside table traversal are still owner-specific.
+
+The sprite visibility macros in `object-commands.asm` implement the CoCo
+per-cel rule for both owners. Each draw begins hidden; a successful composed
+pixel write clears that local state; a completed ego draw publishes AGI flag
+1. CoCo binds its packed `StateFlag` bit and existing scratch byte; native
+binds its byte flag and one private byte. Other objects cannot publish this
+flag. This tracks the ego's writes during its draw, rather than recomputing
+visibility after every later object has been composed.
+
+The integrated native regression checks visible, background-occluded, fully
+transparent, mirrored/clipped and erased cels, plus a hidden ego followed by
+a visible non-ego. Pixel output is checked alongside the flag. All 14 CoCo
+`shdw` modules remain byte-identical. Native gains 46 code bytes and one
+private byte because it previously omitted this flag update.

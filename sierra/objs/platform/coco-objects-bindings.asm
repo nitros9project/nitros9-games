@@ -391,3 +391,28 @@ VIEW_ENTRY_RESOLVE macro
                     stx       $0C,u
                     endc
                     endm
+
+* Sprite visibility tracker and packed ego-hidden flag.
+SPRITE_VIS_STORE macro
+                    sta       ScratchAC
+                    endm
+SPRITE_VIS_CLEAR macro
+                    clr       ScratchAC
+                    endm
+SPRITE_VIS_READ macro
+                    lda       ScratchAC
+                    endm
+SPRITE_VIS_EGO_TEST macro
+                    ldx       2,s
+                    lda       2,x
+                    endm
+SPRITE_VIS_PUBLISH_HIDDEN macro
+                    lda       StateFlag
+                    ora       #$40
+                    sta       StateFlag
+                    endm
+SPRITE_VIS_PUBLISH_VISIBLE macro
+                    lda       StateFlag
+                    anda      #$BF
+                    sta       StateFlag
+                    endm

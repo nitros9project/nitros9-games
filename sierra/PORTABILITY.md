@@ -2389,3 +2389,24 @@ Artifacts are `/tmp/sierra-view-cache-error-movement-verified` and
 previous acceptance (`078e0eeb` / `c45760ab`); host SDL/SDK configuration was
 rebuilt as documented in `WILDBITS-MAME.md`. This does not establish physical
 hardware timing or complete adventure/audio compatibility.
+
+### Shared sprite visibility and native ego-hidden correction
+
+CoCo's cel renderer records whether it wrote any pixel and publishes the
+result as AGI flag 1 for ego. Native rendering previously left that flag
+unchanged. Both now expand the same visibility macros in the existing shared
+object command component, with owner bindings for storage and flag layout.
+Native marks actual composed-buffer writes in its ordinary priority and
+control-pixel paths; transparent and occluded pixels leave the draw hidden.
+It publishes only after a completed ego cel, never for a non-ego. An errored
+render takes the existing cleanup path without publishing its partial result.
+The rule preserves CoCo's per-cel semantics; it does not rescan the completed
+scene for overlap from objects drawn later.
+
+All 14 CoCo sprite modules are byte-identical. Native integration tests check
+pixels and flag 1 for visible, background-hidden, fully transparent and
+mirrored/clipped cels, with a visible non-ego unable to overwrite hidden ego
+state. Native now uses 22,322 code bytes and 24,571 private bytes. Fresh MAME
+movement and two-terminal acceptance passed with this build on 2026-10-06;
+artifacts are `/tmp/sierra-shared-sprite-visibility-movement` and
+`/tmp/sierra-shared-sprite-visibility-terminals`.

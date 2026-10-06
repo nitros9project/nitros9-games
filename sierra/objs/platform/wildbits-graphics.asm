@@ -598,8 +598,15 @@ SpritePriorityDone  rts
 
 * U=private object record. Read one bounded RLE row into private staging,
 * unmap the view, then plot it in the combined buffer. Never map both.
+                    ifndef PLATFORM_WILDBITS_OBJECTS_BINDINGS
+                    use platform/wildbits-objects-bindings.asm
+                    endc
+                    ifndef SHARED_OBJECT_COMMANDS_DEFINED
+                    use shared/object-commands.asm
+                    endc
 SpriteRenderObject  ldx       <resourcebase
                     stu       spriteobject,x
+                    OBJECT_SPRITE_VISIBILITY_BEGIN
                     ldb       $1C,u
                     lbeq      SpriteInvalid
                     cmpb      #160
@@ -778,6 +785,7 @@ SpriteSourceColumn  leay      spriterow,x
                     lsla
                     ora       spritecolor,x
                     sta       ,u
+                    OBJECT_SPRITE_VISIBLE_PIXEL
                     bra       SpriteNextColumn
 * Priority 15 cannot be occluded by any four-bit picture priority. Avoid
 * rescanning down to the bottom for every flag pixel and mapping all pages
@@ -789,6 +797,7 @@ SpriteControlPixel  lda       spritepriority,x
                     anda      #$F0
                     ora       spritecolor,x
                     sta       ,u
+                    OBJECT_SPRITE_VISIBLE_PIXEL
                     bra       SpriteNextColumn
 SpriteControlNeedsSearch ldd  <pictureoffset
                     pshs      d
@@ -817,6 +826,7 @@ SpriteControlDraw   ldd       ,s
                     anda      #$F0
                     ora       spritecolor,x
                     sta       ,u
+                    OBJECT_SPRITE_VISIBLE_PIXEL
 SpriteControlHidden equ       *
 * Search success still has the original-offset word on the stack.
                     leas      2,s
@@ -846,6 +856,7 @@ SpriteKeepPicture   equ       *
                     lbra      SpriteReadRow
 SpriteRememberDone  equ       *
                     lbsr      GameRememberSprite
+                    OBJECT_SPRITE_VISIBILITY_FINISH SpriteVisibilityDone,SpriteEgoVisible
 SpriteRestoreLogic  pshs      cc,b
                     lbsr      PictureUnmap
                     bcs       SpriteRestoreError
@@ -908,6 +919,7 @@ spritecolor         rmb      1
 spritetransparent   rmb      1
 spritemirror        rmb      1
 spritepriority      rmb      1
+spriteinvisible     rmb      1
 spriteid            rmb      1
 spriteorder         rmb      1
 spritecount         rmb      1

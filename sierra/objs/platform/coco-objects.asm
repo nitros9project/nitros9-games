@@ -106,6 +106,9 @@ ObjChkDone          puls      y         retrieve our y and leave
 *  PosInitX = view_pri
 *  PosInitY = col
 
+                    ifndef SHARED_OBJECT_COMMANDS_DEFINED
+                    use shared/object-commands.asm
+                    endc
 ObjBlit             ldx       $02,s     pull our x pointer off the stack
                     ldd       $08,x     load d with view_data
                     lbsr      TwiddleMmu twiddle mmu
@@ -147,8 +150,7 @@ ProcessCelData      ldd       ,u++      load the first 2 bytes of cel_data and b
                     std       ScratchA8 pb pointer to the pic buffer
                     ldx       ScratchA8 load it in an index reg
 
-                    lda       #$01      set cel_invis flag initially
-                    sta       ScratchAC set cel_invis to 1 and save
+                    OBJECT_SPRITE_VISIBILITY_BEGIN
 
                     bra       ChunkLoop start processing cel chunk data
 BumpPbPtr           abx                 bump the pb pointer
@@ -176,7 +178,7 @@ ChunkInnerLoop      lda       ,x        get the byte pointed to by pb
                     lda       PosInitX  load view_pri
 StoreChunkColor     ora       PosInitY  or it with col
                     sta       ,x+       store that at pb and bump the pointer
-                    clr       ScratchAC zero cel_invis
+                    OBJECT_SPRITE_VISIBLE_PIXEL
                     decb                decrement chunk_len
                     bne       ChunkInnerLoop not equal zero go again inner loop
                     bra       ChunkLoop go again outer loop
@@ -212,23 +214,8 @@ SkipChunkPixel      leax      $01,x     bump the pb pointer
                     bne       ChunkInnerLoop not equal do middle loop again
                     bra       ChunkLoop go again
 
-CelDone             ldx       $02,s     pull our view pointer back off the stack
-                    lda       $02,x     get the num
-                    bne       ObjBlitDone if not zero exit routine
-                    lda       ScratchAC get the cel_invis value
-                    beq       ResetInvisFlag reset the flag
-
-* set the flag
-                    lda       StateFlag load the state.flag
-                    ora       #$40      set it
-                    sta       StateFlag stow it back
-                    bra       ObjBlitDone exit routine
-
-* reset the flag
-ResetInvisFlag      lda       StateFlag load state.flag
-                    anda      #$bf      clear it
-                    sta       StateFlag stow it
-ObjBlitDone         rts                 object blit complete return
+CelDone             OBJECT_SPRITE_VISIBILITY_FINISH ObjBlitDone,ResetInvisFlag
+                    rts                 object blit complete return
 
 
 * ====== ObjCelMirror: Mirror a Cel Horizontally ======

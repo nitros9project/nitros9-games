@@ -226,3 +226,24 @@ OBJECT_VIEW_TABLE_ENTRY macro
                     VIEW_ENTRY_READ
                     VIEW_ENTRY_RESOLVE \1
                     endm
+
+* Visibility is published only after a complete cel draw, and only for ego.
+* Owners bind tracking storage and packed/byte AGI flag-1 representation.
+OBJECT_SPRITE_VISIBILITY_BEGIN macro
+                    lda       #1
+                    SPRITE_VIS_STORE
+                    endm
+OBJECT_SPRITE_VISIBLE_PIXEL macro
+                    SPRITE_VIS_CLEAR
+                    endm
+* Parameters: done and visible continuations (retain owner public labels).
+OBJECT_SPRITE_VISIBILITY_FINISH macro
+                    SPRITE_VIS_EGO_TEST
+                    bne       \1
+                    SPRITE_VIS_READ
+                    beq       \2
+                    SPRITE_VIS_PUBLISH_HIDDEN
+                    bra       \1
+\2                  SPRITE_VIS_PUBLISH_VISIBLE
+\1                  equ *
+                    endm

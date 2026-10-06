@@ -44,20 +44,24 @@ def main():
             assert frame == expected_frame, 'integrated AGI picture commands differ from CoCo pixels'
             # A small view makes transparency, clipping, mirroring, depth and
             # erase behavior observable independently of game scripts.
-            rows = [[1, 1, None, 2], [3, 4, 4, 4], [5, None, None, None]]
-            for mirrored, xpos, ypos, priority, erase in [
-                    (False, 20, 30, 15, False),
-                    (True, 159, 1, 15, False),
-                    (False, 20, 30, 3, False),
-                    (False, 20, 30, 15, True)]:
+            normal_rows = [[1, 1, None, 2], [3, 4, 4, 4], [5, None, None, None]]
+            for mirrored, xpos, ypos, priority, erase, transparent_only, other_object in [
+                    (False, 20, 30, 15, False, False, False),
+                    (True, 159, 1, 15, False, False, False),
+                    (False, 20, 30, 3, False, False, False),
+                    (False, 20, 30, 15, True, False, False),
+                    (False, 20, 30, 15, False, True, False),
+                    (False, 20, 30, 3, False, False, True)]:
+                rows = [[None]*4 for _ in range(3)] if transparent_only else normal_rows
                 script = bytes([3,0,1,24,0,25,0,33,0,41,0,0,
                     37,0,xpos,ypos,54,0,priority,35,0] +
-                    ([36,0] if erase else []) + [26,134,1,0])
+                    ([36,0] if erase else []) +
+                    ([33,1,41,1,0,37,1,40,30,54,1,15,35,1] if other_object else []) + [26,134,1,0])
                 logic = len(script).to_bytes(2, 'little') + script
                 picture = b'\xff'
                 view = bytes([0,0,2,0,0,9,0,9,0,1,3,0,4,3,
-                    0x9f if mirrored else 0x1f,
-                    0x12,0xf1,0x21,0,0x31,0x43,0,0x51,0])
+                    0x9f if mirrored else 0x1f] +
+                    ([0xf4,0]*3 if transparent_only else [0x12,0xf1,0x21,0,0x31,0x43,0,0x51,0]))
                 resources = bytearray()
                 offsets = []
                 for payload in (logic, picture, view):
@@ -67,10 +71,11 @@ def main():
                     '/game/logDir': b'\xff' * 3 + offsets[0].to_bytes(3, 'big'),
                     '/game/picDir': b'\xff' * 3 + offsets[1].to_bytes(3, 'big'),
                     '/game/viewDir': offsets[2].to_bytes(3, 'big')}
-                error, frame = exercise(d, files, module='wbgame', base=0xa000,
+                error, frame, state = exercise(d, files, module='wbgame', base=0xa000,
                     database=0x1000, window=0x8000, blocks=None, multiple=True,
-                    firstblock=0x10, frame_capture=True)
+                    firstblock=0x10, frame_capture=True, capture=True)
                 assert not error, (error, mirrored, xpos, ypos, priority, erase)
+                assert state['vmflags'][1] == int(priority < 4 or transparent_only), 'ego hidden flag did not match cel pixel visibility'
                 expected_frame = bytearray([1]) * 76800
                 expected_frame[8*320:176*320] = bytes([16]) * (168*320)
                 if priority >= 4 and not erase:
@@ -81,6 +86,12 @@ def main():
                             if color is not None and 0 <= x < 160 and 0 <= y < 168:
                                 address = (y+8)*320 + x*2
                                 expected_frame[address:address+2] = bytes([color+1]) * 2
+                if other_object:
+                    for rownum,row in enumerate(normal_rows):
+                        for column,color in enumerate(row):
+                            if color is not None:
+                                start=(28+rownum+8)*320+(40+column)*2
+                                expected_frame[start:start+2]=bytes([color+1])*2
                 assert frame == expected_frame, (mirrored, xpos, ypos, priority, erase,
                     next((i for i, (a,b) in enumerate(zip(frame, expected_frame)) if a != b), None))
             # Repeated cycles must move the ego and stop precisely at a target.
@@ -293,7 +304,7 @@ def main():
             assert not error and not output
             assert state['vmvariables'][250] == 2, 'controller did not reach the next logic cycle'
             assert state['vmvariables'][11] == 1, 'clock lost the second at minute rollover'
-            print('PASS: native picture/view composition matches every castle pixel and handles transparent/mirrored/clipped/occluded/erased sprites with persistent native text, repeated logic cycles, keyboard controllers, clock rollover, stepping, move-to completion, end-of-loop animation, arrows/backspace, shared object distance, blocking/ignoring/clearing rectangles, inventory transfers/predicates/selection/scrolling, font validation, full-frame restoration, one mapping and complete cleanup')
+            print('PASS: native picture/view composition matches every castle pixel and handles transparent/mirrored/clipped/occluded/erased sprites and ego-hidden flag ownership with persistent native text, repeated logic cycles, keyboard controllers, clock rollover, stepping, move-to completion, end-of-loop animation, arrows/backspace, shared object distance, blocking/ignoring/clearing rectangles, inventory transfers/predicates/selection/scrolling, font validation, full-frame restoration, one mapping and complete cleanup')
         finally:
             d.s.close()
             emulator.terminate()

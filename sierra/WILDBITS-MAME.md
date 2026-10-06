@@ -467,3 +467,15 @@ Artifacts are `/tmp/sierra-view-cache-error-movement-verified` and
 emulator source checkout are temporary; the user's OS tree was unchanged.
 These tests verify emulator behavior, not physical hardware speed or full
 adventure/save/restore/audio completion.
+
+### Sprite visibility acceptance — 2026-10-06
+
+The subsequent 22,322-byte game adds the shared per-cel ego-hidden rule
+(24,571 private bytes). Both acceptance commands above passed again against
+this build: nine AGI pixels over 200 frames, startup/inventory/modal/interrupt
+cleanup, and two-terminal pixel restoration, independent exit, relaunch and
+free-memory checks. Artifacts are
+`/tmp/sierra-shared-sprite-visibility-movement` and
+`/tmp/sierra-shared-sprite-visibility-terminals`. These emulator checks
+complement the synthetic pixel/flag fixtures; they do not establish complete
+adventure or physical hardware compatibility.

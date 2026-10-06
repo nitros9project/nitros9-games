@@ -433,3 +433,26 @@ VIEW_ENTRY_RESOLVE macro
                     std       <viewloopbase
                     endc
                     endm
+
+* Sprite visibility tracker and byte-valued AGI ego-hidden flag 1.
+SPRITE_VIS_STORE macro
+                    sta       spriteinvisible,x
+                    endm
+SPRITE_VIS_CLEAR macro
+                    clr       spriteinvisible,x
+                    endm
+SPRITE_VIS_READ macro
+                    lda       spriteinvisible,x
+                    endm
+SPRITE_VIS_EGO_TEST macro
+                    ldx       <resourcebase
+                    ldu       spriteobject,x
+                    lda       2,u
+                    endm
+SPRITE_VIS_PUBLISH_HIDDEN macro
+                    lda       #1
+                    sta       vmflags+1,x
+                    endm
+SPRITE_VIS_PUBLISH_VISIBLE macro
+                    clr       vmflags+1,x
+                    endm
