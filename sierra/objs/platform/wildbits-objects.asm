@@ -76,6 +76,7 @@ GameInitialize      lbsr      ParserInitialize
                     sta       vmvariables+24,u
                     lda       #1
                     sta       <vmplayercontrol
+                    lbsr      GameClockOpen
                     lbra      GameReadClock
 
 * A completed logic cycle: clear transient state, wait without mappings,
@@ -104,12 +105,8 @@ GameNextCycle       lbsr      AssetUnmap
 GameResetControllers clr     ,x+
                     leay      -1,y
                     bne       GameResetControllers
-                    ldb       vmvariables+10,u     AGI delay in 50-ms units
-                    lda       #3                  three 60-Hz ticks per unit
-                    mul
-                    addd      #1                  F$Sleep sleeps X-1 ticks
-                    tfr       d,x
-                    os9       F$Sleep
+                    lbsr      GameClockGate
+                    lbcs      GameCycleReturn
                     lbsr      foreground
                     lbcs      GameCycleReturn
                     lbsr      GameReadClock
@@ -337,6 +334,9 @@ GameExitUnmapped    ldu       <resourcebase
 GameExitUnmapSuccess andcc    #$FE
                     rts
 
+PLATFORM_WILDBITS_TIMING_CODE equ 1
+                    use platform/wildbits-timing.asm
+
                     else
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_GAME_CYCLE_DATA
 * ===== wildbits-game-cycle-data =====
@@ -351,6 +351,12 @@ gamesoundwarned      rmb      1
 gamerandom          rmb      2
 gamekeybudget       rmb      1
 gamekeypending      rmb      1
+* Six bytes remain within the existing three private pages.
+gameclockpath       rmb      1
+gameclockticks      rmb      1
+gameclockseen       rmb      1
+gameclockcredit     rmb      2
+gameclockmuted      rmb      1
 
                     else
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_GAME_MOTION_CODE

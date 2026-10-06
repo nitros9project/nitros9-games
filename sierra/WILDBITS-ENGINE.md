@@ -602,7 +602,49 @@ counts, the surviving owner after peer exit, and identical free-memory maps.
 `UPDAT.` opens the clock non-exclusively; adding OS-9's `SHARE.` bit requests
 exclusive access and causes a second open to fail with `E$DevBsy`.
 
-This prerequisite is verified separately from the production engine. The game
-still uses its existing sleep-based pacing until the signal-driven gate, pause
-handling and exit cleanup are implemented and validated. A native game clock
-must use a signal distinct from background/foreground signals $81/$82.
+The production engine now uses the shared raster service when its capability
+check succeeds. `I$GetStt SS.SOLIRQ`, with X initially zero, reports capability
+bits in X: bit zero means shared-line broadcast, bit one means PID-scoped
+removal. The game requires both bits. Legacy drivers leave X zero; the engine
+closes that optional path and keeps its existing sleep-based pacing.
+
+The signal intercept increments a private modulo-256 counter on $83, distinct
+from visibility signals $81/$82. The frame gate samples the counter rather
+than reading and clearing it, so an intervening signal is retained for the
+next sample. It converts variable 10's 50-ms delay to three raster ticks per
+unit, subtracts elapsed credit, and waits for signals only when more time is
+needed. A long frame therefore does not always add the entire delay afterward.
+Credit is capped at one extra cycle to avoid an unbounded catch-up burst.
+Zero delay still yields. Terminal background handling mutes that process's
+clock entries; foreground return unmutes and discards paused credit. The
+calendar clock still supplies AGI seconds, and modal Pause rebaselines both
+clocks. Exit unregisters line zero before closing the owned path.
+
+The gate adds six private bytes, bringing storage to 24,576 bytes, exactly
+three existing pages. Code is 23,616 of the 23,808-byte limit. No platform
+files, mapping windows or allocation pages were added; timing belongs to
+`platform/wildbits-timing.asm`.
+
+The actual-CPU checks cover fallback and capability policy, delay values
+through 255, counter wrap, bounded credit, signal waits, zero-delay yield,
+owned registration/cleanup, foreground mute/unmute with register preservation,
+modal reset, abort and the actual RTI path with an unrelated interrupted DP/U.
+All 4,118 original CoCo/native clock cases also pass. The old-driver gameplay
+path retains every reference pixel and passes sprite, input and cleanup tests.
+MAME accepts Larry's quiz, street walking, messages and cleanup; KQ1's real
+menu Pause and later commands; and concurrent Larry/KQ1 terminal switching,
+independent inventory input and exits with free-memory maps restored.
+
+Larry's same 400-frame movement window changes from 9.976 to 11.216 AGI pixels
+with the signal gate. This is a modest sample and movement remains slow; the
+next performance work needs a profile of logic, sprites and presentation.
+
+A bounded MAME debugger profile of 26 Larry cycles confirms that the remaining
+slowdown is mainly graphics. Median phase costs at the configured 12-MHz CPU
+are about 30 ms for logic, 138 ms for motion/input (including old-sprite
+background restoration), 143 ms for sprite composition, 165 ms for bitmap
+presentation, and 59 ms for text. The frame gate and calendar clock take about
+0.24 ms in these already-overrunning cycles. These are CPU-cycle differences
+between actual production entry points and include intervening OS work;
+they are not isolated instruction-only timings. The profile artifacts are
+`/tmp/sierra-larry-clock-profile-mapped/profile.log` and `phases.json`.

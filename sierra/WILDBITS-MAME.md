@@ -662,3 +662,12 @@ The application remains on the public allocation, mapping and terminal APIs.
 The guide's signal-driven pacing approach is described in
 [section 12.2](https://github.com/jfed6000/f256_porting#122-keeping-time-when-a-pass-can-overrun-the-sol-clock);
 its required SOL signal delivery is not implemented in this test OS revision.
+
+The native frame gate can be exercised with `--sol-driver PATH/TO/SOLdrv`.
+The harness validates and replaces only that named module in its private
+boot image, retaining FF padding and the recipe's size/alignment limit. It
+can be combined with `--expanded-krnp2` for the two-original-game test. The
+shared-clock prerequisite is on the isolated NitrOS-9 branch
+`codex/wildbits-sol-frame-clock`; the user's active OS branch is unchanged.
+Current acceptance artifacts are `/tmp/sierra-larry-signal-clock`,
+`/tmp/sierra-pause-signal-clock` and `/tmp/sierra-pair-signal-clock`.

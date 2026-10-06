@@ -1473,7 +1473,15 @@ convertpixel        lda       ,x+
                     bne       convertpixel
                     rts
 * Visibility handling uses intercepted U, never the interrupted DP.
-intercept           cmpb      #SignalBg
+intercept           equ       *
+                    ifne      GAME_PRESENTATION
+                    cmpb      #$83
+                    bne       signalvisibility
+                    inc       gameclockticks,u
+                    rti
+signalvisibility    equ       *
+                    endc
+                    cmpb      #SignalBg
                     bne       signalforeground
                     stb       paused,u
                     rti
@@ -1499,19 +1507,28 @@ signalabort         cmpb      #S$Abort
                     endc
 signalreturn        rti
 
-foreground          pshs      x
+foreground          pshs      x,y,u
 waitforeground      tst       <aborted
                     bne       foregroundabort
                     tst       <paused
                     beq       foregroundready
+                    ifne      GAME_PRESENTATION
+                    lbsr      GameClockMute
+                    bcs       foregrounderror
+                    endc
                     ldx       #2        one tick; bounded foreground race
                     os9       F$Sleep
                     bra       waitforeground
 foregroundabort     ldb       #E$PrcAbt
                     orcc      #1
-                    puls      x,pc
-foregroundready     clrb
-                    puls      x,pc
+                    puls      x,y,u,pc
+foregroundready     equ       *
+                    ifne      GAME_PRESENTATION
+                    lbsr      GameClockUnmute
+                    bcs       foregrounderror
+                    endc
+                    clrb
+foregrounderror     puls      x,y,u,pc
 
 * Input and output must identify the same terminal before changing graphics.
 CheckTerminal       ldu       <dbase

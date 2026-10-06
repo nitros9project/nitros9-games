@@ -52,6 +52,11 @@ def check_cpu(tmp):
             table([]);before=d.read(private,sy['size']);sent,r=run(entry,x=0x3000)
             assert not sent and not r['cc']&1 and r['b']==0
             assert d.read(private,sy['size'])==before;count+=1
+        d.write(0x5000+sy['PD.RGS'],b'\x30\x00')
+        sent,r=run('GetSta',a=sy['SS.SOLIRQ'],y=0x5000)
+        assert not sent and not r['cc']&1
+        assert d.read(0x3000+sy['R$X'],2)==b'\0\x03'
+        count+=1
         table([])
         shadow[sy['R$X']:sy['R$X']+2]=b'\0\0'
         shadow[sy['R$Y']:sy['R$Y']+2]=b'\0\x83'

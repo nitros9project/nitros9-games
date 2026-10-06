@@ -620,6 +620,9 @@ start               stu       <resourcebase
                     clr       gametracemenuhit,u
                     endc
                     ifne      GAME_PRESENTATION
+                    lda       #$FF
+                    sta       gameclockpath,u
+                    clr       gameclockmuted,u
                     clr       terminalchanged,u
                     clr       gamebackgroundowned,u
                     pshs      x
@@ -757,7 +760,7 @@ LoadResource        equ       *
                     else
                     lbsr      AssetWrite
                     endc
-                    bra       Exit
+                    lbra      Exit
                     else
                     lbsr      LoadPicture
                     bcs       Exit
@@ -770,7 +773,7 @@ LoadResource        equ       *
                     else
                     lbsr      PictureWrite
                     endc
-                    bra       Exit
+                    lbra      Exit
                     endc
                     stx       <resourcepointer
                     sty       <resourceremaining
@@ -780,9 +783,9 @@ WriteMore           lda       #1
                     os9       I$Write
                     bcs       Exit
                     cmpy      #0
-                    beq       WriteBad
+                    lbeq      WriteBad
                     cmpy      <resourceremaining
-                    bhi       WriteBad
+                    lbhi      WriteBad
                     tfr       y,d
                     addd      <resourcepointer
                     std       <resourcepointer
@@ -800,7 +803,13 @@ Exit                equ       *
                     tst       ,s
                     bne       GameExitMappingsReady
                     stb       ,s
-GameExitMappingsReady puls    b
+GameExitMappingsReady lbsr    GameClockClose
+                    bcc       GameClockExitDone
+                    tst       ,s
+                    bne       GameClockExitRetry
+                    stb       ,s
+GameClockExitRetry  lbsr      GameClockClose
+GameClockExitDone   puls      b
                     endc
                     ifne      AGI_ASSET
                     stb       <assetexiterror
@@ -859,13 +868,13 @@ GameTerminalExitDone puls     b
                     endc
                     os9       F$Exit
 WriteBad            ldb       #E$BMode
-                    bra       Exit
+                    lbra      Exit
 ArgumentsBad        leax      help,pcr
                     ldy       #80
                     lda       #2
                     os9       I$WritLn
                     ldb       #E$IllArg
-                    bra       Exit
+                    lbra      Exit
 SkipSpaces          lda       ,x+
                     cmpa      #C$SPAC
                     beq       SkipSpaces

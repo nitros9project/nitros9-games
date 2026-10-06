@@ -18,6 +18,7 @@ def main():
     ap.add_argument('--larry-enter',action='store_true',help="Exercise Larry quiz and entering Lefty's")
     ap.add_argument('--larry-pair',type=Path,help="Run Larry and this King's Quest I directory on two terminals")
     ap.add_argument('--expanded-krnp2',type=Path,help='Install an emulator-only expanded-memory Jr2 kernel in the private test image')
+    ap.add_argument('--sol-driver',type=Path,help='Install a verified shared raster-clock driver in the private test image')
     a=ap.parse_args(); out=a.output.resolve(); out.mkdir(parents=True,exist_ok=False)
     disk=out/'test.dsk'; shutil.copyfile(a.disk,disk)
     roms=out/'roms/wbjr2'; roms.mkdir(parents=True)
@@ -41,14 +42,15 @@ def main():
     os9('attr',f'{disk},CMDS/wbfont','-e','-pe')
     install('startup',b'load utilpak1\n'+(b'load vt\n' if a.larry_pair else b'')+b'link shell\nload wbgame\nload grfdrv256\n',text=True)
     install('feu.startup',b'bootos9 /s0/OS9Boot\n','FEU/startup',text=True)
-    if a.expanded_krnp2:
+    for module,replacement_path in (('krnp2',a.expanded_krnp2),('soldrv',a.sol_driver)):
+        if not replacement_path:continue
         # The recipe prepends FF padding so the bootfile ends at $FE00.
         # Replace only the requested kernel and retain that alignment/limit.
-        original=out/'OS9Boot-original';os9('copy',f'{disk},OS9Boot',original)
+        original=out/('OS9Boot-before-'+module);os9('copy',f'{disk},OS9Boot',original)
         boot=original.read_bytes();first=boot.index(b'\x87\xcd')
         assert boot[:first]==b'\xff'*first,'unexpected bootfile prefix'
         boot=boot[first:];cursor=0;replaced=False
-        replacement=a.expanded_krnp2.read_bytes()
+        replacement=replacement_path.read_bytes()
         assert replacement[:2]==b'\x87\xcd' and int.from_bytes(replacement[2:4],'big')==len(replacement),'invalid replacement module'
         def module_name(data):
             offset=int.from_bytes(data[4:6],'big');name=''
@@ -56,18 +58,18 @@ def main():
                 name+=chr(value&127)
                 if value&128:return name.lower()
             raise AssertionError('unterminated module name')
-        assert module_name(replacement)=='krnp2','replacement must be krnp2'
+        assert module_name(replacement)==module,('unexpected replacement',module)
         while cursor<len(boot):
             assert boot[cursor:cursor+2]==b'\x87\xcd','invalid boot module'
             size=int.from_bytes(boot[cursor+2:cursor+4],'big')
             assert size>=12 and cursor+size<=len(boot),'invalid boot module size'
-            if module_name(boot[cursor:cursor+size])=='krnp2':
+            if module_name(boot[cursor:cursor+size])==module:
                 boot=boot[:cursor]+replacement+boot[cursor+size:];replaced=True;break
             cursor+=size
-        assert replaced,'krnp2 not found'
+        assert replaced,(module,'not found')
         boot=b'\xff'*((-len(boot))%256)+boot
         assert len(boot)<=32256,'expanded bootfile exceeds the recipe limit'
-        install('OS9Boot-expanded',boot,'OS9Boot')
+        install('OS9Boot-with-'+module,boot,'OS9Boot')
 
     with disk.open('ab') as f:f.truncate(1 << (disk.stat().st_size-1).bit_length())
     response_frame=4000+max(700,120*len(a.typed_command or ""))
