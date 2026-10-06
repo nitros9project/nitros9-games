@@ -295,12 +295,24 @@ The sprite visibility macros in `object-commands.asm` implement the CoCo
 per-cel rule for both owners. Each draw begins hidden; a successful composed
 pixel write clears that local state; a completed ego draw publishes AGI flag
 1. CoCo binds its packed `StateFlag` bit and existing scratch byte; native
-binds its byte flag and one private byte. Other objects cannot publish this
+binds its byte flag and process-private scratch. Other objects cannot publish this
 flag. This tracks the ego's writes during its draw, rather than recomputing
 visibility after every later object has been composed.
 
 The integrated native regression checks visible, background-occluded, fully
 transparent, mirrored/clipped and erased cels, plus a hidden ego followed by
 a visible non-ego. Pixel output is checked alongside the flag. All 14 CoCo
-`shdw` modules remain byte-identical. Native gains 46 code bytes and one
-private byte because it previously omitted this flag update.
+`shdw` modules remain byte-identical. The initial native implementation gained 46 code bytes and one
+private byte because it previously omitted this flag update. Rendering now
+reuses the first byte of `spritekey`: collection finishes before cel drawing,
+and rendering reads the ordered list rather than the insertion key. This
+recovers that private byte without changing the visibility rule.
+
+`OBJECT_CEL_CLIP` reconciles the dimensions of a newly selected cel with the
+object's position and clip-state bit. Both owners now use CoCo's existing
+right-edge and height/horizon rule. CoCo retains its byte-add behavior; native
+also checks carry so an off-screen coordinate cannot wrap into an accepted
+right edge. The native view reader still validates dimensions before calling
+the rule. Direct execution at two load addresses passes 5,920 cases covering
+every coordinate, horizon and flag byte, all legal widths/heights, guards,
+registers and unrelated fields. All 14 CoCo `mnln` modules remain identical.

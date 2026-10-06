@@ -7,29 +7,32 @@ AFLAGS = --6809 --format=os9 --pragma=pcaspcr,nosymbolcase,condundefzero \
 # Production build; probes are optional test executables.
 all: wbgame budget
 probes: wbpic wbres wbdecode wbrun wbasset wbexec probe-budget
-wbpic: ../tests/probes/wbpic.asm platform/wildbits-presentation.d platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-defsfile $(NITROS9DIR)/defs/wildbits.d
+# Each owner retains its entry point as the first prerequisite ($<).
+wbpic: ../tests/probes/wbpic.asm
 	$(LWASM) $(AFLAGS) --list=wbpic.list --symbols -o $@ $<
-wbres: ../tests/probes/wbres.asm platform/wildbits-memory-resources.asm platform/wildbits-memory-resources.asm platform/wildbits-memory-resources.asm platform/wildbits-defsfile $(NITROS9DIR)/defs/wildbits.d
+wbres: ../tests/probes/wbres.asm
 	$(LWASM) $(AFLAGS) --list=wbres.list --map=wbres.map --symbols -o $@ $<
-wbdecode: ../tests/probes/wbdecode.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-memory-resources.asm platform/wildbits-memory-resources.asm platform/wildbits-memory-resources.asm platform/wildbits-defsfile $(NITROS9DIR)/defs/wildbits.d
+wbdecode: ../tests/probes/wbdecode.asm
 	$(LWASM) $(AFLAGS) --list=wbdecode.list --map=wbdecode.map --symbols -o $@ $<
-wbrun: ../tests/probes/wbrun.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-memory-resources.asm platform/wildbits-memory-resources.asm platform/wildbits-memory-resources.asm platform/wildbits-presentation.d platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-defsfile $(NITROS9DIR)/defs/wildbits.d
+wbrun: ../tests/probes/wbrun.asm
 	$(LWASM) $(AFLAGS) --list=wbrun.list --map=wbrun.map --symbols -o $@ $<
-wbasset: ../tests/probes/wbasset.asm \
-	platform/wildbits-memory-resources.asm \
-	platform/wildbits-defsfile
+wbasset: ../tests/probes/wbasset.asm
 	$(LWASM) $(AFLAGS) --list=wbasset.list --map=wbasset.map --symbols -o $@ $<
-wbexec: ../tests/probes/wbexec.asm \
-	platform/wildbits-memory-resources.asm \
-	platform/wildbits-logic.asm \
-	platform/wildbits-text-ui.asm \
-	platform/wildbits-objects.asm \
-	platform/wildbits-graphics.asm \
-	platform/wildbits-input.asm \
-	platform/wildbits-defsfile
+wbexec: ../tests/probes/wbexec.asm
 	$(LWASM) $(AFLAGS) --list=wbexec.list --map=wbexec.map --symbols -o $@ $<
-wbgame: sierra.asm $(wildcard platform/wildbits-*.asm) font-data.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-memory-resources.asm platform/wildbits-memory-resources.asm platform/wildbits-memory-resources.asm platform/wildbits-presentation.d platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-defsfile
+wbgame: sierra.asm wbfont font-data.asm
 	$(LWASM) $(AFLAGS) -DWILDBITS=1 --list=wbgame.list --map=wbgame.map --symbols -o $@ $<
+
+# Keep every owner current when a grouped feature or shared body changes.
+# This deliberately includes all common bodies for the optional probes too.
+wbgame wbexec wbpic wbdecode wbrun wbasset wbres: \
+	$(wildcard platform/wildbits-*.asm) $(wildcard shared/*.asm) \
+	platform/sections.d platform/wildbits-defsfile \
+	platform/wildbits-presentation.d $(NITROS9DIR)/defs/wildbits.d
+
+wbfont: ../tests/export_font.py font-data.asm
+	python3 ../tests/export_font.py $@
+
 probe-budget: wbpic wbres wbdecode wbrun wbasset wbexec
 	@python3 -c 'from pathlib import Path; n=Path("wbpic").stat().st_size; assert n <= 40192, n; print("wbpic module: %d / 40192 bytes; process data: 8192 bytes; one mapping window" % n)'
 	@python3 -c 'from pathlib import Path; b=Path("wbdecode").read_bytes(); data=int.from_bytes(b[11:13], "big"); limit=(7-(data+8191)//8192-1)*8192-768; assert len(b) <= limit, (len(b),limit); print("wbdecode probe: %d / %d code bytes; private data: %d bytes; one mapping window; four owned picture blocks" % (len(b),limit,data))'
@@ -68,6 +71,7 @@ check: all probes
 	python3 ../tests/check_object_collision_filter.py
 	python3 ../tests/check_resource_lifetime.py
 	python3 ../tests/check_motion_setup.py
+	python3 ../tests/check_cel_clipping.py
 	python3 ../tests/check_cel_advance.py
 	python3 ../tests/check_inventory_commands.py
 	python3 ../tests/check_xor_decrypt.py
@@ -98,78 +102,3 @@ PICTURE ?= 1
 reference:
 	python3 ../tests/export_picture.py $(GAME) $(PICTURE) reference-picture.bin \
 		--assembler "$(LWASM)" --defs "$(NITROS9DIR)/defs"
-
-wbdecode wbrun wbgame: shared/picture-pen.asm shared/picture-pen-tables.asm
-
-wbdecode wbrun wbgame: shared/picture-line.asm platform/sections.d platform/wildbits-graphics.asm
-
-wbrun wbgame: platform/sections.d
-wbgame: shared/object-animation.asm
-wbdecode wbrun wbgame: shared/picture-coordinates.asm
-wbexec wbgame: shared/object-distance.asm
-wbexec wbgame: shared/agi-command-table.asm
-wbgame: shared/object-block-test.asm
-wbgame: platform/sections.d
-wbgame: shared/divide-byte.asm shared/object-wander.asm
-wbexec wbgame: shared/object-position-test.asm
-
-wbgame: platform/wildbits-text-ui.asm
-
-wbfont: ../tests/export_font.py font-data.asm
-	python3 ../tests/export_font.py $@
-
-wbgame: wbfont
-
-wbgame: shared/object-follow.asm shared/object-move-direction.asm
-wbgame: platform/wildbits-graphics.asm
-
-wbgame: platform/wildbits-logic.asm
-
-wbdecode wbrun wbgame: shared/picture-colors.asm shared/picture-commands.asm
-
-wbdecode wbrun wbgame: shared/picture-command-table.asm
-
-wbexec wbgame: shared/variable-commands.asm
-
-wbexec wbgame: shared/flag-commands.asm
-
-wbexec wbgame: platform/wildbits-logic.asm
-
-wbexec wbgame: shared/condition-tests.asm
-
-wbexec wbgame: shared/agi-test-table.asm
-
-wbexec wbgame: shared/object-commands.asm shared/object-flag-rules.asm
-
-
-
-
-wbgame: shared/said-match.asm
-
-wbgame: shared/ascii-lower.asm
-
-# Keep every owner current when an adapter or common algorithm changes.
-wbpic wbres wbdecode wbrun wbasset wbexec wbgame: $(wildcard platform/wildbits-*.asm) platform/wildbits-defsfile platform/wildbits-presentation.d $(wildcard shared/*.asm)
-wbexec wbgame: platform/sections.d
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-wbgame wbexec wbpic wbdecode wbrun wbasset wbres: platform/sections.d

@@ -247,3 +247,39 @@ OBJECT_SPRITE_VISIBILITY_FINISH macro
 \2                  SPRITE_VIS_PUBLISH_VISIBLE
 \1                  equ *
                     endm
+
+* Reconcile a newly selected cel with the existing position. A=width,
+* B=height; owner supplies object register, horizon and right-add overflow
+* policy. Retain the original height/horizon rule and clip-state bit.
+* Parameters: object register, height continuation, done, right-clip label.
+OBJECT_CEL_CLIP macro
+                    adda      $03,\1
+                    ifne CEL_CLIP_CHECK_CARRY
+                    bcs       \4
+                    endc
+                    cmpa      #$A0
+                    bls       \2
+\4                  equ *
+                    lda       <$25,\1
+                    ora       #$04
+                    sta       <$25,\1
+                    lda       #$A0
+                    suba      <$1C,\1
+                    sta       $03,\1
+\2                  decb
+                    cmpb      $04,\1
+                    bls       \3
+                    lda       <$25,\1
+                    ora       #$04
+                    sta       <$25,\1
+                    stb       $04,\1
+                    CEL_CLIP_HORIZON cmpb
+                    bhi       \3
+                    lda       <$26,\1
+                    bita      #$08
+                    bne       \3
+                    CEL_CLIP_HORIZON ldb
+                    incb
+                    stb       $04,\1
+\3                  equ *
+                    endm

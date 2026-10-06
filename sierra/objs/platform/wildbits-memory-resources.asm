@@ -1321,6 +1321,8 @@ ViewCelValid equ *
                     stb       $12,x
                     ldd       <viewcelbase
                     std       $10,x
+ViewPositionCel     ldd       <$1C,x
+                    OBJECT_CEL_CLIP x,ViewCelHeightClip,ViewCelClipDone,ViewCelRightClip
                     clrb
 ViewRestore         pshs      cc,b
                     lbsr      AssetUnmap

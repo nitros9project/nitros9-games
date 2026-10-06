@@ -9,8 +9,10 @@ CoCo suffix-based view-heap discard and native single-slot slab ownership;
 these are distinct backend policies. The native discard failure path now
 preserves carry after clearing transient ownership, with failed slots retained
 for retry. Sprite visibility now uses the same shared per-cel rule for both
-owners; native publishes AGI flag 1 only for ego. The game is 22,322 bytes;
-process data is 24,571 bytes (five bytes below its three-page limit).
+owners; native publishes AGI flag 1 only for ego. Selected-cel positioning is also shared, including right-edge and
+height/horizon adjustment. The game is 22,379 bytes;
+process data is 24,570 bytes (six bytes below its three-page limit).
+The per-cel visibility byte reuses the sort key after collection completes.
 
 
 There is no separate `sierra/wildbits` tree. The game entry point is
@@ -104,71 +106,47 @@ The required conversion is deeper than removing module headers:
 
 ## Building and proving reusable pieces
 
-The current native executables are probes for implemented interfaces. They
-are not separate processes intended to form the eventual game interpreter.
+`wbgame` is the production native interpreter. Optional executables under
+`tests/probes` exercise the same grouped feature bodies directly: `wbpic`
+tests presentation, `wbres` raw loading, `wbdecode` decoding, `wbasset` expanded
+assets, `wbexec` logic execution, and `wbrun` picture integration. Each owns
+one module header and private layout. They neither fork one another nor form
+a chain of processes required to play the game.
 
-`tests/probes/wbpic.asm` owns one OS-9 module and exercises combined-buffer presentation.
-`tests/probes/wbres.asm` owns another small test module and includes `objs/platform/wildbits-memory-resources.asm`
-and `objs/platform/wildbits-memory-resources.asm`. `tests/probes/wbdecode.asm` now includes those same resource routines
-directly, together with converted command, line, fill and mapped-storage bodies. It does not fork
-`wbres` or reimplement its loader. `objs/platform/wildbits-memory-resources.asm` supplies shared probe
-argument/output handling. Each executable still has exactly one module header.
-
-The current flow is:
+The current production flow is:
 
 ```text
-Native resource step: picDir + vol.N -> LoadPicture -> AGI command bytes
-Presentation step:   combined color/priority buffer -> wbpic -> terminal bitmap
-Native decoder:     F0-FA command bytes -> owned physical buffer, one mapped window
-Native assets:       log/view/sound resources -> bounded LZW -> owned mapped slabs
-Native logic:        mapped byte fetch -> arithmetic/conditions -> cached/nested calls
-Native game owner:  picture/view composition + literal text + repeated logic/input cycles
-Still to convert:   motion/cel updates, word parsing, dialogs, sound, remaining commands
+Directory + volume -> checked resource/slab loading -> bounded decompression
+Logic cache + mapped byte stream -> common command/condition execution
+Commands -> room/object state, motion/cel updates, parser and text/dialog UI
+Picture commands -> combined color/priority buffer -> background composition
+View metadata + cel runs -> object composition -> terminal-owned bitmap
+Cycle loop -> clock/controller input -> logic + motion + presentation
 ```
 
-The host renderer supplies the reference while the native decoder is converted.
-The decoder has private state, bounded reads and immutable relative dispatch.
-Mapped picture storage and bounded scanline fill now replace fixed CoCo buffer
-and stack addresses. The private command buffer and fill stack still consume
-two process blocks; integration must budget interpreter state alongside them.
-Pen conversion and direct presentation now work together in `wbrun`.
-Compressed logic/view storage now exists in the shared asset components.
-The old fixed-address `shdw` body cannot simply be linked into the new module.
+`wildbits-memory-resources.asm` supplies loading, asset access and view/room
+resources. `wildbits-graphics.asm` supplies mapped picture storage, sprite
+composition and presentation. `wildbits-logic.asm`, `wildbits-objects.asm`,
+`wildbits-input.asm` and `wildbits-text-ui.asm` own the remaining native
+orchestration. Both owners expand common algorithms from `objs/shared`;
+the full migration is still incomplete. No complete CoCo module or fixed
+CoCo workspace is linked into the native executable.
 
-`tests/probes/wbrun.asm` now owns one module and includes the resource loader, decoder and
-shared presentation routines directly. It does not fork the probes. The same
-small presentation includes are used by the existing viewer, whose binary is
-unchanged. This proves the single-program source structure before bringing in
-the main interpreter; it does not claim that displaying a resource is gameplay.
+Normal/follow/wander/move-to motion, animation, parser input, dialogs, menus
+and inventory have native implementations and regression coverage. Their
+remaining owner-specific orchestration still needs reconciliation. Native
+sound currently completes requests with sound disabled and warns once if a
+script enables it; there is no owned audio driver. Replay/checkpoint support
+does not establish full CoCo save/restore compatibility. Full adventure
+completion and sprite-heavy concurrent gameplay are not yet established by
+the emulator acceptance tests.
 
-
-The interpreter follows the same include structure. `tests/probes/wbexec.asm` owns its
-module header and private data, includes `lzw-*`, `asset-*`, `logic-*` and
-`message-*` routine bodies, and calls them directly. It never starts `wbasset`
-as a subprocess. The eventual main game owner can use these same components
-alongside the picture/presentation includes. `objs/platform/wildbits-logic.asm` is currently
-the command integration boundary, with explicit errors for unported behavior.
-The original CoCo `mnln.asm` remains the source/semantic reference; no complete
-CoCo module or fixed-address workspace is incorporated into the native owner.
-
-
-`sierra.asm` with `WILDBITS=1` is now the integration owner. The `object-*`, `view-*`, `room-*`,
-`menu-*`, `input-*`, `screen-*`, `string-*` and `replay-*` bodies keep small AGI
-command groups separate. `game-picture-*` connects script picture commands to
-the existing decoder. `game-background-*` owns an immutable decoded background;
-`game-render-*` stages bounded view rows and composes visible objects;
-`game-text-*` maintains private persistent text cells and draws the shared font;
-`game-cycle-*` owns scheduling, clock, controller polling and immediate quit.
-Each component calls OS services through the same one-window discipline.
-The `game-motion-*` bodies add object stepping and cel updates without merging
-the sources into a second engine. There is still no complete gameplay claim:
-follow/wander motion, parsing, dialogs and sound remain explicit work, and unsupported commands do not become silent no-ops.
-
-Startup and cycle flags follow the existing AGI semantics, checked against
-[ScummVM's AGI cycle implementation](https://github.com/scummvm/scummvm/blob/master/engines/agi/cycle.cpp).
-The 6809 command adaptations remain based on this repository's CoCo engine.
-The native renderer retains priority/control distinctions while changing the
-storage and mapping interface; shared module code and font bytes are immutable.
+The one-window resource/picture/frame mapping discipline remains necessary.
+Private interpreter buffers stay resident while picture, background, assets
+and terminal bitmaps use separately owned physical storage. Shared code and
+font bytes remain immutable. The grouped assembly dependencies in
+`wildbits.mk` now track every feature/binding/shared body for all owners,
+including probes, without repeated per-operation prerequisite lists.
 
 ## Architecture correction
 
@@ -180,7 +158,7 @@ The Wild Bits implementation preserves the registers needed by these shared
 algorithms and maps each logical pixel through `PicturePointer`.
 
 Wild Bits mapped-picture allocation/access and terminal presentation now live
-in `objs/platform/wildbits-graphics.asm` and `wildbits-presentation*.asm`.
+in `objs/platform/wildbits-graphics.asm`.
 Native game/viewer integration uses the existing `platform/sections.d`
 selector. This does not yet make the legacy CoCo interpreter's state ABI usable
 on Wild Bits: its loader and other unconverted selectors still reject that

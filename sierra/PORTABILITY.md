@@ -2410,3 +2410,31 @@ state. Native now uses 22,322 code bytes and 24,571 private bytes. Fresh MAME
 movement and two-terminal acceptance passed with this build on 2026-10-06;
 artifacts are `/tmp/sierra-shared-sprite-visibility-movement` and
 `/tmp/sierra-shared-sprite-visibility-terminals`.
+
+### Shared selected-cel position reconciliation
+
+CoCo adjusts an object's position when a selected cel extends past the right
+edge or above the picture. It sets object clip-state bit `$04`; the height
+adjustment also respects the ignore-horizon flag. Native selection previously
+updated dimensions without this reconciliation. `OBJECT_CEL_CLIP` in the
+existing shared object component now supplies that rule to both owners.
+Native runs it after successful metadata validation for view, loop or cel
+selection and catches carry from X+width; CoCo's original byte-add behavior
+and instruction stream remain unchanged. The horizon adjustment is performed
+when the height forces a Y adjustment, preserving CoCo's rule. This does not
+replace the separate motion/position bounds checks.
+
+`check_cel_clipping.py` directly executes the production routines at two load
+addresses, with 5,920 cases across all coordinate/horizon/flag bytes and legal
+cel dimensions. It verifies right-add overflow policy, clip-bit preservation,
+unrelated object fields, private state, code and stack/register guards. All
+14 CoCo main-loop modules remain byte-identical. Native adds 57 code bytes and
+no additional private storage. The visibility scratch now aliases the dead
+sprite insertion key during rendering, restoring the preceding private size
+(22,379 code; 24,570 private). Fresh movement and
+two-terminal MAME acceptance passed with this build; artifacts are
+`/tmp/sierra-shared-cel-clipping-movement` and
+`/tmp/sierra-shared-cel-clipping-terminals` before scratch reuse. The final
+layout also passed both checks, with artifacts at
+`/tmp/sierra-shared-cel-clipping-scratch-movement` and
+`/tmp/sierra-shared-cel-clipping-scratch-terminals`.

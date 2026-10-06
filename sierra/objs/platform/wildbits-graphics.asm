@@ -919,11 +919,14 @@ spritecolor         rmb      1
 spritetransparent   rmb      1
 spritemirror        rmb      1
 spritepriority      rmb      1
-spriteinvisible     rmb      1
 spriteid            rmb      1
 spriteorder         rmb      1
 spritecount         rmb      1
 spritekey           rmb      2
+* Collection finishes before any cel draw. The insertion key is dead while
+* rendering, which reads only spritelist; reuse its first byte for visibility.
+* This storage is private to the process and neither phase runs in an intercept.
+spriteinvisible     equ      spritekey
 spritelist          rmb      256
 spriterow           rmb      160
 

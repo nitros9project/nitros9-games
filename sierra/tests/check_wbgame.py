@@ -45,16 +45,21 @@ def main():
             # A small view makes transparency, clipping, mirroring, depth and
             # erase behavior observable independently of game scripts.
             normal_rows = [[1, 1, None, 2], [3, 4, 4, 4], [5, None, None, None]]
-            for mirrored, xpos, ypos, priority, erase, transparent_only, other_object in [
-                    (False, 20, 30, 15, False, False, False),
-                    (True, 159, 1, 15, False, False, False),
-                    (False, 20, 30, 3, False, False, False),
-                    (False, 20, 30, 15, True, False, False),
-                    (False, 20, 30, 15, False, True, False),
-                    (False, 20, 30, 3, False, False, True)]:
+            for mirrored, xpos, ypos, priority, erase, transparent_only, other_object, reselect in [
+                    (False, 20, 30, 15, False, False, False, False),
+                    (True, 159, 1, 15, False, False, False, False),
+                    (False, 20, 30, 3, False, False, False, False),
+                    (False, 20, 30, 15, True, False, False, False),
+                    (False, 20, 30, 15, False, True, False, False),
+                    (False, 20, 30, 3, False, False, True, False),
+                    (False, 159, 1, 15, False, False, False, True),
+                    (False, 159, 1, 15, False, False, False, 'loop')]:
                 rows = [[None]*4 for _ in range(3)] if transparent_only else normal_rows
                 script = bytes([3,0,1,24,0,25,0,33,0,41,0,0,
-                    37,0,xpos,ypos,54,0,priority,35,0] +
+                    37,0,xpos,ypos] +
+                    ([63,48] if reselect else []) +
+                    ([43 if reselect == 'loop' else 47,0,0] if reselect else []) +
+                    [54,0,priority,35,0] +
                     ([36,0] if erase else []) +
                     ([33,1,41,1,0,37,1,40,30,54,1,15,35,1] if other_object else []) + [26,134,1,0])
                 logic = len(script).to_bytes(2, 'little') + script
@@ -75,6 +80,9 @@ def main():
                     database=0x1000, window=0x8000, blocks=None, multiple=True,
                     firstblock=0x10, frame_capture=True, capture=True)
                 assert not error, (error, mirrored, xpos, ypos, priority, erase)
+                if reselect:
+                    assert state['vmobjects'][3:5] == bytes((156,49)), state['vmobjects'][:43]
+                    xpos, ypos = 156, 49
                 assert state['vmflags'][1] == int(priority < 4 or transparent_only), 'ego hidden flag did not match cel pixel visibility'
                 expected_frame = bytearray([1]) * 76800
                 expected_frame[8*320:176*320] = bytes([16]) * (168*320)

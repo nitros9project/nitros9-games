@@ -9430,31 +9430,8 @@ SetCelData          stb       $0E,u     ; store cel index in object
                     OBJECT_VIEW_TABLE_ENTRY 1
                     ldd       ,x        ; cel dimensions (width, height)
                     std       <$1C,u    ; store in object dimension fields
-                    adda      $03,u     ; add X position to check clip
-                    cmpa      #$A0      ; would exceed right edge?
-                    bls       SetCelWidthClip ; branch if fits
-                    lda       <$25,u    ; load object flags
-                    ora       #$04      ; set clip flag
-                    sta       <$25,u    ; store updated flags
-                    lda       #$A0      ; screen right edge
-                    suba      <$1C,u    ; compute clipped X position
-                    sta       $03,u     ; store clipped X
-SetCelWidthClip     decb                ; height - 1 (bottom row offset)
-                    cmpb      $04,u     ; would exceed bottom?
-                    bls       SetCelRet ; branch if fits
-                    lda       <$25,u    ; load object flags
-                    ora       #$04      ; set clip flag
-                    sta       <$25,u    ; store updated flags
-                    stb       $04,u     ; store clipped height
-                    cmpb      >$01D6    ; compare to global height limit
-                    bhi       SetCelRet ; branch if over limit
-                    lda       <$26,u    ; load more object flags
-                    bita      #$08      ; check height-locked flag
-                    bne       SetCelRet ; branch if locked
-                    ldb       >$01D6    ; global max height
-                    incb                ; +1 for inclusive
-                    stb       $04,u     ; store height-bounded value
-SetCelRet           leas      $01,s     ; release local frame
+SetCelClip          OBJECT_CEL_CLIP u,SetCelWidthClip,SetCelRet,SetCelRightClip
+                    leas      $01,s     ; release local frame
                     rts
                     OBJECT_EMIT_VIEW_QUERIES
 cmd_discard_view    ldb       ,y+       ; fetch view number

@@ -479,3 +479,19 @@ free-memory checks. Artifacts are
 `/tmp/sierra-shared-sprite-visibility-terminals`. These emulator checks
 complement the synthetic pixel/flag fixtures; they do not establish complete
 adventure or physical hardware compatibility.
+
+### Selected-cel clipping acceptance — 2026-10-06
+
+The 22,379-byte native game (24,571 private bytes) shares CoCo's selected-cel
+position adjustment and catches right-edge addition carry. Both acceptance
+commands passed again: movement remains nine AGI pixels over 200 frames,
+with startup/inventory/modal/interrupt cleanup and two-terminal restoration,
+independent exit, relaunch and memory checks passing. Artifacts are
+`/tmp/sierra-shared-cel-clipping-movement` and
+`/tmp/sierra-shared-cel-clipping-terminals`.
+
+The final scratch-reuse layout retains 22,379 code bytes and returns private
+size to 24,570 bytes. Both acceptance commands passed with that exact build
+as well; artifacts are `/tmp/sierra-shared-cel-clipping-scratch-movement` and
+`/tmp/sierra-shared-cel-clipping-scratch-terminals`. Collection's temporary
+sort key is reused only after the ordered list has been completed.

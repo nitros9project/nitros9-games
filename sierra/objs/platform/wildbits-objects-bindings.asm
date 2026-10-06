@@ -456,3 +456,9 @@ SPRITE_VIS_PUBLISH_HIDDEN macro
 SPRITE_VIS_PUBLISH_VISIBLE macro
                     clr       vmflags+1,x
                     endm
+
+* Selected-cel clipping uses the owner object register and horizon storage.
+CEL_CLIP_CHECK_CARRY equ 1
+CEL_CLIP_HORIZON macro
+                    \1       <vmhorizon
+                    endm

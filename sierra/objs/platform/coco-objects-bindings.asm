@@ -416,3 +416,9 @@ SPRITE_VIS_PUBLISH_VISIBLE macro
                     anda      #$BF
                     sta       StateFlag
                     endm
+
+* Selected-cel clipping uses the owner object register and horizon storage.
+CEL_CLIP_CHECK_CARRY equ 0
+CEL_CLIP_HORIZON macro
+                    \1       >$01D6
+                    endm
