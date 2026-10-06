@@ -357,6 +357,22 @@ gamekeypending      rmb      1
 * ===== wildbits-game-motion-code =====
 * Native object stepping. Coordinates are checked against picture controls
 * before being committed; view selection remains in its own component.
+* Force redraw never advances object motion or cel countdowns.
+GameForceUpdate     lbsr      ObjectAddress
+                    lbcs      ObjectReturn
+                    lbsr      AssetUnmap
+                    lbcs      ObjectReturn
+                    lbsr      PictureUnmap
+                    lbcs      ObjectReturn
+                    ldu       <resourcebase
+                    tst       gamebackgroundowned,u
+                    beq       GameForceCompose
+                    lbsr      GameRestoreBackground
+                    lbcs      ObjectReturn
+GameForceCompose    lbsr      GameComposeScene
+                    lbcs      ObjectReturn
+                    lbra      PresentPicture
+
 GameUpdateObjects   lbsr      AssetUnmap
                     lbcs      MotionReturn
                     lbsr      PictureUnmap
@@ -986,9 +1002,9 @@ ObjectCommand       ldb       <vmopcode
                     cmpb      #33
                     beq       ObjectAnimate
                     cmpb      #37
-                    beq       ObjectPosition
+                    lbeq      ObjectPosition
                     cmpb      #38
-                    beq       ObjectPositionVariables
+                    lbeq      ObjectPositionVariables
                     cmpb      #39
                     lbeq      ObjectGetPosition
                     cmpb      #45
@@ -1003,6 +1019,10 @@ ObjectCommand       ldb       <vmopcode
                     lbeq      ObjectReleasePriority
                     cmpb      #57
                     lbeq      ObjectGetPriority
+                    cmpb      #58
+                    lbeq      ObjectStopUpdate
+                    cmpb      #59
+                    lbeq      ObjectStartUpdate
                     cmpb      #86
                     lbeq      ObjectDirection
                     cmpb      #87
@@ -1028,6 +1048,14 @@ ObjectPositionVariables OBJECT_POSITION x,1,1
 ObjectGetPosition   OBJECT_GET_POSITION x,y
                     clrb
                     rts
+* Stopped objects stay visible; the shared scheduler skips O_UPDATE=0.
+ObjectStopUpdate    lda       $26,x
+                    anda      #$EF
+                    bra       ObjectUpdateStore
+ObjectStartUpdate   lda       $26,x
+                    ora       #$10
+ObjectUpdateStore   sta       $26,x
+                    lbra      ObjectDone
 ObjectFixLoop       lbra      CmdFixLoop
 ObjectReleaseLoop   lbra      CmdReleaseLoop
 ObjectArgumentValue leay      vmvariables,u

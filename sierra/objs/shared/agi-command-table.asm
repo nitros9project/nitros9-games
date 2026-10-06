@@ -60,9 +60,9 @@
                     AGI_COMMAND cmd_set_priority_v,$240,ObjectCommand,0 *set priority v
                     AGI_COMMAND cmd_release_priority,$100,ObjectCommand,0 *release priority
                     AGI_COMMAND cmd_get_priority,$240,ObjectCommand,0 *get priority
-                    AGI_COMMAND CmdStopUpdate,$100,VmPlatformUnsupported,0 *stop update
-                    AGI_COMMAND CmdStartUpdate,$100,VmPlatformUnsupported,0 *start update
-                    AGI_COMMAND CmdForceUpdate,$100,VmPlatformUnsupported,0 *force update
+                    AGI_COMMAND CmdStopUpdate,$100,ObjectCommand,0 *stop update
+                    AGI_COMMAND CmdStartUpdate,$100,ObjectCommand,0 *start update
+                    AGI_COMMAND CmdForceUpdate,$100,GameForceUpdate,1 *force update
                     AGI_COMMAND cmd_ignore_horizon,$100,ObjectFlagCommand,0 *ignore horizon
                     AGI_COMMAND cmd_observe_horizon,$100,ObjectFlagCommand,0 *observe horizon
                     AGI_COMMAND cmd_set_horizon,$100,ObjectFlagCommand,0 *set horizon

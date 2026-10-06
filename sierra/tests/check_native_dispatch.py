@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # Independent behavioral contract for game-only and shared probe commands.
 # Unsupported opcodes must retain the explicit error handler.
 GAME = {
-    'GameCloseWindow': (169,), 'GameAddToPicture': (122,123), 'GameCancelLine': (138,),
+    'GameForceUpdate': (60,), 'GameCloseWindow': (169,), 'GameAddToPicture': (122,123), 'GameCancelLine': (138,),
     'GameMenuInput': (161,), 'GameReposition': (40,147,148),
     'GameRandomCommand': (130,), 'GameMathCommand': tuple(range(165,169)),
     'InventoryStatus': (124,), 'InventoryCommand': tuple(range(92,98)),
@@ -32,7 +32,7 @@ COMMON = {
     'ObjectDistanceCommand': (69,), 'ObjectCycleCommand': tuple(range(70,81))+(85,),
     'VmProgramControl': (131,), 'VmSetPlayerControl': (132,),
     'ViewCommand': tuple(range(41,45))+tuple(range(47,54)),
-    'ObjectCommand': (33,34,37,38,39,45,46,54,55,56,57,86,87),
+    'ObjectCommand': (33,34,37,38,39,45,46,54,55,56,57,58,59,86,87),
     'ReplayInitialize': (142,), 'ReplaySaveCheckpoint': (171,), 'ReplayRestore': (172,),
     'VmCommandLoadView': (30,), 'VmCommandLoadViewVariable': (31,),
     'VmCommandDiscardView': (32,), 'VmCommandDiscardViewVariable': (153,),

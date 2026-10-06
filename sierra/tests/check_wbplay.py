@@ -55,6 +55,24 @@ def main():
             view=bytes([0,0,1,0,0,7,0,1,3,0,1,1,15,0x11,0])
             setup=bytes([3,0,1,24,0,25,0,33,0,41,0,0,37,0,20,60,35,0,
                          33,1,41,1,0,37,1,10,60,35,1,83,1,2,255,26])
+            # stop.update freezes motion/cels but retains the drawn sprite;
+            # start.update resumes on the next cycle. force.update only redraws.
+            for command in (58,59,60):
+                initialization=bytes([3,0,1,24,0,25,0,33,1,41,1,0,
+                                      37,1,20,60,35,1,26,3,200,3,86,1,200,58,1,command,1])
+                body=bytes([255,7,11,255])+len(initialization).to_bytes(2,'little')+initialization
+                body+=bytes([1,250,255,1,250,3,255,2,0,134,1,0])
+                error,frame,state=run(fixture(body,b'\xff',view),frame_capture=True)
+                actor=state['vmobjects'][43:86]
+                assert not error and bool(actor[0x26]&16)==(command==59),(command,error,actor.hex())
+                assert actor[3]==(22 if command==59 else 20),(command,actor.hex())
+                assert 1 in frame,'stopped sprite disappeared'
+                if command==58: frozen_frame=frame;frozen_actor=actor
+                elif command==60:
+                    assert frame==frozen_frame and actor==frozen_actor,'force.update advanced the object or changed its pixels'
+            for command in (58,59,60):
+                error,_,_=run(fixture(bytes([command,64,0])))
+                assert error==187,('invalid update object accepted',command,error)
             script=bytes([255,7,11,255])+len(setup).to_bytes(2,'little')+setup
             script+=bytes([1,250,255,7,255,255,2,0,134,1,255,1,250,30,255,2,0,134,1,0])
             error,_,s=run(fixture(script,b'\xff',view))
@@ -137,7 +155,7 @@ def main():
             for malformed in (b'%m1',b'%v256',b'%w0',b'%w20',b'%x1',b'%v220|3'):
                 error,_,_=run(fixture(bytes([101,1,134,1,0]),message=malformed))
                 assert error, ('malformed format accepted',malformed)
-            print('PASS: byte math, zero-divisor rejection, random range edges, follow completion/high flag, signed/absolute placement and blocked-position search, pause/resume clock freezing, modal restoration, formatted variables/strings/words/nested messages and rejection bounds, and ownership cleanup')
+            print('PASS: byte math, zero-divisor rejection, random range edges, follow completion/high flag, signed/absolute placement and blocked-position search, stop/start/force update and retained sprites, pause/resume clock freezing, modal restoration, formatted variables/strings/words/nested messages and rejection bounds, and ownership cleanup')
         finally:
             d.s.close()
             emu.terminate()

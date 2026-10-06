@@ -490,3 +490,31 @@ Quest IV and Space Quest 0 match CoCo's reference pixels. KQ4 picture 5
 (10,288 decoded bytes) also passes every-pixel/two-terminal MAME checks at
 `/tmp/sierra-stream-large-picture-terminals`; this synthetic interpreter
 scenario does not establish full KQ4 adventure playability.
+
+### Object update control — 2026-10-06
+
+The actual Larry intro reached the street-loading logic but stopped on opcode
+58 (`stop.update`). Native object commands now implement `stop.update` (58)
+and `start.update` (59) by clearing or setting bit `$10` in the existing
+43-byte object record. The shared motion scheduler already tests that bit,
+so stopping freezes motion and cel progression. The renderer deliberately
+continues to collect the visible object: stopping must not erase it.
+
+`force.update` (60) restores the immutable picture background, composes the
+current object records and presents the result. It never calls the motion or
+animation scheduler. Asset and picture mappings are released before drawing;
+normal error propagation and process cleanup remain in charge of failures.
+All three commands reject an out-of-range object index. Stop/start also work
+in the bytecode probe; force requires the game presentation owner.
+
+These commands extend the existing object component and command catalog,
+without new platform files or private storage. CPU tests check frozen/resumed
+motion, retained sprite pixels, an identical force-redraw frame and object
+record, invalid indices, and all 1,024 dispatch destinations. All 56 CoCo
+binaries rebuild byte-identically. The game is 23,152 code / 24,570 private
+bytes, within the 23,808-byte code budget.
+
+The MAME harness now has a `--larry` scenario for the original age quiz,
+walking outside Lefty's, the exact `look` response, dialog dismissal and
+interrupt/free-memory cleanup. This checks an opening gameplay sequence;
+it does not establish completion of Larry or support for save/restore/audio.

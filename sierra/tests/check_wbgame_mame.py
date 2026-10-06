@@ -14,6 +14,7 @@ def main():
     ap.add_argument('--menu',action='store_true',help='Open and cancel the actual game menu')
     ap.add_argument('--sustained',action='store_true',help='Repeat commands and select Pause through the real game menu')
     ap.add_argument('--movement',action='store_true',help='Measure KQ1 movement over 200 emulated frames')
+    ap.add_argument('--larry',action='store_true',help='Exercise Larry age quiz, street walking and look response')
     a=ap.parse_args(); out=a.output.resolve(); out.mkdir(parents=True,exist_ok=False)
     disk=out/'test.dsk'; shutil.copyfile(a.disk,disk)
     roms=out/'roms/wbjr2'; roms.mkdir(parents=True)
@@ -34,8 +35,8 @@ def main():
     install('feu.startup',b'bootos9 /s0/OS9Boot\n','FEU/startup',text=True)
     with disk.open('ab') as f:f.truncate(1 << (disk.stat().st_size-1).bit_length())
     response_frame=4000+max(700,120*len(a.typed_command or ""))
-    if sum(bool(v) for v in (a.menu,a.typed_command,a.sustained,a.movement))>1:
-        ap.error("choose menu, typed-command, sustained or movement")
+    if sum(bool(v) for v in (a.menu,a.typed_command,a.sustained,a.movement,a.larry))>1:
+        ap.error("choose menu, typed-command, sustained, movement or larry")
     if a.menu: response_frame=4700
     delay=response_frame+1000-3900 if a.typed_command or a.menu else 0
     command_events=''
@@ -125,15 +126,65 @@ sub=emu.add_machine_frame_notifier(function()
  if frames=={5100+delay} then shot("game-closed");manager.machine:exit() end
 end)
 """)
-    command=[str(a.mame.resolve()),'wbjr2','-bios','turbo','-rompath',str(roms.parent),'-hard',str(disk),'-skip_gameinfo', '-noui_mouse', '-mouseprovider', 'none','-video','none','-sound','none','-nothrottle','-autoboot_script',str(lua),'-seconds_to_run',str((5100+delay)//60+10 if a.typed_command or a.menu or a.sustained or a.movement else 100),'-nvram_directory',str(out/'nvram'),'-cfg_directory',str(out/'cfg')]
+    if a.larry:
+        # Keep quiz events independent of the KQ1 inventory and exit schedule.
+        source=lua.read_text()
+        begin=source.index(' if frames==3100 then');end=source.index(' if frames==3900 then',begin)
+        events=' if frames==3100 then post(" ") end\n if frames==3800 then shot("larry-question") end\n'
+        for index,answer in enumerate('bbdbd a  '):
+            events+=f' if frames=={4000+index*800} then post({json.dumps(answer)}) end\n'
+        events+=' if frames==11200 then shot("larry-before");keys["Right"]:set_value(1) end\n'
+        events+=' if frames==11600 then keys["Right"]:clear_value();shot("larry-after") end\n'
+        events+=' if frames==12000 then post("look\\r") end\n'
+        events+=' if frames==13500 then shot("larry-look") end\n'
+        events+=' if frames==13600 then post("\\r") end\n'
+        for frame in (14000,14400,14800):
+            events+=f' if frames=={frame} then post("\\r") end\n'
+        events+=' if frames==15400 then shot("larry-restored") end\n'
+        delay=12300
+        source=source[:begin]+'LARRY_EVENTS'+source[end:]
+        for frame in (3900,3910,3920,3930,4500,4600,4800,5100):
+            source=source.replace('frames=='+str(frame)+' then','frames=='+str(frame+delay)+' then')
+        # Allow complete natural-keyboard strings to drain before posting again.
+        source=source.replace('frames=='+str(4800+delay)+' then','frames=='+str(4800+delay+700)+' then')
+        source=source.replace('frames=='+str(5100+delay)+' then','frames=='+str(5100+delay+1200)+' then')
+        lua.write_text(source.replace('LARRY_EVENTS',events))
+    command=[str(a.mame.resolve()),'wbjr2','-bios','turbo','-rompath',str(roms.parent),'-hard',str(disk),'-skip_gameinfo', '-noui_mouse', '-mouseprovider', 'none','-video','none','-sound','none','-nothrottle','-autoboot_script',str(lua),'-seconds_to_run',str((5100+delay+(1200 if a.larry else 0))//60+10 if a.typed_command or a.menu or a.sustained or a.movement or a.larry else 100),'-nvram_directory',str(out/'nvram'),'-cfg_directory',str(out/'cfg')]
     (out/'command.json').write_text(json.dumps(command,indent=2)+'\n')
-    with (out/'mame.log').open('w') as log:subprocess.run(command,cwd=out,stdout=log,stderr=subprocess.STDOUT,check=True,timeout=180)
+    with (out/'mame.log').open('w') as log:subprocess.run(command,cwd=out,stdout=log,stderr=subprocess.STDOUT,check=True,timeout=300 if a.larry else 180)
     exits=re.findall(r'wbgame error, opcode: ([0-9A-F]{2})', (out/'mame.log').read_text())
     assert all(code == 'E4' for code in exits), f'unexpected game exit {exits}; inspect opcode trace'
     assert 'WBGAME-DONE' in os9('list',f'{disk},wbgame-done').decode(),'game did not return to shell'
     before=os9('list',f'{disk},free-before');after=os9('list',f'{disk},free-after')
     (out/'free-before.txt').write_bytes(before);(out/'free-after.txt').write_bytes(after)
     assert before==after,'real game leaked memory'
+    if a.larry:
+        font=(VIEWER/'wbfont').read_bytes()
+        def title(name,text):
+            w,h,pixels=png_rgb(out/(name+'.png'));assert (w,h)==(640,480)
+            for column,char in enumerate(text):
+                for y in range(8):
+                    for x in range(8):
+                        expected=bytes(3) if font[ord(char)*8+y] & (128>>x) else bytes([255])*3
+                        offset=((128+y*2)*w+32+column*16+x*2)*3
+                        assert pixels[offset:offset+3]==expected,(name,column,char,x,y)
+        title('larry-question','In some personal ads, TV stands for')
+        title('larry-look',"You are outside Lefty's bar. Isn't it")
+        centers=[]
+        for name in ('larry-before','larry-after','larry-restored'):
+            w,h,pixels=png_rgb(out/(name+'.png'))
+            assert (w,h)==(640,480)
+            assert len(set(pixels[i:i+3] for i in range(0,len(pixels),3)))>=12,(name,'street absent')
+            shirt=[(x,y) for y in range(280,335) for x in range(640)
+                   if pixels[(y*w+x)*3:(y*w+x)*3+3]==bytes([255])*3]
+            assert shirt,(name,'Larry absent')
+            centers.append(sum(x for x,y in shirt)/len(shirt))
+        assert centers[1]>centers[0]+8,('Larry did not walk right',centers)
+        result={'frames':400,'before_x':centers[0]/4,'after_x':centers[1]/4,
+                'delta_agi_pixels':(centers[1]-centers[0])/4}
+        (out/'movement.json').write_text(json.dumps(result,indent=2)+'\n')
+        print('PASS: original Larry age quiz, Lefty street, walking, exact look-message glyphs, modal dismissal, interrupt cleanup and unchanged free memory',result)
+        return
     images={name:png_rgb(out/(name+'.png')) for name in ('game-before-input','game-after-input','game-after-inventory','game-closed')}
     w,h,pixels=images['game-before-input'];assert (w,h)==(640,480)
     assert len(set(pixels[i:i+3] for i in range(0,len(pixels),3)))>=12,'game graphics did not appear'
