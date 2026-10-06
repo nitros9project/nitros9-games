@@ -648,3 +648,36 @@ presentation, and 59 ms for text. The frame gate and calendar clock take about
 between actual production entry points and include intervening OS work;
 they are not isolated instruction-only timings. The profile artifacts are
 `/tmp/sierra-larry-clock-profile-mapped/profile.log` and `phases.json`.
+
+### Bounded old-sprite restoration spans
+
+Old sprite rectangles are now copied one row span at a time instead of calling
+`AssetPointer` or `PicturePointer` for each pixel. A span is bounded by both
+the row's remaining width and the mapped page's remaining bytes. At an 8-KiB
+boundary the renderer reconstructs the next address through the OS mapping
+API. It never retains a foreign pointer across a kernel call. The source is
+staged privately before the destination is mapped, preserving the one-window
+rule and the immutable background.
+
+Source/destination mapping failures unwind the two-byte span count before
+returning the original error. Regression cases deliberately fail after the
+first two bytes of a row at offset 8190, on both copy directions. Exact-8K
+rectangles, larger fallback rectangles, clips, offscreen sprites, every castle
+pixel, static decorations and persistent dialogs also pass with complete
+cleanup. The change adds 48 code bytes and no private bytes; the engine is
+now 23,664 code / 24,576 private bytes.
+
+Larry's same 400-frame walking sample rises from 11.216 to 13.401 AGI pixels.
+The repeatable `check_wbgame_mame.py --larry --profile` option records current
+production entry points from its symbol map, validates the mapped module
+header/name, and logs bounded phase timestamps. It writes `profile.json` and
+`profile-events.json` alongside normal gameplay artifacts. The selected
+MAME turbo core's E-clock is 12.5875 MHz (50.35 MHz MC6809 input divided by
+four); the earlier nominal-12-MHz figures slightly overestimate milliseconds.
+
+The verified profile at `/tmp/sierra-larry-erase-profile-verified` contains
+32 samples: motion/input median falls from 1.651 million to 0.473 million CPU
+cycles (approximately 131 to 38 ms at that E-clock). Composition, presentation
+and text still dominate at about 140, 157 and 56 ms. Terminal-name validation
+accounts for only about 0.9 ms, so removing its two syscalls would not address
+the main remaining presentation cost.

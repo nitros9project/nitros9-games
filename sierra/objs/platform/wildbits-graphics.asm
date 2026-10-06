@@ -2228,27 +2228,48 @@ SpriteEraseStage    ldu       dirtyobject,x
 SpriteEraseRow      ldu       dirtyobject,x
                     lda       8,u
                     sta       dirtycolumns,x
+* Copy a row span without repeated per-pixel address reconstruction.
+* Limit each span to this mapping's remaining bytes, then reconstruct U.
 SpriteErasePixel    ldd       <pictureoutoffset
+                    anda      #$1F
+                    pshs      d
+                    ldd       #8192
+                    subd      ,s++
+                    pshs      d
+                    clra
+                    ldb       dirtycolumns,x
+                    cmpd      ,s
+                    bls       SpriteEraseSpanSize
+                    ldd       ,s
+SpriteEraseSpanSize leas      2,s
+                    pshs      d                   private count, never a foreign pointer
+                    ldd       <pictureoutoffset
                     tst       gamecopydirection,x
                     bne       SpriteEraseWrite
                     lbsr      AssetPointer
                     tst       <asseterror
-                    lbne      GameBackgroundAssetError
-                    ldb       ,u
-                    stb       ,y+
+                    bne       SpriteEraseAssetError
+                    ldb       1,s
+SpriteEraseReadCopy lda       ,u+
+                    sta       ,y+
+                    decb
+                    bne       SpriteEraseReadCopy
                     bra       SpriteErasePixelDone
-SpriteEraseWrite    ldb       ,y+
-                    pshs      b
-                    ldd       <pictureoutoffset
-                    lbsr      PicturePointer
-                    puls      b
+SpriteEraseWrite    lbsr      PicturePointer
                     tst       <decodeerror
-                    lbne      GameBackgroundDecodeError
-                    stb       ,u
-SpriteErasePixelDone ldd      <pictureoutoffset
-                    addd      #1
+                    bne       SpriteEraseDecodeError
+                    ldb       1,s
+SpriteEraseWriteCopy lda      ,y+
+                    sta       ,u+
+                    decb
+                    bne       SpriteEraseWriteCopy
+SpriteErasePixelDone ldb      dirtycolumns,x
+                    subb      1,s
+                    stb       dirtycolumns,x
+                    ldd       <pictureoutoffset
+                    addd      ,s++
                     std       <pictureoutoffset
-                    dec       dirtycolumns,x
+                    tst       dirtycolumns,x
                     bne       SpriteErasePixel
                     ldu       dirtyobject,x
                     clra
@@ -2262,6 +2283,10 @@ SpriteErasePixelDone ldd      <pictureoutoffset
                     bne       SpriteEraseRow
                     clrb
                     rts
+SpriteEraseAssetError leas    2,s
+                    lbra      GameBackgroundAssetError
+SpriteEraseDecodeError leas   2,s
+                    lbra      GameBackgroundDecodeError
                     use platform/sections.d
 PLATFORM_SECTION    set PLATFORM_WILDBITS_PRESENT_DAMAGE
                     use platform/wildbits-graphics.asm

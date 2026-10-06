@@ -3,6 +3,8 @@
 import argparse,json,re,shutil,subprocess
 from pathlib import Path
 from check_wbpic_mame import VIEWER,png_rgb
+from check_instances import symbols
+import statistics
 
 def main():
     ap=argparse.ArgumentParser(description=__doc__)
@@ -19,7 +21,9 @@ def main():
     ap.add_argument('--larry-pair',type=Path,help="Run Larry and this King's Quest I directory on two terminals")
     ap.add_argument('--expanded-krnp2',type=Path,help='Install an emulator-only expanded-memory Jr2 kernel in the private test image')
     ap.add_argument('--sol-driver',type=Path,help='Install a verified shared raster-clock driver in the private test image')
+    ap.add_argument('--profile',action='store_true',help='Profile production Larry phase boundaries during its movement window')
     a=ap.parse_args(); out=a.output.resolve(); out.mkdir(parents=True,exist_ok=False)
+    if a.profile and (not a.larry or a.module_file):ap.error('--profile requires --larry and the production module/map')
     disk=out/'test.dsk'; shutil.copyfile(a.disk,disk)
     roms=out/'roms/wbjr2'; roms.mkdir(parents=True)
     for name in ('booter','f0.dsk'):shutil.copyfile(a.firmware/name,roms/name)
@@ -232,9 +236,46 @@ end)
             source+=f' if frames=={frame+30} then keys["Ctrl"]:clear_value() end\n'
         source+=' if frames==24200 then manager.machine:exit() end\nend)\n'
         lua.write_text(source)
+    if a.profile:
+        syms=symbols(VIEWER/'wbgame.map');code=(VIEWER/'wbgame').read_bytes()
+        base=(8-(len(code)+8191)//8192)*8192
+        phases=('VmRunRoot','GameNextCycle','GameClockGate','GameUpdateObjects',
+                'GameComposeScene','PresentPicture','GameDrawText')
+        details=('CheckTerminal','terminalok','PresentReuseBitmap','PresentBandReady',
+                 'PresentReadRow','PresentConvertBatch','writespan','PresentFinishBands')
+        condition=f'w@{base:x} == 87cd && w@{base+2:x} == {len(code):x} && w@{base+syms["name"]:x} == 7762'
+        # wbjr2 turbo uses 2*25.175 MHz input; MC6809 divides by four.
+        events=[' if frames==11100 then','  print("PROFILE CLOCK 12587500")']
+        for label in phases+details:
+            action=f'printf "PROFILE {label} %d",totalcycles; g'
+            events.append(f'  cpu.debug:bpset({base+syms[label]},{json.dumps(condition)},{json.dumps(action)})')
+        events+=[' end',' if frames==11900 then','  cpu.debug:bpclear()',
+                 '  local log=manager.machine.debugger.consolelog',
+                 '  for index=1,#log do if log[index] then print(log[index]) end end',' end']
+        source=lua.read_text()
+        source='local cpu=manager.machine.devices[":maincpu"]\nmanager.machine.debugger.execution_state="run"\n'+source
+        source=source.replace(' frames=frames+1',' frames=frames+1\n'+'\n'.join(events),1)
+        lua.write_text(source)
     command=[str(a.mame.resolve()),'wbjr2','-bios','turbo','-rompath',str(roms.parent),'-hard',str(disk),'-skip_gameinfo', '-noui_mouse', '-mouseprovider', 'none','-video','none','-sound','none','-nothrottle','-autoboot_script',str(lua),'-seconds_to_run',str(420 if a.larry_pair else (5100+delay+(1200 if a.larry or a.larry_enter else 0))//60+10 if a.typed_command or a.menu or a.sustained or a.movement or a.larry or a.larry_enter else 100),'-nvram_directory',str(out/'nvram'),'-cfg_directory',str(out/'cfg')]
+    if a.profile:command+=['-debug','-debugger','none']
     (out/'command.json').write_text(json.dumps(command,indent=2)+'\n')
     with (out/'mame.log').open('w') as log:subprocess.run(command,cwd=out,stdout=log,stderr=subprocess.STDOUT,check=True,timeout=360 if a.larry_pair else 300 if a.larry or a.larry_enter else 180)
+    if a.profile:
+        log=(out/'mame.log').read_text()
+        rows=[(label,int(cycles)) for label,cycles in re.findall(r'PROFILE (\w+) (\d+)',log)]
+        clock=float(re.search(r'PROFILE CLOCK ([0-9.]+)',log)[1])
+        top=[row for row in rows if row[0] in phases]
+        report={'e_clock_hz':clock,'phases':{}}
+        for first,last in (('VmRunRoot','GameNextCycle'),('GameClockGate','GameUpdateObjects'),
+                           ('GameUpdateObjects','GameComposeScene'),('GameComposeScene','PresentPicture'),
+                           ('PresentPicture','GameDrawText'),('GameDrawText','VmRunRoot')):
+            costs=[end[1]-start[1] for start,end in zip(top,top[1:]) if (start[0],end[0])==(first,last)]
+            assert costs,('missing profile phase',first,last)
+            report['phases'][first+' -> '+last]={'samples':len(costs),'median_cycles':statistics.median(costs),
+                                                'median_ms':statistics.median(costs)*1000/clock}
+        (out/'profile.json').write_text(json.dumps(report,indent=2)+'\n')
+        (out/'profile-events.json').write_text(json.dumps(rows)+'\n')
+        print('PASS: bounded production phase profile; artifacts',out/'profile.json')
     exits=re.findall(r'wbgame error, opcode: ([0-9A-F]{2})', (out/'mame.log').read_text())
     assert all(code == 'E4' for code in exits), f'unexpected game exit {exits}; inspect opcode trace'
     assert 'WBGAME-DONE' in os9('list',f'{disk},wbgame-done').decode(),'game did not return to shell'
