@@ -239,7 +239,7 @@ AssetRelease        lbsr      AssetUnmap
                     clrb
 AssetReleaseDone    rts
 * D=logical offset -> ephemeral U; preserve D/X/Y. Error in asseterror.
-AssetPointer        pshs      d,x,y
+AssetPointer        pshs      d
                     std       <assetoffset
                     tst       <asseterror
                     bne       AssetPointerDone
@@ -249,10 +249,11 @@ AssetPointer        pshs      d,x,y
                     beq       AssetMap
                     cmpa      <assetpage
                     beq       AssetAddress
-AssetMap            pshs      a
+AssetMap            pshs      x,y
+                    pshs      a
                     lbsr      AssetUnmap
                     puls      a
-                    bcs       AssetPointerDone
+                    bcs       AssetMapDone
                     sta       <assetpage
                     lsra
                     lsra
@@ -268,13 +269,15 @@ AssetMap            pshs      a
                     bcs       AssetMapError
                     stu       <assetmapbase
                     inc       <assetmapped
+AssetMapDone        puls      x,y
+                    bcs       AssetPointerDone
 AssetAddress        ldd       <assetoffset
                     anda      #$1F
                     ldu       <assetmapbase
                     leau      d,u
-AssetPointerDone    puls      d,x,y,pc
+AssetPointerDone    puls      d,pc
 AssetMapError       lbsr      AssetSetError
-                    bra       AssetPointerDone
+                    bra       AssetMapDone
 AssetIntercept      cmpb      #S$Abort
                     blo       AssetSignalDone
                     cmpb      #S$Intrpt

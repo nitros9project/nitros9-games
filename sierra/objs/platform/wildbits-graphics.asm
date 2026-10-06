@@ -1172,7 +1172,7 @@ PictureReleaseRet   rts
 
 * D=logical offset. U=pointer for this access only. Preserves X,Y and D.
 * No pointer may be retained across another PicturePointer call.
-PicturePointer      pshs      d,x,y
+PicturePointer      pshs      d
                     std       <pictureoffset
                     tst       <decodeerror
                     bne       PicturePointerRet
@@ -1182,10 +1182,11 @@ PicturePointer      pshs      d,x,y
                     beq       PictureMap
                     cmpa      <picturepage
                     beq       PictureAddress
-PictureMap          pshs      a
+PictureMap          pshs      x,y
+                    pshs      a
                     lbsr      PictureUnmap
                     puls      a
-                    bcs       PicturePointerRet
+                    bcs       PictureMapDone
                     sta       <picturepage
                     lsra
                     lsra
@@ -1201,13 +1202,15 @@ PictureMap          pshs      a
                     bcs       PictureMapError
                     stu       <picturemapbase
                     inc       <picturemapped
+PictureMapDone      puls      x,y
+                    bcs       PicturePointerRet
 PictureAddress      ldd       <pictureoffset
                     anda      #$1F
                     ldu       <picturemapbase
                     leau      d,u
-PicturePointerRet   puls      d,x,y,pc
+PicturePointerRet   puls      d,pc
 PictureMapError     lbsr      PictureError
-                    bra       PicturePointerRet
+                    bra       PictureMapDone
 PictureClear        pshs      x
                     ldy       #0
 PictureClearPage    tfr       y,d

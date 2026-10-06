@@ -709,3 +709,24 @@ baseline 156. Their combined vertical coverage explains why nearly all
 eight-pixel bands are copied despite relatively narrow changed regions.
 This trace is diagnostic; it does not skip stationary objects or change
 composition order, transparency, or priority handling.
+
+### Cached-access register preservation
+
+`PicturePointer` and `AssetPointer` preserve D on every call and save X/Y
+only on the slower path that invokes mapping services. A cache hit leaves
+X/Y untouched without pushing and popping those four bytes. Both mapping
+success and failure restore X/Y before returning; the failure path retains
+the existing error and releases every owned mapping during exit.
+
+The native picture/view comparisons and exact-8K/split-row sprite tests
+pass, including failures while reading and writing restoration spans.
+Resource tests pass for relocated modules, exact 16KB input, 65535-byte
+LZW output, malformed input, and allocation/map/unmap/I/O failures. The
+long resource test requires a 900-second emulated-time allowance; its
+earlier 300-second run disconnected when that limit expired.
+
+Larry's real-game profile measures sprite composition at about 135 ms,
+and walking covers 14.3 pixels in the same 400-frame sample. Dialogs and
+free-memory restoration still pass. This remains slow overall: display
+copying takes about 157 ms and text about 56 ms per sampled cycle. The
+production module is 23,677 bytes with 24,576 bytes of private storage.

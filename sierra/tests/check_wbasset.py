@@ -16,7 +16,8 @@ def asset_fixture(data, length):
 
 def main():
     with tempfile.TemporaryDirectory(prefix='sierra-asset-') as temp:
-        d, emulator = start_cpu(idle_rom(Path(temp) / 'idle.rom'))
+        # The full 65535-byte KwKwK chain needs a larger simulated-time budget.
+        d, emulator = start_cpu(idle_rom(Path(temp) / 'idle.rom'), timeout=900)
         try:
             d.write(0xffdf, b'\0')
             d.write(0xff90, b'\x4c')
