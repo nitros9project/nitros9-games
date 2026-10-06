@@ -601,3 +601,64 @@ that correction, the shell cleanup command could inherit an unfinished line.
 The walking measurement excludes the utility pole's white pixels and measures
 the character's suit. These are opening gameplay checks; save/restore, audio,
 full adventure completion and simultaneous real-game runs remain separate.
+
+### Two original games and expanded-memory test image — 2026-10-06
+
+The 512-KiB Jr2 kernel leaves only 56 KiB free with Larry running. Launching
+original KQ1 on a second terminal reaches the driver's error 32 (`E$MFull`);
+Larry remains usable and both failed-launch and final cleanup recover memory.
+This is a capacity limit, not successful simultaneous gameplay. Artifacts:
+`/tmp/sierra-real-games-pair`.
+
+The current MAME core (`078e0eeb7ea1c7eb3b4445329f109586f1fdd29c`) implements
+the upper SRAM windows. The current OS source
+(`c45760abeb03c39197ca8e569d5afb621bef8cc7`) contains the expanded block map,
+but enables it only for K2. A private emulator-only Jr2 kernel overlay enables
+that existing map: RAM blocks `$00-$3F`, `$A0-$BF` and `$D0-$EF` (1 MiB total),
+with all intervening flash/I/O/undecoded gaps still marked unavailable. Neither
+the application nor the user's OS checkout is modified for this experiment.
+It does not establish that an older physical Jr2 core has those windows.
+
+The original Larry/KQ1 two-terminal scenario passes with this overlay. KQ1
+opens inventory on its terminal, both game scenes restore after switching,
+Larry survives KQ1's independent exit, and the Larry-only and final memory
+maps restore exactly. Before/after both games: 848 KiB free. Before/after
+KQ1 while Larry remains alive: 568 KiB free. The repeatable scenario is
+`check_wbgame_mame.py --larry-pair ../kingsquest1`; the stock 512-KiB image
+cannot pass it. The final 23,162-byte production engine passes through the repeatable overlay
+path at `/tmp/sierra-real-pair-final`; earlier artifacts are
+`/tmp/sierra-real-pair-production`.
+
+`--expanded-krnp2 /path/to/krnp2` replaces only that module inside the harness's
+private disk copy. It validates the module name/size, retains the bootfile's
+leading FF alignment to 256 bytes, and enforces the recipe's 32,256-byte limit.
+The tested replacement is 3,290 bytes, SHA256
+`98acf809d94d357cfe1bd8d02383b3dcea03aed7cc2ba6908fc180f810b03549`.
+
+To reproduce the kernel overlay from the OS source revision above, copy
+`level2/modules/kernel/krnp2.asm` to a temporary file. Change **only** its two
+`IFNE k2` gates for the block-map extension and `NotRAMTbl` to
+`IFNE k2+SIERRA_RAMWINDOWS`. Assemble the temporary source with:
+
+```sh
+lwasm.orig --6809 --format=os9 --no-warn=ifp1 \
+  --pragma=pcaspcr,nosymbolcase,condundefzero,undefextern,dollarnotlocal,noforwardrefmax \
+  -I"$NITROS9DIR/defs" -I"$NITROS9DIR/level2/wildbits" \
+  -I"$NITROS9DIR/level2/modules/kernel" -I"$NITROS9DIR/level1/modules/kernel" \
+  -Dwildbits=1 -Djr2=1 -DSIERRA_RAMWINDOWS=1 \
+  -DNOS9VER=0 -DNOS9MAJ=0 -DNOS9MIN=0 \
+  -o /tmp/sierra-expanded-krnp2 /tmp/sierra-expanded-krnp2.asm
+
+python3 ../tests/check_wbgame_mame.py \
+  --mame /tmp/sierra-wildbits-mame-current/mamed \
+  --disk "$NITROS9DIR/recipes/wildbits/l2/l2_wildbitsjr2.dsk" \
+  --firmware "$NITROS9DIR/recipes/wildbits/feu" \
+  --game ../leisuresuitlarry --larry-pair ../kingsquest1 \
+  --expanded-krnp2 /tmp/sierra-expanded-krnp2 \
+  --output /tmp/sierra-real-pair-repeat
+```
+
+The application remains on the public allocation, mapping and terminal APIs.
+The guide's signal-driven pacing approach is described in
+[section 12.2](https://github.com/jfed6000/f256_porting#122-keeping-time-when-a-pass-can-overrun-the-sol-clock);
+its required SOL signal delivery is not implemented in this test OS revision.

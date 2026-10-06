@@ -520,3 +520,38 @@ interrupt/free-memory cleanup. `--larry-enter` also verifies opening the door,
 entering the bar and its interior description. Both pass with the production
 binary on real Wild Bits drivers. These check opening gameplay sequences;
 it does not establish completion of Larry or support for save/restore/audio.
+
+### Cel row preparation — 2026-10-06
+
+The native renderer clears only the validated cel width in `spriterow`,
+instead of all 160 staging bytes for every row. Plotting, mirroring and
+cache copies already stop at that width. Short RLE rows still start with
+transparent pixels; data beyond the cel width is never read. The renderer
+also computes `160 * Y` once per valid row and adds the column for each
+pixel, instead of multiplying again for every opaque pixel.
+
+The row offset reuses `dirtyobject`: background erasure finishes before
+cel rendering begins, and its cursor is inactive throughout that draw.
+It stores an integer offset, never a mapped pointer. Intercepts do not use
+this scratch word. Private storage remains 24,570 bytes and the game is
+23,162 code bytes. No platform files or runtime platform dispatch were added.
+
+Both changes pass every castle pixel, transparent/mirrored/clipped/occluded
+sprites, large-cel erasure fallback, static-picture drawing and persistent
+dialog restoration checks. In the same Larry MAME 400-frame window, measured
+movement changes from about nine to ten AGI pixels after narrowing the clear;
+hoisting the row multiplication gives the same ten-pixel result. This is a
+small measured sample, not a claim that movement performance is solved.
+
+The 50 native check programs pass across the split regression run and stable
+gameplay rerun (`/tmp/sierra-update-native-check-summary.json`). The final
+row-address change is additionally checked in isolation by the pixel, sprite
+erasure, static-picture and persistent-window tests; the production binary
+is byte-identical to that tested prototype. All 56 CoCo binaries were verified
+unchanged for the object-command work, and these subsequent edits affect
+only the native rendering component.
+
+The porting guide's signal-driven clock addresses frame overruns, but the
+current test OS's `SOL_IRQSvc` lacks the process-signal delivery that it needs.
+A clock change must first verify the driver and multi-process ownership;
+the application does not read hardware timers or kernel globals to compensate.

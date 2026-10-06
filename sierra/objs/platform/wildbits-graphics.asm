@@ -846,7 +846,8 @@ SpriteNotMirrored   clra
                     sty       spritecachepointer,x
 SpriteReadRow       ldx       <resourcebase
                     leay      spriterow,x
-                    ldb       #160
+* Plotting and mirroring read only the validated cel width.
+                    ldb       spritewidth,x
                     lda       #$FF
 SpriteClearRow      sta       ,y+
                     decb
@@ -920,6 +921,10 @@ SpritePlotReady     lbsr      AssetUnmap
                     ldd       spriterowy,x
                     cmpd      #168
                     lbhs      SpriteNextRow
+                    ldb       spriterowy+1,x
+                    lda       #160
+                    mul
+                    std       spriterowoffset,x
                     clr       spritecolumn,x
 SpritePlotNext      ldu       spriteobject,x
                     ldb       3,u
@@ -942,9 +947,7 @@ SpriteSourceColumn  leay      spriterow,x
                     lbeq      SpriteNextColumn
                     sta       spritecolor,x
                     pshs      b
-                    ldb       spriterowy+1,x
-                    lda       #160
-                    mul
+                    ldd       spriterowoffset,x
                     addb      ,s+
                     adca      #0
                     lbsr      PicturePointer
@@ -1084,6 +1087,9 @@ gamebackgroundowned rmb      1
 gamebackgroundclean rmb      1
 gamecopydirection   rmb      1
 dirtyobject         rmb      2
+* Erasure finishes before rendering; keep the current row offset in its
+* inactive cursor word, without retaining any mapped pointer.
+spriterowoffset     equ      dirtyobject
 dirtyrows           rmb      1
 dirtycolumns        rmb      1
 spriteobject        rmb      2

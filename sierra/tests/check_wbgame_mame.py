@@ -16,6 +16,8 @@ def main():
     ap.add_argument('--movement',action='store_true',help='Measure KQ1 movement over 200 emulated frames')
     ap.add_argument('--larry',action='store_true',help='Exercise Larry age quiz, street walking and look response')
     ap.add_argument('--larry-enter',action='store_true',help="Exercise Larry quiz and entering Lefty's")
+    ap.add_argument('--larry-pair',type=Path,help="Run Larry and this King's Quest I directory on two terminals")
+    ap.add_argument('--expanded-krnp2',type=Path,help='Install an emulator-only expanded-memory Jr2 kernel in the private test image')
     a=ap.parse_args(); out=a.output.resolve(); out.mkdir(parents=True,exist_ok=False)
     disk=out/'test.dsk'; shutil.copyfile(a.disk,disk)
     roms=out/'roms/wbjr2'; roms.mkdir(parents=True)
@@ -28,16 +30,49 @@ def main():
     for source in a.game.iterdir():
         if source.is_file() and (source.name.startswith('vol.') or source.name in ('logDir','picDir','viewDir','sndDir','words.tok','object')):
             install(source.name,source.read_bytes(),'game/'+source.name)
+    if a.larry_pair:
+        os9('makdir',f'{disk},castle')
+        for source in a.larry_pair.iterdir():
+            if source.is_file() and (source.name.startswith('vol.') or source.name in ('logDir','picDir','viewDir','sndDir','words.tok','object')):
+                install('castle-'+source.name,source.read_bytes(),'castle/'+source.name)
     install('wbgame',(a.module_file or (VIEWER/'wbgame')).read_bytes(),'CMDS/wbgame')
     os9('attr',f'{disk},CMDS/wbgame','-e','-pe')
     install('wbfont',(VIEWER/'wbfont').read_bytes(),'CMDS/wbfont')
     os9('attr',f'{disk},CMDS/wbfont','-e','-pe')
-    install('startup',b'load utilpak1\nlink shell\nload wbgame\nload grfdrv256\n',text=True)
+    install('startup',b'load utilpak1\n'+(b'load vt\n' if a.larry_pair else b'')+b'link shell\nload wbgame\nload grfdrv256\n',text=True)
     install('feu.startup',b'bootos9 /s0/OS9Boot\n','FEU/startup',text=True)
+    if a.expanded_krnp2:
+        # The recipe prepends FF padding so the bootfile ends at $FE00.
+        # Replace only the requested kernel and retain that alignment/limit.
+        original=out/'OS9Boot-original';os9('copy',f'{disk},OS9Boot',original)
+        boot=original.read_bytes();first=boot.index(b'\x87\xcd')
+        assert boot[:first]==b'\xff'*first,'unexpected bootfile prefix'
+        boot=boot[first:];cursor=0;replaced=False
+        replacement=a.expanded_krnp2.read_bytes()
+        assert replacement[:2]==b'\x87\xcd' and int.from_bytes(replacement[2:4],'big')==len(replacement),'invalid replacement module'
+        def module_name(data):
+            offset=int.from_bytes(data[4:6],'big');name=''
+            for value in data[offset:]:
+                name+=chr(value&127)
+                if value&128:return name.lower()
+            raise AssertionError('unterminated module name')
+        assert module_name(replacement)=='krnp2','replacement must be krnp2'
+        while cursor<len(boot):
+            assert boot[cursor:cursor+2]==b'\x87\xcd','invalid boot module'
+            size=int.from_bytes(boot[cursor+2:cursor+4],'big')
+            assert size>=12 and cursor+size<=len(boot),'invalid boot module size'
+            if module_name(boot[cursor:cursor+size])=='krnp2':
+                boot=boot[:cursor]+replacement+boot[cursor+size:];replaced=True;break
+            cursor+=size
+        assert replaced,'krnp2 not found'
+        boot=b'\xff'*((-len(boot))%256)+boot
+        assert len(boot)<=32256,'expanded bootfile exceeds the recipe limit'
+        install('OS9Boot-expanded',boot,'OS9Boot')
+
     with disk.open('ab') as f:f.truncate(1 << (disk.stat().st_size-1).bit_length())
     response_frame=4000+max(700,120*len(a.typed_command or ""))
-    if sum(bool(v) for v in (a.menu,a.typed_command,a.sustained,a.movement,a.larry,a.larry_enter))>1:
-        ap.error("choose menu, typed-command, sustained, movement, larry or larry-enter")
+    if sum(bool(v) for v in (a.menu,a.typed_command,a.sustained,a.movement,a.larry,a.larry_enter,a.larry_pair))>1:
+        ap.error("choose menu, typed-command, sustained, movement, larry larry-enter or larry-pair")
     if a.menu: response_frame=4700
     delay=response_frame+1000-3900 if a.typed_command or a.menu else 0
     command_events=''
@@ -169,15 +204,66 @@ end)
         source=source.replace('frames=='+str(4800+delay)+' then','frames=='+str(4800+delay+700)+' then')
         source=source.replace('frames=='+str(5100+delay)+' then','frames=='+str(5100+delay+1200)+' then')
         lua.write_text(source.replace('LARRY_EVENTS',events))
-    command=[str(a.mame.resolve()),'wbjr2','-bios','turbo','-rompath',str(roms.parent),'-hard',str(disk),'-skip_gameinfo', '-noui_mouse', '-mouseprovider', 'none','-video','none','-sound','none','-nothrottle','-autoboot_script',str(lua),'-seconds_to_run',str((5100+delay+(1200 if a.larry or a.larry_enter else 0))//60+10 if a.typed_command or a.menu or a.sustained or a.movement or a.larry or a.larry_enter else 100),'-nvram_directory',str(out/'nvram'),'-cfg_directory',str(out/'cfg')]
+    if a.larry_pair:
+        commands={600:'iniz /vt1\r',720:'shell i=/vt1&\r',800:'mfree >/s0/free-before\r',
+                  1000:'wbgame /s0/game 0\r',1800:' \r',3100:' ',
+                  11800:'mfree >/s0/free-larry\r',12600:'wbgame /s0/castle 0\r',13500:' \r',
+                  17300:'\r',19000:'\r',19600:'mfree >/s0/free-larry-after\r',21900:'\r',
+                  22500:'mfree >/s0/free-after\r',23400:'echo WBGAME-DONE >/s0/wbgame-done\r'}
+        for index,answer in enumerate('bbdbd a  '):commands[4000+index*800]=answer
+        shots={3800:'larry-question',11000:'larry-first',15100:'castle-first',15800:'larry-restored',
+               17200:'castle-inventory',18000:'castle-restored',21000:'larry-survives',24200:'both-closed'}
+        switches={11200:'Right',15300:'Left',16000:'Right',20400:'Left'}
+        source=lua.read_text();source=source[:source.index('sub=emu.add_machine_frame_notifier')]
+        source+='sub=emu.add_machine_frame_notifier(function()\n frames=frames+1\n'
+        for frame,command in sorted(commands.items()):
+            source+=f' if frames=={frame} then post({json.dumps(command)}) end\n'
+        for frame,name in sorted(shots.items()):
+            source+=f' if frames=={frame} then shot({json.dumps(name)}) end\n'
+        for frame,direction in switches.items():
+            source+=f' if frames=={frame} then keys["Alt"]:set_value(1);keys["{direction}"]:set_value(1) end\n'
+            source+=f' if frames=={frame+5} then keys["{direction}"]:clear_value();keys["Alt"]:clear_value() end\n'
+        for frame,key in ((16600,'i'),(18300,'c'),(21200,'c')):
+            source+=f' if frames=={frame} then keys["Ctrl"]:set_value(1) end\n'
+            source+=f' if frames=={frame+10} then {key}:set_value(1) end\n'
+            source+=f' if frames=={frame+20} then {key}:clear_value() end\n'
+            source+=f' if frames=={frame+30} then keys["Ctrl"]:clear_value() end\n'
+        source+=' if frames==24200 then manager.machine:exit() end\nend)\n'
+        lua.write_text(source)
+    command=[str(a.mame.resolve()),'wbjr2','-bios','turbo','-rompath',str(roms.parent),'-hard',str(disk),'-skip_gameinfo', '-noui_mouse', '-mouseprovider', 'none','-video','none','-sound','none','-nothrottle','-autoboot_script',str(lua),'-seconds_to_run',str(420 if a.larry_pair else (5100+delay+(1200 if a.larry or a.larry_enter else 0))//60+10 if a.typed_command or a.menu or a.sustained or a.movement or a.larry or a.larry_enter else 100),'-nvram_directory',str(out/'nvram'),'-cfg_directory',str(out/'cfg')]
     (out/'command.json').write_text(json.dumps(command,indent=2)+'\n')
-    with (out/'mame.log').open('w') as log:subprocess.run(command,cwd=out,stdout=log,stderr=subprocess.STDOUT,check=True,timeout=300 if a.larry or a.larry_enter else 180)
+    with (out/'mame.log').open('w') as log:subprocess.run(command,cwd=out,stdout=log,stderr=subprocess.STDOUT,check=True,timeout=360 if a.larry_pair else 300 if a.larry or a.larry_enter else 180)
     exits=re.findall(r'wbgame error, opcode: ([0-9A-F]{2})', (out/'mame.log').read_text())
     assert all(code == 'E4' for code in exits), f'unexpected game exit {exits}; inspect opcode trace'
     assert 'WBGAME-DONE' in os9('list',f'{disk},wbgame-done').decode(),'game did not return to shell'
     before=os9('list',f'{disk},free-before');after=os9('list',f'{disk},free-after')
     (out/'free-before.txt').write_bytes(before);(out/'free-after.txt').write_bytes(after)
     assert before==after,'real game leaked memory'
+    if a.larry_pair:
+        live=os9('list',f'{disk},free-larry');remaining=os9('list',f'{disk},free-larry-after')
+        (out/'free-larry.txt').write_bytes(live);(out/'free-larry-after.txt').write_bytes(remaining)
+        assert live==remaining,'exiting KQ1 did not restore Larry-only memory map'
+        font=(VIEWER/'wbfont').read_bytes()
+        w,h,pixels=png_rgb(out/'castle-inventory.png');assert (w,h)==(640,480)
+        for col,char in enumerate('You are carrying:'):
+            for y in range(8):
+                for x in range(8):
+                    expected=bytes(3) if font[ord(char)*8+y] & (128>>x) else bytes([255])*3
+                    offset=((16+y*2)*w+32+col*16+x*2)*3
+                    assert pixels[offset:offset+3]==expected,'second game inventory font/input failed'
+        for name in ('castle-first','castle-restored'):
+            w,h,pixels=png_rgb(out/(name+'.png'));assert (w,h)==(640,480)
+            green=sum(1 for i in range(0,len(pixels),3) if pixels[i+1]>120 and pixels[i]<80 and pixels[i+2]<80)
+            assert green>10000,(name,'KQ1 castle absent')
+        background=None
+        for name in ('larry-first','larry-restored','larry-survives'):
+            w,h,pixels=png_rgb(out/(name+'.png'));assert (w,h)==(640,480)
+            assert len(set(pixels[i:i+3] for i in range(0,len(pixels),3)))>=12,(name,'Larry absent')
+            sample=b''.join(pixels[(y*w+350)*3:(y*w+500)*3] for y in range(200,255))
+            if background is None:background=sample
+            else:assert sample==background,(name,'Larry background changed across terminal switches')
+        print('PASS: simultaneous original Larry/KQ1 games, terminal restoration, independent inventory input, Larry survives KQ1 exit, Larry-only and final free-memory maps restored')
+        return
     if a.larry or a.larry_enter:
         font=(VIEWER/'wbfont').read_bytes()
         def title(name,text):
