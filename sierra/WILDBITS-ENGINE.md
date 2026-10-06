@@ -12,7 +12,7 @@ for retry. Sprite visibility now uses the same shared per-cel rule for both
 owners; native publishes AGI flag 1 only for ego. Selected-cel positioning is also shared, including right-edge and
 height/horizon adjustment. Native platform commands now use an immutable relative dispatch table
 from the shared AGI catalog. Both decoders also expand the shared LZW
-window-alignment/mask and dictionary-walk core. The game is 22,832 bytes;
+window-alignment/mask and dictionary-walk core. The game is 23,009 bytes;
 process data is 24,570 bytes (six bytes below its three-page limit).
 The per-cel visibility byte reuses the sort key after collection completes.
 
@@ -440,3 +440,27 @@ checks pass. The main game is 22,832 code / 24,570 private bytes.
 An isolated diagnostic build gets Larry past the earlier startup failures to
 its age-verification question. Persistent question windows and `close.window`
 are being verified separately; this is not a full-game acceptance claim.
+
+### Persistent print windows — 2026-10-06
+
+Flag 15 now makes an ordinary `print` return without waiting and is cleared
+once consumed, matching CoCo's print-only behavior. The displayed character
+and color planes remain active until `close.window` (169), another print, or
+`show.pic` closes them. Blocking print and line-input dialogs retain their
+existing behavior.
+
+The original 2,000-byte text/color plane is saved inside the process's owned
+framebuffer, past its 76,800 visible pixel bytes. Block nine has 5,120 unused
+bytes after offset 3,072; the backup needs 2,000. Frame clearing now stops at
+the last visible byte. The backup survives decompression and picture staging
+that reuse `resourcecommands`. A dialog state value distinguishes this held
+window from a blocking modal, without adding private storage or allocations.
+Closing releases the current asset/picture mapping before mapping that tail,
+restores the plane, and recomposes the scene. Failed map/unmap calls preserve
+an error for normal ownership cleanup.
+
+Tests verify continuation with no keyboard input, flag consumption, every
+restored character/color byte and pixel, LZW workspace reuse, full redraw,
+nested blocking print, repeated close, and errors during both saving and
+restoring. Existing gameplay/modal tests and all 1,024 dispatch destinations
+pass. The game is 23,009 code / 24,570 private bytes.

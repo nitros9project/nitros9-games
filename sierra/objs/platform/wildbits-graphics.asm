@@ -486,7 +486,9 @@ GamePictureAssetError ldb      <asseterror
 GamePictureInvalid  ldb       #E$BMode
                     orcc      #1
                     rts
-GameShowPicture     lbsr      AssetUnmap
+GameShowPicture     lbsr      GameCloseWindow
+                    lbcs      GamePictureReturn
+                    lbsr      AssetUnmap
                     lbcs      GamePictureReturn
                     tst       <pictureowned
                     beq       GamePictureInvalid
@@ -1614,6 +1616,13 @@ clearblock          lbsr      foreground
                     lbsr      mapblock
                     lbcs      PresentFailure
                     ldx       #BlockBytes
+                    ifne      GAME_PRESENTATION
+                    lda       <blockindex
+                    cmpa      #9
+                    bne       ClearVisibleBlock
+                    ldx       #3072             retain owned persistent-dialog backup
+ClearVisibleBlock   equ       *
+                    endc
                     lda       #1        opaque black,not transparent index zero
 clearbyte           sta       ,u+
                     leax      -1,x

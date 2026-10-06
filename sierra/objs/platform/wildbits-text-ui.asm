@@ -33,6 +33,9 @@ GamePrintMessage    lbsr      ReadLogicMessage
                     lbcs      GameTextReturn
 GamePrintText       ldu       <resourcebase
                     stx       textpointer,u
+                    lbsr      GameCloseWindow
+                    lbcs      GameTextReturn
+                    ldu       <resourcebase
                     leax      textcharacters,u
                     leay      resourcecommands,u
                     ldd       #1000
@@ -69,6 +72,22 @@ GamePrintClear      lda       #32
                     ldx       textpointer,u
                     lbsr      GameTextValidate
                     bcs       GamePrintRestore
+                    ldu       <resourcebase
+                    tst       dialoginputmode,u
+                    bne       GamePrintWait
+                    tst       vmflags+15,u
+                    beq       GamePrintWait
+                    lbsr      GameHoldDialog
+                    bcs       GamePrintRestore
+                    ldu       <resourcebase
+                    clr       vmflags+15,u
+                    lda       #2
+                    sta       dialogactive,u
+                    puls      d
+                    sta       <vmtextforeground
+                    stb       <vmtextbackground
+                    clrb
+                    rts
 GamePrintWait       lbsr      foreground
                     bcs       GamePrintRestore
                     lda       #0
@@ -184,6 +203,55 @@ DictionaryReadFailure cmpb   #E$EOF
                     else
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_GAME_TEXT_CODE
 * ===== wildbits-game-text-code =====
+* A persistent window saves the character/color plane in unused bytes of
+* its owned framebuffer: block nine, offset 3072 (past the 76800 pixels).
+* No additional allocation or private state; ordinary frame clears retain it.
+GameHoldDialog      lda       #9
+                    sta       <blockindex
+                    lbsr      mapblock
+                    bcs       GameWindowReturn
+                    leay      3072,u
+                    ldx       <resourcebase
+                    leax      resourcecommands,x
+                    ldu       #1000
+GameWindowSave      ldd       ,x++
+                    std       ,y++
+                    leau      -1,u
+                    cmpu      #0
+                    bne       GameWindowSave
+                    lbra      unmap
+GameCloseWindow     ldu       <resourcebase
+                    lda       dialogactive,u
+                    cmpa      #2
+                    bne       GameWindowClosed
+GameWindowCloseReady equ      *
+                    lbsr      AssetUnmap
+                    bcs       GameWindowReturn
+                    lbsr      PictureUnmap
+                    bcs       GameWindowReturn
+                    lda       #9
+                    sta       <blockindex
+                    lbsr      mapblock
+                    bcs       GameWindowReturn
+                    leax      3072,u
+                    ldy       <resourcebase
+                    leay      textcharacters,y
+                    ldu       #1000
+GameWindowRestore   ldd       ,x++
+                    std       ,y++
+                    leau      -1,u
+                    cmpu      #0
+                    bne       GameWindowRestore
+                    lbsr      unmap
+                    bcs       GameWindowReturn
+                    ldu       <resourcebase
+                    clr       dialogactive,u
+                    lbsr      GameComposeScene
+                    bcs       GameWindowReturn
+                    lbra      RefreshPicture
+GameWindowClosed    clrb
+GameWindowReturn    rts
+
 GameTextInitialize  ldu       <resourcebase
                     leax      textcharacters,u
                     ldy       #1000

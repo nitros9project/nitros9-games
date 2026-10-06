@@ -550,3 +550,14 @@ All 56 CoCo modules also rebuild byte-identically to their pre-portability
 baseline. Separate CPU fixtures verify every combined color/priority pixel
 for static-picture drawing, restoration after animated-object erasure, input
 cancellation, invalid arguments, replay overflow and ownership cleanup.
+
+### Persistent-window build acceptance — 2026-10-06
+
+The 23,009-byte game (24,570 private bytes) passes KQ1 startup, inventory,
+modal restoration, movement and interrupt cleanup at
+`/tmp/sierra-window-kq1-movement`. Two-terminal restoration, independent exit,
+relaunch, every displayed reference pixel and free-memory checks also pass at
+`/tmp/sierra-window-terminals`. Movement remains nine pixels per 200 frames.
+CPU tests additionally exercise held-window restoration and save/restore
+mapping failures; this MAME scenario does not itself keep a question window
+open during terminal switching.
