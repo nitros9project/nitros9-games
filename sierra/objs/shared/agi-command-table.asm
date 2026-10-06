@@ -124,8 +124,8 @@
                     AGI_COMMAND cmd_prevent_input,$0000,ScreenCommand,0 *prevent input
                     AGI_COMMAND cmd_accept_input,$0000,ScreenCommand,0 *accept inpur
                     AGI_COMMAND CmdSetKey,$300,SetKeyCommand,0 *set key
-                    AGI_COMMAND cmd_add_to_pic,$700,VmPlatformUnsupported,0 *add to pic
-                    AGI_COMMAND cmd_add_to_pic_v,$7fe,VmPlatformUnsupported,0 *add to pic v
+                    AGI_COMMAND cmd_add_to_pic,$700,GameAddToPicture,1 *add to pic
+                    AGI_COMMAND cmd_add_to_pic_v,$7fe,GameAddToPicture,1 *add to pic v
                     AGI_COMMAND cmd_status,$0000,InventoryStatus,1 *status
                     AGI_COMMAND cmd_save_game,$0000,VmPlatformUnsupported,0 *save game
                     AGI_COMMAND cmd_restore_game,$0000,VmPlatformUnsupported,0 *restore game
@@ -140,7 +140,7 @@
                     AGI_COMMAND CmdShowMemInfo,$0000,VmPlatformUnsupported,0 *show mem
                     AGI_COMMAND CmdPauseImpl,$0000,GamePauseCommand,1 *pause
                     AGI_COMMAND cmd_echo_line,$0000,VmPlatformUnsupported,0 *echo line
-                    AGI_COMMAND cmd_cancel_line,$0000,VmPlatformUnsupported,0 *cancel line
+                    AGI_COMMAND cmd_cancel_line,$0000,GameCancelLine,1 *cancel line
                     AGI_COMMAND cmd_init_joy,$0000,VmPlatformUnsupported,0 *init joy
                     AGI_COMMAND cmd_toggle_monitor,$0000,VmPlatformUnsupported,0 *toggle monitor
                     AGI_COMMAND CmdShowAgiInfo,$0000,VmPlatformUnsupported,0 *version

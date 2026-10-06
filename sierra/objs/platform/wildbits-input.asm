@@ -99,6 +99,14 @@ vmkeybyte           rmb       1
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_LINE_INPUT_CODE
 * ===== wildbits-line-input-code =====
 * get.string/get.num use a modal bounded editor; pending game input is saved.
+* Cancel pending parser input; the ordinary cycle redraws its prompt row.
+GameCancelLine      ldu       <resourcebase
+                    clr       parserlength,u
+                    clr       parserline,u
+                    tst       <vminputenabled
+                    lbne      ParserInputVisible
+                    clrb
+                    rts
 GameGetInput        ldu       <resourcebase
                     lda       #1
                     sta       dialoginputmode,u

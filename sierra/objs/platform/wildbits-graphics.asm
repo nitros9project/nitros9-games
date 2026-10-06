@@ -493,6 +493,167 @@ GameShowPicture     lbsr      AssetUnmap
                     lbsr      PresentPicture
                     rts
 
+* Static cels become part of the saved picture, rather than animated objects.
+* The temporary 43-byte object record and resolved operands live on the stack.
+GameAddToPicture    leas      -50,s
+                    leax      ,s
+                    ldu       <resourcebase
+                    leay      vmarguments,u
+                    ldb       #7
+                    pshs      b
+AddPicArguments     ldb       ,y+
+                    lda       <vmopcode
+                    cmpa      #123
+                    bne       AddPicArgumentReady
+                    clra
+                    pshs      x
+                    leax      vmvariables,u
+                    ldb       d,x
+                    puls      x
+AddPicArgumentReady stb       ,x+
+                    dec       ,s
+                    bne       AddPicArguments
+                    leas      1,s
+                    lda       4,s
+                    cmpa      #168
+                    lbhs      AddPicInvalid
+                    lda       6,s
+                    cmpa      #15
+                    lbhi      AddPicInvalid
+                    ldd       #$0500
+                    lbsr      ReplayPush
+                    lbcs      AddPicReturn
+                    ldd       ,s
+                    lbsr      ReplayPush
+                    lbcs      AddPicReturn
+                    ldd       2,s
+                    lbsr      ReplayPush
+                    lbcs      AddPicReturn
+                    lda       6,s
+                    lsla
+                    lsla
+                    lsla
+                    lsla
+                    ora       5,s
+                    tfr       a,b
+                    lda       4,s
+                    lbsr      ReplayPush
+                    lbcs      AddPicReturn
+                    leax      7,s
+                    ldb       #43
+AddPicClearRecord   clr       ,x+
+                    decb
+                    bne       AddPicClearRecord
+                    leax      7,s
+                    lda       #$FF
+                    sta       2,x               decoration must not publish ego flags
+                    stx       <viewobject
+                    lda       ,s
+                    sta       5,x
+                    lda       1,s
+                    sta       $0A,x
+                    lda       2,s
+                    sta       $0E,x
+                    ldd       3,s
+                    std       3,x
+                    lda       #8                ignore horizon for static decoration
+                    sta       $26,x
+                    lbsr      ViewSelect
+                    lbcs      AddPicReturn
+                    leau      7,s
+                    lda       5,s
+                    cmpa      #15
+                    lbhi      AddPicInvalid
+                    sta       $24,u
+                    bne       AddPicPriorityReady
+                    lbsr      SpriteCalculatePriority
+AddPicPriorityReady ldx      <resourcebase
+                    tst       gamebackgroundowned,x
+                    beq       AddPicRender
+                    lbsr      GameRestoreBackground
+                    lbcs      AddPicReturn
+AddPicRender        leau      7,s
+                    lbsr      SpriteRenderObject
+                    lbcs      AddPicReturn
+                    lda       6,s
+                    cmpa      #3
+                    bhi       AddPicSaveBackground
+                    leau      7,s
+                    lbsr      AddPicControlBox
+                    lbcs      AddPicReturn
+AddPicSaveBackground lbsr    GameSaveBackground
+                    lbcs      AddPicReturn
+                    lbsr      GameComposeScene
+AddPicReturn        leas      50,s
+                    rts
+AddPicInvalid       ldb       #E$IllArg
+                    orcc      #1
+                    bra       AddPicReturn
+
+* U=clipped cel record, A=control priority. Stamp only the box perimeter,
+* up to the beginning of the baseline's default-priority band or cel top.
+AddPicControlBox    lsla
+                    lsla
+                    lsla
+                    lsla
+                    ora       #$0F
+                    ldb       <DrawColor
+                    pshs      b
+                    ldb       <DrawMask
+                    pshs      b
+                    sta       <DrawColor
+                    lda       #$F0
+                    sta       <DrawMask
+                    ldb       4,u
+                    cmpb      #48
+                    blo       AddPicBoxHeight
+                    subb      #48
+AddPicBoxBand       cmpb      #12
+                    blo       AddPicBoxHeight
+                    subb      #12
+                    bra       AddPicBoxBand
+AddPicBoxHeight     incb
+                    cmpb      $1D,u
+                    bls       AddPicBoxHeightReady
+                    ldb       $1D,u
+AddPicBoxHeightReady decb
+                    lda       4,u
+                    sta       <PosInitY
+                    pshs      b
+                    suba      ,s+
+                    sta       <PosFinalY
+                    pshs      a                retain top across line endpoint updates
+                    lda       3,u
+                    sta       <PosInitX
+                    adda      $1C,u
+                    deca
+                    sta       <PosFinalX
+                    lbsr      SbuffXLine
+                    lda       3,u
+                    sta       <PosInitX
+                    lda       ,s
+                    sta       <PosInitY
+                    lda       <PosFinalX
+                    lbsr      SbuffXLine
+                    lda       3,u
+                    sta       <PosInitX
+                    ldb       4,u
+                    stb       <PosFinalY
+                    lbsr      SbuffYLine
+                    lda       <PosFinalX
+                    sta       <PosInitX
+                    puls      a
+                    sta       <PosInitY
+                    ldb       4,u
+                    lbsr      SbuffYLine
+                    puls      d
+                    stb       <DrawColor
+                    sta       <DrawMask
+                    ldb       <decodeerror
+                    beq       AddPicBoxReturn
+                    orcc      #1
+AddPicBoxReturn     rts
+
                     else
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_GAME_PICTURE_DATA
 * ===== wildbits-game-picture-data =====

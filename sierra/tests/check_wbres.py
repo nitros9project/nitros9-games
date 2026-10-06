@@ -51,7 +51,7 @@ def start_cpu(bootrom, timeout=300):
     raise RuntimeError('XRoar debugger did not attach after four fresh starts')
 
 
-def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zero_read=False, seek_error=False, write_error=False, module='wbres', map_failure=0, allocation_error=False, unmap_error=False, window=0x8000, terminal=True, blocks=4, capture=False, multiple=False, firstblock=0x30, frame_capture=False, keyboard=b'', clock=(0,), bitmap_error=False, key_sense=0, cycle_limit=None, os_call_limit=20000, keyboard_by_cycle=None, option_set_error=False, resource_kind=None, module_root=None):
+def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zero_read=False, seek_error=False, write_error=False, module='wbres', map_failure=0, allocation_error=False, unmap_error=False, window=0x8000, terminal=True, blocks=4, capture=False, multiple=False, firstblock=0x30, frame_capture=False, keyboard=b'', clock=(0,), bitmap_error=False, key_sense=0, cycle_limit=None, os_call_limit=20000, keyboard_by_cycle=None, option_set_error=False, resource_kind=None, module_root=None, breakpoint_hooks=None):
     if module == 'wbgame':
         files = {'wbfont': (ROOT / 'wbfont').read_bytes(), **files}
     module_root = Path(module_root) if module_root is not None else ROOT
@@ -68,6 +68,8 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
         d.breakpoint(address)
     d.regs(pc=base + syms['start'], s=database + syms['size'] - 256,
            dp=database >> 8, u=database, x=argv, cc=0x50)
+    hooks = {base+syms[name]:callback for name,callback in (breakpoint_hooks or {}).items()}
+    for address in hooks: d.breakpoint(address)
     kind_entry = base + syms['LoadAsset'] if resource_kind is not None else None
     if kind_entry is not None:
         d.breakpoint(kind_entry)
@@ -95,6 +97,11 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
     for _ in range(os_call_limit):
         d.call('c')
         r = d.regs()
+        if r['pc'] in hooks:
+            callback=hooks.pop(r['pc'])
+            callback(d,r,syms)
+            d.breakpoint(r['pc'],False)
+            continue
         if r['pc'] == kind_entry:
             d.write(database + syms['resourcekind'], bytes([resource_kind]))
             d.breakpoint(kind_entry, False)
@@ -110,7 +117,7 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
             assert options==original_options, 'terminal options were not restored'
             assert not mapped and not owned, 'leaked picture allocation/mapping'
             assert d.read(base, len(code)) == code, 'native module modified its code/tables'
-            for address in calls:
+            for address in list(calls)+list(hooks)+([kind_entry] if kind_entry is not None else []):
                 d.breakpoint(address, False)
             if capture:
                 state={name: d.read(database + syms[name], length) for name, length in [('vmopcode', 1), ('vmip', 2), ('vmvariables', 256), ('vmflags', 256), ('vmgameid', 8), ('messagebuffer', 512), ('vmobjects', 2752), ('vmkeys',150), ('vmkeycount',1), ('menucount', 1), ('menuitems', 1), ('menuready', 1), ('menutext', 768), ('asseterror', 1), ('vmerror', 1), ('vmend', 2), ('resourcelength', 2), ('vmcurrent', 1)]}
@@ -186,9 +193,9 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
             assert not mapped and owned.get(r['x']) == r['u'], (r, owned)
             del owned[r['x']]
         elif service == syms['F$MapBlk']:
-            assert not mapped and r['b'] == 1 and any(first <= r['x'] < first + count for first, count in owned.items())
+            assert not mapped and r['b'] == 1 and any(first <= r['x'] < first + count for first, count in owned.items()), (mapped,r,owned)
             maps += 1
-            if maps == map_failure:
+            if (map_failure(d,r,syms) if callable(map_failure) else maps == map_failure):
                 updates.update(cc=r['cc'] | 1, b=syms['E$MemFul'])
             else:
                 d.write(0xFFA8 + window // 8192, bytes([r['x']]))
@@ -196,7 +203,7 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
                 updates['u'] = window
         elif service == syms['F$ClrBlk']:
             assert mapped and r['b'] == 1 and r['u'] == window
-            if unmap_error and not unmap_failed:
+            if (unmap_error(d,r,syms) if callable(unmap_error) else unmap_error) and not unmap_failed:
                 unmap_failed = True
                 updates.update(cc=r['cc'] | 1, b=syms['E$MemFul'])
             else:

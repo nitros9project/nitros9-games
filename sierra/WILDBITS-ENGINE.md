@@ -12,7 +12,7 @@ for retry. Sprite visibility now uses the same shared per-cel rule for both
 owners; native publishes AGI flag 1 only for ego. Selected-cel positioning is also shared, including right-edge and
 height/horizon adjustment. Native platform commands now use an immutable relative dispatch table
 from the shared AGI catalog. Both decoders also expand the shared LZW
-window-alignment/mask and dictionary-walk core. The game is 22,466 bytes;
+window-alignment/mask and dictionary-walk core. The game is 22,832 bytes;
 process data is 24,570 bytes (six bytes below its three-page limit).
 The per-cel visibility byte reuses the sort key after collection completes.
 
@@ -403,10 +403,40 @@ All 443 packed pictures in Gold Rush, King's Quest IV, Leisure Suit Larry and
 Space Quest 0 match both CoCo's actual `RenderPicStrip` and an independent host
 oracle. Tests also cover relocation, short I/O, malformed lengths/truncation,
 trailing bytes, wrong resource kinds and allocation/mapping/service failures.
-The game remains at 24,570 private bytes and is now 22,466 code bytes.
+That packed-picture build retained 24,570 private bytes and used 22,466 code bytes.
 
 King's Quest I MAME startup, inventory, restoration, movement and interrupt
 cleanup passed at `/tmp/sierra-packed-kq1-movement`. This does not establish
 playability of those other titles: Larry's startup separately reaches the
 unimplemented `add.to.pic` opcode 122 (`$7A`), as shown by the temporary trace
 build at `/tmp/sierra-packed-larry-trace`.
+
+### Static picture cels and input cancellation — 2026-10-06
+
+`add.to.pic` (122) and `add.to.pic.v` (123) now resolve seven operands into a
+stack-local 43-byte object record, select the cel through the existing resource
+interface, and paint it through the existing sprite renderer. They restore an
+existing background before painting, save the resulting static picture, then
+recompose animated objects. The initial picture needs no restoration until a
+saved background exists. The temporary object has a non-ego identifier so its
+visibility cannot overwrite flag 1. No animated object record is borrowed.
+
+Zero priority uses the baseline's default band. Control priorities 0–3 stamp
+only the rectangle perimeter, bounded by the cel height and the beginning of
+that band; larger legal control values omit the box. The shared clipping rules
+handle the right and top boundaries. Malformed priority/control values, offscreen
+baselines, invalid loop/cel selection and replay-log overflow return an error.
+The canonical view/loop/cel/position/priority tuple is recorded in the existing
+bounded replay log, including variable-resolved operands.
+
+`cancel.line` (138) clears pending parser input and redraws an enabled prompt
+row, preserving the previous submitted line and unrelated flags. Its redraw
+uses the existing parser routine. Tests execute 36 static draws and compare
+every visual and priority byte after another sprite is drawn and erased; 36
+cancellation calls check complete private-state, row, history, stack and code
+guards at two load addresses. All 1,024 command routes and KQ1 MAME acceptance
+checks pass. The main game is 22,832 code / 24,570 private bytes.
+
+An isolated diagnostic build gets Larry past the earlier startup failures to
+its age-verification question. Persistent question windows and `close.window`
+are being verified separately; this is not a full-game acceptance claim.

@@ -535,3 +535,18 @@ The separate Larry diagnostic run is not an acceptance pass: it stops at
 unsupported opcode `$7A` (`add.to.pic`) before entering gameplay. Its trace
 is at `/tmp/sierra-packed-larry-trace`. Actual CPU tests independently verify
 all 443 packed pictures against CoCo and the host nibble oracle.
+
+The complete 46-command regression suite passed with the packed-picture build,
+including all 443 packed resources, both LZW owners, and the existing gameplay,
+parser, resource-ownership and presentation checks. Log:
+`/tmp/sierra-packed-full-check.log`.
+
+### Static-picture commands acceptance — 2026-10-06
+
+The 22,832-byte game (24,570 private bytes) passes KQ1 startup, inventory,
+modal restoration, movement and interrupt cleanup at
+`/tmp/sierra-addpic-kq1-movement`. Movement remains nine pixels per 200 frames.
+All 56 CoCo modules also rebuild byte-identically to their pre-portability
+baseline. Separate CPU fixtures verify every combined color/priority pixel
+for static-picture drawing, restoration after animated-object erasure, input
+cancellation, invalid arguments, replay overflow and ownership cleanup.
