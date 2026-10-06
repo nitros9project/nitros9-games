@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Execute cancel.line with pending-input, prompt-row and state guards."""
+"""Execute cancel.line/echo.line with input bounds, prompt and state guards."""
 import argparse
 from pathlib import Path
 import subprocess

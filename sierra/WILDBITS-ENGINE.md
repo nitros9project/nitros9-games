@@ -551,10 +551,14 @@ is byte-identical to that tested prototype. All 56 CoCo binaries were verified
 unchanged for the object-command work, and these subsequent edits affect
 only the native rendering component.
 
-The porting guide's signal-driven clock addresses frame overruns, but the
-current test OS's `SOL_IRQSvc` lacks the process-signal delivery that it needs.
-A clock change must first verify the driver and multi-process ownership;
-the application does not read hardware timers or kernel globals to compensate.
+The porting guide's signal-driven clock addresses frame overruns. The current
+test OS's `SOL_IRQSvc` does call `F$Send`; the earlier claim that this delivery
+was absent was incorrect. Multi-process ownership still needs verification:
+the driver schedules one table entry per IRQ, permits repeated line numbers,
+and removes entries by line rather than caller PID. Before two games both
+register line zero, verify that each receives every frame and that one game
+exiting cannot remove the other's registration. The application does not
+read hardware timers or kernel globals to compensate.
 
 ### Previous-command input recall
 
@@ -573,3 +577,32 @@ prefixes and history lengths through 39 bytes. It checks the full private
 area, immutable code and stack guards. The dispatch check independently
 verifies the command is game-only; the bytecode probe retains its explicit
 unsupported-command response.
+
+### Shared raster-clock prerequisite
+
+The stock test driver delivers only one registration per raster interrupt.
+Two processes requesting line zero therefore split the frame ticks. A private
+MAME probe confirmed this: the paired three-second clients counted 62 and 61
+signals; with broadcast delivery they counted 124 and 122. These intervals
+start at an arbitrary calendar-second phase, so the raw counts are comparative,
+not exact elapsed-time rate measurements.
+
+The isolated NitrOS-9 branch `codex/wildbits-sol-frame-clock` fixes shared-line
+delivery and PID-scoped removal. It also fixes mute traversal, masks table
+changes against interrupts, handles empty-table operations, and retains
+`E$DevOvf` on a ninth registration. A six-second client continued receiving
+signals after a three-second peer unregistered: 349 versus 171 signals.
+The driver keeps its existing eight-entry interface and static layout.
+
+`tests/check_sol_driver.py --source PATH/TO/SOLdrv.asm` compiles and exercises
+that driver on the actual 6809 CPU. Optional `--mame`, `--disk`, `--firmware`
+and `--output` arguments install only that module into a private boot image
+and run `tests/probes/wbsol.asm`. The MAME check verifies concurrent tick
+counts, the surviving owner after peer exit, and identical free-memory maps.
+`UPDAT.` opens the clock non-exclusively; adding OS-9's `SHARE.` bit requests
+exclusive access and causes a second open to fail with `E$DevBsy`.
+
+This prerequisite is verified separately from the production engine. The game
+still uses its existing sleep-based pacing until the signal-driven gate, pause
+handling and exit cleanup are implemented and validated. A native game clock
+must use a signal distinct from background/foreground signals $81/$82.
