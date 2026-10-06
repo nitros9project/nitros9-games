@@ -249,6 +249,11 @@ end)
         for label in phases+details:
             action=f'printf "PROFILE {label} %d",totalcycles; g'
             events.append(f'  cpu.debug:bpset({base+syms[label]},{json.dumps(condition)},{json.dumps(action)})')
+        # Record the actual clipped footprint and update flags of every cel.
+        # The interpreter private base is U-independent here; spriteobject is
+        # passed directly in U at this entry before any resource mapping.
+        sprite_action='printf "SPRITE %d %d %d %d %d %d %d %d %d",totalcycles,b@(u+3),b@(u+4),b@(u+0x1c),b@(u+0x1d),b@(u+0x26),b@(u+5),b@(u+0xa),b@(u+0xe); g'
+        events.append(f'  cpu.debug:bpset({base+syms["SpriteRenderObject"]},{json.dumps(condition)},{json.dumps(sprite_action)})')
         events+=[' end',' if frames==11900 then','  cpu.debug:bpclear()',
                  '  local log=manager.machine.debugger.consolelog',
                  '  for index=1,#log do if log[index] then print(log[index]) end end',' end']
@@ -275,6 +280,11 @@ end)
                                                 'median_ms':statistics.median(costs)*1000/clock}
         (out/'profile.json').write_text(json.dumps(report,indent=2)+'\n')
         (out/'profile-events.json').write_text(json.dumps(rows)+'\n')
+        fields=('cycles','x','baseline','width','height','flags','view','loop','cel')
+        sprites=[dict(zip(fields,map(int,row))) for row in re.findall(
+            r'SPRITE (\d+) (\d+) (\d+) (\d+) (\d+) (\d+) (\d+) (\d+) (\d+)',log)]
+        assert sprites,'missing production sprite profile'
+        (out/'profile-sprites.json').write_text(json.dumps(sprites,indent=2)+'\n')
         print('PASS: bounded production phase profile; artifacts',out/'profile.json')
     exits=re.findall(r'wbgame error, opcode: ([0-9A-F]{2})', (out/'mame.log').read_text())
     assert all(code == 'E4' for code in exits), f'unexpected game exit {exits}; inspect opcode trace'

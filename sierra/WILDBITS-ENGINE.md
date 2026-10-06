@@ -699,3 +699,13 @@ for sprite composition, compared with 27.4 and 139.7 ms before this change.
 Walking distance remains 13.4 pixels in the 400-frame sample: this is a small
 CPU saving, not a demonstrated improvement in walking speed. Production
 code is 23,665 bytes; private storage remains 24,576 bytes.
+
+The MAME `--profile` run also records `profile-sprites.json`: each cel's
+position, size, draw/update flags, view, loop, and cel at the actual rendering
+entry. Larry's street sample contains five visible objects, including an
+8-by-68 animated cel at x=134 and baseline 67, two wider animated cels
+around baselines 83–84, a 15-by-40 cel at baseline 131, and Larry near
+baseline 156. Their combined vertical coverage explains why nearly all
+eight-pixel bands are copied despite relatively narrow changed regions.
+This trace is diagnostic; it does not skip stationary objects or change
+composition order, transparency, or priority handling.
