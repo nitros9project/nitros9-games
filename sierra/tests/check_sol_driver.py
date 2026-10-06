@@ -55,8 +55,17 @@ def check_cpu(tmp):
         d.write(0x5000+sy['PD.RGS'],b'\x30\x00')
         sent,r=run('GetSta',a=sy['SS.SOLIRQ'],y=0x5000)
         assert not sent and not r['cc']&1
-        assert d.read(0x3000+sy['R$X'],2)==b'\0\x03'
+        assert d.read(0x3000+sy['R$X'],2)==b'\0\x07'
+        assert d.read(0x3000+sy['R$Y'],2)==d.read(private+sy['V.SOLTicks'],2)
         count+=1
+        # Shared clients count one raster frame, including wrap and mute.
+        for ticks,line,muted in ((0,0,0),(65535,0,0),(123,100,0),(123,0,1)):
+            table([(1,1,line,muted),(2,1,line,muted)])
+            d.write(private+sy['V.SOLTicks'],ticks.to_bytes(2,'big'))
+            sent,_=run('SOL_IRQSvc')
+            assert d.read(private+sy['V.SOLTicks'],2)==((ticks+(line==0))&65535).to_bytes(2,'big')
+            assert sorted(sent)==([] if muted else [(1,1),(2,1)])
+            count+=1
         table([])
         shadow[sy['R$X']:sy['R$X']+2]=b'\0\0'
         shadow[sy['R$Y']:sy['R$Y']+2]=b'\0\x83'

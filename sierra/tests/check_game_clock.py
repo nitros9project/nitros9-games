@@ -38,7 +38,7 @@ def check_frame_gate(d, code, syms, listing, base=0xa000):
         d.write(private,data+b'GUARD')
     def byte(name):return d.read(private+syms[name],1)[0]
     def put(name,value):d.write(private+syms[name],bytes([value]))
-    def execute(entry,on_sleep=None,capabilities=3,open_error=0,register_error=0):
+    def execute(entry,on_sleep=None,capabilities=7,open_error=0,register_error=0,get_error=0):
         sleeps=[];statuses=[];paths=set()
         d.write(stack,finish.to_bytes(2,'big')+b'STACK')
         d.regs(pc=base+syms[entry],s=stack,u=private,x=0x1234,y=0x2345,dp=private>>8,cc=0x50)
@@ -58,7 +58,8 @@ def check_frame_gate(d, code, syms, listing, base=0xa000):
                 else:paths.add(7);updates['a']=7
             elif service==syms['I$GetStt']:
                 assert r['a']==7 and r['b']==syms['SS.SOLIRQ'] and r['x']==0
-                updates['x']=capabilities
+                updates.update(x=capabilities,y=byte('gameclockticks'))
+                if get_error:updates.update(b=get_error,cc=r['cc']|1)
             elif service==syms['I$SetStt']:
                 assert r['a']==7
                 statuses.append((r['b'],r['x'],r['y']))
@@ -98,17 +99,17 @@ def check_frame_gate(d, code, syms, listing, base=0xa000):
             assert sleeps==[0]*waits
             assert int.from_bytes(d.read(private+syms['gameclockcredit'],2),'big')==min(initial+5*waits-threshold,threshold)
         count+=1
-    for capabilities,error,registration in ((0,0,0),(1,0,0),(3,syms['E$PNNF'],0),
-                                              (3,0,syms['E$DevOvf']),(3,0,0)):
+    for capabilities,error,registration in ((0,0,0),(1,0,0),(3,0,0),(7,syms['E$PNNF'],0),
+                                              (7,0,syms['E$DevOvf']),(7,0,0)):
         state(gameclockpath=255)
         r,sleeps,statuses,paths=execute('GameClockOpen',capabilities=capabilities,
                                      open_error=error,register_error=registration)
         assert not r['cc']&1 and not r['b'] and not sleeps
-        active=capabilities==3 and not error and not registration
+        active=capabilities==7 and not error and not registration
         assert byte('gameclockpath')==(7 if active else 255)
         assert paths==({7} if active else set())
         if active:
-            assert statuses==[(syms['SS.SOLIRQ'],0,0x83)]
+            assert statuses==[(syms['SS.SOLIRQ'],0,syms['S$Wake'])]
             r,sleeps,statuses,paths=execute('GameClockClose')
             assert not r['cc']&1 and not r['b'] and byte('gameclockpath')==255
             assert statuses==[(syms['SS.SOLIRQ'],0,0)] and not paths
@@ -139,7 +140,12 @@ def check_frame_gate(d, code, syms, listing, base=0xa000):
     r,sleeps,_,_=execute('GameClockGate',on_sleep=abort)
     assert r['cc']&1 and r['b']==syms['E$PrcAbt'] and sleeps==[0]
     count+=1
-    # Execute the actual RTI path with an interrupted DP/U unrelated to game storage.
+    state(gameclockpath=7,**{'vmvariables':bytes(10)+b'\x01'})
+    r,sleeps,_,_=execute('GameClockGate',get_error=syms['E$BMode'] if 'E$BMode' in syms else 207)
+    assert r['cc']&1 and not sleeps
+    count+=1
+    # Unrelated user signals must not alter the public driver counter snapshot.
+    # Execute RTI with an interrupted DP/U unrelated to game storage.
     for ticks in (0,254,255):
         state(gameclockpath=7,gameclockticks=ticks)
         frame=b'\xd0\x11\x22\x33\x12\x34\x23\x45\x34\x56'+finish.to_bytes(2,'big')
@@ -147,7 +153,7 @@ def check_frame_gate(d, code, syms, listing, base=0xa000):
         d.regs(pc=base+syms['intercept'],s=stack,u=private,b=0x83,dp=0x44,cc=0x50)
         d.call('c');r=d.regs()
         assert r['pc']==finish and r['s']==stack+12 and r['u']==0x3456 and r['dp']==0x33
-        assert byte('gameclockticks')==(ticks+1)&255 and d.read(stack+12,5)==b'STACK'
+        assert byte('gameclockticks')==ticks and d.read(stack+12,5)==b'STACK'
         count+=1
     for address in calls:d.breakpoint(address,False)
     assert d.read(base,len(code))==code

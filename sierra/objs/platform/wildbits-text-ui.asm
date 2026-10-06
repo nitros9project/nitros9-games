@@ -436,90 +436,10 @@ GameTextDecodeError ldb       <decodeerror
 PLATFORM_SECTION    set PLATFORM_WILDBITS_RENDER_TEXT
                     use platform/wildbits-text-ui.asm
 * A bounded contiguous cell range; caller sets index/end/row/column.
-GameDrawTextRange   lbsr      AssetUnmap
-                    lbcs      GameTextReturn
-                    lbsr      PictureUnmap
-                    lbcs      GameTextReturn
-                    lbsr      foreground
-                    lbcs      GameTextReturn
-                    ldx       <resourcebase
-GameTextCell        ldd       textindex,x
-                    leay      textcharacters,x
-                    lda       d,y
-                    lbeq      GameTextNextCell
-                    anda      #$7F
-                    ldb       #8
-                    mul
-                    leay      gamefont,x
-                    leay      d,y
-                    sty       textfontpointer,x
-                    ldd       textindex,x
-                    leay      textcolors,x
-                    leay      d,y
-                    lda       ,y
-                    anda      #$0F
-                    inca
-                    sta       textbackground,x
-                    lda       ,y
-                    lsra
-                    lsra
-                    lsra
-                    lsra
-                    inca
-                    sta       textforeground,x
-                    clr       textglyphrow,x
-GameTextGlyphRow    ldy       textfontpointer,x
-                    lda       ,y+
-                    sty       textfontpointer,x
-                    sta       textbits,x
-                    clr       textglyphpixel,x
-GameTextGlyphPixel  lda       textbackground,x
-                    lsl       textbits,x
-                    bcc       GameTextPixelColor
-                    lda       textforeground,x
-GameTextPixelColor  sta       textcolor,x
-                    lda       textrow,x
-                    ldb       #8
-                    mul
-                    addb      textglyphrow,x
-                    lda       #160
-                    mul
-                    lslb
-                    rola
-                    pshs      d
-                    lda       textcolumn,x
-                    ldb       #8
-                    mul
-                    addb      textglyphpixel,x
-                    adca      #0
-                    addd      ,s++
-                    lbsr      GameFramePointer
-                    lbcs      GameTextReturn
-                    lda       textcolor,x
-                    sta       ,u
-                    inc       textglyphpixel,x
-                    lda       textglyphpixel,x
-                    cmpa      #8
-                    blo       GameTextGlyphPixel
-                    inc       textglyphrow,x
-                    lda       textglyphrow,x
-                    cmpa      #8
-                    blo       GameTextGlyphRow
-GameTextNextCell    ldd       textindex,x
-                    addd      #1
-                    std       textindex,x
-                    cmpd      textend,x
-                    bhs       GameTextDrawDone
-                    inc       textcolumn,x
-                    lda       textcolumn,x
-                    cmpa      #40
-                    lblo      GameTextCell
-                    clr       textcolumn,x
-                    inc       textrow,x
-                    lbra      GameTextCell
-GameTextDrawDone    tst       <mapped
-                    lbeq      GameCycleSuccess
-                    lbra      unmap
+GameDrawTextRange   ldx       <resourcebase
+                    ldd       textend,x
+                    std       textrenderend,x
+                    lbra      TextFastPrepare
 
 * D=framebuffer offset; return ephemeral U, preserve D/X/Y.
 GameFramePointer    pshs      d,x,y
@@ -588,13 +508,12 @@ textcolors          rmb      1000
 textpointer         rmb      2
 textindex           rmb      2
 textend             rmb      2
+textrenderend       rmb      2
 textfontpointer     rmb      2
 textrow             rmb      1
 textcolumn          rmb      1
 textglyphrow        rmb      1
-textglyphpixel      rmb      1
 textbits            rmb      1
-textcolor           rmb      1
 textforeground      rmb      1
 textbackground      rmb      1
 
@@ -1606,36 +1525,59 @@ dictionarygroups    equ       fillstack+2048
 * Render occupied text rows horizontally, avoiding a MapBlk round trip for
 * each character when its eight scanlines straddle a framebuffer page.
 * rowoutput is private, and index zero means leave that framebuffer pixel.
-GameDrawText        lbsr      AssetUnmap
+GameDrawText        ldx       <resourcebase
+                    ldd       #1000
+                    std       textrenderend,x
+                    clr       textrow,x
+                    clr       textcolumn,x
+TextFastPrepare     lbsr      AssetUnmap
                     lbcs      GameTextReturn
                     lbsr      PictureUnmap
                     lbcs      GameTextReturn
                     ldx       <resourcebase
-                    clr       textrow,x
 TextFastNextRow     lbsr      foreground
                     lbcs      GameTextReturn
                     ldx       <resourcebase
                     lda       textrow,x
                     ldb       #40
                     mul
+                    cmpd      textrenderend,x
+                    lbhs      TextFastDone
+                    std       textindex,x
+                    ldd       textrenderend,x
+                    subd      textindex,x
+                    cmpd      #40
+                    bls       TextFastRowLimit
+                    ldd       #40
+TextFastRowLimit    decb
+                    stb       textlastcolumn,x
+                    incb
+                    subb      textcolumn,x
+                    pshs      b
+                    ldd       textindex,x
                     leau      textcharacters,x
                     leau      d,u
-                    ldb       #40
+                    ldb       textcolumn,x
+                    leau      b,u
+                    puls      b
 TextFastFind        lda       ,u+
                     bne       TextFastOccupied
                     decb
                     bne       TextFastFind
                     lbra      TextFastAdvanceRow
 TextFastOccupied    negb
-                    addb      #40
+                    incb
+                    addb      textlastcolumn,x
                     stb       textfirstcolumn,x
 * Locate the final occupied cell. Render the bounded span, preserving holes.
                     lda       textrow,x
                     ldb       #40
                     mul
-                    leau      textcharacters+40,x
+                    leau      textcharacters,x
                     leau      d,u
-                    ldb       #39
+                    ldb       textlastcolumn,x
+                    leau      b,u
+                    leau      1,u
 TextFastFindLast    lda       ,-u
                     bne       TextFastLastFound
                     decb
@@ -1754,9 +1696,9 @@ TextFastSkip        leau      1,u
                     cmpa      #8
                     lblo      TextFastGlyphRow
 TextFastAdvanceRow  inc       textrow,x
-                    lda       textrow,x
-                    cmpa      #25
-                    lblo      TextFastNextRow
+                    clr       textcolumn,x
+                    lbra      TextFastNextRow
+TextFastDone        equ       *
                     tst       <mapped
                     lbeq      GameCycleSuccess
                     lbra      unmap

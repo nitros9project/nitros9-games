@@ -605,15 +605,23 @@ exclusive access and causes a second open to fail with `E$DevBsy`.
 The production engine now uses the shared raster service when its capability
 check succeeds. `I$GetStt SS.SOLIRQ`, with X initially zero, reports capability
 bits in X: bit zero means shared-line broadcast, bit one means PID-scoped
-removal. The game requires both bits. Legacy drivers leave X zero; the engine
+removal, and bit two means a public line-zero frame counter in Y. The current
+game requires all three bits. Legacy drivers leave X zero; the engine
 closes that optional path and keeps its existing sleep-based pacing.
 
-The signal intercept increments a private modulo-256 counter on $83, distinct
-from visibility signals $81/$82. The frame gate samples the counter rather
-than reading and clearing it, so an intervening signal is retained for the
-next sample. It converts variable 10's 50-ms delay to three raster ticks per
-unit, subtracts elapsed credit, and waits for signals only when more time is
-needed. A long frame therefore does not always add the entire delay afterward.
+The current gate registers `S$Wake` (1), rather than a user signal for every
+frame. It samples the low byte of the driver's public frame counter through
+`I$GetStt SS.SOLIRQ`. The driver advances that 16-bit counter once per line-zero
+IRQ, including muted owners; other raster lines do not advance it. Wake
+signals can be replaced by keyboard interrupts in NitrOS-9's single pending-
+signal slot. The earlier $83 intercept counter could block Ctrl-C: the kernel
+rejects another non-wake pending signal, and the keyboard driver does not retry
+that send. Real emulator traces showed frame signals arriving without Ctrl-C;
+the wake/counter implementation restores successful cleanup in one and two games.
+
+Variable 10's 50-ms delay remains three raster ticks per unit. The gate
+subtracts elapsed credit and waits for a wake only when more time is needed.
+A long frame therefore does not add the entire delay afterward.
 Credit is capped at one extra cycle to avoid an unbounded catch-up burst.
 Zero delay still yields. Terminal background handling mutes that process's
 clock entries; foreground return unmutes and discards paused credit. The
@@ -757,3 +765,51 @@ at 16.1 instead of 14.3 pixels over 400 frames. Two simultaneous Larry/KQ1
 games pass terminal switching, independent inventory input, survivor-after-
 peer-exit, and Larry-only/final memory restoration using the documented
 emulator-only expanded-memory kernel.
+
+### Per-band bounds, bounded text rendering, and safe clock wakeups
+
+Each dirty band now has its own rounded left/right bounds. A tall, narrow
+cel therefore no longer forces unrelated columns to be copied above or
+below wider cels. Both erased and newly painted footprints update those
+bounds; full redraws cover all 160 columns, and a successful presentation
+resets each pair to the empty range. Native presentation no longer reserves
+the unused 160-byte `rowinput` buffer. Its 42-byte bounds table replaces
+part of that storage, leaving private data below the previous allocation.
+
+Repeated direction input now matches CoCo's event processing: pressing the
+same direction again sets direction zero. The actual CPU check verifies
+Right, one movement step, Right, then no further movement. The real Larry
+harness uses this to stop him before checking dialog restoration. Without
+stopping, faster movement legitimately carried him into another room.
+
+Full-screen and bounded text updates use the same scanline renderer. A
+bounded update retains its initial column and exclusive ending cell; row
+scans and glyph writes stay inside those limits. Its saved limit replaces
+two fields used only by the removed pixel-at-a-time glyph routine. This
+reduces code duplication and speeds bounded editor/inventory painting.
+Complete pixel, persistent-dialog, parser, and 276 cancel/echo-line checks
+pass.
+
+The optional wake clock requires the public counter capability added by
+NitrOS-9 commit `edaa2283` on `codex/wildbits-sol-frame-clock`. It samples
+through the service API, never through kernel globals or direct hardware
+registers. Foreground/modal rebasing samples the current counter before
+discarding paused credit. Service errors propagate; older drivers use the
+existing sleep fallback. The counter has 37 actual driver cases, and the
+gate has 25 cases including unsupported capabilities, wrap, bounded credit,
+sample errors, abort, ownership cleanup, and unrelated RTI signals. All
+4,118 CoCo/native calendar-clock cases also pass.
+
+With all changes combined, the real Larry profile measures picture copying
+at about 54.9 ms, compared with 157 ms before horizontal bounds. Walking
+covers 20.5 pixels over the same 400 frames, compared with 16.1 using a
+single horizontal union. Sprite composition still takes about 134 ms and
+full text about 56 ms. Original messages, stop behavior, Ctrl-C, and final
+free memory pass. Simultaneous Larry/KQ1 games also pass terminal switching,
+independent input, peer exit, survivor operation, and final memory cleanup
+using the documented emulator-only expanded kernel.
+
+Production code is 23,679 of 23,808 bytes, and private storage is 24,459 of
+24,576 bytes. The existing 26 platform assembly files are retained. These
+measurements establish emulator behavior; physical Wild Bits performance
+and complete game completion remain separate acceptance work.

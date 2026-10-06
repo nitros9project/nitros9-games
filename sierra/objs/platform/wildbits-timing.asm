@@ -11,7 +11,8 @@ GAME_CLOCK_ADDRESS  macro
 
                     ifdef PLATFORM_WILDBITS_TIMING_CODE
 * The public raster service is optional. Require broadcast and PID-scoped
-* removal before registering; an old driver retains the sleep-based gate.
+* removal and a public frame counter before registering wake signals.
+* Older drivers retain the sleep-based gate without consuming user signals.
 GameClockOpen       leax      GameClockDevice,pcr
                     lda       #UPDAT.             SHARE. would request exclusive access
                     os9       I$Open
@@ -22,18 +23,19 @@ GameClockOpen       leax      GameClockDevice,pcr
                     os9       I$GetStt
                     bcs       GameClockOpenClose
                     tfr       x,d
-                    andb      #3
-                    cmpb      #3
+                    andb      #7
+                    cmpb      #7
                     bne       GameClockOpenClose
                     ldu       <resourcebase
-                    clr       gameclockticks,u
-                    clr       gameclockseen,u
+                    tfr       y,d
+                    stb       gameclockticks,u
+                    stb       gameclockseen,u
                     clr       gameclockcredit,u
                     clr       gameclockcredit+1,u
                     lda       ,s
                     ldb       #SS.SOLIRQ
                     ldx       #0
-                    ldy       #$83                distinct from background/foreground
+                    ldy       #S$Wake                distinct from background/foreground
                     os9       I$SetStt
                     bcs       GameClockOpenClose
                     puls      a
@@ -43,7 +45,7 @@ GameClockOpen       leax      GameClockDevice,pcr
                     rts
 GameClockOpenClose  puls      a
                     os9       I$Close
-                    bcs       GameClockReturn
+                    lbcs      GameClockReturn
 GameClockSuccess    clrb
                     rts
 GameClockDevice     fcc       |/fSOL|
@@ -57,18 +59,19 @@ GameClockClose      ldu       <resourcebase
                     ldx       #0
                     ldy       #0
                     os9       I$SetStt
-                    bcs       GameClockReturn
+                    lbcs      GameClockReturn
                     ldu       <resourcebase
                     lda       gameclockpath,u
                     os9       I$Close
-                    bcs       GameClockReturn
+                    lbcs      GameClockReturn
                     ldu       <resourcebase
                     lda       #$FF
                     sta       gameclockpath,u
                     clrb
 GameClockReturn     rts
 
-* A modulo-256 snapshot avoids read/clear races with the signal intercept.
+* Sample the public modulo-256 frame counter; wake signals occupy only the
+* replaceable wake slot, allowing keyboard abort/interrupt signals to win.
 * Preserve at most one extra cycle's credit; long frames do not add a full
 * delay afterward and long stalls do not create an unbounded catch-up burst.
 GameClockGate       ldu       <resourcebase
@@ -91,9 +94,11 @@ GameClockCollect    ldu       <resourcebase
                     tst       gameclockreset,u
                     beq       GameClockCollectDelta
                     lbsr      GameClockRebase
+                    bcs       GameClockGateReturn
                     lbsr      GameReadClock
                     bcs       GameClockGateReturn
-GameClockCollectDelta      lda       gameclockticks,u
+GameClockCollectDelta lbsr    GameClockSample
+                    bcs       GameClockGateReturn
                     tfr       a,b
                     subb      gameclockseen,u
                     sta       gameclockseen,u
@@ -118,7 +123,19 @@ GameClockGateReturn leas      2,s
 GameClockYield      ldx       #1
                     os9       F$Sleep
                     rts
-GameClockRebase     lda       gameclockticks,u
+GameClockSample     ldu       <resourcebase
+                    lda       gameclockpath,u
+                    ldb       #SS.SOLIRQ
+                    ldx       #0
+                    os9       I$GetStt
+                    lbcs      GameClockReturn
+                    ldu       <resourcebase
+                    tfr       y,d
+                    stb       gameclockticks,u
+                    tfr       b,a
+                    rts
+GameClockRebase     lbsr      GameClockSample
+                    lbcs      GameClockReturn
                     sta       gameclockseen,u
                     clr       gameclockcredit,u
                     clr       gameclockcredit+1,u
@@ -148,6 +165,7 @@ GameClockUnmute     ldu       <resourcebase
                     ldu       <resourcebase
                     clr       gameclockmuted,u
                     lbsr      GameClockRebase
+                    lbcs      GameClockReturn
                     clrb
                     rts
                     endc

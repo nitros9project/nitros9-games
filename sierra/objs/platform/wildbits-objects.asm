@@ -265,7 +265,10 @@ GameArrowFind       lda       ,x
                     tst       <vmplayercontrol
                     beq       GameDirectionDone
                     lda       2,x
-                    sta       vmvariables+6,u
+                    cmpa      vmvariables+6,u
+                    bne       GameDirectionStore
+                    clra
+GameDirectionStore  sta       vmvariables+6,u
                     clrb
                     rts
 GameArrowNext       leax      3,x
@@ -275,7 +278,7 @@ GameDirectionDone   clrb
 GameArrowTable      fcb       $0C,$08,1,$0A,$10,5,$08,$20,7,$09,$40,3,0
 GameNextBinding     leax      3,x
                     leay      1,y
-                    bra       GameKeyBinding
+                    lbra      GameKeyBinding
 
 GameQuitCommand     ldu       <resourcebase
                     lda       vmarguments,u

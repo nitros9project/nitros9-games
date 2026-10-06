@@ -104,7 +104,7 @@ def main():
                     next((i for i, (a,b) in enumerate(zip(frame, expected_frame)) if a != b), None))
             # Repeated cycles must move the ego and stop precisely at a target.
             # An end-of-loop animation must set its completion flag as well.
-            for mode in ('normal', 'move', 'animation', 'arrow', 'programarrow', 'backspace', 'wall', 'land', 'water', 'block', 'ignoreblock', 'unblock', 'wander'):
+            for mode in ('normal', 'move', 'animation', 'arrow', 'arrowtoggle', 'programarrow', 'backspace', 'wall', 'land', 'water', 'block', 'ignoreblock', 'unblock', 'wander'):
                 setup = bytes([3,0,1,24,0,25,0,33,0,41,0,0,
                     37,0,20,60,70,0,35,0,26])
                 if mode in ('normal', 'wall', 'land', 'water', 'block', 'ignoreblock', 'unblock'):
@@ -120,7 +120,7 @@ def main():
                     elif mode == 'water':
                         setup += bytes([64,0])
                     stop = bytes([255,1,250,3,255,2,0,134,1])
-                elif mode in ('arrow', 'programarrow', 'backspace'):
+                elif mode in ('arrow', 'arrowtoggle', 'programarrow', 'backspace'):
                     setup += bytes([131,121,9,0,200] if mode == 'programarrow' else [132])
                     stop = bytes([255,1,250,4,255,2,0,134,1])
                 elif mode == 'wander':
@@ -159,8 +159,9 @@ def main():
                 error, output, state = exercise(d, files, module='wbgame', base=0xa000,
                     database=0x1000, window=0x8000, blocks=None, multiple=True,
                     firstblock=0x10, capture=True,
-                    keyboard=b'\x09' if mode in ('arrow','programarrow') else (b'\x08' if mode == 'backspace' else b''),
-                    key_sense=0x40 if mode in ('arrow','programarrow') else 0)
+                    keyboard=b'\x09' if mode in ('arrow','arrowtoggle','programarrow') else (b'\x08' if mode == 'backspace' else b''),
+                    key_sense=0x40 if mode in ('arrow','arrowtoggle','programarrow') else 0,
+                    keyboard_by_cycle={2:(b'\x09',0x40)} if mode=='arrowtoggle' else None)
                 assert not error and not output, (mode, error)
                 assert state['vmvariables'][248:250] == bytes([0,255]), 'shared object distance visibility/self cases'
                 assert state['vmflags'][210:214] == bytes([1]*4), 'position tests failed'
@@ -168,7 +169,9 @@ def main():
                 if mode == 'programarrow':
                     assert state['vmflags'][219] == 0, 'ignored Right arrow triggered an ASCII Tab controller'
                 ego = state['vmobjects'][:43]
-                if mode == 'wander':
+                if mode == 'arrowtoggle':
+                    assert ego[3:5] == bytes([21,60]) and ego[0x21] == 0, ('same arrow did not stop ego',ego.hex())
+                elif mode == 'wander':
                     assert ego[0x22] == 1 and ego[0x21] <= 8 and 6 <= ego[0x27] <= 50
                 elif mode in ('programarrow', 'backspace', 'wall', 'land', 'block'):
                     assert ego[3:5] == bytes([20,60]), (mode, ego.hex())

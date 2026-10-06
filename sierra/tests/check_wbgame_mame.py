@@ -192,6 +192,8 @@ end)
         else:
             events+=' if frames==11200 then shot("larry-before");keys["Right"]:set_value(1) end\n'
             events+=' if frames==11600 then keys["Right"]:clear_value();shot("larry-after") end\n'
+            events+=' if frames==11700 then keys["Right"]:set_value(1) end\n'
+            events+=' if frames==11710 then keys["Right"]:clear_value() end\n'
             events+=' if frames==12000 then post("look\\r") end\n'
             events+=' if frames==13500 then shot("larry-look") end\n'
             events+=' if frames==13600 then post("\\r") end\n'

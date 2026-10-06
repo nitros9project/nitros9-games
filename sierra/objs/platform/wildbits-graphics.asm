@@ -1347,9 +1347,8 @@ PlotDone            puls      d,x,y,u,pc
 * Twenty-one bits track eight-pixel bands of the combined AGI picture.
 * Mark both erased footprints and newly painted footprints. First pictures
 * and modal restoration force all bands; failed presentations retain damage.
-GameDamageAll       clr       <gamepresentleft
-                    lda       #160
-                    sta       <gamepresentright
+GameDamageAll       ldd       #$00A0
+                    lbsr      GameDamageBounds
                     lda       #$FF
                     sta       <gamepresentdirty
                     sta       <gamepresentdirty+1
@@ -1360,19 +1359,6 @@ GameDamageAll       clr       <gamepresentleft
 GameDamageSprite    pshs      d,x,y,u
                     ldb       9,u
                     beq       DamageReturn
-                    lda       6,u
-                    anda      #$FE
-                    cmpa      <gamepresentleft
-                    bhs       DamageRight
-                    sta       <gamepresentleft
-DamageRight         lda       6,u
-                    adda      8,u
-                    inca
-                    anda      #$FE
-                    cmpa      <gamepresentright
-                    bls       DamageHeight
-                    sta       <gamepresentright
-DamageHeight        ldb       9,u
                     addb      7,u
                     decb
                     lsrb
@@ -1383,7 +1369,26 @@ DamageHeight        ldb       9,u
                     lsra
                     lsra
                     lsra
-DamageBand          tfr       a,b
+DamageBand          pshs      a
+                    tfr       a,b
+                    lslb
+                    ldy       <dbase
+                    leay      gamepresentbounds,y
+                    leay      b,y
+                    lda       6,u
+                    anda      #$FE
+                    cmpa      ,y
+                    bhs       DamageRight
+                    sta       ,y
+DamageRight         lda       6,u
+                    adda      8,u
+                    inca
+                    anda      #$FE
+                    cmpa      1,y
+                    bls       DamageHeight
+                    sta       1,y
+DamageHeight        puls      a
+                    tfr       a,b
                     andb      #7
                     leax      DamageMasks,pcr
                     ldb       b,x
@@ -1421,11 +1426,26 @@ GameDamageTest      tfr       a,b
                     rts
 DamageMasks         fcb       1,2,4,8,16,32,64,128
 
+* D=left/right pair for all 21 bands; preserve the caller's X/Y.
+GameDamageBounds    pshs      x,y
+                    ldx       <dbase
+                    leax      gamepresentbounds,x
+                    ldy       #21
+DamageBoundsNext    std       ,x++
+                    leay      -1,y
+                    bne       DamageBoundsNext
+                    puls      x,y,pc
+
                     else
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_PRESENTATION_BUFFERS
 * ===== wildbits-presentation-buffers =====
 * Private row staging and terminal names.
+                    ifeq      GAME_PRESENTATION
 rowinput            rmb       PictureWidth
+                    else
+* Native presentation uses the idle command staging buffer, not rowinput.
+gamepresentbounds   rmb       42
+                    endc
 rowoutput           rmb       PictureWidth*2
 inputname           rmb       32
 outputname          rmb       32
@@ -1452,6 +1472,7 @@ presentbatchrows    rmb       1
 gamepresentdirty    rmb       3
 gamepresentleft     rmb       1
 gamepresentright    rmb       1
+gamepresentwidth    rmb       1
 presentband         rmb       1
 presentationconfigured rmb   1
                     endc
@@ -1488,8 +1509,7 @@ unmapret            rts
 * Low nibble color -> palette indices 1..16; duplicate horizontally.
 ConvertRow          equ       *
                     ifne      GAME_PRESENTATION
-                    ldb       <gamepresentright
-                    subb      <gamepresentleft
+                    ldb       <gamepresentwidth
                     else
                     ldb       #PictureWidth
                     endc
@@ -1503,13 +1523,6 @@ convertpixel        lda       ,x+
                     rts
 * Visibility handling uses intercepted U, never the interrupted DP.
 intercept           equ       *
-                    ifne      GAME_PRESENTATION
-                    cmpb      #$83
-                    bne       signalvisibility
-                    inc       gameclockticks,u
-                    rti
-signalvisibility    equ       *
-                    endc
                     cmpb      #SignalBg
                     bne       signalforeground
                     stb       paused,u
@@ -1716,7 +1729,15 @@ PresentBandNext     lda       <presentband
                     bne       PresentBandReady
                     inc       <presentband
                     bra       PresentBandNext
-PresentBandReady    lda       <presentband
+PresentBandReady    ldb       <presentband
+                    lslb
+                    ldx       <dbase
+                    leax      gamepresentbounds,x
+                    ldd       b,x
+                    std       <gamepresentleft
+                    subb      <gamepresentleft
+                    stb       <gamepresentwidth
+                    lda       <presentband
                     ldb       #5
                     mul
                     tfr       b,a
@@ -1749,15 +1770,11 @@ PresentReadRow      lbsr      foreground
                     ldu       <dbase
                     ifne      GAME_PRESENTATION
 * The first 2048 command bytes may hold a modal/line-editor backup.
-* The remaining idle workspace holds 12 input rows and 12 expanded rows.
+* The remaining idle workspace holds this eight-row band and its expansion.
                     lda       <rows
-                    cmpa      #12
-                    bls       PresentBatchSize
-                    lda       #12
 PresentBatchSize    sta       <presentbatchrows
                     clra
-                    ldb       <gamepresentright
-                    subb      <gamepresentleft
+                    ldb       <gamepresentwidth
                     std       <remaining
                     leax      resourcecommands+2048,u
                     else
@@ -1813,15 +1830,13 @@ PresentCopySource   equ       *
                     ifne      GAME_PRESENTATION
                     clra
                     ldb       #160
-                    subb      <gamepresentright
-                    addb      <gamepresentleft
+                    subb      <gamepresentwidth
                     addd      <presentoffset
                     std       <presentoffset
                     dec       <presentbatchrows
                     beq       PresentSourceReady
                     clra
-                    ldb       <gamepresentright
-                    subb      <gamepresentleft
+                    ldb       <gamepresentwidth
                     std       <remaining
                     bra       PresentReadSpan
 PresentSourceReady  lbsr      PictureUnmap
@@ -1841,8 +1856,7 @@ PresentConvertBatch lbsr      ConvertRow
                     leax      resourcecommands+4096,u
                     stx       <sourceptr
                     clra
-                    ldb       <gamepresentright
-                    subb      <gamepresentleft
+                    ldb       <gamepresentwidth
                     lslb
                     rola
                     else
@@ -1914,8 +1928,7 @@ copyspan            equ       *
                     ifne      GAME_PRESENTATION
                     clra
                     ldb       #160
-                    subb      <gamepresentright
-                    addb      <gamepresentleft
+                    subb      <gamepresentwidth
                     lslb
                     rola
                     addd      <frameoffset
@@ -1923,8 +1936,7 @@ copyspan            equ       *
                     dec       <rows
                     beq       PresentBandWritten
                     clra
-                    ldb       <gamepresentright
-                    subb      <gamepresentleft
+                    ldb       <gamepresentwidth
                     lslb
                     rola
                     std       <remaining
@@ -2010,9 +2022,8 @@ PresentDrawTextOnly equ       *
                     clr       <gamepresentdirty
                     clr       <gamepresentdirty+1
                     clr       <gamepresentdirty+2
-                    lda       #160
-                    sta       <gamepresentleft
-                    clr       <gamepresentright
+                    ldd       #$A000
+                    lbsr      GameDamageBounds
                     endc
                     ifeq      GAME_PRESENTATION
                     lda       #0
