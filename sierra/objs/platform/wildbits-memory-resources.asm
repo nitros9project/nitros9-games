@@ -240,7 +240,6 @@ AssetRelease        lbsr      AssetUnmap
 AssetReleaseDone    rts
 * D=logical offset -> ephemeral U; preserve D/X/Y. Error in asseterror.
 AssetPointer        pshs      d
-                    std       <assetoffset
                     tst       <asseterror
                     bne       AssetPointerDone
 * Cache the encoded 8K page; shift only when a mapping changes.
@@ -271,7 +270,7 @@ AssetMap            pshs      x,y
                     inc       <assetmapped
 AssetMapDone        puls      x,y
                     bcs       AssetPointerDone
-AssetAddress        ldd       <assetoffset
+AssetAddress        ldd       ,s
                     anda      #$1F
                     ldu       <assetmapbase
                     leau      d,u
@@ -329,7 +328,6 @@ assetowned          rmb       1
 assetmapped         rmb       1
 assetpage           rmb       1
 assetmapbase        rmb       2
-assetoffset         rmb       2
 assetoutoffset      rmb       2
 assetchunk          rmb       2
 assetinputleft      rmb       2

@@ -21,16 +21,30 @@ def main():
             d.write(0xff91,b'\x01'); d.write(0xffa8,bytes(range(8)))
             for width,height,x,y in ((4,3,30,52),(4,3,159,1),
                                       (4,3,159,167),(4,3,255,255),
+                                      (1,1,129,51),(5,3,3,52),
                                       (64,128,30,140), (160,70,0,100)):
-                script=bytes([3,0,1,24,0,25,0,33,0,41,0,0,
-                    37,0,x,y,54,0,15,35,0,
-                    37,0,20,100,35,0,36,0,26,134,1,0])
+                # Present the background first, then each sprite change. This
+                # verifies partial updates rather than only the final full paint.
+                script=bytes([3,0,1,24,0,25,0,26,33,0,41,0,0,
+                    37,0,x,y,54,0,15,35,0,26,
+                    37,0,20,100,35,0,26,36,0,26,134,1,0])
+                spans=[]
+                def presentation(cpu,regs,syms):
+                    left=cpu.read(0x1000+syms['gamepresentleft'],1)[0]
+                    right=cpu.read(0x1000+syms['gamepresentright'],1)[0]
+                    if left<right:
+                        spans.append((left,right))
+                    return False
                 error,frame=exercise(d,fixture(script,b'\xff',view(width,height)),
                     module='wbgame',base=0xa000,database=0x1000,window=0x8000,
-                    blocks=None,multiple=True,firstblock=0x10,frame_capture=True)
+                    blocks=None,multiple=True,firstblock=0x10,frame_capture=True,
+                    map_failure=presentation)
                 expected=bytearray([1])*76800
                 expected[8*320:176*320]=bytes([16])*(168*320)
                 assert not error and frame==expected, ('sprite trail',width,height,x,y,error)
+                assert spans and all(0<=left<right<=160 and not ((left|right)&1) for left,right in spans), spans
+                if width<160:
+                    assert any(right-left<160 for left,right in spans), ('no narrow paint',spans)
             # An old 4x3 footprint crosses 8192 after two bytes of row 51.
             # Fail the next mapped source/destination span, after earlier
             # pixels were copied. The span count must unwind from S and all

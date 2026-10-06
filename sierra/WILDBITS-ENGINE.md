@@ -730,3 +730,30 @@ and walking covers 14.3 pixels in the same 400-frame sample. Dialogs and
 free-memory restoration still pass. This remains slow overall: display
 copying takes about 157 ms and text about 56 ms per sampled cycle. The
 production module is 23,677 bytes with 24,576 bytes of private storage.
+
+### Narrow damaged-region presentation
+
+The eight-pixel dirty bands now also retain the union of the horizontal
+footprints erased and painted since the previous successful presentation.
+Bounds round outward to even AGI columns so the existing word copies remain
+aligned. Full pictures, first bitmap allocation, and modal restoration
+retain the complete 160-column range. Each band's rows are staged privately
+with the picture stride removed, converted at the bounded width, and copied
+to the matching framebuffer columns. The source mapping is closed before
+any destination mapping; cached destination mappings remain owned only
+while copying that band. Failed presentations retain their damage.
+
+The two bound bytes replace the resource pointer's redundant saved-offset
+field: its original offset is already on the stack and remains there across
+the mapping miss path. Private storage remains 24,576 bytes; code is
+23,765 bytes. The CoCo backend is unchanged.
+
+Checks cover complete picture/view pixels, explicitly presented moving and
+erased sprites, odd widths/columns, columns above 127, split rows, exact-8K
+staging, larger-cel fallback, mapping failures, static decorations, persistent
+dialog restoration, and the full 65535-byte resource case. The real Larry
+run measures presentation at about 117.5 ms instead of 157 ms and movement
+at 16.1 instead of 14.3 pixels over 400 frames. Two simultaneous Larry/KQ1
+games pass terminal switching, independent inventory input, survivor-after-
+peer-exit, and Larry-only/final memory restoration using the documented
+emulator-only expanded-memory kernel.
