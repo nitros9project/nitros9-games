@@ -5,14 +5,18 @@
 argdirectory        rmb       2
 argnumber           rmb       2
 argdigit            rmb       1
-                    use       platform/wildbits-resource-data.asm
+                    use platform/sections.d
+PLATFORM_SECTION    set PLATFORM_WILDBITS_RESOURCE_DATA
+                    use platform/wildbits-memory-resources.asm
                     rmb       512               private stack beyond command buffer
 size                equ       .
                     mod       eom,name,Prgrm+Objct,ReEnt+1,start,size
 name                fcs       /wbres/
                     fcb       1
-                    use       platform/wildbits-resource-cli.asm
-                    use       platform/wildbits-resource-code.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_RESOURCE_CLI
+                    use platform/wildbits-memory-resources.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_RESOURCE_CODE
+                    use platform/wildbits-memory-resources.asm
 help                fcc       /Usage: wbres game-directory picture-number >command-file/
                     fcb       C$CR
                     emod

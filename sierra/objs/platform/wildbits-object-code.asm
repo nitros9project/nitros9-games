@@ -1,9 +1,34 @@
-                    use       platform/object-coordinate-operands.asm
+* Assembly-time operand/storage interface; emits no runtime dispatch.
+                    ifne      WILDBITS
+                    ifndef PLATFORM_WILDBITS_OBJECTS_BINDINGS
+                    use platform/wildbits-objects-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_OBJECTS_BINDINGS
+                    use platform/coco-objects-bindings.asm
+                    endc
+                    endc
                     use       shared/object-coordinate-state.asm
                     use       shared/object-animation-state.asm
-                    use platform/object-control-operands.asm
+                    ifne WILDBITS
+                    ifndef PLATFORM_WILDBITS_OBJECTS_BINDINGS
+                    use platform/wildbits-objects-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_OBJECTS_BINDINGS
+                    use platform/coco-objects-bindings.asm
+                    endc
+                    endc
                     use shared/object-unanimate.asm
-                    use platform/object-scalar-operands.asm
+                    ifne WILDBITS
+                    ifndef PLATFORM_WILDBITS_OBJECTS_BINDINGS
+                    use platform/wildbits-objects-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_OBJECTS_BINDINGS
+                    use platform/coco-objects-bindings.asm
+                    endc
+                    endc
                     use shared/object-scalar-state.asm
 * Private object-state commands adapted from mnln.asm's 43-byte records.
 * The owner supplies 64 records. Drawing, cel selection and motion updates

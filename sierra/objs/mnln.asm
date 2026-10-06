@@ -547,7 +547,38 @@ DispatchCmdReturn   rts
 *   Advance an animated object's cel frame, handling normal, reverse, end-of-loop, and reverse-end-of-loop cycle modes.
 *======================================================================
 *
-                    use platform/animation-operands.asm
+                    ifne WILDBITS
+                    ifndef PLATFORM_WILDBITS_MEMORY_RESOURCES_BINDINGS
+                    use platform/wildbits-memory-resources-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_MEMORY_RESOURCES_BINDINGS
+                    use platform/coco-memory-resources-bindings.asm
+                    endc
+                    endc
+
+* View acquisition and continuation ABI for the shared animation stage.
+ANIMATION_SELECT_LOOP macro
+                    ifne WILDBITS
+                    lda       #43
+                    lbsr      MotionSelectView
+                    lbcs      MotionReturn
+                    ldx       <resourcebase
+                    ldu       motionobject,x
+                    else
+                    lbsr      SetLoopHelper
+                    endc
+                    endm
+ANIMATION_FINISH macro
+                    ifne WILDBITS
+                    clrb
+                    rts
+                    endc
+                    endm
+ANIMATION_REVERSE_ENABLE macro
+                    lda       >$01B0
+                    anda      #8
+                    endm
                     use shared/object-animation.asm
                     ANIMATION_EMIT_CEL_ADVANCE
 
@@ -703,7 +734,16 @@ StartUpdateReturn   rts
 *   Commands to start or stop animation for an object or all objects.
 *======================================================================
 *
-                    use       platform/object-coordinate-operands.asm
+* Assembly-time operand/storage interface; emits no runtime dispatch.
+                    ifne      WILDBITS
+                    ifndef PLATFORM_WILDBITS_OBJECTS_BINDINGS
+                    use platform/wildbits-objects-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_OBJECTS_BINDINGS
+                    use platform/coco-objects-bindings.asm
+                    endc
+                    endc
                     use       shared/object-coordinate-state.asm
                     use       shared/object-animation-state.asm
 CmdAnimateObj       lda       ,y+       load object number from script
@@ -723,7 +763,15 @@ AnimateObjHelper    leas      -$01,s    save one byte for object number
 AnimObjBadIndex     OBJECT_ANIMATE_STATE u,AnimObjAlready
 AnimObjAlready      leas      $01,s     release stack byte
                     rts
-                    use platform/object-control-operands.asm
+                    ifne WILDBITS
+                    ifndef PLATFORM_WILDBITS_OBJECTS_BINDINGS
+                    use platform/wildbits-objects-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_OBJECTS_BINDINGS
+                    use platform/coco-objects-bindings.asm
+                    endc
+                    endc
                     use shared/object-block-state.asm
                     use shared/object-unanimate.asm
 CmdUnanimateAll     lbsr      ClearBothRanges erase all objects from range lists
@@ -784,7 +832,63 @@ UpdateAllReturn     leas      $01,s     release stack flag byte
 DispatchMotion      ldu       <$0030    load pointer to first object
 MotionObjLoop       cmpu      <$0032    compare to end-of-object-table pointer
                     bcc       DispatchMotionDone branch if past all objects
-                    use platform/motion-operands.asm
+                    ifne WILDBITS
+                    ifndef PLATFORM_WILDBITS_OBJECTS_BINDINGS
+                    use platform/wildbits-objects-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_OBJECTS_BINDINGS
+                    use platform/coco-objects-bindings.asm
+                    endc
+                    endc
+
+* Eligibility/countdown and continuation policy for the shared scheduler.
+SCHEDULE_SKIP_INACTIVE macro
+                    ifne WILDBITS
+                    lbne      MotionNextObject
+                    else
+                    bne       NextMotionObj
+                    endc
+                    endm
+SCHEDULE_STEP_READY macro
+                    ifne WILDBITS
+                    lbsr      MotionAdvanceCel
+                    lbcs      MotionReturn
+                    ldx       <resourcebase
+                    ldu       motionobject,x
+                    lda       1,u
+                    cmpa      #1
+                    bls       MotionStepReady
+                    dec       1,u
+                    lbra      MotionNextObject
+MotionStepReady     lda       ,u
+                    sta       1,u
+                    else
+                    lda       1,u
+                    cmpa      #1
+                    bne       NextMotionObj
+                    endc
+                    endm
+SCHEDULE_FOLLOW_CONTEXT macro
+                    ifne WILDBITS
+                    ldx       <resourcebase
+                    ldu       motionobject,x
+                    endc
+                    endm
+SCHEDULE_UNKNOWN macro
+                    ifne WILDBITS
+                    lbne      MotionUnsupported
+                    else
+                    bhi       MotionScheduleReady
+                    endc
+                    endm
+SCHEDULE_TARGET_DIRECTION macro
+                    ifne WILDBITS
+                    lbsr      MotionMoveDirection
+                    else
+                    lbsr      SetObjMotion
+                    endc
+                    endm
                     use shared/object-motion.asm
                     MOTION_EMIT_SCHEDULE
 MotionTypeWander equ MotionScheduleNotWander
@@ -903,7 +1007,15 @@ BlockRight          equ       $023C
 BlockTop            equ       $024F
 BlockBottom         equ       $023D
                     use       shared/object-block-test.asm
-                    use platform/object-collision-operands.asm
+                    ifne WILDBITS
+                    ifndef PLATFORM_WILDBITS_OBJECTS_BINDINGS
+                    use platform/wildbits-objects-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_OBJECTS_BINDINGS
+                    use platform/coco-objects-bindings.asm
+                    endc
+                    endc
                     use shared/object-collision-filter.asm
 CheckObjCollision   equ CollisionScan
 CheckCollisionLoop  equ CollisionScanLoop
@@ -1301,7 +1413,9 @@ TEST_VARIABLE_TABLE macro
                     endm
                     use       shared/condition-tests.asm
                     rts
-                    use       platform/coco-inventory-operands.asm
+                    ifndef PLATFORM_COCO_TEXT_UI_BINDINGS
+                    use platform/coco-text-ui-bindings.asm
+                    endc
                     use       shared/inventory-commands.asm
 TestHasObject       INVENTORY_HAS_TEST
 TestObjectRoom      INVENTORY_ROOM_TEST
@@ -1651,12 +1765,16 @@ StrLenLoop          lda       ,x+       load byte from string, advance X
                     leas      $02,s     release 2-byte save slot
                     rts
 StrCopy             pshs      u         save destination pointer (return in X)
-                    use platform/coco-nul-string-write.asm
+                    ifndef PLATFORM_COCO_TEXT_UI_BINDINGS
+                    use platform/coco-text-ui-bindings.asm
+                    endc
                     use shared/nul-string-copy.asm
                     NUL_STRING_COPY x,StrCopyLoop,1,NUL_COCO_WRITE,NUL_COPY_NOOP,NUL_COPY_NOOP
                     puls      x         restore start-of-dest as X (return value)
                     rts
-                    use       platform/coco-string-copy-count.asm
+                    ifndef PLATFORM_COCO_TEXT_UI_BINDINGS
+                    use platform/coco-text-ui-bindings.asm
+                    endc
                     use       shared/bounded-string-copy.asm
 MemCopyNull         leas      -$04,s    allocate 4-byte local frame on stack
                     std       ,s        save max-copy-count (D) on stack
@@ -1683,7 +1801,16 @@ StrCompareLoop      lda       ,x        load byte from first string (no advance 
 StrCompareRet       puls      u,x       restore saved registers
                     rts
                     use       shared/decimal-byte.asm
-                    use       platform/decimal-output-operands.asm
+* Assembly-time decimal output storage/division interface.
+                    ifne      WILDBITS
+                    ifndef PLATFORM_WILDBITS_TEXT_UI_BINDINGS
+                    use platform/wildbits-text-ui-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_TEXT_UI_BINDINGS
+                    use platform/coco-text-ui-bindings.asm
+                    endc
+                    endc
                     use       shared/unsigned-decimal.asm
 UIntToHexStr        leax      >NumConvEnd,pcr point X to end of numeric conversion buffer
                     clr       ,x        null-terminate the buffer
@@ -1749,7 +1876,9 @@ ToLowerRet          equ       LowercaseReturn
 *   and stores it in a variable within a caller-specified range.
 *======================================================================
 *
-                    use       platform/coco-random-operands.asm
+                    ifndef PLATFORM_COCO_LOGIC_BINDINGS
+                    use platform/coco-logic-bindings.asm
+                    endc
                     use       shared/random-command.asm
 
 *
@@ -2216,11 +2345,27 @@ FindObjPosIter      lbsr      CheckObjBounds check if object fits within screen
                     lda       <$005C    check placement result flag
                     bne       FindObjPosDone branch if placement succeeded
 FindObjPosDirNone   equ *
-                    use platform/object-placement-operands.asm
+                    ifne WILDBITS
+                    ifndef PLATFORM_WILDBITS_OBJECTS_BINDINGS
+                    use platform/wildbits-objects-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_OBJECTS_BINDINGS
+                    use platform/coco-objects-bindings.asm
+                    endc
+                    endc
                     use shared/object-placement-step.asm
 FindObjPosDone      leas      $05,s     release local stack frame
                     rts
-                    use platform/object-bounds-operands.asm
+                    ifne WILDBITS
+                    ifndef PLATFORM_WILDBITS_OBJECTS_BINDINGS
+                    use platform/wildbits-objects-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_OBJECTS_BINDINGS
+                    use platform/coco-objects-bindings.asm
+                    endc
+                    endc
                     use shared/object-bounds.asm
 CheckObjBounds      clra
                     OBJECT_CHECK_BOUNDS u,CheckObjBoundsRet,CheckObjInBounds
@@ -2242,7 +2387,9 @@ FLAG_VARIABLE_TABLE macro
                     endm
                     use       shared/flag-commands.asm
 
-                    use       platform/coco-flag-storage.asm
+                    use platform/sections.d
+PLATFORM_SECTION    set PLATFORM_COCO_FLAG_STORAGE
+                    use platform/coco-logic.asm
 *
 *======================================================================
 * FOLLOW EGO MOTION CALCULATOR
@@ -3084,7 +3231,13 @@ JoyPushEvent        ldb       #$02      event type = joystick direction
 JoyPollEnd          bsr       PollJoyButton poll joystick button state
 JoyPollRet          rts
 * Platform implementation; selection emits no dispatch code.
-                    use       platform/joystick-input.asm
+* Assembly-time platform selection.
+                    ifne      WILDBITS
+                    error     Wild Bits platform backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_JOYSTICK_INPUT
+                    use platform/coco-input.asm
+                    endc
 
 PollJoyButton       bsr       ReadJoyButton read raw joystick button state
                     lda       >$0542    load button state counter
@@ -3538,10 +3691,22 @@ UpdateFreeSpace     ldd       #$FFFF    compute free space = $FFFF minus ptr
                     sta       >$0439    store high byte of free space
                     rts
 * Platform implementation; selection emits no dispatch code.
-                    use       platform/priority-address.asm
+* Assembly-time platform selection.
+                    ifne      WILDBITS
+                    error     Wild Bits platform backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_PRIORITY_ADDRESS
+                    use platform/coco-graphics.asm
+                    endc
 
 * Platform mapping implementation; retained at its original location.
-                    use       platform/logic-map.asm
+* Assembly-time memory backend selection; no runtime dispatch.
+                    ifne      WILDBITS
+                    error     Wild Bits memory backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_LOGIC_MAP
+                    use platform/coco-logic.asm
+                    endc
 
 MenuExtraFlag       fcb       1
 MenuItemCurrent     fcb       0,0
@@ -4013,7 +4178,13 @@ JoySpeedTable       fcb       1,$ff
 *======================================================================
 *
 * Platform implementation; selection emits no dispatch code.
-                    use       platform/keyboard-input.asm
+* Assembly-time platform selection.
+                    ifne      WILDBITS
+                    error     Wild Bits platform backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_KEYBOARD_INPUT
+                    use platform/coco-input.asm
+                    endc
 
 *
 *======================================================================
@@ -4205,7 +4376,13 @@ PicStripDone        tfr       x,d       transfer output ptr to D
                     subd      $04,s     compute bytes written
                     rts
 * Platform mapping implementation; retained at its original location.
-                    use       platform/priority-map.asm
+* Assembly-time memory backend selection; no runtime dispatch.
+                    ifne      WILDBITS
+                    error     Wild Bits memory backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_PRIORITY_MAP
+                    use platform/coco-memory-resources.asm
+                    endc
 
 ReadPicPixel        stx       <$00B7    save X across buffer reads
                     ldd       <$00BA    load current bit position
@@ -4286,7 +4463,17 @@ ReadPicChunkRead    tfr       d,y       transfer byte count to Y
                     lbsr      ReadFile  read D bytes from file into X
 ReadPicChunkRet     rts
 * Platform implementation; selection emits no dispatch code.
-                    use       platform/presentation.asm
+* Assembly-time platform selection.
+* CoCo entry: gfx_picbuff_update, legacy module ABI.
+* Wild Bits entries: PresentPicture/PresentationRelease, native private ABI.
+* Callers must supply the selected state contract; these are not ABI aliases.
+                    ifne      WILDBITS
+PLATFORM_SECTION    set PLATFORM_WILDBITS_PRESENTATION
+                    use platform/wildbits-graphics.asm
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_PRESENTATION
+                    use platform/coco-graphics.asm
+                    endc
 
 *
 *======================================================================
@@ -4296,7 +4483,9 @@ ReadPicChunkRet     rts
 *   program_control, and player_control.
 *======================================================================
 *
-                    use       platform/coco-motion-setup.asm
+                    ifndef PLATFORM_COCO_OBJECTS_BINDINGS
+                    use platform/coco-objects-bindings.asm
+                    endc
                     use       shared/object-motion-setup.asm
 cmd_move_obj        lda       ,y+       load object number from script
                     ldb       #$2B      view-object struct size = 43 bytes
@@ -4400,9 +4589,26 @@ cmd_step_time       lda       ,y+       load object number from script
                     OBJECT_RATE_STATE a,u,$00,1
                     rts
 
-                    use platform/object-view-query-operands.asm
+* Assembly-time object query operand/storage interface; no runtime dispatch.
+                    ifne      WILDBITS
+                    ifndef PLATFORM_WILDBITS_OBJECTS_BINDINGS
+                    use platform/wildbits-objects-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_OBJECTS_BINDINGS
+                    use platform/coco-objects-bindings.asm
+                    endc
+                    endc
                     use shared/object-field-query.asm
-                    use platform/object-scalar-operands.asm
+                    ifne WILDBITS
+                    ifndef PLATFORM_WILDBITS_OBJECTS_BINDINGS
+                    use platform/wildbits-objects-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_OBJECTS_BINDINGS
+                    use platform/coco-objects-bindings.asm
+                    endc
+                    endc
                     use shared/object-scalar-state.asm
 cmd_set_dir         QUERY_OBJECT
                     OBJECT_SET_DIRECTION u,a,ObjectDirectionDone
@@ -4898,7 +5104,15 @@ TOKENIZE_FINISH     macro
 *   list.
 *======================================================================
 *
-                    use       platform/dictionary-operands.asm
+                    ifne WILDBITS
+                    ifndef PLATFORM_WILDBITS_TEXT_UI_BINDINGS
+                    use platform/wildbits-text-ui-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_TEXT_UI_BINDINGS
+                    use platform/coco-text-ui-bindings.asm
+                    endc
+                    endc
                     use       shared/dictionary-lookup.asm
 
 StripLastWord       ldu       >SortObjsPtr,pcr ; load pointer to current input string
@@ -5577,7 +5791,15 @@ MsgTextSetup        ldd       #$0000    ; zero
 MsgTextSetupNoStr   ldx       $02,s     ; return output buffer pointer
                     rts
 
-                    use platform/formatter-operands.asm
+                    ifne WILDBITS
+                    ifndef PLATFORM_WILDBITS_TEXT_UI_BINDINGS
+                    use platform/wildbits-text-ui-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_TEXT_UI_BINDINGS
+                    use platform/coco-text-ui-bindings.asm
+                    endc
+                    endc
                     use shared/formatter.asm
 FormatStr           leas      -$02,s    ; allocate 2-byte local frame
                     pshs      x         ; save X (output buffer pointer)
@@ -5784,7 +6006,16 @@ cmd_display_v       leas      >-$03E8,s ; allocate 1000-byte text buffer
 *   %x, %c) used throughout the message and status display code.
 *======================================================================
 *
-                    use       platform/decimal-index-operands.asm
+* Assembly-time formatter index policy; no runtime dispatch.
+                    ifne      WILDBITS
+                    ifndef PLATFORM_WILDBITS_TEXT_UI_BINDINGS
+                    use platform/wildbits-text-ui-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_TEXT_UI_BINDINGS
+                    use platform/coco-text-ui-bindings.asm
+                    endc
+                    endc
                     use       shared/decimal-index.asm
 IncrLineCount       inc       >$015B    ; increment line count
                     lda       >$0157    ; get current line's char count
@@ -6588,12 +6819,22 @@ GetDiskInfoRet      sta       <$44,s    ; store result flag
 *   if/else blocks, jump offsets, and dispatching each command opcode.
 *======================================================================
 *
-                    use       platform/coco-condition-stream.asm
-                    use       platform/coco-logic-stream.asm
+                    ifndef PLATFORM_COCO_LOGIC_BINDINGS
+                    use platform/coco-logic-bindings.asm
+                    endc
+                    ifndef PLATFORM_COCO_LOGIC_BINDINGS
+                    use platform/coco-logic-bindings.asm
+                    endc
                     use       shared/logic-executor.asm
 
 * Platform screen implementation, selected during assembly.
-                    use       platform/game-palette-data.asm
+* Assembly-time screen backend selection; no runtime dispatch.
+                    ifne      WILDBITS
+                    error     Wild Bits screen backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_GAME_PALETTE_DATA
+                    use platform/coco-graphics.asm
+                    endc
 
 *
 *======================================================================
@@ -6647,7 +6888,13 @@ cmd_set_text_attribute ldd       ,y++      ; fetch foreground/background color p
                     rts
 
 * Platform renderer implementation, selected during assembly.
-                    use       platform/text-packing.asm
+* Assembly-time renderer selection; no per-pixel dispatch.
+                    ifne      WILDBITS
+                    error     Wild Bits renderer backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_TEXT_PACKING
+                    use platform/coco-text-ui.asm
+                    endc
 
 SetGraphicsMode     lda       #$00
                     sta       >$05EC    ; clear text-screen flag
@@ -6676,7 +6923,13 @@ cmd_config_screen   lda       ,y        ; fetch scroll-X offset (peek)
                     rts
 
 * Platform screen implementation, selected during assembly.
-                    use       platform/game-palette-set.asm
+* Assembly-time screen backend selection; no runtime dispatch.
+                    ifne      WILDBITS
+                    error     Wild Bits screen backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_GAME_PALETTE_SET
+                    use platform/coco-graphics.asm
+                    endc
 
 *
 *======================================================================
@@ -7730,7 +7983,14 @@ ObjShowDone         lda       #$01      ; restore full-screen draw flag
 SoundScratch9       fcb       0,0,0,0,0,0,0,0,0
 SoundListPtr        fcb       0,0
 * Platform-owned sound state and timing tables.
-                    use       platform/sound-data.asm
+* Assembly-time sound backend selection; emits no dispatch instructions.
+* WILDBITS is currently unsupported: never silently emit CoCo PIA access.
+                    ifne      WILDBITS
+                    error     Wild Bits sound backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_SOUND_DATA
+                    use platform/coco-audio.asm
+                    endc
 
 MonthDayTable       fcb       0
                     fcb       $1f,$1c
@@ -7826,7 +8086,13 @@ SoundCheckFlags     lda       >$01AF    ; game flags byte
                     ldu       $01,s     ; restore sound node pointer
                     lbsr      PlaySound ; play the sound (returns duration in D)
 * Platform implementation; selection emits no dispatch code.
-                    use       platform/sound-elapsed.asm
+* Assembly-time platform selection.
+                    ifne      WILDBITS
+                    error     Wild Bits platform backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_SOUND_ELAPSED
+                    use platform/coco-audio.asm
+                    endc
 
 SoundSetFlagDone    lda       ,y+       ; fetch flag number to set
                     lbsr      SetFlag   ; set the completion flag
@@ -7834,7 +8100,15 @@ SoundSetFlagDone    lda       ,y+       ; fetch flag number to set
                     rts
 
 * Platform playback entry point; selected at assembly time.
-                    use       platform/sound-code.asm
+* Assembly-time sound backend selection; emits no dispatch instructions.
+* Each owner supplies its backend state/entry-point contract.
+                    ifne      WILDBITS
+PLATFORM_SECTION    set PLATFORM_WILDBITS_SOUND_CODE
+                    use platform/wildbits-audio.asm
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_SOUND_CODE
+                    use platform/coco-audio.asm
+                    endc
 
 StrNothing          fcc       /nothing/
                     fcb       0

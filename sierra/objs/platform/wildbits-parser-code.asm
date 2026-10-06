@@ -252,9 +252,19 @@ DictionaryValidateDone ldd  #0
                     inc       parserseen,u
                     lbra      ParserSelectGroup
 
-                    use platform/dictionary-operands.asm
+                    ifne WILDBITS
+                    ifndef PLATFORM_WILDBITS_TEXT_UI_BINDINGS
+                    use platform/wildbits-text-ui-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_TEXT_UI_BINDINGS
+                    use platform/coco-text-ui-bindings.asm
+                    endc
+                    endc
                     use shared/dictionary-lookup.asm
-                    use platform/wildbits-dictionary-code.asm
+                    use platform/sections.d
+PLATFORM_SECTION    set PLATFORM_WILDBITS_DICTIONARY_CODE
+                    use platform/wildbits-text-ui.asm
 
 * Buffered partial reads, with EOF accepted only between complete entries.
 ParserByte          ldu       <resourcebase

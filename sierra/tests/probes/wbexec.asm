@@ -7,17 +7,29 @@ AGI_VM              equ       1
 argdirectory        rmb       2
 argnumber           rmb       2
 argdigit            rmb       1
-                    use       platform/wildbits-asset-data.asm
-                    use       platform/wildbits-lzw-data.asm
-                    use       platform/wildbits-logic-data.asm
-                    use       platform/wildbits-input-data.asm
-                    use       platform/wildbits-screen-data.asm
-                    use       platform/wildbits-view-data.asm
-                    use       platform/wildbits-room-data.asm
-                    use       platform/wildbits-menu-data.asm
-                    use       platform/wildbits-replay-data.asm
-                    use       platform/wildbits-message-data.asm
-                    use       platform/wildbits-resource-data.asm
+                    use platform/sections.d
+PLATFORM_SECTION    set PLATFORM_WILDBITS_ASSET_DATA
+                    use platform/wildbits-memory-resources.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_LZW_DATA
+                    use platform/wildbits-memory-resources.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_LOGIC_DATA
+                    use platform/wildbits-logic.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_INPUT_DATA
+                    use platform/wildbits-input.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_SCREEN_DATA
+                    use platform/wildbits-graphics.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_VIEW_DATA
+                    use platform/wildbits-memory-resources.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_ROOM_DATA
+                    use platform/wildbits-memory-resources.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_MENU_DATA
+                    use platform/wildbits-text-ui.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_REPLAY_DATA
+                    use platform/wildbits-text-ui.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_MESSAGE_DATA
+                    use platform/wildbits-text-ui.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_RESOURCE_DATA
+                    use platform/wildbits-memory-resources.asm
 assetinput          rmb       512
 messagebuffer       rmb       512
 vmgameid            rmb       8
@@ -39,23 +51,37 @@ size                equ       .
                     mod       eom,name,Prgrm+Objct,ReEnt+1,start,size
 name                fcs       /wbexec/
                     fcb       1
-                    use       platform/wildbits-resource-cli.asm
-                    use       platform/wildbits-resource-code.asm
-                    use       platform/wildbits-lzw-code.asm
-                    use       platform/wildbits-asset-code.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_RESOURCE_CLI
+                    use platform/wildbits-memory-resources.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_RESOURCE_CODE
+                    use platform/wildbits-memory-resources.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_LZW_CODE
+                    use platform/wildbits-memory-resources.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_ASSET_CODE
+                    use platform/wildbits-memory-resources.asm
                     use       platform/wildbits-logic-code.asm
-                    use       platform/wildbits-logic-fetch.asm
-                    use       platform/wildbits-message-code.asm
-                    use       platform/wildbits-logic-cache.asm
-                    use       platform/wildbits-input-code.asm
-                    use       platform/wildbits-screen-code.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_LOGIC_FETCH
+                    use platform/wildbits-logic.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_MESSAGE_CODE
+                    use platform/wildbits-text-ui.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_LOGIC_CACHE
+                    use platform/wildbits-logic.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_INPUT_CODE
+                    use platform/wildbits-input.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_SCREEN_CODE
+                    use platform/wildbits-graphics.asm
                     use       platform/wildbits-string-code.asm
-                    use       platform/wildbits-view-code.asm
-                    use       platform/wildbits-room-code.asm
-                    use       platform/wildbits-menu-build-code.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_VIEW_CODE
+                    use platform/wildbits-memory-resources.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_ROOM_CODE
+                    use platform/wildbits-memory-resources.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_MENU_BUILD_CODE
+                    use platform/wildbits-text-ui.asm
                     use       platform/wildbits-object-code.asm
-                    use       platform/wildbits-replay-code.asm
-                    use       platform/wildbits-logic-platform.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_REPLAY_CODE
+                    use platform/wildbits-text-ui.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_LOGIC_PLATFORM
+                    use platform/wildbits-logic.asm
 help                fcc       /Usage: wbexec game-directory logic-number/
                     fcb       C$CR
                     emod

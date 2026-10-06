@@ -155,7 +155,14 @@ DispatchTable       lbra      PicBufUpdateRemap gfx_picbuff_update_remap
 *  Sierra2ndBlk = Sierra 2nd 8K data block
 
 * Platform mapping implementation; retained at its original location.
-                    use       platform/picture-map.asm
+* Assembly-time memory backend selection; no runtime dispatch.
+                    ifne      WILDBITS
+                    error     Wild Bits memory backend is not implemented
+                    else
+                    use platform/sections.d
+PLATFORM_SECTION    set PLATFORM_COCO_PICTURE_MAP
+                    use platform/coco-graphics.asm
+                    endc
 
 LoadOffsetsFlag     fcb       $00       load offsets updated flag
 
@@ -388,7 +395,17 @@ PicFill             bsr       ReadXyPos call read_xy_pos
 * fill color is passed in s register
 
 * Platform implementation; selection emits no dispatch code.
-                    use       platform/picture-storage.asm
+* Assembly-time platform selection.
+* Shared line/pen entry: SbuffPlot uses PosInitX/Y and DrawColor/Mask in DP.
+* Wild Bits preserves D,X,Y,U and reports mapped-access errors in decodeerror.
+* CoCo retains its contiguous-buffer pointer result and optimized span loops.
+                    ifne      WILDBITS
+PLATFORM_SECTION    set PLATFORM_WILDBITS_PICTURE_STORAGE
+                    use platform/wildbits-graphics.asm
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_PICTURE_STORAGE
+                    use platform/coco-graphics.asm
+                    endc
 
 * ====== PicBufUpdateRemap: Nibble-Swap Pixel Buffer for CoCo3 Display ======
 * this routine effective swaps postion of
@@ -398,7 +415,13 @@ PicFill             bsr       ReadXyPos call read_xy_pos
 * called via remap call in mnln
 
 * Platform implementation; selection emits no dispatch code.
-                    use       platform/picture-orientation.asm
+* Assembly-time platform selection.
+                    ifne      WILDBITS
+                    error     Wild Bits platform backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_PICTURE_ORIENTATION
+                    use platform/coco-graphics.asm
+                    endc
 
 *  our blit_struct is a bit different from the one in nagi
 *
@@ -580,7 +603,13 @@ TableInitDone       rts                 priority table initialized return
 *  StateFlag is location of state.flag
 *  see agi.h for definition of state structure
 * Platform implementation; selection emits no dispatch code.
-                    use       platform/object-storage.asm
+* Assembly-time platform selection.
+                    ifne      WILDBITS
+                    error     Wild Bits platform backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_OBJECT_STORAGE
+                    use platform/coco-objects.asm
+                    endc
 
                     fcb       $00,$00,$00,$00
                     fcb       $00,$00,$00,$00

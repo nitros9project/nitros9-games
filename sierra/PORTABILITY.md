@@ -48,9 +48,9 @@ state, and CPU-calibrated frequency and wave-count tables now reside under
 
 ## Assembly-time selection
 
-`mnln.asm` includes `platform/sound-data.asm` at the original sound-data
-location and `platform/sound-code.asm` at the original playback-code location.
-These selectors include `coco-sound-data.asm` and `coco-sound-code.asm` for the
+`mnln.asm` includes `platform/sections.d` at the original sound-data
+location and `platform/sections.d` at the original playback-code location.
+These selectors include `coco-audio.asm` and `coco-audio.asm` for the
 current CoCo build. They emit no runtime dispatch instructions.
 
 When `WILDBITS` is nonzero, assembly deliberately fails with a missing-backend
@@ -137,12 +137,12 @@ entry points, so neither call sites nor dispatch instructions change.
 
 | Selector under `objs/platform/` | Entry points | Current responsibility |
 | --- | --- | --- |
-| `logic-map.asm` | `SetLogicPage` | Map the two-block resource window used by logic, view, and sound resources. |
-| `priority-map.asm` | `MapShdwPage` | Map the priority buffer block into the `$6000` window. |
-| `screen-map.asm` | `SetMapBlock` | Map a pair of blocks for screen-module buffer access. |
-| `picture-map.asm` | `TwiddleMmu` | Map a pair of blocks for picture-module buffer access. |
-| `engine-switch.asm` | `MmuSwitch` | Switch engine module banks, call the selected entry, and restore the caller's banks. |
-| `map-snapshot.asm` | `mmuini1`, `mmuini2` | Obtain system and current-process mapping snapshots. |
+| `sections.d` | `SetLogicPage` | Map the two-block resource window used by logic, view, and sound resources. |
+| `sections.d` | `MapShdwPage` | Map the priority buffer block into the `$6000` window. |
+| `sections.d` | `SetMapBlock` | Map a pair of blocks for screen-module buffer access. |
+| `sections.d` | `TwiddleMmu` | Map a pair of blocks for picture-module buffer access. |
+| `sections.d` | `MmuSwitch` | Switch engine module banks, call the selected entry, and restore the caller's banks. |
+| `sections.d` | `mmuini1`, `mmuini2` | Obtain system and current-process mapping snapshots. |
 
 Each selector includes a matching `coco-*.asm` implementation. A nonzero
 `WILDBITS` setting rejects all four engine modules with a missing-memory-backend
@@ -228,14 +228,14 @@ scheme.
 
 | Selector under `objs/platform/` | Entry points | Responsibility |
 | --- | --- | --- |
-| `process-map.asm` | `SetupProcMap` | Find the current process's DAT image and alias its first data block into two working windows. |
-| `runtime-copy.asm` | `CopySubsToData` | Copy the bank-switch routine and signal handler into private data memory. |
-| `engine-load.asm` | `LoadModules` | Set up game-resource block pairs and load the three engine templates into private blocks. |
-| `map-restore.asm` | `RestoreMmu` | Restore the original working-window DAT entries and hardware mappings. |
-| `address-blocks.asm` | `TwiddleAddr` | Convert a logical address into its slot index and physical block pair using the saved map. |
-| `private-load.asm` | `NMLoadModule`, `CopyPrivatePage` | Link/load a template, copy occupied pages into this instance's allocation, then unlink it. |
-| `private-allocate.asm` | `SetupVirq` | Install the signal intercept, attach/open `/VI`, allocate private RAM, and register the timer. |
-| `private-release.asm` | `CloseVirqPath` | Clear the timer registration, release path-owned RAM, close `/VI`, and detach the device. |
+| `sections.d` | `SetupProcMap` | Find the current process's DAT image and alias its first data block into two working windows. |
+| `sections.d` | `CopySubsToData` | Copy the bank-switch routine and signal handler into private data memory. |
+| `sections.d` | `LoadModules` | Set up game-resource block pairs and load the three engine templates into private blocks. |
+| `sections.d` | `RestoreMmu` | Restore the original working-window DAT entries and hardware mappings. |
+| `sections.d` | `TwiddleAddr` | Convert a logical address into its slot index and physical block pair using the saved map. |
+| `sections.d` | `NMLoadModule`, `CopyPrivatePage` | Link/load a template, copy occupied pages into this instance's allocation, then unlink it. |
+| `sections.d` | `SetupVirq` | Install the signal intercept, attach/open `/VI`, allocate private RAM, and register the timer. |
+| `sections.d` | `CloseVirqPath` | Clear the timer registration, release path-owned RAM, close `/VI`, and detach the device. |
 
 ### Allocation and template ownership
 
@@ -317,13 +317,13 @@ these backend includes, at their original code/data locations:
 
 | Selector under `objs/platform/` | Entry points/data | Responsibility |
 | --- | --- | --- |
-| `screen-colors.asm` | `ColorTable` | Startup composite/RGB palettes using CoCo color codes. |
-| `monitor-select.asm` | `ConfigureMonitor` | Read the monitor preference, apply `-r`, and store the game's display type without changing the global monitor mode. |
-| `screen-setup.asm` | `SetupScreen` | Allocate, record, clear, display, and initialize the instance's screen and palette. |
-| `terminal-options.asm` | `DisableKbdInt` | Exchange saved echo/EOF/interrupt/quit options with the input path's options packet. |
-| `screen-restore.asm` | `RestoreScreen` | Restore options, reset the palette, select text screen zero, and free the recorded graphics screen. |
-| `game-palette-data.asm` | `PaletteData` | Interpreter composite/RGB palettes, separate from the startup table. |
-| `game-palette-set.asm` | `cmd_toggle_monitor` | Toggle the game's palette selection and write the sixteen palette commands. |
+| `sections.d` | `ColorTable` | Startup composite/RGB palettes using CoCo color codes. |
+| `sections.d` | `ConfigureMonitor` | Read the monitor preference, apply `-r`, and store the game's display type without changing the global monitor mode. |
+| `sections.d` | `SetupScreen` | Allocate, record, clear, display, and initialize the instance's screen and palette. |
+| `sections.d` | `DisableKbdInt` | Exchange saved echo/EOF/interrupt/quit options with the input path's options packet. |
+| `sections.d` | `RestoreScreen` | Restore options, reset the palette, select text screen zero, and free the recorded graphics screen. |
+| `sections.d` | `PaletteData` | Interpreter composite/RGB palettes, separate from the startup table. |
+| `sections.d` | `cmd_toggle_monitor` | Toggle the game's palette selection and write the sixteen palette commands. |
 
 ### Screen ownership and layout
 
@@ -398,10 +398,10 @@ The renderer is now selected at assembly time through four additional includes:
 
 | Selector | Implementation boundary |
 | --- | --- |
-| `render-spans.asm` | `CocoViewPal`, screen clears, rectangle/border fills, picture-strip drawing, and screen-strip copying. |
-| `render-view.asm` | `DrawView` and its clipped view/cel drawing loops. |
-| `render-glyphs.asm` | `DrawSprites`, the existing software 8-by-8 glyph renderer. |
-| `text-packing.asm` | `text_color`, which converts foreground/background indices into repeated-nibble bytes. |
+| `sections.d` | `CocoViewPal`, screen clears, rectangle/border fills, picture-strip drawing, and screen-strip copying. |
+| `sections.d` | `DrawView` and its clipped view/cel drawing loops. |
+| `sections.d` | `DrawSprites`, the existing software 8-by-8 glyph renderer. |
+| `sections.d` | `text_color`, which converts foreground/background indices into repeated-nibble bytes. |
 
 Each selects its `coco-*.asm` counterpart; Wild Bits assembly reports a missing
 renderer backend. No per-pixel dispatch or new subroutine call is introduced.
@@ -695,16 +695,16 @@ The final extraction adds these selectors and matching CoCo implementations:
 
 | Selector | Boundary and retained contract |
 | --- | --- |
-| `joystick-input.asm` | `ReadJoystick`/`ReadJoyButton`: standard-input `SS.Joy` sampling, existing result layout and button field, Y preserved. |
-| `keyboard-input.asm` | `ReadStdinByte`: availability check followed by one-byte read; A returns the byte or zero on unavailable/error, Y preserved. |
-| `timer-intercept.asm` | Signal `$80`, direct-page setup from intercepted U, divide-by-three countdown, and dispatch to the shared clock update. |
-| `service-check.asm` | Matching terminal names and CoCo ownership-aware screen-service version check before startup changes state. |
-| `presentation.asm` | Existing nibble-swap mode followed by full-picture strip dispatch; preserves the save/UI behavior. |
-| `priority-address.asm` | Legacy priority-pointer coordinate conversions (`CalcPriAddr`, `CalcPriCoord`). |
-| `picture-storage.asm` | Combined-buffer fill, plotting, line drawing, and flood-fill loops using the legacy fixed window. |
-| `picture-orientation.asm` | In-place combined-byte nibble swapping. |
-| `object-storage.asm` | Priority/control contact checks, cel composition/mirroring, background save/restore, and related fixed-buffer operations. |
-| `sound-elapsed.asm` | CoCo elapsed-time compensation after synchronous interrupt-masked sound, including page restoration. |
+| `sections.d` | `ReadJoystick`/`ReadJoyButton`: standard-input `SS.Joy` sampling, existing result layout and button field, Y preserved. |
+| `sections.d` | `ReadStdinByte`: availability check followed by one-byte read; A returns the byte or zero on unavailable/error, Y preserved. |
+| `sections.d` | Signal `$80`, direct-page setup from intercepted U, divide-by-three countdown, and dispatch to the shared clock update. |
+| `sections.d` | Matching terminal names and CoCo ownership-aware screen-service version check before startup changes state. |
+| `sections.d` | Existing nibble-swap mode followed by full-picture strip dispatch; preserves the save/UI behavior. |
+| `sections.d` | Legacy priority-pointer coordinate conversions (`CalcPriAddr`, `CalcPriCoord`). |
+| `sections.d` | Combined-buffer fill, plotting, line drawing, and flood-fill loops using the legacy fixed window. |
+| `sections.d` | In-place combined-byte nibble swapping. |
+| `sections.d` | Priority/control contact checks, cel composition/mirroring, background save/restore, and related fixed-buffer operations. |
+| `sections.d` | CoCo elapsed-time compensation after synchronous interrupt-masked sound, including page restoration. |
 
 Some of these algorithms are logically reusable, but their current
 implementations directly depend on storage addresses, masks, or mapping
@@ -818,7 +818,7 @@ native resource decoding. King's Quest I picture 1 was rendered and visually
 inspected as the castle scene. See the Wild Bits README for reproduction,
 supported resource encoding, and the reference hash.
 
-Native resource loading now exists as `objs/platform/wildbits-resource-code.asm`, exercised
+Native resource loading now exists as `objs/platform/wildbits-memory-resources.asm`, exercised
 by the position-independent `wbres` probe. Real `wbjr2` MAME RBF reads matched
 the host reference for King's Quest I picture 1 and an 8 KB resource at a
 20-bit offset in volume 15. Native command decoding is described below.
@@ -902,8 +902,8 @@ consume bytes identically; no mapped pointer is retained.
 
 Commands 12–17 now come from `objs/shared/flag-commands.asm`. The indirect
 variants use `FLAG_VARIABLE_TABLE`; `SetFlag`, `ClearFlag`, and `ToggleFlag`
-are storage interfaces implemented in `platform/coco-flag-storage.asm` and
-`platform/wildbits-flag-storage.asm`. CoCo retains packed flags and the native
+are storage interfaces implemented in `platform/coco-logic.asm` and
+`platform/wildbits-logic.asm`. CoCo retains packed flags and the native
 owner retains canonical byte flags. This avoids prematurely changing every
 flag reader throughout either engine while removing duplicate command rules.
 
@@ -1043,8 +1043,8 @@ The `sierra/wildbits` directory is removed. Build the Wild Bits game with
 `make -C sierra/objs -f wildbits.mk all` from the games repository. Module
 entry points are `objs/sierra.asm` with `WILDBITS=1` and the optional diagnostic `tests/probes/wb*.asm` owners;
 platform-specific bodies and storage definitions use `objs/platform/wildbits-*`.
-The menu construction component is `wildbits-menu-build-code.asm`, distinct
-from the existing modal `wildbits-menu-code.asm`. Host reference exporters
+The menu construction component is `wildbits-text-ui.asm`, distinct
+from the existing modal `wildbits-text-ui.asm`. Host reference exporters
 and fixture generators live beside their consumers in `tests`. Port and
 emulator documentation is now `WILDBITS-README.md`, `WILDBITS-ENGINE.md` and
 `WILDBITS-MAME.md`. Test drivers read assembled products from `objs`. Build the diagnostic executables
@@ -1119,7 +1119,7 @@ Relative reposition interprets each variable as a signed byte, clamps negative
 sums to zero, and retains the existing byte wrap for positive sums above 255.
 Absolute literal/variable reposition uses the same operand-to-coordinate body.
 
-The `platform/object-coordinate-operands.asm` selector supplies CoCo or Wild
+The `platform/sections.d` selector supplies CoCo or Wild
 Bits macros for reading their literal/variable operands,
 resolving result variables, and saving/adding signed deltas on the stack.
 CoCo retains its existing stack locals and streamed operands; Wild Bits retains
@@ -1175,7 +1175,7 @@ sentence once. The regression failed with an isolated module verified
 byte-identical to the previous native binary: `LOOK` had an acceptance count
 of zero. The common traversal passes that regression.
 
-`platform/coco-condition-stream.asm` binds streamed reads, trace-aware
+`platform/coco-logic-bindings.asm` binds streamed reads, trace-aware
 `EvalExpr`, descriptor-based operand skipping, and existing branch labels.
 Its validation hooks emit no instructions, so the entire CoCo interpreter
 remains byte-identical. `platform/wildbits-condition-stream.asm` binds bounded
@@ -1302,7 +1302,7 @@ a literal completion-flag index. Native object/coordinate validation still
 runs before any record mutation. Target reads, initial direction and subsequent
 position/collision updates remain owner routines and need further reconciliation.
 
-`platform/coco-motion-setup.asm` binds packed flags, fixed input control and the
+`platform/coco-objects-bindings.asm` binds packed flags, fixed input control and the
 existing CoCo operand/callback conventions. The native adapter binds private
 byte flags and input control, preserves the object pointer while clearing a
 flag, selects staged literal/variable speed, and prepares the existing native
@@ -1426,9 +1426,9 @@ completion of the remaining source migration.
 `shared/object-animation.asm` now supplies the cel progression routine to
 both owners. It handles continuous forward/reverse cycling, forward/reverse
 endpoint modes, one-tick suppression, endpoint completion flags, disabling
-cycling and stopping direction at completion. `platform/coco-animation-operands.asm`
+cycling and stopping direction at completion. `platform/coco-memory-resources-bindings.asm`
 binds the existing two scratch bytes, packed flags and `SetCelHelper`;
-`platform/wildbits-animation-operands.asm` binds adjacent process-private `vmleft` /
+`platform/wildbits-memory-resources-bindings.asm` binds adjacent process-private `vmleft` /
 `vmright` scratch, byte flags and the existing native view-selection callback.
 No private allocation is added. Native mode validation and callback B/carry
 status are preserved explicitly.
@@ -1508,9 +1508,9 @@ AGI commands 49–53 (`last.cel`, `current.cel`, `current.loop`, `current.view`,
 The shared bodies read offsets 15, 14, 10, 5, and 11 of the 43-byte object
 record, decrementing the cel count only for `last.cel`, then store the result
 in the destination variable. Both owners provide record access and variable
-storage through `platform/object-view-query-operands.asm`, which selects
-`coco-object-view-query-operands.asm` or
-`wildbits-object-view-query-operands.asm` at assembly time. No hardware access
+storage through `platform/sections.d`, which selects
+`coco-objects-bindings.asm` or
+`wildbits-objects-bindings.asm` at assembly time. No hardware access
 is added to the common component.
 
 CoCo resolves the script's object operand into U and retains its original
@@ -1560,7 +1560,7 @@ seconds, minutes, hours, and days. Both ports use the same increment and
 common macro takes the owner's continuation label; it does not read an OS
 clock, sleep, change mappings, or decide whether time is paused.
 
-`platform/game-clock-operands.asm` selects matching CoCo/Wild Bits storage
+`platform/sections.d` selects matching CoCo/Wild Bits storage
 bindings. CoCo supplies its signal-handler `TimeOfDay` address and emits the
 original timer bytes unchanged. Its 32-bit timer, pause test, tick counters,
 and 20-tick second accumulator remain in the existing owner. Wild Bits
@@ -1597,7 +1597,7 @@ following substitutions such as `%v123`. It peeks at the next byte, consumes
 only decimal digits, accumulates `value * 10 + digit`, and leaves X at the
 first nondigit. It does not skip spaces or interpret the substitution itself.
 
-`platform/decimal-index-operands.asm` selects the owner policy. The CoCo
+`platform/sections.d` selects the owner policy. The CoCo
 binding preserves modulo-256 arithmetic and the original return flags,
 producing identical `mnln` bytes. The native binding keeps the complete
 multiply/add result until the overflow check, rejects a value above 255,
@@ -1639,7 +1639,7 @@ writes remainder digits backward from the caller's buffer end, and repeats
 until the quotient is zero. The result is a NUL-terminated string without
 leading zeroes, including the single digit `0` for zero input.
 
-`platform/decimal-output-operands.asm` selects storage and divider bindings.
+`platform/sections.d` selects storage and divider bindings.
 CoCo retains its original private engine conversion buffer and 16-bit
 `UIntDivide` call, producing unchanged engine bytes and supporting values
 through 65535. The native caller supplies a four-byte stack buffer for its
@@ -1681,7 +1681,7 @@ formatter, gameplay, or audio coverage.
 
 `shared/formatter.asm` now owns the character loop for both formatters:
 end-of-string detection, percent dispatch, ordinary-character output, and
-continuation. Assembly-time interfaces in `platform/*-formatter-operands.asm`
+continuation. Assembly-time interfaces in `platform/*-sections.d`
 provide source consumption, completion/directive branches, output storage and
 line-buffer operands. CoCo peeks before dispatch and consumes during copying;
 Wild Bits consumes when reading and calls its existing bounded `FormatPut`.
@@ -1826,7 +1826,7 @@ restoration, independent exit/relaunch and unchanged free-memory maps.
 blocking checks: clear the crossing bit when allowed, or set it and stop the
 object's direction after a crossing. The owner supplies ego identification
 and the address of ego's direction variable through
-`platform/*-object-control-operands.asm`. CoCo identifies ego by its first
+`platform/*-sections.d`. CoCo identifies ego by its first
 record pointer; native motion identifies it by record ID zero in private
 context. Only a stopped ego clears variable six. The prior block rectangle
 classification, ignore/disabled policy and collision sequencing remain at
@@ -1900,7 +1900,7 @@ used after a placement candidate is rejected. One leg implementation advances
 the coordinate, decrements the remaining count, changes direction, increases
 the next run length when needed and resumes candidate validation. It is
 expanded four times at assembly time, preserving CoCo's original unrolled
-instruction schedule. `platform/*-object-placement-operands.asm` supplies
+instruction schedule. `platform/*-sections.d` supplies
 frame offsets, continuation branches and exhaustion policy.
 
 CoCo's frame contains the object pointer, run length, direction and remaining
@@ -1974,7 +1974,7 @@ orchestration remain further consolidation work.
 `shared/object-collision-filter.asm` now supplies actor ignore-objects checks
 and candidate activity/ignore/self filtering for both collision routines.
 It requires both animated/visible bits (`$41`), excludes ignored candidates,
-and binds self identity through `platform/*-object-collision-operands.asm`.
+and binds self identity through `platform/*-sections.d`.
 CoCo preserves its ID comparison after flag checks and B scratch register;
 native preserves pointer comparison before flag checks and A scratch register.
 The actor's result accumulator and early-ignore behavior remain unchanged.
@@ -2149,7 +2149,7 @@ one requires ignore-control, priority two signals, and priority three is water.
 `shared/object-terrain-constraints.asm` applies the common water-only and land-only
 status bits after scanning. The two owner copies of these rules are removed.
 
-`platform/*-terrain-operands.asm` supplies pixel reads, width progression,
+`platform/*-sections.d` supplies pixel reads, width progression,
 control/status operands, metadata writes and rejected exits. CoCo reads mapped
 packed pixels directly and compares upper-nibble constants; native uses its
 picture-pointer provider and decoded priority values. The scan therefore adds
@@ -2184,7 +2184,7 @@ and `/tmp/sierra-shared-terrain-terminals`.
 and `MotionObjectCollision`. It owns scan sequencing, the existing common
 eligibility filters, two-sided horizontal overlap, baseline rules and Boolean
 result selection. Their legacy entry/loop/result labels remain aliases.
-`platform/*-object-collision-operands.asm` binds candidate/table iteration,
+`platform/*-sections.d` binds candidate/table iteration,
 registers, native history storage and A-versus-B return convention. CoCo still
 uses its end pointer; native still counts exactly 64 records and retains its
 existing early-ignore counter behavior.
@@ -2210,7 +2210,7 @@ Position commit and per-cycle orchestration remain further migration work.
 result branching, rejected-coordinate restoration, accepted-state transition
 and ego/other-object boundary publication for both movement paths. The owner
 routine bodies are replaced with one include and legacy entry aliases.
-`platform/*-motion-operands.asm` binds stack/private coordinate fields,
+`platform/*-sections.d` binds stack/private coordinate fields,
 collision calls/result registers, status and variable writes, terrain lifecycle,
 recovery and destination-stage continuations.
 
@@ -2294,3 +2294,24 @@ old fragments and updated assembly includes, dependencies and documentation.
 All 14 CoCo main-loop modules and native Wild Bits remain byte-identical;
 native/probe builds pass. This is a source-layout change with no additional
 runtime storage. Other independently maintained components remain separate.
+
+### Platform feature consolidation
+
+Reduced `objs/platform` from 208 to 34 assembly files. Related code and private
+state now occupy feature files for memory/resources, graphics, input, text/UI,
+audio, timing, logic and objects. Macro-only interfaces are grouped into
+feature binding files, loaded once per assembly. Removed redundant selector
+files; their compile-time backend branches remain at owner expansion sites.
+
+`platform/sections.d` names the code/data layout sections. Owners select each
+section at its original location, so private offsets, module layout, branch
+encodings and runtime instructions are preserved. Conditional chains select
+one section even when it includes another feature section. Macro-bearing
+native implementations remain separate where they already form substantial
+components; assembler macro definitions cannot be safely placed in skipped
+layout sections. See `objs/platform/README.md` for the current feature map.
+
+Rebuilt four CoCo modules for every one of the 14 titles and compared all 56
+modules byte for byte with the pre-consolidation files. Native `wbgame` is also
+byte-identical; all native probes build. No new emulator run is claimed for
+this source-layout change. Runtime behavior and performance are unchanged.

@@ -168,8 +168,8 @@ nonzero size, an 8 KB command limit, equal decoded/stored lengths, and final
 rejected. Short reads/writes retain progress; failures close opened inputs.
 The shell may create an empty redirected output file when validation fails.
 
-The loader lives in `objs/platform/wildbits-resource-code.asm`, with private fields declared by
-`objs/platform/wildbits-resource-data.asm`; the probe owns the sole module header. `LoadPicture`
+The loader lives in `objs/platform/wildbits-memory-resources.asm`, with private fields declared by
+`objs/platform/wildbits-memory-resources.asm`; the probe owns the sole module header. `LoadPicture`
 takes X=game directory, Y=picture number, U=private data base and matching DP.
 It returns X=command buffer and Y=length, or carry/B indicating an error.
 Its mutable fields, path strings and command bytes are process-private.
@@ -212,7 +212,7 @@ Incomplete coordinates, invalid colors and bytes after the terminator also
 fail. King’s Quest I picture 1 now decodes natively with the exact CoCo reference
 buffer. This is still a decoder probe, not a playable interpreter.
 
-`objs/platform/wildbits-picture-memory.asm` allocates four consecutive physical blocks through
+`objs/platform/wildbits-graphics.asm` allocates four consecutive physical blocks through
 `SS.GfxAlloc` and maps one block at a time through `F$MapBlk`. The current page
 is cached. `PicturePointer` accepts a logical byte offset and returns a pointer
 valid only until another mapping call; clients never retain it across pages.
@@ -221,7 +221,7 @@ The line and plot routines use this boundary, including lines crossing an
 are exported. A private 512-byte staging buffer lets output unmap before
 `I$Write`, including partial writes.
 
-`objs/platform/wildbits-decoder-fill.asm` uses scanline flood fill with a private 4,096-byte stack
+`objs/platform/wildbits-graphics.asm` uses scanline flood fill with a private 4,096-byte stack
 of 2,048 coordinate seeds. It paints a horizontal span and queues neighboring
 runs. Exhaustion returns `E$MemFul` instead of overwriting another buffer.
 It matches white color when color drawing is enabled, otherwise default
@@ -264,10 +264,10 @@ wbrun /s0/kingsquest1 1
 ```
 
 Input and output must be the same Wild Bits terminal; any key exits this
-integration test. `objs/platform/wildbits-presentation-data.asm`, `objs/platform/wildbits-presentation-buffers.asm`,
-`objs/platform/wildbits-presentation-helpers.asm`, `objs/platform/wildbits-presentation-palette.asm` and `presentation.d`
+integration test. `objs/platform/wildbits-graphics.asm`, `objs/platform/wildbits-graphics.asm`,
+`objs/platform/wildbits-graphics.asm`, `objs/platform/wildbits-graphics.asm` and `presentation.d`
 are shared with `wbpic`. Splitting these includes left `wbpic` byte-for-byte
-unchanged. `objs/platform/wildbits-presentation.asm` copies source spans into private row staging,
+unchanged. `objs/platform/wildbits-graphics.asm` copies source spans into private row staging,
 unmaps them, then maps the framebuffer. Source and destination never require
 two simultaneous service windows. The integrated module is 3,294 bytes and
 requests 14,646 bytes of private data.
@@ -278,7 +278,7 @@ restoration, independent quit, relaunch and an unchanged free-memory map.
 It uses host rendering only to calculate the expected test pixels; the native
 program reads the game files itself. See [MAME.md](WILDBITS-MAME.md).
 
-`objs/platform/wildbits-decoder-pen.asm` retains the original CoCo circle tables, edge clamping and
+`objs/platform/wildbits-graphics.asm` retains the original CoCo circle tables, edge clamping and
 splatter sequence. CPU tests cover every pen size and style at edges and
 mapping boundaries, relocated code/data, and malformed input. Native MAME
 picture 1 output matched SHA256
@@ -372,7 +372,7 @@ messages as instructions. Script positions remain offsets across mapping
 changes. Messages use bounded relative offsets; plain logic strings are
 XOR-decoded with the original key, while compressed logic strings are plain.
 
-`objs/platform/wildbits-logic-cache.asm` retains up to 32 owned typed resource slabs. Sixteen private call
+`objs/platform/wildbits-logic.asm` retains up to 32 owned typed resource slabs. Sixteen private call
 frames save the caller's cache slot, instruction offset, code end and remaining
 instruction budget. Loading a callee unmaps the caller first; return restores
 its descriptor. Exit frees temporary allocations and all cache-owned slabs,
@@ -480,7 +480,7 @@ The shared-source/backend migration is described in [ENGINE.md](WILDBITS-ENGINE.
 
 The Wild Bits owner currently starts with AGI sound flag 9 off because the
 existing global blocking `SS.Tone` service cannot safely play independent AGI
-sound streams. `wildbits-sound-code.asm` implements sound-off completion and
+sound streams. `wildbits-audio.asm` implements sound-off completion and
 stop commands without touching audio hardware. If a script re-enables flag 9, the backend reports audio unavailable once,
 clears flag 9 and completes the request in sound-off mode. This is sound-disabled operation, not
 audio playback support.

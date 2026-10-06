@@ -5,7 +5,9 @@
 * vmvariables and vmflags contain 256 bytes each; vmarguments holds 255 bytes.
 * Platform commands must implement their semantics or return an error, never
 * silently skip an unsupported command. This component is not a whole game.
-                    use       platform/wildbits-logic-stream.asm
+                    ifndef PLATFORM_WILDBITS_LOGIC_BINDINGS
+                    use platform/wildbits-logic-bindings.asm
+                    endc
                     use       platform/wildbits-condition-stream.asm
 ExecuteLogic        equ       ExecLogicScript
 VmNext              equ       ExecScriptLoop
@@ -68,7 +70,9 @@ FLAG_VARIABLE_TABLE macro
                     leax      vmvariables,u
                     endm
                     use       shared/flag-commands.asm
-                    use       platform/wildbits-flag-storage.asm
+                    use platform/sections.d
+PLATFORM_SECTION    set PLATFORM_WILDBITS_FLAG_STORAGE
+                    use platform/wildbits-logic.asm
 
 VmReadWord          lbsr      VmFetchByte
                     lbcs      VmReturn

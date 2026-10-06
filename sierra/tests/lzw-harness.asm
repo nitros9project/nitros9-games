@@ -1,5 +1,7 @@
                     use       platform/wildbits-defsfile
-                    use       platform/wildbits-lzw-data.asm
+                    use platform/sections.d
+PLATFORM_SECTION    set PLATFORM_WILDBITS_LZW_DATA
+                    use platform/wildbits-memory-resources.asm
 inputpointer        rmb       2
 inputend            rmb       2
 outputpointer       rmb       2
@@ -31,6 +33,7 @@ LzwWriteByte        pshs      x
                     puls      x
                     andcc     #$FE
                     rts
-                    use       platform/wildbits-lzw-code.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_LZW_CODE
+                    use platform/wildbits-memory-resources.asm
                     emod
 eom                 equ       *

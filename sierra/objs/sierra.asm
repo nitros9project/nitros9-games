@@ -254,7 +254,14 @@ ExitNow             os9       F$Exit    time to check out
 * same sequence of bytes at L454C in mnln
 
 * Platform screen implementation, selected during assembly.
-                    use       platform/screen-colors.asm
+* Assembly-time screen backend selection; no runtime dispatch.
+                    ifne      WILDBITS
+                    error     Wild Bits screen backend is not implemented
+                    else
+                    use platform/sections.d
+PLATFORM_SECTION    set PLATFORM_COCO_SCREEN_COLORS
+                    use platform/coco-graphics.asm
+                    endc
 
 * Name strings of other modules to load.
 
@@ -290,7 +297,13 @@ SetupModuleRet      rts                 startup error is handled by InitEntry
 * Require matching input/output terminals and the ownership-aware screen
 * service. Reject old bootfiles before changing any device or MMU state.
 * Platform implementation; selection emits no dispatch code.
-                    use       platform/service-check.asm
+* Assembly-time platform selection.
+                    ifne      WILDBITS
+                    error     Wild Bits platform backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_SERVICE_CHECK
+                    use platform/coco-memory-resources.asm
+                    endc
 
 * clean up and shut down
 agi_shutdown
@@ -356,7 +369,13 @@ FillBytes           sta       ,x+       store fill byte and advance pointer
                     rts                 return from FillBytes/InitDataArea
 
 * Platform screen implementation, selected during assembly.
-                    use       platform/monitor-select.asm
+* Assembly-time screen backend selection; no runtime dispatch.
+                    ifne      WILDBITS
+                    error     Wild Bits screen backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_MONITOR_SELECT
+                    use platform/coco-graphics.asm
+                    endc
 
 * ====== DisableKbdInt: Save and Suppress Keyboard Signals ======
 *  Raw disassembly of followin code
@@ -408,7 +427,13 @@ FillBytes           sta       ,x+       store fill byte and advance pointer
 *       IN FULL 2 MB RANGE, INSTEAD OF JUST GIME 512K RANGE.
 
 * Platform loader/memory implementation, selected during assembly.
-                    use       platform/process-map.asm
+* Assembly-time loader/memory backend selection.
+                    ifne      WILDBITS
+                    error     Wild Bits loader backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_PROCESS_MAP
+                    use platform/coco-memory-resources.asm
+                    endc
 
 * ====== CopySubsToData: Copy Runtime Subroutines to Data Area ======
 * NOTE: 6809/6309 MOD: STUPID. DO LEAX, AND THEN PSHS X
@@ -418,7 +443,13 @@ FillBytes           sta       ,x+       store fill byte and advance pointer
 *         leax  >L054F,pc    Point to end of routine
 *         stx   ,s           Save ptr
 * Platform loader/memory implementation, selected during assembly.
-                    use       platform/runtime-copy.asm
+* Assembly-time loader/memory backend selection.
+                    ifne      WILDBITS
+                    error     Wild Bits loader backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_RUNTIME_COPY
+                    use platform/coco-memory-resources.asm
+                    endc
 
 * ====== LoadModules: NMLoad and Link All Three AGI Modules ======
 * Called from dispatch table at L0120
@@ -426,7 +457,13 @@ FillBytes           sta       ,x+       store fill byte and advance pointer
 * was a puls a,b after a puhs x and a setsatt call for process+path to VIRQ
 
 * Platform loader/memory implementation, selected during assembly.
-                    use       platform/engine-load.asm
+* Assembly-time loader/memory backend selection.
+                    ifne      WILDBITS
+                    error     Wild Bits loader backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_ENGINE_LOAD
+                    use platform/coco-memory-resources.asm
+                    endc
 
 *****************************************************
 *
@@ -458,7 +495,13 @@ FillBytes           sta       ,x+       store fill byte and advance pointer
 *
 
 * Platform screen implementation, selected during assembly.
-                    use       platform/screen-setup.asm
+* Assembly-time screen backend selection; no runtime dispatch.
+                    ifne      WILDBITS
+                    error     Wild Bits screen backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_SCREEN_SETUP
+                    use platform/coco-graphics.asm
+                    endc
 
 *  Raw disassembly of following section
 *L02E9    leas  <-$20,s
@@ -505,7 +548,13 @@ FillBytes           sta       ,x+       store fill byte and advance pointer
 *
 
 * Platform screen implementation, selected during assembly.
-                    use       platform/terminal-options.asm
+* Assembly-time screen backend selection; no runtime dispatch.
+                    ifne      WILDBITS
+                    error     Wild Bits screen backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_TERMINAL_OPTIONS
+                    use platform/coco-input.asm
+                    endc
 
 * ====== RestoreScreen: Return to Text Screen, Free Hi-Res Screen ======
 *  raw disassembly
@@ -540,7 +589,13 @@ FillBytes           sta       ,x+       store fill byte and advance pointer
 *  deallocate and free memory of high res screen created
 
 * Platform screen implementation, selected during assembly.
-                    use       platform/screen-restore.asm
+* Assembly-time screen backend selection; no runtime dispatch.
+                    ifne      WILDBITS
+                    error     Wild Bits screen backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_SCREEN_RESTORE
+                    use platform/coco-graphics.asm
+                    endc
 
 * Templates are unlinked immediately after copying; no global unload at exit.
 *L0388    orcc  #$50
@@ -584,7 +639,13 @@ FillBytes           sta       ,x+       store fill byte and advance pointer
 * ====== RestoreMmu: Restore MMU to Pre-Game State ======
 * Restore original MMU block numbers
 * Platform loader/memory implementation, selected during assembly.
-                    use       platform/map-restore.asm
+* Assembly-time loader/memory backend selection.
+                    ifne      WILDBITS
+                    error     Wild Bits loader backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_MAP_RESTORE
+                    use platform/coco-memory-resources.asm
+                    endc
 
 * ====== TwiddleAddr: Map Logical Address to Physical Block Pair ======
 * twiddles address
@@ -592,7 +653,13 @@ FillBytes           sta       ,x+       store fill byte and advance pointer
 * returns block # in a
 *         ?????   in u
 * Platform loader/memory implementation, selected during assembly.
-                    use       platform/address-blocks.asm
+* Assembly-time loader/memory backend selection.
+                    ifne      WILDBITS
+                    error     Wild Bits loader backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_ADDRESS_BLOCKS
+                    use platform/coco-memory-resources.asm
+                    endc
 
 *************************************************************
 *  Called from  within sub at L0229
@@ -606,7 +673,13 @@ FillBytes           sta       ,x+       store fill byte and advance pointer
 * U on return remains the logical template header address; LoadModules
 * uses its offset when constructing the relocated entry-vector address.
 * Platform loader/memory implementation, selected during assembly.
-                    use       platform/private-load.asm
+* Assembly-time loader/memory backend selection.
+                    ifne      WILDBITS
+                    error     Wild Bits loader backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_PRIVATE_LOAD
+                    use platform/coco-memory-resources.asm
+                    endc
 
 ViDevPath           fcc       '/VI'
 ViDevPathEnd        fcb       C$CR
@@ -629,12 +702,24 @@ ViDevPathEnd        fcb       C$CR
 *       called instead of the process being killed
 
 * Platform loader/memory implementation, selected during assembly.
-                    use       platform/private-allocate.asm
+* Assembly-time loader/memory backend selection.
+                    ifne      WILDBITS
+                    error     Wild Bits loader backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_PRIVATE_ALLOCATE
+                    use platform/coco-memory-resources.asm
+                    endc
 
 * ====== SigIntercept / SigHandlerCore: VIRQ Timer and Game Clock ======
 * Signal Intercept processing gets copied to int5EE mem slot
 * Platform implementation; selection emits no dispatch code.
-                    use       platform/timer-intercept.asm
+* Assembly-time platform selection.
+                    ifne      WILDBITS
+                    error     Wild Bits platform backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_TIMER_INTERCEPT
+                    use platform/coco-timing.asm
+                    endc
 
 SigHandlerCore      inc       >GameTimerB0,u increment low byte of 32-bit game timer
                     bne       TimerUpdate no carry — skip upper bytes
@@ -655,7 +740,16 @@ TickUpdate          ldd       <TickAccum load tick accumulator
                     bcs       TimerRet  not yet — return
                     subd      #$0014    subtract 20 (one second)
                     std       <TickAccum save remainder
-                    use       platform/game-clock-operands.asm
+* Assembly-time clock storage interface; no runtime dispatch.
+                    ifne      WILDBITS
+                    ifndef PLATFORM_WILDBITS_TIMING_BINDINGS
+                    use platform/wildbits-timing-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_TIMING_BINDINGS
+                    use platform/coco-timing-bindings.asm
+                    endc
+                    endc
                     use       shared/game-clock-tick.asm
                     AGI_CLOCK_TICK TimerRet
 TimerRet            rts                 return from timer handler
@@ -663,7 +757,13 @@ TimerRet            rts                 return from timer handler
 * ====== CloseVirqPath: Release VIRQ Device ======
 * deallocates the VIRQ device
 * Platform loader/memory implementation, selected during assembly.
-                    use       platform/private-release.asm
+* Assembly-time loader/memory backend selection.
+                    ifne      WILDBITS
+                    error     Wild Bits loader backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_PRIVATE_RELEASE
+                    use platform/coco-memory-resources.asm
+                    endc
 
 * ====== MmuSwitch: Switch Between Module MMU Address Spaces ======
 *  Twiddles with MMU blocks for us
@@ -673,7 +773,13 @@ TimerRet            rts                 return from timer handler
 *  s and x loaded by calling routine
 
 * Platform mapping implementation; retained at its original location.
-                    use       platform/engine-switch.asm
+* Assembly-time memory backend selection; no runtime dispatch.
+                    ifne      WILDBITS
+                    error     Wild Bits memory backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_ENGINE_SWITCH
+                    use platform/coco-memory-resources.asm
+                    endc
 
 MmuSwitchEnd        fcb       $00,$00,$00,$00,$00,$00,$00,$00 ........
 SierraNameStr       fcb       $73,$69,$65,$72,$72,$61,$00 sierra.
@@ -685,7 +791,13 @@ SierraNameStr       fcb       $73,$69,$65,$72,$72,$61,$00 sierra.
 * through system block 0, borrowing the $2000 slot with interrupts masked.
 * First capture our own image so the borrowed slot can be restored.
 * Platform mapping implementation; retained at its original location.
-                    use       platform/map-snapshot.asm
+* Assembly-time memory backend selection; no runtime dispatch.
+                    ifne      WILDBITS
+                    error     Wild Bits memory backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_MAP_SNAPSHOT
+                    use platform/coco-memory-resources.asm
+                    endc
 
                     emod
 eom                 equ       *

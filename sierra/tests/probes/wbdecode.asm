@@ -11,8 +11,11 @@ PICBUFF_WIDTH       equ       160
 argdirectory        rmb       2
 argnumber           rmb       2
 argdigit            rmb       1
-                    use       platform/wildbits-decoder-data.asm
-                    use       platform/wildbits-resource-data.asm
+                    use platform/sections.d
+PLATFORM_SECTION    set PLATFORM_WILDBITS_DECODER_DATA
+                    use platform/wildbits-graphics.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_RESOURCE_DATA
+                    use platform/wildbits-memory-resources.asm
 fillstack           rmb       4096
 picturestage        rmb       512
                     rmb       1024
@@ -20,13 +23,19 @@ size                equ       .
                     mod       eom,name,Prgrm+Objct,ReEnt+1,start,size
 name                fcs       /wbdecode/
                     fcb       1
-                    use       platform/wildbits-resource-cli.asm
-                    use       platform/wildbits-resource-code.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_RESOURCE_CLI
+                    use platform/wildbits-memory-resources.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_RESOURCE_CODE
+                    use platform/wildbits-memory-resources.asm
                     use       platform/wildbits-decoder-code.asm
-                    use       platform/wildbits-decoder-lines.asm
-                    use       platform/wildbits-picture-memory.asm
-                    use       platform/wildbits-decoder-fill.asm
-                    use       platform/wildbits-decoder-pen.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_DECODER_LINES
+                    use platform/wildbits-graphics.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_PICTURE_MEMORY
+                    use platform/wildbits-graphics.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_DECODER_FILL
+                    use platform/wildbits-graphics.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_DECODER_PEN
+                    use platform/wildbits-graphics.asm
 help                fcc       /Usage: wbdecode game-directory picture-number >combined-file/
                     fcb       C$CR
                     emod

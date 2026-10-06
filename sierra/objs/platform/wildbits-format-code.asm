@@ -1,7 +1,15 @@
 * Bounded formatter. Four 512-byte source frames and a 2048-byte output
 * share the idle fill stack; recursion never retains a mapped message pointer.
                     use shared/nul-string-copy.asm
-                    use platform/formatter-operands.asm
+                    ifne WILDBITS
+                    ifndef PLATFORM_WILDBITS_TEXT_UI_BINDINGS
+                    use platform/wildbits-text-ui-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_TEXT_UI_BINDINGS
+                    use platform/coco-text-ui-bindings.asm
+                    endc
+                    endc
                     use shared/formatter.asm
 NUL_FRAME_WRITE     macro
                     sta       ,y+
@@ -131,7 +139,16 @@ FormatVariableDone  leas      8,s
 FormatVariableError leas      8,s
                     lbra      FormatPartError
 
-                    use       platform/decimal-output-operands.asm
+* Assembly-time decimal output storage/division interface.
+                    ifne      WILDBITS
+                    ifndef PLATFORM_WILDBITS_TEXT_UI_BINDINGS
+                    use platform/wildbits-text-ui-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_TEXT_UI_BINDINGS
+                    use platform/coco-text-ui-bindings.asm
+                    endc
+                    endc
                     use       shared/unsigned-decimal.asm
 * Bind the common quotient/remainder ABI to the existing 8-bit divider.
 * D <= 255, U=10; return U=quotient and D=remainder, preserving X/Y.
@@ -143,7 +160,16 @@ FormatByteDivide10  lda       #10
                     puls      b
                     rts
 
-                    use       platform/decimal-index-operands.asm
+* Assembly-time formatter index policy; no runtime dispatch.
+                    ifne      WILDBITS
+                    ifndef PLATFORM_WILDBITS_TEXT_UI_BINDINGS
+                    use platform/wildbits-text-ui-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_TEXT_UI_BINDINGS
+                    use platform/coco-text-ui-bindings.asm
+                    endc
+                    endc
                     use       shared/decimal-index.asm
 DecimalIndexOverflow ldb     #E$BMode
                     orcc      #1

@@ -117,7 +117,7 @@ mnln: ../objs/shared/variable-commands.asm
 
 mnln: ../objs/shared/flag-commands.asm
 
-mnln: ../objs/platform/coco-flag-storage.asm
+mnln: ../objs/platform/coco-logic.asm
 
 mnln: ../objs/shared/condition-tests.asm
 
@@ -140,20 +140,20 @@ mnln: ../objs/shared/tokenize-string.asm ../objs/shared/find-byte.asm ../objs/sh
 mnln: ../objs/shared/compare-strings.asm ../objs/shared/string-punctuation.asm
 
 mnln: ../objs/shared/object-coordinate-state.asm ../objs/shared/object-animation-state.asm
-mnln: ../objs/platform/object-coordinate-operands.asm ../objs/platform/coco-object-coordinate-operands.asm
+mnln: ../objs/platform/sections.d ../objs/platform/coco-objects-bindings.asm
 
-mnln: ../objs/shared/condition-flow.asm ../objs/platform/coco-condition-stream.asm
+mnln: ../objs/shared/condition-flow.asm ../objs/platform/coco-logic-bindings.asm
 
-mnln: ../objs/shared/logic-executor.asm ../objs/platform/coco-logic-stream.asm
+mnln: ../objs/shared/logic-executor.asm ../objs/platform/coco-logic-bindings.asm
 
-mnln: ../objs/shared/random-command.asm ../objs/platform/coco-random-operands.asm
+mnln: ../objs/shared/random-command.asm ../objs/platform/coco-logic-bindings.asm
 
-mnln: ../objs/shared/object-motion-setup.asm ../objs/platform/coco-motion-setup.asm
+mnln: ../objs/shared/object-motion-setup.asm ../objs/platform/coco-objects-bindings.asm
 
-mnln: ../objs/shared/inventory-commands.asm ../objs/platform/coco-inventory-operands.asm
+mnln: ../objs/shared/inventory-commands.asm ../objs/platform/coco-text-ui-bindings.asm
 
-mnln: ../objs/shared/bounded-string-copy.asm ../objs/platform/coco-string-copy-count.asm
+mnln: ../objs/shared/bounded-string-copy.asm ../objs/platform/coco-text-ui-bindings.asm
 
 mnln: ../objs/shared/decimal-byte.asm
 
-mnln: ../objs/shared/object-animation.asm ../objs/platform/coco-animation-operands.asm
+mnln: ../objs/shared/object-animation.asm ../objs/platform/coco-memory-resources-bindings.asm

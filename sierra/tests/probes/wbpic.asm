@@ -5,8 +5,11 @@
                     use       platform/wildbits-defsfile
                     use       platform/wildbits-presentation.d
 
-                    use       platform/wildbits-presentation-data.asm
-                    use       platform/wildbits-presentation-buffers.asm
+                    use platform/sections.d
+PLATFORM_SECTION    set PLATFORM_WILDBITS_PRESENTATION_DATA
+                    use platform/wildbits-graphics.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_PRESENTATION_BUFFERS
+                    use platform/wildbits-graphics.asm
                     rmb       $2000-.
 size                equ       .
                     mod       eom,name,Prgrm+Objct,ReEnt+1,start,size
@@ -232,11 +235,13 @@ releasescreen       tst       <bitmapowned
 exit                ldb       <errorcode
                     os9       F$Exit
 
-                    use       platform/wildbits-presentation-helpers.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_PRESENTATION_HELPERS
+                    use platform/wildbits-graphics.asm
 
 help                fcc       /Usage: wbpic <26880-byte combined picture>; any key exits/
                     fcb       C$CR
-                    use       platform/wildbits-presentation-palette.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_PRESENTATION_PALETTE
+                    use platform/wildbits-graphics.asm
                     emod
 eom                 equ       *
                     end

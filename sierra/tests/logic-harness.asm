@@ -1,7 +1,10 @@
                     use       platform/wildbits-defsfile
 resourcebase        rmb       2
-                    use       platform/wildbits-logic-data.asm
-                    use       platform/wildbits-room-data.asm
+                    use platform/sections.d
+PLATFORM_SECTION    set PLATFORM_WILDBITS_LOGIC_DATA
+                    use platform/wildbits-logic.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_ROOM_DATA
+                    use platform/wildbits-memory-resources.asm
 scriptbase          rmb       2
 vmvariables         rmb       256
 vmflags             rmb       256

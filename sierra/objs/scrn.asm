@@ -118,12 +118,25 @@ Infosz              equ       *-CopyrightStr
 *      a -> value to be tested
 
 * Platform mapping implementation; retained at its original location.
-                    use       platform/screen-map.asm
+* Assembly-time memory backend selection; no runtime dispatch.
+                    ifne      WILDBITS
+                    error     Wild Bits memory backend is not implemented
+                    else
+                    use platform/sections.d
+PLATFORM_SECTION    set PLATFORM_COCO_SCREEN_MAP
+                    use platform/coco-graphics.asm
+                    endc
 
 * 16 marker bytes for some thing
 * coco_view_pal[]     vid_render.c
 * Platform renderer implementation, selected during assembly.
-                    use       platform/render-spans.asm
+* Assembly-time renderer selection; no per-pixel dispatch.
+                    ifne      WILDBITS
+                    error     Wild Bits renderer backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_RENDER_SPANS
+                    use platform/coco-graphics.asm
+                    endc
 
 UpdateViewList      leas      -$04,s    allocate 4 scratch bytes
                     ldx       $06,s     load pointer to view list head
@@ -158,12 +171,24 @@ ViewListDone        leas      $04,s     free scratch bytes
 
 
 * Platform renderer implementation, selected during assembly.
-                    use       platform/render-view.asm
+* Assembly-time renderer selection; no per-pixel dispatch.
+                    ifne      WILDBITS
+                    error     Wild Bits renderer backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_RENDER_VIEW
+                    use platform/coco-graphics.asm
+                    endc
 
                     use       font-data.asm
 
 * Platform renderer implementation, selected during assembly.
-                    use       platform/render-glyphs.asm
+* Assembly-time renderer selection; no per-pixel dispatch.
+                    ifne      WILDBITS
+                    error     Wild Bits renderer backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_RENDER_GLYPHS
+                    use platform/coco-text-ui.asm
+                    endc
 
 EndPad              fcb       $00,$00,$00,$00
                     fcb       $00,$00,$00,$00

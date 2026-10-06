@@ -1,0 +1,903 @@
+* wildbits-objects feature: code and related private state.
+* Named layout sections preserve existing module and private-data addresses.
+
+                    ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_GAME_BLOCK_CODE
+* ===== wildbits-game-block-code =====
+GameBlockCommand    ldx       <resourcebase
+                    ldb       <vmopcode
+                    cmpb      #91
+                    beq       GameBlockClear
+                    ldd       vmarguments,x
+                    std       BlockLeft,x
+                    ldd       vmarguments+2,x
+                    std       BlockRight,x
+                    lda       #1
+                    sta       gameblockenabled,x
+                    clrb
+                    rts
+GameBlockClear      clr       gameblockenabled,x
+                    clrb
+                    rts
+BLOCK_PRIVATE_STATE equ       1
+                    use       shared/object-block-test.asm
+                    use shared/object-block-state.asm
+GameCheckBlock      OBJECT_BLOCK_CLEAR u
+                    bita      #2
+                    bne       GameBlockAllowed
+                    tst       gameblockenabled,x
+                    beq       GameBlockAllowed
+                    ldd       motionoldposition,x
+                    lbsr      InBlockRect
+                    sta       motioncollision,x
+                    lda       motionx+1,x
+                    ldb       motiony+1,x
+                    lbsr      InBlockRect
+                    cmpa      motioncollision,x
+                    beq       GameBlockAllowed
+GameBlockCrossing   OBJECT_BLOCK_STOP u,GameBlockStopped
+GameBlockStopped    ldb       #1
+                    rts
+GameBlockAllowed    clrb
+                    rts
+
+                    else
+                    ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_GAME_BLOCK_DATA
+* ===== wildbits-game-block-data =====
+gameblockenabled    rmb       1
+BlockLeft           rmb       1
+BlockTop            rmb       1
+BlockRight          rmb       1
+BlockBottom         rmb       1
+
+                    else
+                    ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_GAME_CYCLE_CODE
+* ===== wildbits-game-cycle-code =====
+GameInitialize      lbsr      ParserInitialize
+                    ldu       <resourcebase
+                    ldd       #$ACE1
+                    std       gamerandom,u
+                    clr       gamesoundwarned,u
+                    clr       inventoryloaded,u
+                    clr       gameblockenabled,u
+                    clr       gamequit,u
+                    clr       gameclockreset,u
+                    lda       #$FF
+                    sta       gameclocklast,u
+                    lda       #1
+                    sta       vmflags+5,u
+                    clr       vmflags+9,u     no owned multi-terminal audio service yet
+                    sta       vmflags+11,u
+                    sta       vmvariables+22,u     three-channel sound model
+                    lda       #3
+                    sta       vmvariables+26,u     EGA-compatible palette
+                    lda       #38
+                    sta       vmvariables+24,u
+                    lda       #1
+                    sta       <vmplayercontrol
+                    lbra      GameReadClock
+
+* A completed logic cycle: clear transient state, wait without mappings,
+* poll stdin without blocking, then resume root logic at its scan start.
+GameNextCycle       lbsr      AssetUnmap
+                    lbcs      GameCycleReturn
+                    lbsr      PictureUnmap
+                    lbcs      GameCycleReturn
+                    ldu       <resourcebase
+                    tst       gamequit,u
+                    lbne      GameCycleSuccess
+                    lbsr      foreground
+                    lbcs      GameCycleReturn
+                    ldu       <resourcebase
+                    clr       vmflags+2,u
+                    clr       vmflags+4,u
+                    clr       vmflags+5,u
+                    clr       vmflags+6,u
+                    clr       vmflags+11,u
+                    clr       vmflags+12,u
+                    clr       vmvariables+9,u
+                    clr       vmvariables+19,u
+                    clr       <vmhavekey
+                    leax      vmcontrollers,u
+                    ldy       #32
+GameResetControllers clr     ,x+
+                    leay      -1,y
+                    bne       GameResetControllers
+                    ldb       vmvariables+10,u     AGI delay in 50-ms units
+                    lda       #3                  three 60-Hz ticks per unit
+                    mul
+                    addd      #1                  F$Sleep sleeps X-1 ticks
+                    tfr       d,x
+                    os9       F$Sleep
+                    lbsr      foreground
+                    lbcs      GameCycleReturn
+                    lbsr      GameReadClock
+                    lbcs      GameCycleReturn
+                    lbsr      GameUpdateObjects
+                    lbcs      GameCycleReturn
+                    ldu       <resourcebase
+                    lda       #40
+                    sta       gamekeybudget,u
+GameDrainKeyboard   lbsr      GamePollKeyboard
+                    lbcs      GameCycleReturn
+                    ldu       <resourcebase
+                    tst       gamekeypending,u
+                    beq       GameKeyboardDone
+                    tst       vmflags+2,u
+                    bne       GameKeyboardDone
+                    dec       gamekeybudget,u
+                    bne       GameDrainKeyboard
+GameKeyboardDone    tst       <bitmapowned
+                    beq       GameCycleSuccess
+                    lbsr      ParserDrawInput
+                    lbsr      GameComposeScene
+                    lbcs      GameCycleReturn
+                    lbsr      PresentPicture
+GameCycleReturn     rts
+GameCycleSuccess    clrb
+                    rts
+
+* Returns B=0/C clear or an OS/validation error; A/X/D are scratch.
+* Acquisition and modal reset policy stay here; rollover is common.
+GameReadClock       ldu       <resourcebase
+                    leax      gametime,u
+GameClockTimeCall   os9       F$Time
+                    lbcs      GameCycleReturn
+                    ldu       <resourcebase
+                    ldb       gametime+5,u
+                    cmpb      #60
+                    bhs       GameClockInvalid
+                    lda       gameclocklast,u
+                    cmpa      #$FF
+                    beq       GameClockStore
+                    tst       gameclockreset,u
+                    bne       GameClockStore
+                    subb      gameclocklast,u
+                    bcc       GameClockComputeDelta
+                    addb      #60
+GameClockComputeDelta stb       gameclockdelta,u
+GameClockTick       tst       gameclockdelta,u
+                    beq       GameClockStoreCurrent
+                    dec       gameclockdelta,u
+* Assembly-time clock storage interface; no runtime dispatch.
+                    ifne      WILDBITS
+                    ifndef PLATFORM_WILDBITS_TIMING_BINDINGS
+                    use platform/wildbits-timing-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_TIMING_BINDINGS
+                    use platform/coco-timing-bindings.asm
+                    endc
+                    endc
+                    use       shared/game-clock-tick.asm
+                    AGI_CLOCK_TICK GameClockTick
+                    bra       GameClockTick
+GameClockStoreCurrent ldb     gametime+5,u
+GameClockStore      stb       gameclocklast,u
+                    clr       gameclockreset,u
+                    clrb
+                    rts
+GameClockInvalid    ldb       #E$BMode
+                    orcc      #1
+                    rts
+
+GamePollKeyboard    ldu       <resourcebase
+                    clr       gamekeypending,u
+                    clra
+                    ldb       #SS.Ready
+                    os9       I$GetStt
+                    bcc       GameReadKey
+                    cmpb      #E$NotRdy
+                    lbne      GameCycleReturn
+                    clrb
+                    rts
+GameReadKey         ldu       <resourcebase
+                    inc       gamekeypending,u
+                    leax      vmkeybyte,u
+                    ldy       #1
+                    clra
+                    os9       I$Read
+                    lbcs      GameCycleReturn
+                    cmpy      #1
+                    bne       GameClockInvalid
+                    ifne      GAME_TRACE
+                    ldu       <resourcebase
+                    lda       <vmkeybyte
+                    sta       gametracekeybyte,u
+                    endc
+                    clra
+                    ldb       #SS.KySns
+                    os9       I$GetStt
+                    lbcs      GameCycleReturn
+                    ldu       <resourcebase
+                    sta       gamekeysense,u
+                    clr       gamekeyscan,u
+                    lda       #1
+                    sta       <vmhavekey
+                    lbsr      GameDirectionalKey
+                    ldu       <resourcebase
+                    ldb       <vmkeybyte
+                    stb       vmvariables+19,u
+                    leax      vmkeys,u
+                    ldy       #0
+GameKeyBinding      tfr       y,d
+                    cmpb      <vmkeycount
+                    lbhs      ParserKey
+                    ldb       <vmkeybyte
+                    cmpb      ,x
+                    bne       GameNextBinding
+                    lda       gamekeyscan,u
+                    cmpa      1,x
+                    bne       GameNextBinding
+                    ldb       2,x
+                    lbsr      InputControllerAddress
+                    ora       ,x
+                    sta       ,x
+                    clr       vmvariables+19,u
+                    clrb
+                    rts
+* Arrow codes overlap ordinary SCF control characters. Use the buffered
+* key-sense byte from the character just read to distinguish them.
+GameDirectionalKey  ldb       <vmkeybyte
+                    cmpb      #5             CoCo-style Break key from Wild Bits K keyboard
+                    bne       GameFunctionKey
+                    ldb       #27
+                    stb       <vmkeybyte
+GameFunctionKey
+                    cmpb      #$B1
+                    blo       GameArrowKey
+                    cmpb      #$B4
+                    bhi       GameArrowKey
+                    subb      #$76                 F1..Shift-F2 -> scans 3B..3E
+                    stb       gamekeyscan,u
+                    clr       <vmkeybyte
+                    clrb
+                    rts
+GameArrowKey        leax      GameArrowTable,pcr
+GameArrowFind       lda       ,x
+                    beq       GameDirectionDone
+                    cmpa      <vmkeybyte
+                    bne       GameArrowNext
+                    lda       gamekeysense,u
+                    bita      1,x
+                    beq       GameDirectionDone
+                    clr       <vmkeybyte          arrows never become ASCII Tab/backspace controllers
+                    tst       <vmplayercontrol
+                    beq       GameDirectionDone
+                    lda       2,x
+                    sta       vmvariables+6,u
+                    clrb
+                    rts
+GameArrowNext       leax      3,x
+                    bra       GameArrowFind
+GameDirectionDone   clrb
+                    rts
+GameArrowTable      fcb       $0C,$08,1,$0A,$10,5,$08,$20,7,$09,$40,3,0
+GameNextBinding     leax      3,x
+                    leay      1,y
+                    bra       GameKeyBinding
+
+GameQuitCommand     ldu       <resourcebase
+                    lda       vmarguments,u
+                    cmpa      #1
+                    bne       GameQuitNeedsDialog
+                    sta       gamequit,u
+                    clrb
+                    rts
+GameQuitNeedsDialog clr       dialoginputmode,u
+                    leax      GameQuitPrompt,pcr
+                    lbsr      GamePrintText
+                    lbcs      GameCycleReturn
+                    ldu       <resourcebase
+                    lda       parsercharacter,u
+                    cmpa      #13
+                    lbne      GameCycleSuccess
+                    lda       #1
+                    sta       gamequit,u
+                    clrb
+                    rts
+GameQuitPrompt      fcc       /Quit the game?/
+                    fcb       10
+                    fcc       /ENTER quits; ESC cancels./
+                    fcb       0
+
+* Remove any renderer mapping before freeing cache slabs. A transient error
+* is retried, while the first error remains the process's exit status.
+GameUnmapForExit    ldu       <resourcebase
+                    clr       gamecleanup,u
+                    lbsr      PictureUnmap
+                    bcc       GameExitFrame
+                    ldu       <resourcebase
+                    stb       gamecleanup,u
+                    lbsr      PictureUnmap
+GameExitFrame       tst       <mapped
+                    beq       GameExitAsset
+                    lbsr      unmap
+                    bcc       GameExitAsset
+                    ldu       <resourcebase
+                    tst       gamecleanup,u
+                    bne       GameExitFrameRetry
+                    stb       gamecleanup,u
+GameExitFrameRetry  lbsr      unmap
+GameExitAsset       lbsr      AssetUnmap
+                    bcc       GameExitUnmapped
+                    ldu       <resourcebase
+                    tst       gamecleanup,u
+                    bne       GameExitAssetRetry
+                    stb       gamecleanup,u
+GameExitAssetRetry  lbsr      AssetUnmap
+GameExitUnmapped    ldu       <resourcebase
+                    ldb       gamecleanup,u
+                    beq       GameExitUnmapSuccess
+                    orcc      #1
+                    rts
+GameExitUnmapSuccess andcc    #$FE
+                    rts
+
+                    else
+                    ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_GAME_CYCLE_DATA
+* ===== wildbits-game-cycle-data =====
+* Game scheduling belongs to this owner, not the bytecode-only probe.
+gamequit            rmb      1
+gameclocklast       rmb      1
+gameclockdelta      rmb      1
+gameclockreset      rmb      1
+gamecleanup         rmb      1
+gametime            rmb      6
+gamesoundwarned      rmb      1
+gamerandom          rmb      2
+gamekeybudget       rmb      1
+gamekeypending      rmb      1
+
+                    else
+                    ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_GAME_MOTION_CODE
+* ===== wildbits-game-motion-code =====
+* Native object stepping. Coordinates are checked against picture controls
+* before being committed; view selection remains in its own component.
+GameUpdateObjects   lbsr      AssetUnmap
+                    lbcs      MotionReturn
+                    lbsr      PictureUnmap
+                    lbcs      MotionReturn
+                    ldx       <resourcebase
+                    tst       gamebackgroundowned,x
+                    beq       MotionBackgroundReady
+                    lbsr      GameRestoreBackground
+                    lbcs      MotionReturn
+MotionBackgroundReady ldx    <resourcebase
+                    clr       motionid,x
+                    clr       vmvariables+2,x
+                    clr       vmvariables+4,x
+                    clr       vmvariables+5,x
+                    lda       vmvariables+6,x
+                    sta       vmobjects+$21,x
+MotionObjectNext    ldb       motionid,x
+                    lda       #43
+                    mul
+                    leau      vmobjects,x
+                    leau      d,u
+                    stu       motionobject,x
+                    ifne WILDBITS
+                    ifndef PLATFORM_WILDBITS_OBJECTS_BINDINGS
+                    use platform/wildbits-objects-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_OBJECTS_BINDINGS
+                    use platform/coco-objects-bindings.asm
+                    endc
+                    endc
+
+* Eligibility/countdown and continuation policy for the shared scheduler.
+SCHEDULE_SKIP_INACTIVE macro
+                    ifne WILDBITS
+                    lbne      MotionNextObject
+                    else
+                    bne       NextMotionObj
+                    endc
+                    endm
+SCHEDULE_STEP_READY macro
+                    ifne WILDBITS
+                    lbsr      MotionAdvanceCel
+                    lbcs      MotionReturn
+                    ldx       <resourcebase
+                    ldu       motionobject,x
+                    lda       1,u
+                    cmpa      #1
+                    bls       MotionStepReady
+                    dec       1,u
+                    lbra      MotionNextObject
+MotionStepReady     lda       ,u
+                    sta       1,u
+                    else
+                    lda       1,u
+                    cmpa      #1
+                    bne       NextMotionObj
+                    endc
+                    endm
+SCHEDULE_FOLLOW_CONTEXT macro
+                    ifne WILDBITS
+                    ldx       <resourcebase
+                    ldu       motionobject,x
+                    endc
+                    endm
+SCHEDULE_UNKNOWN macro
+                    ifne WILDBITS
+                    lbne      MotionUnsupported
+                    else
+                    bhi       MotionScheduleReady
+                    endc
+                    endm
+SCHEDULE_TARGET_DIRECTION macro
+                    ifne WILDBITS
+                    lbsr      MotionMoveDirection
+                    else
+                    lbsr      SetObjMotion
+                    endc
+                    endm
+                    use shared/object-motion.asm
+                    MOTION_EMIT_SCHEDULE
+MotionNotWander equ MotionScheduleNotWander
+MotionNotFollow equ MotionScheduleNotFollow
+MotionDirectionReady ldb      $21,u
+                    cmpb      #8
+                    lbhi      MotionInvalid
+                    ldd       3,u
+                    std       motionoldposition,x
+                    clra
+                    ldb       3,u
+                    std       motionx,x
+                    ldb       4,u
+                    std       motiony,x
+                    ldb       $1E,u
+                    std       motionstep,x
+                    clr       motionedge,x
+                    MOTION_EMIT_COORDINATE_STEP
+MotionClampX        equ ClampCoordinates
+MotionClampRight    equ ClampRightLimit
+MotionClampTop      equ ClampTopLimit
+MotionClampBottom   equ ClampBottomLimit
+MotionHorizon       equ ClampHorizon
+                    MOTION_EMIT_CLAMP
+MotionTargetClamp   lda       $22,u
+                    cmpa      #3
+                    bne       MotionCheckTerrain
+* A move-to step stops exactly at the target rather than overshooting it.
+                    clra
+                    ldb       $27,u
+                    pshs      d
+                    ldb       $21,u
+                    leay      MotionXDelta,pcr
+                    lda       b,y
+                    beq       MotionTargetXReady
+                    bpl       MotionTargetXPositive
+                    ldd       motionx,x
+                    cmpd      ,s
+                    bge       MotionTargetXReady
+                    bra       MotionTargetXStore
+MotionTargetXPositive ldd     motionx,x
+                    cmpd      ,s
+                    ble       MotionTargetXReady
+MotionTargetXStore  ldd       ,s
+                    std       motionx,x
+MotionTargetXReady  leas      2,s
+                    clra
+                    ldb       $28,u
+                    pshs      d
+                    ldb       $21,u
+                    leay      MotionYDelta,pcr
+                    lda       b,y
+                    beq       MotionTargetYReady
+                    bpl       MotionTargetYPositive
+                    ldd       motiony,x
+                    cmpd      ,s
+                    bge       MotionTargetYReady
+                    bra       MotionTargetYStore
+MotionTargetYPositive ldd     motiony,x
+                    cmpd      ,s
+                    ble       MotionTargetYReady
+MotionTargetYStore  ldd       ,s
+                    std       motiony,x
+MotionTargetYReady  leas      2,s
+MotionCheckTerrain  lbsr      GameCheckBlock
+                    tstb
+                    lbne      MotionBlocked
+                    lbsr      MotionTerrain
+                    lbcs      MotionReturn
+                    tstb
+                    lbne      MotionBlocked
+MotionAccept        equ PositionAccepted
+MotionOtherEdge     equ PositionOtherBoundary
+                    MOTION_EMIT_COMMIT
+MotionCheckDestination lda    $22,u
+                    cmpa      #3
+                    bne       MotionNextObject
+                    ldd       3,u
+                    cmpd      $27,u
+                    bne       MotionNextObject
+                    lbsr      MotionArrived
+                    bra       MotionNextObject
+MotionBlocked       ldu       motionobject,x
+                    lda       $22,u
+                    cmpa      #1
+                    beq       MotionMarkBlocked
+                    cmpa      #2
+                    bne       MotionNextObject
+MotionMarkBlocked   lda       $25,u
+                    ora       #$40
+                    sta       $25,u
+MotionNextObject    ldx       <resourcebase
+                    inc       motionid,x
+                    lda       motionid,x
+                    cmpa      #64
+                    lblo      MotionObjectNext
+                    ldu       <resourcebase
+                    lda       vmobjects+$21,u
+                    sta       vmvariables+6,u
+                    clrb
+MotionReturn        rts
+MotionInvalid       ldb       #E$BMode
+                    orcc      #1
+                    rts
+MotionUnsupported   ldb       #E$UnkSvc
+                    orcc      #1
+                    rts
+MotionXDelta        equ StepXDelta
+MotionYDelta        equ StepYDelta
+                    use shared/object-step-deltas.asm
+
+* Each baseline pixel participates in control/water checks. Sprite colors
+* are restored out of the composition buffer before this function is called.
+MotionTerrain       tst       <pictureowned
+                    lbeq      MotionInvalid
+                    lda       #1
+                    sta       motionwater,x
+                    clr       motiontrigger,x
+                    clr       motioncolumn,x
+                    ifne WILDBITS
+                    ifndef PLATFORM_WILDBITS_OBJECTS_BINDINGS
+                    use platform/wildbits-objects-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_OBJECTS_BINDINGS
+                    use platform/coco-objects-bindings.asm
+                    endc
+                    endc
+MotionTerrainPixel  equ TerrainPixelLoop
+MotionTerrainAdvance equ TerrainPixelAdvance
+                    use shared/object-terrain-scan.asm
+                    lbsr      PictureUnmap
+                    lbcs      MotionReturn
+                    ldx       <resourcebase
+                    ldu       motionobject,x
+                    use shared/object-terrain-constraints.asm
+MotionTerrainAccept tst       motionid,x
+                    bne       MotionTerrainDone
+                    lda       motionwater,x
+                    sta       vmflags,x
+                    lda       motiontrigger,x
+                    sta       vmflags+3,x
+MotionTerrainDone   clrb
+                    rts
+MotionTerrainBlocked lbsr     PictureUnmap
+                    lbcs      MotionReturn
+                    ldx       <resourcebase
+                    ldb       #1
+                    andcc     #$FE
+                    rts
+MotionTerrainError  ldb       <decodeerror
+                    orcc      #1
+                    rts
+
+* Baseline collisions, including crossing another baseline between steps.
+                    ifne WILDBITS
+                    ifndef PLATFORM_WILDBITS_OBJECTS_BINDINGS
+                    use platform/wildbits-objects-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_OBJECTS_BINDINGS
+                    use platform/coco-objects-bindings.asm
+                    endc
+                    endc
+                    use shared/object-collision-filter.asm
+MotionObjectCollision equ CollisionScan
+MotionCollisionNext equ CollisionScanLoop
+MotionCollisionAdvance equ CollisionScanAdvance
+MotionNoCollision   equ CollisionScanEmpty
+MotionCollided      equ CollisionScanHit
+MotionCrossDown     equ CollisionCrossDown
+                    use shared/object-collision-scan.asm
+
+MotionMoveDirection equ TargetDirection
+MotionArrived       equ TargetReached
+MotionArrivedDone   equ TargetReachedReturn
+                    MOTION_EMIT_TARGET
+
+* Animation modes match the CoCo forward/reverse/end-of-loop transitions.
+                    ifne WILDBITS
+                    ifndef PLATFORM_WILDBITS_MEMORY_RESOURCES_BINDINGS
+                    use platform/wildbits-memory-resources-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_MEMORY_RESOURCES_BINDINGS
+                    use platform/coco-memory-resources-bindings.asm
+                    endc
+                    endc
+
+* View acquisition and continuation ABI for the shared animation stage.
+ANIMATION_SELECT_LOOP macro
+                    ifne WILDBITS
+                    lda       #43
+                    lbsr      MotionSelectView
+                    lbcs      MotionReturn
+                    ldx       <resourcebase
+                    ldu       motionobject,x
+                    else
+                    lbsr      SetLoopHelper
+                    endc
+                    endm
+ANIMATION_FINISH macro
+                    ifne WILDBITS
+                    clrb
+                    rts
+                    endc
+                    endm
+ANIMATION_REVERSE_ENABLE macro
+                    lda       >$01B0
+                    anda      #8
+                    endm
+MotionAdvanceCel equ *
+                    use shared/object-animation.asm
+                    ANIMATION_EMIT_UPDATE
+MotionCycleTick equ AnimationCycleTick
+MotionCycleDone equ AnimationCycleDone
+                    ANIMATION_EMIT_CEL_ADVANCE
+                    ANIMATION_EMIT_DIRECTION_TABLES
+* A=selection opcode, B=index. The ordinary view component refreshes cel
+* metadata; scratch instruction arguments/opcode are restored afterwards.
+MotionSelectView    pshs      a,b
+                    lda       <vmopcode
+                    pshs      a
+                    lda       vmarguments,x
+                    ldb       vmarguments+1,x
+                    pshs      d
+                    lda       motionid,x
+                    sta       vmarguments,x
+                    lda       4,s
+                    sta       vmarguments+1,x
+                    lda       3,s
+                    sta       <vmopcode
+                    lbsr      ViewCommand
+                    pshs      cc,b
+                    ldx       <resourcebase
+                    ldd       2,s
+                    std       vmarguments,x
+                    lda       4,s
+                    sta       <vmopcode
+                    puls      cc,b
+                    leas      5,s
+                    rts
+
+                    else
+                    ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_GAME_MOTION_COMMAND
+* ===== wildbits-game-motion-command =====
+* move.obj / move.obj.v use private targets and a literal completion flag.
+GameMoveCommand     lbsr      ObjectAddress
+                    lbcs      MotionReturn
+                    ldb       <vmopcode
+                    cmpb      #82
+                    beq       GameMoveVariables
+                    ldd       vmarguments+1,u
+                    bra       GameMoveTarget
+GameMoveVariables   leay      vmvariables,u
+                    clra
+                    ldb       vmarguments+1,u
+                    lda       d,y
+                    pshs      a
+                    clra
+                    ldb       vmarguments+2,u
+                    ldb       d,y
+                    puls      a
+GameMoveTarget      cmpa      #160
+                    lbhs      ObjectBadIndex
+                    cmpb      #168
+                    lbhs      ObjectBadIndex
+                    std       $27,x
+                    lda       #3
+                    sta       $22,x
+                    OBJECT_MOVE_SETUP x,0,GameMoveFlag,GameMoveSetup
+                    clrb
+                    rts
+
+GameFollowCommand   lbsr      ObjectAddress
+                    lbcs      ObjectReturn
+                    leay      vmarguments+1,u
+                    OBJECT_FOLLOW_SETUP x,GameFollowDistance
+                    lbra      ObjectDone
+GameFollowSetFlag   pshs      a,x
+                    ldx       <resourcebase
+                    leax      vmflags,x
+                    ldb       ,s
+                    clra
+                    leax      d,x
+                    lda       #1
+                    sta       ,x
+                    puls      a,x,pc
+FOLLOW_PRIVATE_STATE equ     1
+                    use       shared/object-follow.asm
+                    use       shared/object-move-direction.asm
+MoveTableData       fcb       8,1,2,7,0,3,6,5,4
+
+                    else
+                    ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_GAME_MOTION_DATA
+* ===== wildbits-game-motion-data =====
+* Logical coordinates and private records; no mapped view/picture pointers.
+motionobject        rmb      2
+motionid            rmb      1
+motionx             rmb      2
+motiony             rmb      2
+motionstep          rmb      2
+motionedge          rmb      1
+motioncolumn        rmb      1
+motionwater         rmb      1
+motiontrigger       rmb      1
+motionoldposition   rmb      2
+motioncollision     rmb      1
+gamekeyscan         rmb      1
+gamekeysense        rmb      1
+
+                    else
+                    ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_GAME_REPOSITION_CODE
+* ===== wildbits-game-reposition-code =====
+* Relative signed-byte deltas and absolute coordinates, followed by the same
+* left/down/right/up expanding placement search as CoCo. Bound failed searches.
+GameReposition      lbsr      ObjectAddress
+                    lbcs      ObjectReturn
+                    ldd       3,x
+                    std       $1A,x
+                    lda       <vmopcode
+                    cmpa      #40
+                    bne       RepositionAbsolute
+                    leay      vmvariables,u
+                    clra
+                    ldb       vmarguments+1,u
+                    ldb       d,y
+                    OBJECT_SIGNED_DELTA x,3,RepositionX
+                    clra
+                    ldb       vmarguments+2,u
+                    ldb       d,y
+                    OBJECT_SIGNED_DELTA x,4,RepositionY
+                    bra       RepositionPlace
+RepositionAbsolute  lda       <vmopcode
+                    cmpa      #148
+                    beq       RepositionVariables
+                    OBJECT_POSITION x,0,0
+                    bra       RepositionPlace
+RepositionVariables OBJECT_POSITION x,1,0
+RepositionPlace     stx       motionobject,u
+                    lda       2,x
+                    sta       motionid,u
+                    lbsr      AssetUnmap
+                    lbcs      ObjectReturn
+                    lbsr      PictureUnmap
+                    lbcs      ObjectReturn
+                    ldx       <resourcebase
+                    tst       gamebackgroundowned,x
+                    beq       RepositionBackground
+                    lbsr      GameRestoreBackground
+                    lbcs      ObjectReturn
+RepositionBackground ldx     <resourcebase
+                    ldu       motionobject,x
+                    lda       $26,u
+                    bita      #8
+                    bne       RepositionSearch
+                    lda       <vmhorizon
+                    cmpa      4,u
+                    blo       RepositionSearch
+                    inca
+                    sta       4,u
+RepositionSearch    leas      -5,s
+                    clr       ,s         direction: left/down/right/up
+                    lda       #1
+                    sta       1,s        run length
+                    sta       2,s        remaining steps
+                    ldd       #$FFFF
+                    std       3,s        explicit search budget
+RepositionCandidate ldx      <resourcebase
+                    ldu       motionobject,x
+                    ifne WILDBITS
+                    ifndef PLATFORM_WILDBITS_OBJECTS_BINDINGS
+                    use platform/wildbits-objects-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_OBJECTS_BINDINGS
+                    use platform/coco-objects-bindings.asm
+                    endc
+                    endc
+                    use shared/object-bounds.asm
+                    OBJECT_CHECK_BOUNDS u,RepositionReject,RepositionBounds
+                    ldd       3,u
+                    std       motionoldposition,x
+                    clra
+                    ldb       3,u
+                    std       motionx,x
+                    ldb       4,u
+                    std       motiony,x
+                    lbsr      MotionObjectCollision
+                    tstb
+                    bne       RepositionReject
+                    lbsr      MotionTerrain
+                    lbcs      RepositionError
+                    tstb
+                    beq       RepositionFound
+RepositionReject    ldu       motionobject,x
+                    ldd       3,s
+                    subd      #1
+                    std       3,s
+                    lbeq      RepositionExhausted
+                    ifne WILDBITS
+                    ifndef PLATFORM_WILDBITS_OBJECTS_BINDINGS
+                    use platform/wildbits-objects-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_OBJECTS_BINDINGS
+                    use platform/coco-objects-bindings.asm
+                    endc
+                    endc
+                    use shared/object-placement-step.asm
+RepositionFound     ldu       motionobject,x
+                    lda       $25,u
+                    ora       #4
+                    sta       $25,u
+                    ldd       3,u
+                    std       $1A,u
+                    leas      5,s
+                    clrb
+                    rts
+RepositionExhausted ldb       #E$BMode
+                    orcc      #1
+RepositionError     pshs      b,cc
+                    ldx       <resourcebase
+                    ldu       motionobject,x
+                    ldd       $1A,u
+                    std       3,u
+                    puls      cc,b
+                    leas      5,s
+                    rts
+
+                    else
+                    ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_GAME_WANDER_CODE
+* ===== wildbits-game-wander-code =====
+                    ifndef PLATFORM_WILDBITS_OBJECTS_BINDINGS
+                    use platform/wildbits-objects-bindings.asm
+                    endc
+                    use       shared/object-motion-setup.asm
+GameWanderCommand   lbsr      ObjectAddress
+                    lbcs      ObjectReturn
+                    OBJECT_WANDER_SETUP x,GameWanderDone
+                    lbra      ObjectDone
+* Private 16-bit Galois LFSR; no mapped pointers or global random state.
+GameRandomByte      ldx       <resourcebase
+                    ldd       gamerandom,x
+                    lsra
+                    rorb
+                    bcc       GameRandomStore
+                    eora      #$B4
+GameRandomStore     std       gamerandom,x
+                    andcc     #$FE
+                    rts
+InitRandSeed        equ       GameRandomByte
+DivideDivisor       equ       vmtemp
+DivideBits          equ       vmleft
+                    use       shared/divide-byte.asm
+WANDER_PRIVATE_STATE equ      1
+                    use       shared/object-wander.asm
+
+                    else
+                    error Unknown platform feature section
+                    endc
+                    endc
+                    endc
+                    endc
+                    endc
+                    endc
+                    endc
+                    endc
+                    endc

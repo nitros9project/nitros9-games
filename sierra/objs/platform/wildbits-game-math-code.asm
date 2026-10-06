@@ -39,5 +39,7 @@ GameRandomCommand   ldu       <resourcebase
                     lbsr      CmdRandomImpl
                     clrb
                     rts
-                    use       platform/wildbits-random-operands.asm
+                    ifndef PLATFORM_WILDBITS_LOGIC_BINDINGS
+                    use platform/wildbits-logic-bindings.asm
+                    endc
                     use       shared/random-command.asm
