@@ -555,3 +555,21 @@ The porting guide's signal-driven clock addresses frame overruns, but the
 current test OS's `SOL_IRQSvc` lacks the process-signal delivery that it needs.
 A clock change must first verify the driver and multi-process ownership;
 the application does not read hardware timers or kernel globals to compensate.
+
+### Previous-command input recall
+
+Native `echo.line` (137) now follows CoCo's `input_echo`: when input is
+accepted and the previous raw command is longer than the current input,
+it appends the previous command's remaining suffix. A typed prefix stays
+intact. Disabled input and an equal or longer current line are unchanged.
+The native editor caps the recalled line at 38 bytes, terminates it, and
+rebuilds the prompt row. History, parser flags and adjacent private data
+remain untouched. This uses the existing input component and adds no
+private storage or platform files.
+
+`check_cancel_line.py` executes both editing commands at two module
+addresses, with enabled/disabled input, three prompt rows, differing typed
+prefixes and history lengths through 39 bytes. It checks the full private
+area, immutable code and stack guards. The dispatch check independently
+verifies the command is game-only; the bytecode probe retains its explicit
+unsupported-command response.

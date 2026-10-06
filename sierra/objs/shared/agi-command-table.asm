@@ -139,7 +139,7 @@
                     AGI_COMMAND CmdQuitImpl,$100,GameQuitCommand,1 *quit
                     AGI_COMMAND CmdShowMemInfo,$0000,VmPlatformUnsupported,0 *show mem
                     AGI_COMMAND CmdPauseImpl,$0000,GamePauseCommand,1 *pause
-                    AGI_COMMAND cmd_echo_line,$0000,VmPlatformUnsupported,0 *echo line
+                    AGI_COMMAND cmd_echo_line,$0000,GameEchoLine,1 *echo line
                     AGI_COMMAND cmd_cancel_line,$0000,GameCancelLine,1 *cancel line
                     AGI_COMMAND cmd_init_joy,$0000,VmPlatformUnsupported,0 *init joy
                     AGI_COMMAND cmd_toggle_monitor,$0000,VmPlatformUnsupported,0 *toggle monitor

@@ -107,6 +107,35 @@ GameCancelLine      ldu       <resourcebase
                     lbne      ParserInputVisible
                     clrb
                     rts
+* Echo the previous command suffix, preserving an already typed prefix.
+* Match CoCo input_echo, bounded by the native editor's 38-byte capacity.
+GameEchoLine        ldu       <resourcebase
+                    tst       <vminputenabled
+                    beq       GameEchoDone
+                    leax      parserlastline,u
+                    clrb
+GameEchoLength      cmpb      #38
+                    bhs       GameEchoHaveLength
+                    tst       b,x
+                    beq       GameEchoHaveLength
+                    incb
+                    bra       GameEchoLength
+GameEchoHaveLength  cmpb      parserlength,u
+                    bls       GameEchoDone
+                    pshs      b
+                    ldb       parserlength,u
+                    leay      parserline,u
+GameEchoCopy        lda       b,x
+                    sta       b,y
+                    incb
+                    cmpb      ,s
+                    blo       GameEchoCopy
+                    leas      1,s
+                    clr       b,y
+                    stb       parserlength,u
+                    lbra      ParserInputVisible
+GameEchoDone        clrb
+                    rts
 GameGetInput        ldu       <resourcebase
                     lda       #1
                     sta       dialoginputmode,u
