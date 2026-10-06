@@ -472,11 +472,7 @@ VmFetchByte         pshs      x,y,u
 * Reconstruct the ephemeral address; never retain it across a kernel call.
                     tst       <assetmapped
                     beq       VmFetchMap
-                    lsra
-                    lsra
-                    lsra
-                    lsra
-                    lsra
+                    anda      #$E0
                     cmpa      <assetpage
                     bne       VmFetchReloadOffset
                     ldd       <vmip

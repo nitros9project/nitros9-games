@@ -1176,11 +1176,8 @@ PicturePointer      pshs      d,x,y
                     std       <pictureoffset
                     tst       <decodeerror
                     bne       PicturePointerRet
-                    lsra
-                    lsra
-                    lsra
-                    lsra
-                    lsra
+* Cache the encoded 8K page; shift only when a mapping changes.
+                    anda      #$E0
                     tst       <picturemapped
                     beq       PictureMap
                     cmpa      <picturepage
@@ -1190,6 +1187,11 @@ PictureMap          pshs      a
                     puls      a
                     bcs       PicturePointerRet
                     sta       <picturepage
+                    lsra
+                    lsra
+                    lsra
+                    lsra
+                    lsra
                     tfr       a,b
                     clra
                     addd      <picturefirst

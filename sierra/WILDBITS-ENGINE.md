@@ -681,3 +681,21 @@ cycles (approximately 131 to 38 ms at that E-clock). Composition, presentation
 and text still dominate at about 140, 157 and 56 ms. Terminal-name validation
 accounts for only about 0.9 ms, so removing its two syscalls would not address
 the main remaining presentation cost.
+
+### Encoded mapping-cache pages
+
+The picture and resource mapping caches now retain the high three bits of
+the logical address (`offset & $E000`). A repeated access compares those bits
+directly; the five right shifts needed to calculate a physical 8K block occur
+only when that mapping changes. The bytecode-fetch fast path uses the same
+encoding. Offsets, error propagation, ephemeral pointers, ownership, and
+unmapping behavior remain unchanged.
+
+The native picture/view comparison, split-row and exact-8K sprite tests,
+source/destination mapping-failure cleanup, and common executor checks pass.
+The original Larry quiz, walking, messages, and free-memory restoration pass
+in MAME. The bounded profile measures about 26.5 ms for logic and 137.6 ms
+for sprite composition, compared with 27.4 and 139.7 ms before this change.
+Walking distance remains 13.4 pixels in the 400-frame sample: this is a small
+CPU saving, not a demonstrated improvement in walking speed. Production
+code is 23,665 bytes; private storage remains 24,576 bytes.

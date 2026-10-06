@@ -243,11 +243,8 @@ AssetPointer        pshs      d,x,y
                     std       <assetoffset
                     tst       <asseterror
                     bne       AssetPointerDone
-                    lsra
-                    lsra
-                    lsra
-                    lsra
-                    lsra
+* Cache the encoded 8K page; shift only when a mapping changes.
+                    anda      #$E0
                     tst       <assetmapped
                     beq       AssetMap
                     cmpa      <assetpage
@@ -257,6 +254,11 @@ AssetMap            pshs      a
                     puls      a
                     bcs       AssetPointerDone
                     sta       <assetpage
+                    lsra
+                    lsra
+                    lsra
+                    lsra
+                    lsra
                     tfr       a,b
                     clra
                     addd      <assetfirst
