@@ -6,7 +6,7 @@
 * LoadAsset: same directory/number ABI as LoadPicture. resourcekind selects
 * logic=0, picture=1, view=2, sound=3. Success retains an owned physical slab:
 * X=first block, B=block count, Y=expanded length, U=private base. Caller must
-* release/adopt it. Compressed input uses LZW; nibble-packed pictures rejected.
+* release/adopt it. LZW and nibble-packed pictures use bounded byte callbacks.
 LoadAsset           lbsr      ResourceLocate     common header locator, leaves path open
                     lbcs      AssetReturn
                     lbsr      AssetAllocate
@@ -19,25 +19,89 @@ LoadAsset           lbsr      ResourceLocate     common header locator, leaves p
                     stx       <assetinputend
                     clr       <assetoutoffset
                     clr       <assetoutoffset+1
+                    lda       resourceheader+2,u
+                    bita      #$80
+                    bne       AssetPackedPicture
                     ldd       <resourcestored
                     cmpd      <resourcelength
                     beq       AssetPlain
                     leax      resourcecommands,u
                     ldy       <resourcelength
                     lbsr      DecodeLzw
-                    bra       AssetDecoded
+                    lbra      AssetDecoded
 AssetPlain          lbsr      LzwReadByte
-                    bcs       AssetLoadError
+                    lbcs      AssetLoadError
                     lbsr      LzwWriteByte
-                    bcs       AssetLoadError
+                    lbcs      AssetLoadError
                     ldd       <assetoutoffset
                     cmpd      <resourcelength
                     blo       AssetPlain
-AssetDecoded        bcs       AssetLoadError
+                    lbra      AssetDecoded
+* Picture bytes are high-nibble first; F0/F2 take one color nibble.
+* Reuse LZW scratch: the two codecs never execute concurrently.
+AssetPackedPicture  clr       <lzwbits
+AssetPackedCommand  lbsr      AssetReadNibble
+                    lbcs      AssetLoadError
+                    lslb
+                    lslb
+                    lslb
+                    lslb
+                    pshs      b
+                    lbsr      AssetReadNibble
+                    bcs       AssetPackedPopError
+                    orb       ,s+
+                    stb       <lzwfirst
+                    lbsr      LzwWriteByte
+                    lbcs      AssetLoadError
+                    ldb       <lzwfirst
+                    cmpb      #$FF
+                    beq       AssetPackedEnd
+                    cmpb      #$F0
+                    beq       AssetPackedColor
+                    cmpb      #$F2
+                    bne       AssetPackedCommand
+AssetPackedColor    lbsr      AssetReadNibble
+                    lbcs      AssetLoadError
+                    lbsr      LzwWriteByte
+                    lbcs      AssetLoadError
+                    bra       AssetPackedCommand
+AssetPackedPopError leas      1,s
+                    lbra      AssetLoadError
+AssetPackedEnd      ldd       <assetoutoffset
+                    cmpd      <resourcelength
+                    bne       AssetPackedInvalid
+* A final unused low nibble is padding; extra whole bytes are malformed.
+                    ldx       <assetinputpointer
+                    cmpx      <assetinputend
+                    bne       AssetPackedInvalid
+                    ldd       <assetinputleft
+                    bne       AssetPackedInvalid
+                    andcc     #$FE
+                    lbra      AssetDecoded
+AssetPackedInvalid  ldb       #E$BMode
+                    lbra      AssetLoadError
+AssetReadNibble     tst       <lzwbits
+                    bne       AssetReadLowNibble
+                    lbsr      LzwReadByte
+                    bcs       AssetNibbleReturn
+                    stb       <lzwbyte
+                    inc       <lzwbits
+                    lsrb
+                    lsrb
+                    lsrb
+                    lsrb
+                    andcc     #$FE
+AssetNibbleReturn   rts
+AssetReadLowNibble  clr       <lzwbits
+                    ldb       <lzwbyte
+                    andb      #$0F
+                    andcc     #$FE
+                    rts
+AssetDecoded        lbcs      AssetLoadError
                     lbsr      AssetUnmap
-                    bcs       AssetLoadError
+                    lbcs      AssetLoadError
                     lbsr      ResourceClose
-                    bcs       AssetLoadError
+                    lbcs      AssetLoadError
                     ldu       <resourcebase
                     ldx       <assetfirst
                     ldy       <resourcelength
@@ -935,8 +999,16 @@ ResourceVolumeDigit adda      #'0
                     cmpd      #$1234
                     lbne      ResourceInvalid
                     lda       2,x
-                    bita      #$80              nibble-packed is not implemented
+                    bita      #$80
+                    ifne      AGI_ASSET
+                    beq       ResourceHeaderFlagsOK
+                    ldb       <resourcekind
+                    cmpb      #1                packed encoding applies only to pictures
                     lbne      ResourceInvalid
+ResourceHeaderFlagsOK equ     *
+                    else
+                    lbne      ResourceInvalid   plain-resource probe only
+                    endc
                     anda      #$0F
                     cmpa      <resourcevolume
                     lbne      ResourceInvalid

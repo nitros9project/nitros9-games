@@ -51,14 +51,15 @@ def start_cpu(bootrom, timeout=300):
     raise RuntimeError('XRoar debugger did not attach after four fresh starts')
 
 
-def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zero_read=False, seek_error=False, write_error=False, module='wbres', map_failure=0, allocation_error=False, unmap_error=False, window=0x8000, terminal=True, blocks=4, capture=False, multiple=False, firstblock=0x30, frame_capture=False, keyboard=b'', clock=(0,), bitmap_error=False, key_sense=0, cycle_limit=None, os_call_limit=20000, keyboard_by_cycle=None, option_set_error=False):
+def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zero_read=False, seek_error=False, write_error=False, module='wbres', map_failure=0, allocation_error=False, unmap_error=False, window=0x8000, terminal=True, blocks=4, capture=False, multiple=False, firstblock=0x30, frame_capture=False, keyboard=b'', clock=(0,), bitmap_error=False, key_sense=0, cycle_limit=None, os_call_limit=20000, keyboard_by_cycle=None, option_set_error=False, resource_kind=None, module_root=None):
     if module == 'wbgame':
         files = {'wbfont': (ROOT / 'wbfont').read_bytes(), **files}
-    syms = symbols(ROOT / (module + '.map'))
+    module_root = Path(module_root) if module_root is not None else ROOT
+    syms = symbols(module_root / (module + '.map'))
     calls = {base + int(m[1], 16): int(m[2], 16) for m in re.finditer(
-        r'^([0-9A-F]{4}) 103F([0-9A-F]{2}).*os9', (ROOT / (module + '.list')).read_text(), re.M)}
+        r'^([0-9A-F]{4}) 103F([0-9A-F]{2}).*os9', (module_root / (module + '.list')).read_text(), re.M)}
     d.write(database, bytes(syms['size']))
-    code = (ROOT / module).read_bytes()
+    code = (module_root / module).read_bytes()
     assert base+len(code)<=0xfe00, 'CPU fixture code overlaps the CoCo I/O page; relocate its load address'
     d.write(base, code)
     argv = database + syms['size'] - 160
@@ -67,6 +68,9 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
         d.breakpoint(address)
     d.regs(pc=base + syms['start'], s=database + syms['size'] - 256,
            dp=database >> 8, u=database, x=argv, cc=0x50)
+    kind_entry = base + syms['LoadAsset'] if resource_kind is not None else None
+    if kind_entry is not None:
+        d.breakpoint(kind_entry)
     paths, output, nextpath = {}, bytearray(), 3
     path_names, file_reads = {}, {}
     owned, mapped = {}, False
@@ -91,6 +95,11 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
     for _ in range(os_call_limit):
         d.call('c')
         r = d.regs()
+        if r['pc'] == kind_entry:
+            d.write(database + syms['resourcekind'], bytes([resource_kind]))
+            d.breakpoint(kind_entry, False)
+            kind_entry = None
+            continue
         service = calls[r['pc']]
         if service == syms.get('F$MapBlk'):
             site=r['pc']-base

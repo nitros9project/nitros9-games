@@ -12,7 +12,7 @@ for retry. Sprite visibility now uses the same shared per-cel rule for both
 owners; native publishes AGI flag 1 only for ego. Selected-cel positioning is also shared, including right-edge and
 height/horizon adjustment. Native platform commands now use an immutable relative dispatch table
 from the shared AGI catalog. Both decoders also expand the shared LZW
-window-alignment/mask and dictionary-walk core. The game is 22,316 bytes;
+window-alignment/mask and dictionary-walk core. The game is 22,466 bytes;
 process data is 24,570 bytes (six bytes below its three-page limit).
 The per-cel visibility byte reuses the sort key after collection completes.
 
@@ -389,3 +389,24 @@ Unsigned comparison/isset predicates now use the same bodies as CoCo. Boolean
 return adapters retain native B results and CoCo A results. The condition
 catalog provides both owners' operand descriptors/counts; remaining external
 predicate implementations are still separate.
+
+### Packed picture resources — 2026-10-06
+
+The asset loader now accepts the picture-only header flag `$80`. This encoding
+stores bytes high nibble first, except the color operand after `$F0` or `$F2`,
+which occupies one nibble. It uses the existing bounded input and mapped output
+callbacks and reuses LZW scratch; the codecs execute sequentially. Expanded
+length must match the header, an end marker must be present, and only a final
+unused low nibble is permitted as padding. Other resource kinds reject this flag.
+
+All 443 packed pictures in Gold Rush, King's Quest IV, Leisure Suit Larry and
+Space Quest 0 match both CoCo's actual `RenderPicStrip` and an independent host
+oracle. Tests also cover relocation, short I/O, malformed lengths/truncation,
+trailing bytes, wrong resource kinds and allocation/mapping/service failures.
+The game remains at 24,570 private bytes and is now 22,466 code bytes.
+
+King's Quest I MAME startup, inventory, restoration, movement and interrupt
+cleanup passed at `/tmp/sierra-packed-kq1-movement`. This does not establish
+playability of those other titles: Larry's startup separately reaches the
+unimplemented `add.to.pic` opcode 122 (`$7A`), as shown by the temporary trace
+build at `/tmp/sierra-packed-larry-trace`.

@@ -525,3 +525,13 @@ compressed resources decoded by both actual owners and 528 direct code-window
 reads. Extracting the dictionary walk afterward preserved all seven native
 modules and all 56 CoCo modules byte for byte, including the exact game used
 for these MAME acceptance runs.
+
+### Packed picture loader acceptance — 2026-10-06
+
+The 22,466-byte game (24,570 private bytes) passes the established King's Quest I
+startup/inventory/modal/movement/interrupt-cleanup checks. Artifacts are
+`/tmp/sierra-packed-kq1-movement`; movement remains nine pixels in 200 frames.
+The separate Larry diagnostic run is not an acceptance pass: it stops at
+unsupported opcode `$7A` (`add.to.pic`) before entering gameplay. Its trace
+is at `/tmp/sierra-packed-larry-trace`. Actual CPU tests independently verify
+all 443 packed pictures against CoCo and the host nibble oracle.

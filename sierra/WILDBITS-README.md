@@ -343,7 +343,8 @@ wbasset /s0/kingsquest1 0 </term >/s0/logic0.bin
 ```
 
 The reusable loader supports logic, picture, view and sound directory kinds;
-the probe CLI currently selects logic. Nibble-packed pictures remain unsupported.
+the probe CLI currently selects logic. The loader also expands nibble-packed pictures
+using the picture resource kind; the plain `wbres` probe remains deliberately limited.
 Plain resources and expanded LZW resources occupy owned physical slabs of one
 to eight blocks, rather than a fixed 8 KB output buffer. The LZW dictionary and
 string stack reuse the private 8 KB command-workspace buffer. Both disk input

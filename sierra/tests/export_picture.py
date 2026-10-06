@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render a plain Sierra picture resource with the existing 6809 renderer.
+"""Render a plain or nibble-packed Sierra picture resource with the existing 6809 renderer.
 
 This host-side reference bridge produces wbpic input. It is not a native
 Wild Bits resource decoder. Game assets remain local and are not redistributed.
@@ -17,6 +17,24 @@ import time
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tests'))
 from check_instances import Debugger, symbols as read_symbols
 from check_wbres import idle_rom
+
+
+def unpack_picture(data):
+    """Expand high-first picture nibbles; only F0/F2 have half-byte operands."""
+    nibs = iter(n for b in data for n in (b >> 4, b & 15))
+    out = bytearray()
+    try:
+        while True:
+            command = next(nibs)*16 + next(nibs)
+            out.append(command)
+            if command == 255:
+                if len(list(nibs)) > 1:
+                    raise ValueError('packed picture has trailing bytes')
+                return bytes(out)
+            if command in (240,242):
+                out.append(next(nibs))
+    except StopIteration as error:
+        raise ValueError('truncated packed picture') from error
 
 
 def resource(game, number):
@@ -37,8 +55,12 @@ def resource(game, number):
     payload = data[offset + 7:offset + 7 + stored]
     if len(payload) != stored:
         raise ValueError('truncated picture resource')
-    if header[2] & 128 or decoded != stored:
-        raise ValueError('reference bridge currently requires a plain resource; packed/LZW support is pending')
+    if header[2] & 128:
+        payload = unpack_picture(payload)
+        if len(payload) != decoded:
+            raise ValueError('packed picture expanded length differs from header')
+    elif decoded != stored:
+        raise ValueError('reference bridge LZW support is pending')
     if not payload or payload[-1] != 255 or len(payload) > 8192:
         raise ValueError('picture does not fit the reference command window or lacks its end marker')
     return payload, volume, offset

@@ -104,8 +104,8 @@ def exercise(d, code, syms, data, expected, success=True, base=0xe000, database=
     return d.read(outputbase, expected)
 
 
-def exercise_coco(d, code, syms, data, expected, base=0x8000):
-    """Run PicRenderSetup; mock only file reads and shadow-page mapping."""
+def exercise_coco(d, code, syms, data, expected, base=0x8000, entry="PicRenderSetup"):
+    """Run the selected resource decoder; mock only file reads and shadow-page mapping."""
     output = 0x2000
     assert expected < 0x4000-16
     d.write(base, code)
@@ -122,7 +122,7 @@ def exercise_coco(d, code, syms, data, expected, base=0x8000):
     for address in (finish, mapping, reading): d.breakpoint(address)
     consumed = 0
     try:
-        d.regs(pc=base+syms['PicRenderSetup'],s=stack,dp=0,cc=0x50)
+        d.regs(pc=base+syms[entry],s=stack,dp=0,cc=0x50)
         for _ in range(32):
             d.call('c'); regs = d.regs()
             if regs['pc'] == finish: break
