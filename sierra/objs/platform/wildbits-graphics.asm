@@ -1556,6 +1556,11 @@ waitforeground      tst       <aborted
                     bne       foregroundabort
                     tst       <paused
                     beq       foregroundready
+                    tst       <mapped
+                    beq       foregroundunmapped
+                    lbsr      unmap
+                    bcs       foregrounderror
+foregroundunmapped  equ       *
                     ifne      GAME_PRESENTATION
                     lbsr      GameClockMute
                     bcs       foregrounderror
@@ -1693,6 +1698,9 @@ PresentPicture      lbsr      PictureUnmap
                     inc       <registered
 PresentClearBitmap  equ       *
                     ifne      GAME_PRESENTATION
+                    lda       <presentationconfigured
+                    ora       #$80
+                    sta       <presentationconfigured
                     lbsr      GameDamageAll
                     endc
                     clr       <blockindex
@@ -1743,9 +1751,7 @@ PresentBandReady    ldb       <presentband
                     ldb       #5
                     mul
                     tfr       b,a
-                    clrb
-                    addb      <gamepresentleft
-                    adca      #0
+                    ldb       <gamepresentleft
                     std       <presentoffset
                     lda       <vmpicturetop
                     adda      <presentband
@@ -1957,7 +1963,8 @@ PresentFinishBands  equ       *
                     lbsr      foreground
                     lbcs      PresentFailure
                     ifne      GAME_PRESENTATION
-                    tst       <presentationconfigured
+                    lda       <presentationconfigured
+                    bita      #1
                     lbne      PresentDrawTextOnly
                     endc
                     leax      palette,pcr
@@ -2010,10 +2017,10 @@ PresentFinishBands  equ       *
                     endc
                     lbcs      PresentFailure
                     ifne      GAME_PRESENTATION
-                    lda       #1
+                    lda       #$81
                     sta       <presentationconfigured
 PresentDrawTextOnly equ       *
-                    lbsr      GameDrawText
+                    lbsr      GameDrawTextDirty
                     ifne      GAME_TRACE
                     pshs      cc,a
                     lda       #11
@@ -2026,6 +2033,9 @@ PresentDrawTextOnly equ       *
                     clr       <gamepresentdirty+2
                     ldd       #$A000
                     lbsr      GameDamageBounds
+                    lda       <presentationconfigured
+                    anda      #1
+                    sta       <presentationconfigured
                     endc
                     ifeq      GAME_PRESENTATION
                     lda       #0

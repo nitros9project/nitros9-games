@@ -34,6 +34,7 @@ def main():
                     put('vmtextforeground',b'\x03');put('vmtextbackground',b'\x07');put('vmcursor',b'_')
                     put('vmstrings',b'> \0');put('parserlength',bytes([length]));put('parserline',b'x'*length+b'\0')
                     put('parserlastline',b'h'*history+b'\0')
+                    put('presentationconfigured',b'\x01');put('rowoutput',b'U'*80)
                     expected=bytearray(data)
                     redraw=False
                     if entry == 'GameCancelLine':
@@ -45,6 +46,8 @@ def main():
                         at=syms['parserline'];expected[at:at+end+1]=line+b'\0'
                         redraw=True
                     if redraw:
+                        expected[syms['presentationconfigured']]=0x81
+                        at=syms['rowoutput'];expected[at:at+80]=bytes([0xcc])*80
                         at=syms['textcharacters']+row*40
                         text=b'> '+line+b'_'
                         # At maximum capacity the prompt consumes the cursor cell.
@@ -57,6 +60,32 @@ def main():
                     assert d.read(private,len(data)+5)==expected+b'GUARD',(base,entry,enabled,row,length,history)
                     assert d.read(stack+2,5)==b'STACK'
                     count+=1
+                for row in (0,23,24):
+                    for length in (0,1,38):
+                        for color_change in (False,True):
+                            data=bytearray([0xcc])*syms['size']
+                            def put(field,value):data[syms[field]:syms[field]+len(value)]=value
+                            put('resourcebase',private.to_bytes(2,'big'))
+                            put('vminputenabled',b'\x01');put('vminputrow',bytes([row]))
+                            put('vmtextforeground',b'\x03');put('vmtextbackground',b'\x07');put('vmcursor',b'_')
+                            put('vmstrings',b'> \0');put('parserlength',bytes([length]));put('parserline',b'x'*length+b'\0')
+                            put('presentationconfigured',b'\x01');put('rowoutput',b'U'*80)
+                            at=syms['textcharacters']+row*40
+                            text=(b'> '+b'x'*length+b'_'+b' '*40)[:40]
+                            data[at:at+40]=text;data[at+1000:at+1040]=bytes([0x37])*40
+                            if color_change:data[at+1039]=0x36
+                            expected=bytearray(data)
+                            shadow=bytes(value for pair in zip(data[at:at+40],data[at+1000:at+1040]) for value in pair)
+                            expected[syms['rowoutput']:syms['rowoutput']+80]=shadow
+                            expected[at+1000:at+1040]=bytes([0x37])*40
+                            expected[syms['presentationconfigured']]=0x81 if color_change else 1
+                            d.write(private,data+b'GUARD');d.write(stack,finish.to_bytes(2,'big')+b'STACK')
+                            d.regs(pc=base+syms['ParserDrawInput'],u=private,s=stack,dp=private>>8,cc=0x51)
+                            d.call('c');regs=d.regs()
+                            assert regs['pc']==finish and regs['s']==stack+2 and not regs['cc']&1
+                            assert d.read(private,len(data)+5)==expected+b'GUARD',('prompt damage',row,length,color_change)
+                            assert d.read(stack+2,5)==b'STACK'
+                            count+=1
                 assert d.read(base,len(code))==code,'code changed'
             print(f'PASS: {count} actual cancel.line/echo.line calls; cancellation, history suffix/prefix preservation, 38-byte bounds, prompt redraw and disabled/history/flags/private guards preserved, relocated immutable code')
         finally:

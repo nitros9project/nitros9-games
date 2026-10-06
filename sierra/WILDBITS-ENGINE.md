@@ -837,3 +837,43 @@ movement covers 21.4 pixels over 400 frames. Messages, stopping, Ctrl-C,
 and unchanged free memory pass. Code is 23,688 bytes and private storage
 remains 24,459 bytes. Picture copying remains about 55 ms and text about
 56 ms per sampled cycle.
+
+### Text damage and background-safe framebuffer ownership
+
+Ordinary picture presentation now repaints text only where its picture
+bands were damaged. The persistent prompt outside the picture is retained
+when its characters and colors are unchanged. `ParserDrawInput` snapshots
+that row into the first 80 bytes of idle glyph staging, rebuilds it, and
+compares both planes. Changed characters or colors request a full text pass.
+This is transient scratch storage, not a second persistent text plane.
+
+`presentationconfigured` bit 0 indicates completed display configuration;
+bit 7 requests full text painting. Initial display setup, foreground return,
+and clearing the owned bitmap for a modal restoration force a complete
+text pass. Direct text updates and bounded editor/inventory updates also
+retain their full or bounded rendering behavior. Successful presentation
+clears the force bit and band damage; errors retain both. One private byte
+selects ordinary damage-limited rendering versus a full/bounded call.
+
+If visibility changes while text has a framebuffer page mapped, foreground
+handling now closes that mapping before muting the clock and sleeping.
+Unmap failure returns the original error without sleeping or changing clock
+ownership; exit can retry its normal cleanup. Actual CPU checks cover both
+success and failure with register, stack, and private-memory guards.
+
+The input suite now has 312 actual calls, including unchanged prompt rows
+and color-only changes at rows 0, 23, and 24. Complete game pixels and
+persistent dialogs pass. Larry passes messages, movement, same-direction
+stop, Ctrl-C, and free-memory restoration. Original KQ1 passes repeated
+commands, menu Pause, frozen/resumed clocks, and modal restoration. Two
+independent Larry/KQ1 games pass terminal switching, separate inventory
+input, survivor operation after peer exit, and final memory recovery using
+the documented expanded-memory emulator kernel.
+
+The bounded Larry profile now measures text at about 1.7 ms instead of
+56 ms during unchanged-input gameplay. Movement covers 26.8 pixels over
+the same 400 frames, compared with 21.4 before text damage tracking.
+Sprite composition remains about 116 ms and picture copying about 55 ms.
+Production code is 23,808 bytes, exactly its conservative limit; private
+storage is 24,460 bytes. This requires recovering code space before adding
+more interpreter features. No platform assembly files were added.

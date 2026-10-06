@@ -250,7 +250,8 @@ end)
         events=[' if frames==11100 then','  print("PROFILE CLOCK 12587500")']
         for label in phases+details:
             action=f'printf "PROFILE {label} %d",totalcycles; g'
-            events.append(f'  cpu.debug:bpset({base+syms[label]},{json.dumps(condition)},{json.dumps(action)})')
+            entry=syms.get('GameDrawTextDirty',syms[label]) if label=='GameDrawText' else syms[label]
+            events.append(f'  cpu.debug:bpset({base+entry},{json.dumps(condition)},{json.dumps(action)})')
         # Record the actual clipped footprint and update flags of every cel.
         # The interpreter private base is U-independent here; spriteobject is
         # passed directly in U at this entry before any resource mapping.

@@ -437,6 +437,7 @@ PLATFORM_SECTION    set PLATFORM_WILDBITS_RENDER_TEXT
                     use platform/wildbits-text-ui.asm
 * A bounded contiguous cell range; caller sets index/end/row/column.
 GameDrawTextRange   ldx       <resourcebase
+                    clr       textrenderdirty,x
                     ldd       textend,x
                     std       textrenderend,x
                     lbra      TextFastPrepare
@@ -509,6 +510,7 @@ textpointer         rmb      2
 textindex           rmb      2
 textend             rmb      2
 textrenderend       rmb      2
+textrenderdirty     rmb      1
 textfontpointer     rmb      2
 textrow             rmb      1
 textcolumn          rmb      1
@@ -1525,8 +1527,13 @@ dictionarygroups    equ       fillstack+2048
 * Render occupied text rows horizontally, avoiding a MapBlk round trip for
 * each character when its eight scanlines straddle a framebuffer page.
 * rowoutput is private, and index zero means leave that framebuffer pixel.
-GameDrawText        ldx       <resourcebase
-                    ldd       #1000
+GameDrawTextDirty   lda       #1
+                    ldb       <presentationconfigured
+                    bpl       TextFastMode
+GameDrawText        clra
+TextFastMode        ldx       <resourcebase
+                    sta       textrenderdirty,x
+TextFastInitialize  ldd       #1000
                     std       textrenderend,x
                     clr       textrow,x
                     clr       textcolumn,x
@@ -1544,7 +1551,18 @@ TextFastNextRow     lbsr      foreground
                     cmpd      textrenderend,x
                     lbhs      TextFastDone
                     std       textindex,x
-                    ldd       textrenderend,x
+                    tst       textrenderdirty,x
+                    beq       TextFastReadRow
+                    lda       textrow,x
+                    suba      <vmpicturetop
+                    bcs       TextFastDirtySkip
+                    cmpa      #21
+                    bhs       TextFastDirtySkip
+                    lbsr      GameDamageTest
+                    bne       TextFastDirtyPaint
+TextFastDirtySkip   lbra      TextFastAdvanceRow
+TextFastDirtyPaint  ldx       <resourcebase
+TextFastReadRow     ldd       textrenderend,x
                     subd      textindex,x
                     cmpd      #40
                     bls       TextFastRowLimit
@@ -1695,7 +1713,8 @@ TextFastSkip        leau      1,u
                     lda       textglyphrow,x
                     cmpa      #8
                     lblo      TextFastGlyphRow
-TextFastAdvanceRow  inc       textrow,x
+TextFastAdvanceRow  ldx       <resourcebase
+                    inc       textrow,x
                     clr       textcolumn,x
                     lbra      TextFastNextRow
 TextFastDone        equ       *
@@ -2336,6 +2355,16 @@ ParserInputVisible  lda       <vminputrow
                     leax      textcharacters,u
                     leax      d,x
                     pshs      x
+                    leay      rowoutput,u
+                    ldb       #40
+ParserInputSnapshot lda       ,x
+                    sta       ,y+
+                    lda       1000,x
+                    sta       ,y+
+                    leax      1,x
+                    decb
+                    bne       ParserInputSnapshot
+                    ldx       ,s
                     ldb       #40
 ParserBlankInput    lda       #32
                     sta       ,x
@@ -2349,7 +2378,7 @@ ParserBlankInput    lda       #32
                     leax      1,x
                     decb
                     bne       ParserBlankInput
-                    puls      x
+                    ldx       ,s
                     leay      vmstrings,u     string zero is the AGI prompt
                     ldb       #40
 ParserPrompt        lda       ,y+
@@ -2357,16 +2386,32 @@ ParserPrompt        lda       ,y+
                     sta       ,x+
                     decb
                     bne       ParserPrompt
-                    lbra      GameCycleSuccess
+                    bra       ParserInputCompare
 ParserInputText     leay      parserline,u
 ParserInputCopy     lda       ,y+
                     beq       ParserCursor
                     sta       ,x+
                     decb
                     bne       ParserInputCopy
-                    lbra      GameCycleSuccess
+                    bra       ParserInputCompare
 ParserCursor        lda       <vmcursor
                     sta       ,x
+ParserInputCompare  puls      x
+                    leay      rowoutput,u
+                    ldb       #40
+ParserInputCheck    lda       ,x
+                    cmpa      ,y+
+                    bne       ParserInputChanged
+                    lda       1000,x
+                    cmpa      ,y+
+                    bne       ParserInputChanged
+                    leax      1,x
+                    decb
+                    bne       ParserInputCheck
+                    lbra      GameCycleSuccess
+ParserInputChanged  lda       <presentationconfigured
+                    ora       #$80
+                    sta       <presentationconfigured
                     lbra      GameCycleSuccess
 
 * In-place adapter to the same sentence tokenizer assembled by CoCo.

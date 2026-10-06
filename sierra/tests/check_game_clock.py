@@ -38,7 +38,7 @@ def check_frame_gate(d, code, syms, listing, base=0xa000):
         d.write(private,data+b'GUARD')
     def byte(name):return d.read(private+syms[name],1)[0]
     def put(name,value):d.write(private+syms[name],bytes([value]))
-    def execute(entry,on_sleep=None,capabilities=7,open_error=0,register_error=0,get_error=0):
+    def execute(entry,on_sleep=None,capabilities=7,open_error=0,register_error=0,get_error=0,unmap_error=0):
         sleeps=[];statuses=[];paths=set()
         d.write(stack,finish.to_bytes(2,'big')+b'STACK')
         d.regs(pc=base+syms[entry],s=stack,u=private,x=0x1234,y=0x2345,dp=private>>8,cc=0x50)
@@ -52,6 +52,9 @@ def check_frame_gate(d, code, syms, listing, base=0xa000):
             if service==syms['F$Sleep']:
                 sleeps.append(r['x'])
                 if on_sleep:on_sleep(r)
+            elif service==syms['F$ClrBlk']:
+                assert r['u']==0x8000 and r['b']==1 and byte('mapped')==1
+                if unmap_error:updates.update(b=unmap_error,cc=r['cc']|1)
             elif service==syms['I$Open']:
                 assert d.read(r['x'],6)==b'/fSOL\r' and r['a']==syms['UPDAT.']
                 if open_error:updates.update(b=open_error,cc=r['cc']|1)
@@ -62,6 +65,7 @@ def check_frame_gate(d, code, syms, listing, base=0xa000):
                 if get_error:updates.update(b=get_error,cc=r['cc']|1)
             elif service==syms['I$SetStt']:
                 assert r['a']==7
+                if r['b']==syms['SS.SOLMUTE']:assert byte('mapped')==0
                 statuses.append((r['b'],r['x'],r['y']))
                 if register_error and r['b']==syms['SS.SOLIRQ'] and r['y']:
                     updates.update(b=register_error,cc=r['cc']|1)
@@ -115,15 +119,20 @@ def check_frame_gate(d, code, syms, listing, base=0xa000):
             assert statuses==[(syms['SS.SOLIRQ'],0,0)] and not paths
         count+=1
     state(gameclockpath=7,gameclockticks=150,gameclockseen=30,
-          gameclockcredit=b'\0\x09',paused=1)
+          gameclockcredit=b'\0\x09',paused=1,mapped=1,mapbase=b'\x80\0')
     def resume(r):
         assert r['x']==2
         put('paused',0);put('gameclockreset',1)
     r,sleeps,statuses,paths=execute('foreground',on_sleep=resume)
     assert not r['cc']&1 and not r['b'] and (r['x'],r['y'],r['u'])==(0x1234,0x2345,private)
     assert sleeps==[2] and [item[:2] for item in statuses]==[(syms['SS.SOLMUTE'],1),(syms['SS.SOLMUTE'],0)]
-    assert byte('gameclockmuted')==0 and byte('gameclockseen')==150
+    assert byte('gameclockmuted')==0 and byte('gameclockseen')==150 and byte('mapped')==0
     assert d.read(private+syms['gameclockcredit'],2)==b'\0\0'
+    count+=1
+    state(gameclockpath=7,paused=1,mapped=1,mapbase=b'\x80\0')
+    r,sleeps,statuses,_=execute('foreground',unmap_error=207)
+    assert r['cc']&1 and r['b']==207 and not sleeps and not statuses and byte('mapped')==1
+    assert (r['x'],r['y'],r['u'])==(0x1234,0x2345,private)
     count+=1
     state(gameclockpath=7,gameclockreset=1,gameclockticks=150,gameclockseen=30,
           gameclockcredit=b'\0\x09',gameclocklast=12,

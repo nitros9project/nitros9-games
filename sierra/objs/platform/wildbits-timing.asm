@@ -83,7 +83,7 @@ GameClockGate       ldu       <resourcebase
                     mul
                     addd      #1
                     tfr       d,x
-                    os9       F$Sleep
+GameClockSleep      os9       F$Sleep
                     rts
 GameClockSignalGate ldb       vmvariables+10,u
                     lda       #3
@@ -121,8 +121,7 @@ GameClockKeepCredit std       gameclockcredit,u
 GameClockGateReturn leas      2,s
                     rts
 GameClockYield      ldx       #1
-                    os9       F$Sleep
-                    rts
+                    bra       GameClockSleep
 GameClockSample     ldu       <resourcebase
                     lda       gameclockpath,u
                     ldb       #SS.SOLIRQ
