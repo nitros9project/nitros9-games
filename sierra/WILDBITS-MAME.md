@@ -577,3 +577,27 @@ The production game is byte-identical to the tested streaming prototype. All
 presentation and persistent-window regression checks pass. CPU tests compare
 all 23 actual pictures above 8 KiB against CoCo and cover 65,535-byte input,
 page-boundary/truncated commands, source map/unmap errors and ownership cleanup.
+
+### Larry opening gameplay acceptance — 2026-10-06
+
+The production 23,152-byte engine passes two scenarios with the original
+Larry resources and real Wild Bits drivers:
+
+- `check_wbgame_mame.py --larry`: age quiz, street scene, rightward walking,
+  exact shared-font glyphs in the `look` response, all following message
+  dismissals, scene restoration and interrupt/free-memory cleanup. Artifacts:
+  `/tmp/sierra-larry-update-production`. Movement is about nine AGI pixels in
+  400 frames; this establishes correctness, not a movement speed improvement.
+- `check_wbgame_mame.py --larry-enter`: age quiz, approach to the door, the
+  successful `open door` response, transition into Lefty's, interior `look`,
+  dismissal and interrupt/free-memory cleanup. Artifacts:
+  `/tmp/sierra-larry-enter-production`.
+
+Both use the existing MAME/OS checkout and private test images described above.
+The `stop.update` failure seen after the quiz is resolved. The harness sends
+an explicit carriage return after interrupting: MAME's natural keyboard drops
+a later LF following a prior CR, even across separate `post()` calls. Without
+that correction, the shell cleanup command could inherit an unfinished line.
+The walking measurement excludes the utility pole's white pixels and measures
+the character's suit. These are opening gameplay checks; save/restore, audio,
+full adventure completion and simultaneous real-game runs remain separate.

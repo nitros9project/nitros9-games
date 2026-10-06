@@ -516,5 +516,7 @@ bytes, within the 23,808-byte code budget.
 
 The MAME harness now has a `--larry` scenario for the original age quiz,
 walking outside Lefty's, the exact `look` response, dialog dismissal and
-interrupt/free-memory cleanup. This checks an opening gameplay sequence;
+interrupt/free-memory cleanup. `--larry-enter` also verifies opening the door,
+entering the bar and its interior description. Both pass with the production
+binary on real Wild Bits drivers. These check opening gameplay sequences;
 it does not establish completion of Larry or support for save/restore/audio.
