@@ -22,6 +22,29 @@ an `sdl3-config` shim supplying `-I/opt/homebrew/opt/sdl3/include` and
 The default build produced `mamed`; use the actual executable name produced
 by your build.
 
+For the 2026-10-06 rebuild, this fork's SDL3 backend still queried
+`sdl2-config` in `scripts/src/osd/sdl.lua`. The temporary prefix supplied both
+`sdl2-config` and `sdl3-config`, returning
+`-I/opt/homebrew/opt/sdl3/include` for `--cflags` and
+`-L/opt/homebrew/opt/sdl3/lib -lSDL3` for `--libs`. Installed SDL was 3.4.16.
+Do not point this SDL3 build at the Homebrew SDL2 prefix.
+
+The workspace environment also contained a 6809 cross-compiler. Pinning the
+host compiler and SDK avoided both selecting that compiler and missing the
+macOS C/C++ headers:
+
+```sh
+DEVELOPER_DIR=/Library/Developer/CommandLineTools \
+SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk \
+make SOURCES=src/mame/wildbits/wildbits_jr2.cpp NOWERROR=1 REGENIE=1 \
+  USE_LIBSDL=1 SDL_INSTALL_ROOT=/tmp/sierra-wildbits-sdl3 \
+  OVERRIDE_CC=/Library/Developer/CommandLineTools/usr/bin/clang \
+  OVERRIDE_CXX=/Library/Developer/CommandLineTools/usr/bin/clang++ -j4
+```
+
+The prefix is local build configuration; no emulator source changes were
+required. The Command Line Tools compiler was Apple clang 21.0.0.
+
 Build the OS tree's `recipes/wildbits/l2` and `recipes/wildbits/feu` recipes
 with `PLATFORM=jr2`; the FEU recipe needs both `all` and `f0.dsk` targets.
 Set `NITROS9DIR` to that tree and `LANGUAGES` to the sibling language tree.
@@ -84,9 +107,8 @@ Diagnostic-only and King's Quest I picture runs passed on 2026-10-04 with:
 This establishes emulator behavior for those revisions. It does not establish
 hardware speed, switching during the short loading window, hidden cancellation,
 forced kill, or behavior under persistent driver failures. Those checks remain
-in physical hardware/extended runtime acceptance work. The module is still
-a combined-buffer viewer; native game-resource decoding and a playable
-interpreter remain future milestones.
+in physical hardware/extended runtime acceptance work. `wbpic` is a combined-buffer viewer. The native game has its own acceptance
+runs, including the current result below.
 
 ## Native resource-loader check
 
@@ -425,3 +447,23 @@ The shared-said/case-folding build (21,235 code / 24,572 private bytes) passed
 commands, unknown-word response, inventory/modal restoration, Pause/resume,
 subsequent input, interrupt exit and unchanged free memory. Cross-platform
 said/folding and native compressed-vocabulary parser checks also passed.
+
+## Current native game acceptance — 2026-10-06
+
+Rebuilt the same MAME revision `078e0eeb` and multi-terminal OS revision
+`c45760ab` in isolated temporary directories. The tested `wbgame` is 22,276
+bytes and includes the resource-discard error propagation correction.
+The module installed in the movement test disk matches `objs/wbgame` exactly.
+
+- `check_wbgame_mame.py --movement`: real KQ1 startup, inventory glyphs,
+  modal interaction/restoration, interrupt exit and unchanged memory passed.
+  Movement measured nine AGI pixels over 200 frames (3.33 emulated seconds).
+- `check_wbpic_mame.py --native-game ... --interpreter`: every displayed
+  pixel, two terminals, picture restoration, independent exit, relaunch and
+  free-memory maps passed.
+
+Artifacts are `/tmp/sierra-view-cache-error-movement-verified` and
+`/tmp/sierra-view-cache-error-terminals`. The OS Level 2/FEU builds and the
+emulator source checkout are temporary; the user's OS tree was unchanged.
+These tests verify emulator behavior, not physical hardware speed or full
+adventure/save/restore/audio completion.

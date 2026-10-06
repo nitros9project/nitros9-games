@@ -2,6 +2,15 @@
 
 ## Current source layout
 
+Platform code is grouped into 26 feature/binding assembly files rather than
+per-operation fragments. The shared object command component includes
+CoCo/native loop/cel table traversal. The resource lifetime audit preserves
+CoCo suffix-based view-heap discard and native single-slot slab ownership;
+these are distinct backend policies. The native discard failure path now
+preserves carry after clearing transient ownership, with failed slots retained
+for retry. The game is 22,276 bytes; process data remains 24,570 bytes.
+
+
 There is no separate `sierra/wildbits` tree. The game entry point is
 `objs/sierra.asm` with `WILDBITS=1`, optional development probe entry points are under
 `tests/probes`, platform-specific bodies and private state definitions under

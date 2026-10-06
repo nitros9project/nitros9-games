@@ -2377,6 +2377,15 @@ CoCo executable code is unchanged by the correction.
 The native interpreter integration suite also passes after the carry fix:
 picture/view composition, transparent/mirrored/clipped/occluded/erased sprites,
 text and repeated cycles, controllers, clock rollover, motion completion,
-end-of-loop animation, parser input, inventory and cleanup. Fresh MAME
-acceptance is pending recreation of the temporary fork/boot image; the
-installed stock emulator does not provide `wbjr2`.
+end-of-loop animation, parser input, inventory and cleanup. Fresh MAME acceptance was completed after rebuilding the fork and temporary
+boot image; the installed stock emulator does not provide `wbjr2`.
+
+Fresh MAME checks on 2026-10-06 passed with the corrected 22,276-byte game:
+movement (nine AGI pixels over 200 frames), real-resource startup, inventory,
+modal restoration, interrupt exit and unchanged memory; then every-pixel
+restoration on two terminals, independent exit, relaunch and free-memory maps.
+Artifacts are `/tmp/sierra-view-cache-error-movement-verified` and
+`/tmp/sierra-view-cache-error-terminals`. The emulator/OS revisions match the
+previous acceptance (`078e0eeb` / `c45760ab`); host SDL/SDK configuration was
+rebuilt as documented in `WILDBITS-MAME.md`. This does not establish physical
+hardware timing or complete adventure/audio compatibility.

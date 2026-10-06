@@ -2,9 +2,10 @@
 
 `wbgame` is the native 6809/NitrOS-9 game owner. King's Quest I now accepts
 typed commands, displays responses, moves the player between rooms, and opens
-inventory and menus. Its platform implementations are small
-`objs/platform/wildbits-*.asm` includes; reusable motion/decoder code lives in
-`objs/shared`. The older `objs/wildbits_engine.asm` scaffold is not built.
+inventory and menus. Its platform code and state are grouped by feature in
+`objs/platform/wildbits-*.asm`; common motion, object, formatter and decoder
+algorithms live in `objs/shared`. See
+[the platform layout](objs/platform/README.md) for the feature map. The older `objs/wildbits_engine.asm` scaffold is not built.
 
 Build with `make -C sierra/objs -f wildbits.mk all` from the games repository. Install both
 `wbgame` and `wbfont` in the OS-9 execution directory, with read/execute access.
