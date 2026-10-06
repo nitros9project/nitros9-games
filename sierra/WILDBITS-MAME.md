@@ -661,7 +661,8 @@ python3 ../tests/check_wbgame_mame.py \
 The application remains on the public allocation, mapping and terminal APIs.
 The guide's signal-driven pacing approach is described in
 [section 12.2](https://github.com/jfed6000/f256_porting#122-keeping-time-when-a-pass-can-overrun-the-sol-clock);
-its required SOL signal delivery is not implemented in this test OS revision.
+the stock test driver sends SOL signals, but lacks shared-line broadcasting,
+PID-scoped removal, and the public counter needed by the current safe frame gate.
 
 The native frame gate can be exercised with `--sol-driver PATH/TO/SOLdrv`.
 The harness validates and replaces only that named module in its private
@@ -669,5 +670,25 @@ boot image, retaining FF padding and the recipe's size/alignment limit. It
 can be combined with `--expanded-krnp2` for the two-original-game test. The
 shared-clock prerequisite is on the isolated NitrOS-9 branch
 `codex/wildbits-sol-frame-clock`; the user's active OS branch is unchanged.
-Current acceptance artifacts are `/tmp/sierra-larry-signal-clock`,
-`/tmp/sierra-pause-signal-clock` and `/tmp/sierra-pair-signal-clock`.
+The current prerequisite is commit `edaa2283`: `I$GetStt SS.SOLIRQ` returns
+capability flags 7 in X and a modulo-65536 line-zero counter in Y. The game
+registers `S$Wake`, whose pending slot can be replaced by Ctrl-C, and samples
+the counter through that public service. Drivers with only capability flags
+3 retain the sleep fallback. Current single/two-game acceptance artifacts
+are `/tmp/sierra-larry-wake-clock-verified` and `/tmp/sierra-pair-wake-clock`.
+Both verify interrupt cleanup and unchanged free-memory maps.
+
+A counter-capable driver can be assembled from the isolated OS worktree:
+
+```sh
+lwasm.orig --6809 --format=os9 \
+  --pragma=pcaspcr,nosymbolcase,condundefzero -Dwildbits=1 -Djr2=1 \
+  -I/tmp/sierra-sol-os-worktree/level2/wildbits \
+  -I/tmp/sierra-sol-os-worktree/defs \
+  -o /tmp/sierra-sol-counter \
+  /tmp/sierra-sol-os-worktree/level1/wildbits/modules/SOLdrv.asm
+```
+
+Add `--sol-driver /tmp/sierra-sol-counter` to either game acceptance command.
+This patches only its private emulator image; it does not update the user's
+active OS checkout or physical machine.

@@ -921,20 +921,24 @@ SpritePlotReady     lbsr      AssetUnmap
                     ldd       spriterowy,x
                     cmpd      #168
                     lbhs      SpriteNextRow
+                    ldu       spriteobject,x
+                    lda       3,u
+                    cmpa      #160
+                    lbhs      SpriteNextRow
+                    ldb       #160
+                    subb      3,u
+                    cmpb      spritewidth,x
+                    bls       SpriteClipWidth
+                    ldb       spritewidth,x
+SpriteClipWidth     stb       dirtycolumns,x
                     ldb       spriterowy+1,x
                     lda       #160
                     mul
+                    addb      3,u
+                    adca      #0
                     std       spriterowoffset,x
                     clr       spritecolumn,x
-SpritePlotNext      ldu       spriteobject,x
-                    ldb       3,u
-                    clra
-                    addb      spritecolumn,x
-                    adca      #0
-                    cmpd      #160
-                    lbhs      SpriteNextColumn
-                    pshs      b
-                    ldb       spritecolumn,x
+SpritePlotNext      ldb       spritecolumn,x
                     tst       spritemirror,x
                     beq       SpriteSourceColumn
                     ldb       spritewidth,x
@@ -942,13 +946,11 @@ SpritePlotNext      ldu       spriteobject,x
                     subb      spritecolumn,x
 SpriteSourceColumn  leay      spriterow,x
                     lda       b,y
-                    puls      b
                     cmpa      #$FF
                     lbeq      SpriteNextColumn
                     sta       spritecolor,x
-                    pshs      b
                     ldd       spriterowoffset,x
-                    addb      ,s+
+                    addb      spritecolumn,x
                     adca      #0
                     lbsr      PicturePointer
                     tst       <decodeerror
@@ -1020,7 +1022,7 @@ SpriteControlRestoreError leas 2,s
                     lbra      SpriteDecodeError
 SpriteNextColumn    inc       spritecolumn,x
                     ldb       spritecolumn,x
-                    cmpb      spritewidth,x
+                    cmpb      dirtycolumns,x
                     lblo      SpritePlotNext
 SpriteNextRow       lda       spritecachemode,x
                     cmpa      #2

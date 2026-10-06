@@ -628,8 +628,9 @@ clock entries; foreground return unmutes and discards paused credit. The
 calendar clock still supplies AGI seconds, and modal Pause rebaselines both
 clocks. Exit unregisters line zero before closing the owned path.
 
-The gate adds six private bytes, bringing storage to 24,576 bytes, exactly
-three existing pages. Code is 23,616 of the 23,808-byte limit. No platform
+At the initial signal-gate checkpoint, the six added private bytes brought
+storage to 24,576 bytes, exactly three pages; code was 23,616 of the
+23,808-byte limit. Later bounds/text changes below reduce that storage. No platform
 files, mapping windows or allocation pages were added; timing belongs to
 `platform/wildbits-timing.asm`.
 
@@ -813,3 +814,26 @@ Production code is 23,679 of 23,808 bytes, and private storage is 24,459 of
 24,576 bytes. The existing 26 platform assembly files are retained. These
 measurements establish emulator behavior; physical Wild Bits performance
 and complete game completion remain separate acceptance work.
+
+### Sprite row clipping
+
+The renderer calculates a cel row's clipped column count and first logical
+pixel once, before entering the pixel loop. It retains the original cel
+width for decoding, mirroring, and saved-footprint metadata, so clipping
+does not silently truncate resource validation or change mirrored pixels.
+Offscreen rows still decode through the bounded resource path. The existing
+restoration scratch column-count byte is reused after background restoration
+has finished; no private bytes or platform files are added.
+
+Pixel comparisons pass for transparent/mirrored/clipped/occluded cels,
+offscreen positions, static decorations, movement and erasure. Added
+independent priority tests cover long control-nibble columns (0/1/2),
+intervening low/high priority pixels, and the picture bottom at priorities
+3, 4, and 15. A priority-cache experiment passed those tests but did not
+improve the real-game profile, so that implementation was removed.
+
+Real Larry composition measures about 116.3 ms instead of 134 ms, and
+movement covers 21.4 pixels over 400 frames. Messages, stopping, Ctrl-C,
+and unchanged free memory pass. Code is 23,688 bytes and private storage
+remains 24,459 bytes. Picture copying remains about 55 ms and text about
+56 ms per sampled cycle.

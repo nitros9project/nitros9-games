@@ -45,6 +45,33 @@ def main():
                 assert spans and all(0<=left<right<=160 and not ((left|right)&1) for left,right in spans), spans
                 if width<160:
                     assert any(right-left<160 for left,right in spans), ('no narrow paint',spans)
+            # Independent control-priority reference: long 0/1/2 columns,
+            # an intervening high-priority pixel, another low-priority pixel,
+            # and a column with no non-control row before the picture bottom.
+            priorities=bytearray([4])*(160*168);picture=bytearray()
+            for col,top,bottom,priority in ((30,40,79,0),(31,40,79,1),
+                    (32,40,79,2),(33,40,167,0),(31,60,60,10),(32,60,60,3)):
+                picture.extend((0xf2,priority,0xf6,col,top,col,bottom,0xf3))
+                for row in range(top,bottom+1):priorities[row*160+col]=priority
+            picture.append(0xff)
+            for priority in (3,4,15):
+                script=bytes([3,0,1,24,0,25,0,33,0,41,0,0,
+                    37,0,30,167,54,0,priority,35,0,26,134,1,0])
+                error,frame=exercise(d,fixture(script,bytes(picture),view(4,128)),
+                    module='wbgame',base=0xa000,database=0x1000,window=0x8000,
+                    blocks=None,multiple=True,firstblock=0x10,frame_capture=True)
+                expected=bytearray([1])*76800
+                expected[8*320:176*320]=bytes([16])*(168*320)
+                for row in range(40,168):
+                    for col in range(30,34):
+                        depth=priorities[row*160+col]
+                        if depth<=2:
+                            depth=next((priorities[y*160+col] for y in range(row+1,168)
+                                        if priorities[y*160+col]>2),0)
+                        if depth<=priority:
+                            offset=(row+8)*320+col*2
+                            expected[offset:offset+2]=b'\x02\x02'
+                assert not error and frame==expected,('control priority',priority,error)
             # An old 4x3 footprint crosses 8192 after two bytes of row 51.
             # Fail the next mapped source/destination span, after earlier
             # pixels were copied. The span count must unwind from S and all
