@@ -9366,14 +9366,7 @@ SetLoopData         stb       $0A,u     ; store loop index in object
                     ldd       $08,u     ; view page info
                     lbsr      SetLogicPage ; switch to view page
                     ldb       $0A,u     ; loop index
-                    lslb                ; × 2 for pointer table index
-                    addb      #$06      ; offset past view header
-                    ldx       $06,u     ; view data pointer
-                    lda       b,x       ; high byte of loop entry pointer
-                    decb                ; previous byte
-                    ldb       b,x       ; low byte of loop entry pointer
-                    leax      d,x       ; X = loop entry pointer
-                    stx       $0C,u     ; store loop pointer in object
+                    OBJECT_VIEW_TABLE_ENTRY 0
                     lda       ,x        ; number of cels in loop
                     sta       $0F,u     ; store cel count
                     ldb       $0E,u     ; current cel index
@@ -9434,14 +9427,7 @@ SetCelData          stb       $0E,u     ; store cel index in object
                     ldd       $08,u     ; view page info
                     lbsr      SetLogicPage ; switch to view page
                     ldb       $0E,u     ; cel index
-                    lslb                ; × 2 for pointer table index
-                    addb      #$02      ; offset past loop header
-                    ldx       $0C,u     ; loop data pointer
-                    lda       b,x       ; high byte of cel pointer
-                    decb                ; previous byte
-                    ldb       b,x       ; low byte of cel pointer
-                    leax      d,x       ; X = cel data pointer
-                    stx       <$10,u    ; store cel pointer in object
+                    OBJECT_VIEW_TABLE_ENTRY 1
                     ldd       ,x        ; cel dimensions (width, height)
                     std       <$1C,u    ; store in object dimension fields
                     adda      $03,u     ; add X position to check clip

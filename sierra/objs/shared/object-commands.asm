@@ -198,3 +198,31 @@ OBJECT_EMIT_VIEW_QUERIES macro
                     OBJECT_FIELD_QUERY cmd_current_view,$05,0
                     OBJECT_FIELD_QUERY cmd_number_of_loops,$0B,0
                     endm
+
+* Resolve one little-endian view table entry (0=loop, 1=cel).
+* B is the selected index. Providers supply pointer/offset addressing,
+* bounded resource reads, validation and destination storage. The traversal
+* preserves the CoCo byte index and native 16-bit offset arithmetic.
+OBJECT_VIEW_TABLE_ENTRY macro
+                    ifne VIEW_ENTRY_WIDE
+                    clra
+                    endc
+                    lslb
+                    ifne VIEW_ENTRY_WIDE
+                    rola
+                    ifne \1
+                    addd      #1
+                    else
+                    addd      #5
+                    endc
+                    else
+                    ifne \1
+                    addb      #2
+                    else
+                    addb      #6
+                    endc
+                    endc
+                    VIEW_ENTRY_BASE \1
+                    VIEW_ENTRY_READ
+                    VIEW_ENTRY_RESOLVE \1
+                    endm

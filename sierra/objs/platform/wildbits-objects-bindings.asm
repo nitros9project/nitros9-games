@@ -406,3 +406,30 @@ OBJECT_FLAG_RULE    macro
                     rts
                     endc
                     endm
+
+* View table addressing: checked logical offsets with no retained mapping.
+VIEW_ENTRY_WIDE equ 1
+VIEW_ENTRY_BASE macro
+                    ifne \1
+                    addd      <viewloopbase
+                    endc
+                    endm
+VIEW_ENTRY_READ macro
+                    lbsr      AssetReadWord
+                    lbcs      ViewRestore
+                    endm
+VIEW_ENTRY_RESOLVE macro
+                    ifne \1
+                    addd      <viewloopbase
+                    lbcs      ViewInvalid
+                    endc
+                    cmpd      <viewminoffset
+                    lblo      ViewInvalid
+                    ifne \1
+                    std       <viewcelbase
+                    else
+                    cmpd      <resourcelength
+                    lbhs      ViewInvalid
+                    std       <viewloopbase
+                    endc
+                    endm

@@ -368,3 +368,26 @@ TERRAIN_STATUS_READ macro
 TERRAIN_TEST_WATER macro
                     tst       ScratchA6
                     endm
+
+* View table addressing: little-endian entries in the mapped owner buffer.
+VIEW_ENTRY_WIDE equ 0
+VIEW_ENTRY_BASE macro
+                    ifne \1
+                    ldx       $0C,u
+                    else
+                    ldx       $06,u
+                    endc
+                    endm
+VIEW_ENTRY_READ macro
+                    lda       b,x
+                    decb
+                    ldb       b,x
+                    endm
+VIEW_ENTRY_RESOLVE macro
+                    leax      d,x
+                    ifne \1
+                    stx       <$10,u
+                    else
+                    stx       $0C,u
+                    endc
+                    endm

@@ -1208,6 +1208,12 @@ vmplayercontrol     rmb       1
 * View/loop/cel selection and queries adapted from mnln. View records are
 * mapped only while reading metadata. Object positions/indices are private;
 * cel locations are logical offsets, never pointers into a foreign window.
+                    ifndef PLATFORM_WILDBITS_OBJECTS_BINDINGS
+                    use platform/wildbits-objects-bindings.asm
+                    endc
+                    ifndef SHARED_OBJECT_COMMANDS_DEFINED
+                    use shared/object-commands.asm
+                    endc
 ViewCommand         lbsr      ObjectAddress
                     lbcs      ViewReturn
                     stx       <viewobject
@@ -1257,17 +1263,8 @@ ViewSelect          ldb       5,x
                     lbhi      ViewInvalid
                     clr       $0A,x
                     clrb
-ViewLoopValid       clra
-                    lslb
-                    rola
-                    addd      #5
-                    lbsr      AssetReadWord
-                    lbcs      ViewRestore
-                    cmpd      <viewminoffset
-                    lblo      ViewInvalid
-                    cmpd      <resourcelength
-                    lbhs      ViewInvalid
-                    std       <viewloopbase
+ViewLoopValid equ *
+                    OBJECT_VIEW_TABLE_ENTRY 0
                     lbsr      AssetReadByte
                     lbcs      ViewRestore
                     tstb
@@ -1291,18 +1288,8 @@ ViewLoopValid       clra
                     lbhi      ViewInvalid
                     clr       $0E,x
                     clrb
-ViewCelValid        clra
-                    lslb
-                    rola
-                    addd      #1
-                    addd      <viewloopbase
-                    lbsr      AssetReadWord
-                    lbcs      ViewRestore
-                    addd      <viewloopbase
-                    lbcs      ViewInvalid
-                    cmpd      <viewminoffset
-                    lblo      ViewInvalid
-                    std       <viewcelbase
+ViewCelValid equ *
+                    OBJECT_VIEW_TABLE_ENTRY 1
                     addd      #3
                     lbcs      ViewInvalid
                     cmpd      <resourcelength

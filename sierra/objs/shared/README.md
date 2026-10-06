@@ -280,3 +280,13 @@ after follow-direction calculation and rejects unknown motion types; CoCo
 retains its existing skip behavior. All 14 CoCo main-loop modules and native
 `wbgame` remain byte-identical. Outer traversal and ordering of rendering,
 animation and position updates remain owner-specific.
+
+`OBJECT_VIEW_TABLE_ENTRY` in `object-commands.asm` now owns loop/cel table
+index scaling, little-endian entry acquisition and pointer/offset resolution
+for both owners. `coco-objects-bindings.asm` retains direct mapped reads and
+byte-index arithmetic; `wildbits-objects-bindings.asm` retains the checked
+word reader, logical offset base and lower/upper resource bounds. Native
+loop/cel error labels and CoCo cel/loop helper entry points are unchanged.
+All 14 CoCo main-loop modules and native `wbgame` are byte-identical after
+rebuilding. Resource loading, cache lifetime and metadata validation policies
+outside table traversal are still owner-specific.

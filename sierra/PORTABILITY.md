@@ -2333,3 +2333,15 @@ Native/probe builds pass, native game bytes are unchanged, and all 56 CoCo
 engine modules match the pre-consolidation versions. Resource/view loading
 behavior and rendering remain owner-specific work; this stage consolidates
 source organization and does not claim new shared resource algorithms.
+
+### Shared view table traversal
+
+Loop/cel table traversal now expands from the existing object component in
+both CoCo metadata helpers and native `ViewSelect`. Owner bindings preserve
+CoCo mapped little-endian reads with byte-index arithmetic and native bounded
+16-bit logical offsets. Native I/O error unwinding, table bounds, and cel
+relative offset checks remain intact. This adds no source files or runtime
+calls: all 14 CoCo main-loop modules and native game bytes remain identical;
+all probes build. Cache allocation, loading, ownership and discard behavior
+remain separate because CoCo maintains a linked view list and native uses
+32 typed cache slots with slab ownership.
