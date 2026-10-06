@@ -882,7 +882,7 @@ mapping failures. Its emulated timeout is now 900 seconds so error-injection
 fixtures complete after the full picture comparisons.
 
 This does not complete the shared-engine migration. The native startup and
-bounded stream handling in `objs/platform/wildbits-decoder-code.asm` remain owner adapters;
+bounded stream handling in `objs/platform/wildbits-graphics.asm` remain owner adapters;
 flood-fill workspace, resource loading, logic execution, object state, and
 parser integration still require reconciliation. The former `wildbits` directory has been removed: module owners now live
 in `objs`, native adapters in `objs/platform`, and host utilities in `tests`.
@@ -954,7 +954,7 @@ Fourteen object commands now use `objs/shared/object-flag-rules.asm`: fix/
 release loop, release priority, ignore/observe horizon, water/land/anything,
 ignore/observe objects, stop/start cycling, and ignore/observe blocks. The
 catalog defines opcode, field offset, AND/OR masks, and the legacy CoCo
-pointer register. `object-flag-mask.asm` emits the mutation instructions,
+pointer register. `object-commands.asm` emits the mutation instructions,
 omitting identity AND/OR operations. Both owners use the same catalog and
 body, rather than merely keeping similar constants in separate files.
 
@@ -981,15 +981,15 @@ during the real-picture reference phase on repeated regression runs.
 
 ### Shared cycle, motion and rate state
 
-`objs/shared/object-cycle-state.asm` now emits mode 0/3 continuous cycling
+`objs/shared/object-commands.asm` now emits mode 0/3 continuous cycling
 and mode 1/2 endpoint cycling for both owners. It changes the mode byte and
 enable/single-loop flags with the same instructions. Completion-flag storage
 remains an owner adapter (CoCo packed flags, native bytes).
 
-`object-motion-state.asm` resets the normal motion type and optionally clears
+`object-commands.asm` resets the normal motion type and optionally clears
 direction for stop-motion. Normal, start and stop commands consume it; ego
 direction variables and player/program control state remain owner effects.
-`object-rate-state.asm` writes cycle delay, step size and step delay, resetting
+`object-commands.asm` writes cycle delay, step size and step delay, resetting
 the corresponding countdown where required. Owner-selected accumulator and
 record registers preserve each calling convention. No private state or
 runtime platform selection is added.
@@ -1111,7 +1111,7 @@ logic execution, resource and object-update differences are still unfinished.
 
 ### Shared object coordinate and animation commands
 
-Both owners assemble `objs/shared/object-coordinate-state.asm` for commands
+Both owners assemble `objs/shared/object-commands.asm` for commands
 37–40 and 147–148. Position assignments write the current coordinate pair and,
 for ordinary position commands, its saved pair. Position queries preserve
 last-write behavior when both result operands select the same variable.
@@ -1131,7 +1131,7 @@ The new coordinate regression stops at those real boundaries so it tests the
 common arithmetic without implying that the placement algorithms are shared.
 Existing gameplay tests cover completed native searches separately.
 
-Command 33 now uses `objs/shared/object-animation-state.asm`. It preserves
+Command 33 now uses `objs/shared/object-commands.asm`. It preserves
 an already animated record; otherwise it sets the initial flags and clears
 motion type, cycling mode and direction. CoCo’s entire rebuilt `mnln` remains
 byte-identical. Native initialization uses the same zero/store body in place
@@ -1178,7 +1178,7 @@ of zero. The common traversal passes that regression.
 `platform/coco-logic-bindings.asm` binds streamed reads, trace-aware
 `EvalExpr`, descriptor-based operand skipping, and existing branch labels.
 Its validation hooks emit no instructions, so the entire CoCo interpreter
-remains byte-identical. `platform/wildbits-condition-stream.asm` binds bounded
+remains byte-identical. `platform/wildbits-logic.asm` binds bounded
 mapped reads, decoded operand counts, native callbacks, checked branch offsets
 and balanced error exits. It validates OR/NOT controls while skipping, without
 invoking skipped predicates. Native errors release the two local bytes before
@@ -1504,7 +1504,7 @@ These checks do not claim complete gameplay or audio support.
 ### Shared object view-state queries
 
 AGI commands 49–53 (`last.cel`, `current.cel`, `current.loop`, `current.view`,
-`number.of.loops`) now assemble from `objs/shared/object-view-queries.asm`.
+`number.of.loops`) now assemble from `objs/shared/object-commands.asm`.
 The shared bodies read offsets 15, 14, 10, 5, and 11 of the 43-byte object
 record, decrementing the cel count only for `last.cel`, then store the result
 in the destination variable. Both owners provide record access and variable
@@ -1822,7 +1822,7 @@ restoration, independent exit/relaunch and unchanged free-memory maps.
 
 ### Shared blocked-motion state, bulk unanimation and step deltas
 
-`shared/object-block-state.asm` owns the object-control mutations used after
+`shared/object-commands.asm` owns the object-control mutations used after
 blocking checks: clear the crossing bit when allowed, or set it and stop the
 object's direction after a crossing. The owner supplies ego identification
 and the address of ego's direction variable through
@@ -1832,7 +1832,7 @@ context. Only a stopped ego clears variable six. The prior block rectangle
 classification, ignore/disabled policy and collision sequencing remain at
 their existing callers.
 
-`shared/object-unanimate.asm` owns the complete record traversal for
+`shared/object-commands.asm` owns the complete record traversal for
 `unanimate.all`: preserve all control bits except animated/visible, advance
 by 43 bytes and continue until the owner boundary is reached. CoCo supplies
 an exclusive end pointer and keeps the preceding draw-range cleanup; native
@@ -1855,7 +1855,7 @@ validation and complete per-cycle object orchestration remain separate work.
 
 ### Shared object priority/direction setters and field queries
 
-`shared/object-scalar-state.asm` now owns fixed-priority updates and direction
+`shared/object-commands.asm` now owns fixed-priority updates and direction
 assignment for both owners. Platform operand adapters preserve the original
 register/read ordering: CoCo sets the fixed-priority bit before fetching its
 literal/variable priority; native validates a preloaded B value, stores it,
@@ -1865,9 +1865,9 @@ assignments. Native direction assignment mirrors ego's direction into variable
 six, while CoCo keeps its original command policy. Object addressing and
 native invalid-index checks remain in their existing entry adapters.
 
-`shared/object-field-query.asm` provides the record-to-variable query used
+`shared/object-commands.asm` provides the record-to-variable query used
 by `get.priority`, `get.dir` and the five existing view queries. The latter
-remain a small handler catalog in `object-view-queries.asm`. All seven queries
+remain a small handler catalog in `object-commands.asm`. All seven queries
 now resolve the object/operand, load the field, apply any last-cel adjustment,
 address the destination variable, store and return using one implementation.
 Native scalar queries no longer use a separate stack-based result-store
@@ -2315,3 +2315,21 @@ Rebuilt four CoCo modules for every one of the 14 titles and compared all 56
 modules byte for byte with the pre-consolidation files. Native `wbgame` is also
 byte-identical; all native probes build. No new emulator run is claimed for
 this source-layout change. Runtime behavior and performance are unchanged.
+
+### Completed platform grouping and object command component
+
+Moved the eight remaining native implementation bodies into their feature
+files after extracting local macro definitions into the existing feature
+binding files. This resolves the assembler conditional-section limitation
+without retaining per-operation implementation files. Timing bindings now
+reside in the timing feature files. Platform assembly count is 26, down from
+208 before consolidation; `wildbits-runtime.asm` remains the module owner.
+
+Eleven shared object command/state/query fragments now form
+`shared/object-commands.asm`, loaded once with a caller-side definition guard.
+The view query handler body has a named expansion macro so its original
+placement is retained. The component defines no new state or runtime wrapper.
+Native/probe builds pass, native game bytes are unchanged, and all 56 CoCo
+engine modules match the pre-consolidation versions. Resource/view loading
+behavior and rendering remain owner-specific work; this stage consolidates
+source organization and does not claim new shared resource algorithms.

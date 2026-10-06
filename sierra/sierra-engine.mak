@@ -47,11 +47,10 @@ mnln: ../objs/shared/object-follow.asm ../objs/shared/object-move-direction.asm
 
 mnln: ../objs/shared/math-commands.asm
 
-mnln: ../objs/shared/object-view-queries.asm \
+mnln: ../objs/shared/object-commands.asm \
 	../objs/platform/coco-objects-bindings.asm
 
-sierra: ../objs/shared/game-clock-tick.asm \
-	../objs/platform/coco-timing-bindings.asm
+sierra: ../objs/shared/game-clock-tick.asm
 
 mnln: ../objs/shared/decimal-index.asm \
 	../objs/platform/coco-text-ui-bindings.asm
@@ -61,11 +60,7 @@ mnln: ../objs/shared/unsigned-decimal.asm \
 	../objs/shared/nul-string-copy.asm \
 	../objs/shared/agi-xor-key.asm \
 	../objs/shared/xor-decrypt.asm \
-	../objs/shared/object-block-state.asm \
-	../objs/shared/object-unanimate.asm \
 	../objs/shared/object-step-deltas.asm \
-	../objs/shared/object-field-query.asm \
-	../objs/shared/object-scalar-state.asm \
 	../objs/shared/object-placement-step.asm \
 	../objs/shared/object-bounds.asm \
 	../objs/shared/object-collision-filter.asm

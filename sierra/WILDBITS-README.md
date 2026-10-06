@@ -366,7 +366,7 @@ variable/flag tests and AND/OR/NOT expressions. Platform commands currently
 include typed resource loading/discard, cached/nested logic calls, scan-start
 management, `set.game.id`, bounded object/view state, menus, strings, screen
 configuration, keyboard bindings, replay records and room transitions.
-`objs/platform/wildbits-logic-code.asm` follows the existing CoCo operand-count table; argument
+`objs/platform/wildbits-logic.asm` follows the existing CoCo operand-count table; argument
 staging and instruction/branch bounds prevent malformed scripts from reading
 messages as instructions. Script positions remain offsets across mapping
 changes. Messages use bounded relative offsets; plain logic strings are

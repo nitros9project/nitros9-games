@@ -2041,7 +2041,100 @@ PLATFORM_SECTION    set PLATFORM_WILDBITS_PRESENT_DAMAGE
                     use platform/wildbits-graphics.asm
 
                     else
+                    ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_DECODER_CODE
+* ===== wildbits-decoder-code =====
+                    ifndef PLATFORM_WILDBITS_GRAPHICS_BINDINGS
+                    use platform/wildbits-graphics-bindings.asm
+                    endc
+* DecodeLines: X=commands, Y=length, U=private base and matching DP.
+* Returns a private physical combined buffer, U=private base, carry clear;
+* otherwise carry/B error, with no successful result for unsupported opcodes.
+* Picture storage uses one OS-managed window; PictureWrite exports its bytes.
+DecodeLines         stu       <resourcebase
+                    tst       <decodeerror
+                    lbne      DecodeFailed
+                    tfr       y,d
+                    leay      d,x
+                    sty       <decodeend
+                    pshs      x
+                    lbsr      PictureAllocate
+                    bcs       DecodeInitFailed
+                    lbsr      PictureClear
+DecodeInitFailed    puls      x
+                    tst       <decodeerror
+                    lbne      DecodeFailed
+                    lda       #$FF
+                    sta       <DrawColor
+                    clr       <DrawMask
+                    clr       <PenStatus
+                    clr       <ScratchA6
+                    lbsr      ReadNext
+DecodeCommand       tst       <decodeerror
+                    bne       DecodeFailed
+                    cmpa      #$FF
+                    beq       DecodeFinished
+                    suba      #$F0
+                    blo       DecodeInvalid
+                    cmpa      #10
+                    bhi       DecodeInvalid
+                    asla
+                    leau      DecodeDispatch,pcr
+                    ldd       a,u
+                    leau      d,u
+                    jsr       ,u
+                    bra       DecodeCommand
+DecodeFinished      cmpx      <decodeend
+                    bne       DecodeInvalid
+                    ldu       <resourcebase
+                    clrb
+                    rts
+DecodeInvalid       ldb       #E$BMode
+                    stb       <decodeerror
+DecodeFailed        ldu       <resourcebase
+                    ldb       <decodeerror
+                    orcc      #1
+                    rts
+
+* Immutable offsets from the table base, not load addresses patched at runtime.
+DecodeDispatch      equ       *
+                    use       shared/picture-command-table.asm
+
+* Preserve B: color/mask routines and coordinate helpers use it across reads.
+ReadNext            tst       <decodeerror
+                    bne       DecodeReadStop
+                    cmpx      <decodeend
+                    bhs       DecodeExhausted
+                    lda       ,x+
+                    rts
+DecodeExhausted     pshs      b
+                    ldb       #E$BMode
+                    stb       <decodeerror
+                    puls      b
+DecodeReadStop      lda       #$FF
+                    rts
+ReadNextB           pshs      a
+                    bsr       ReadNext
+                    tfr       a,b
+                    puls      a,pc
+ReadColor           bsr       ReadNext
+                    cmpa      #15
+                    bls       ReadColorRet
+                    pshs      b
+                    ldb       #E$BMode
+                    stb       <decodeerror
+                    puls      b
+ReadColorRet        rts
+ReadInitialPos      lbsr      ReadXyPos
+                    bcc       InitialPosRet
+                    pshs      b
+                    ldb       #E$BMode
+                    stb       <decodeerror
+                    puls      b
+InitialPosRet       rts
+
+                    else
                     error Unknown platform feature section
+                    endc
                     endc
                     endc
                     endc

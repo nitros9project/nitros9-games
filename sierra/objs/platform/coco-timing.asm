@@ -1,3 +1,17 @@
+                    ifndef PLATFORM_COCO_TIMING_BINDINGS
+* coco-timing-bindings feature bindings. Included once; emits no code.
+PLATFORM_COCO_TIMING_BINDINGS equ 1
+
+* ===== coco-game-clock-operands =====
+* CoCo signal-handler data area; retain the original indexed addressing.
+GAME_CLOCK_ADDRESS  macro
+                    leax      >TimeOfDay,u
+                    endm
+                    endc
+
+                    ifeq PLATFORM_SECTION-PLATFORM_COCO_GAME_CLOCK_BINDINGS
+* Clock bindings only; no executable body.
+                    else
 * coco-timing feature: code and related private state.
 * Named layout sections preserve existing module and private-data addresses.
 
@@ -19,4 +33,5 @@ SigInterceptRet     rti                 return from interrupt
 
                     else
                     error Unknown platform feature section
+                    endc
                     endc

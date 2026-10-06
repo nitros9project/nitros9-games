@@ -59,7 +59,9 @@ PLATFORM_SECTION    set PLATFORM_WILDBITS_LZW_CODE
                     use platform/wildbits-memory-resources.asm
 PLATFORM_SECTION    set PLATFORM_WILDBITS_ASSET_CODE
                     use platform/wildbits-memory-resources.asm
-                    use       platform/wildbits-logic-code.asm
+                    use platform/sections.d
+PLATFORM_SECTION    set PLATFORM_WILDBITS_LOGIC_CODE
+                    use platform/wildbits-logic.asm
 PLATFORM_SECTION    set PLATFORM_WILDBITS_LOGIC_FETCH
                     use platform/wildbits-logic.asm
 PLATFORM_SECTION    set PLATFORM_WILDBITS_MESSAGE_CODE
@@ -70,14 +72,18 @@ PLATFORM_SECTION    set PLATFORM_WILDBITS_INPUT_CODE
                     use platform/wildbits-input.asm
 PLATFORM_SECTION    set PLATFORM_WILDBITS_SCREEN_CODE
                     use platform/wildbits-graphics.asm
-                    use       platform/wildbits-string-code.asm
+                    use platform/sections.d
+PLATFORM_SECTION    set PLATFORM_WILDBITS_STRING_CODE
+                    use platform/wildbits-text-ui.asm
 PLATFORM_SECTION    set PLATFORM_WILDBITS_VIEW_CODE
                     use platform/wildbits-memory-resources.asm
 PLATFORM_SECTION    set PLATFORM_WILDBITS_ROOM_CODE
                     use platform/wildbits-memory-resources.asm
 PLATFORM_SECTION    set PLATFORM_WILDBITS_MENU_BUILD_CODE
                     use platform/wildbits-text-ui.asm
-                    use       platform/wildbits-object-code.asm
+                    use platform/sections.d
+PLATFORM_SECTION    set PLATFORM_WILDBITS_OBJECT_CODE
+                    use platform/wildbits-objects.asm
 PLATFORM_SECTION    set PLATFORM_WILDBITS_REPLAY_CODE
                     use platform/wildbits-text-ui.asm
 PLATFORM_SECTION    set PLATFORM_WILDBITS_LOGIC_PLATFORM

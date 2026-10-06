@@ -307,7 +307,7 @@ been measured.
 ## Interactive native game boundaries
 
 `wildbits-parser-{code,data}.asm` owns the typed line, original dictionary
-reader, submitted IDs and saved input spans. `wildbits-format-code.asm` expands
+reader, submitted IDs and saved input spans. `wildbits-text-ui.asm` expands
 copied messages; `wildbits-text-ui.asm`, `wildbits-input.asm` and
 `wildbits-text-ui.asm` provide modal interaction. The game owner selects these
 small components, while `objs/platform/wildbits-logic.asm` only routes commands and tests.

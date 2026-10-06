@@ -588,7 +588,9 @@ ANIMATION_REVERSE_ENABLE macro
 *   Commands to fix and release an object's loop selection.
 *======================================================================
 *
-                    use       shared/object-flag-mask.asm
+                    ifndef SHARED_OBJECT_COMMANDS_DEFINED
+                    use shared/object-commands.asm
+                    endc
 OBJECT_FLAG_RULE    macro
                     ifeq      OBJECT_FLAG_OPCODE-\2
 \1                  equ       *
@@ -744,8 +746,6 @@ StartUpdateReturn   rts
                     use platform/coco-objects-bindings.asm
                     endc
                     endc
-                    use       shared/object-coordinate-state.asm
-                    use       shared/object-animation-state.asm
 CmdAnimateObj       lda       ,y+       load object number from script
                     bsr       AnimateObjHelper
                     rts
@@ -772,8 +772,6 @@ AnimObjAlready      leas      $01,s     release stack byte
                     use platform/coco-objects-bindings.asm
                     endc
                     endc
-                    use shared/object-block-state.asm
-                    use shared/object-unanimate.asm
 CmdUnanimateAll     lbsr      ClearBothRanges erase all objects from range lists
                     ldu       <$0030    load pointer to first object
                     OBJECT_UNANIMATE_ALL u,UnanimateAllLoop,UnanimateAllDone
@@ -1088,7 +1086,6 @@ KeyDone             rts
 *   Commands controlling how an object's cel sequence advances: normal, end-of-loop, reverse, reverse-end-of-loop, and cycle time.
 *======================================================================
 *
-                    use       shared/object-cycle-state.asm
 CmdNormalCycle      lda       ,y+       load object number from script
                     ldb       #$2B      object struct is $2B bytes wide
                     mul                 compute byte offset into object table
@@ -1123,7 +1120,6 @@ CmdReverseLoop      lda       ,y+       load object number from script
                     sta       <$27,u    store flag to set when reverse loop ends
                     lbsr      ClearFlag clear end-of-reverse-loop flag
                     rts
-                    use       shared/object-rate-state.asm
 CmdSetCycleTime     lda       ,y+       load object number from script
                     ldb       #$2B      object struct is $2B bytes wide
                     mul                 compute byte offset into object table
@@ -4533,7 +4529,6 @@ cmd_wander          lda       ,y+       load object number from script
                     tfr       d,u       point U to object struct
                     OBJECT_WANDER_SETUP u,WanderDone
                     rts
-                    use       shared/object-motion-state.asm
 cmd_normal_motion   lda       ,y+       load object number from script
                     ldb       #$2B      view-object struct size = 43
                     mul                 compute object offset
@@ -4599,7 +4594,6 @@ cmd_step_time       lda       ,y+       load object number from script
                     use platform/coco-objects-bindings.asm
                     endc
                     endc
-                    use shared/object-field-query.asm
                     ifne WILDBITS
                     ifndef PLATFORM_WILDBITS_OBJECTS_BINDINGS
                     use platform/wildbits-objects-bindings.asm
@@ -4609,7 +4603,6 @@ cmd_step_time       lda       ,y+       load object number from script
                     use platform/coco-objects-bindings.asm
                     endc
                     endc
-                    use shared/object-scalar-state.asm
 cmd_set_dir         QUERY_OBJECT
                     OBJECT_SET_DIRECTION u,a,ObjectDirectionDone
 ObjectDirectionDone rts
@@ -9477,9 +9470,7 @@ SetCelWidthClip     decb                ; height - 1 (bottom row offset)
                     stb       $04,u     ; store height-bounded value
 SetCelRet           leas      $01,s     ; release local frame
                     rts
-
-                    use       shared/object-view-queries.asm
-
+                    OBJECT_EMIT_VIEW_QUERIES
 cmd_discard_view    ldb       ,y+       ; fetch view number
                     bsr       DiscardViewHelper ; discard the view
                     rts

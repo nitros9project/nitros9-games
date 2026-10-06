@@ -11,9 +11,9 @@ wbpic: ../tests/probes/wbpic.asm platform/wildbits-presentation.d platform/wildb
 	$(LWASM) $(AFLAGS) --list=wbpic.list --symbols -o $@ $<
 wbres: ../tests/probes/wbres.asm platform/wildbits-memory-resources.asm platform/wildbits-memory-resources.asm platform/wildbits-memory-resources.asm platform/wildbits-defsfile $(NITROS9DIR)/defs/wildbits.d
 	$(LWASM) $(AFLAGS) --list=wbres.list --map=wbres.map --symbols -o $@ $<
-wbdecode: ../tests/probes/wbdecode.asm platform/wildbits-graphics.asm platform/wildbits-decoder-code.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-memory-resources.asm platform/wildbits-memory-resources.asm platform/wildbits-memory-resources.asm platform/wildbits-defsfile $(NITROS9DIR)/defs/wildbits.d
+wbdecode: ../tests/probes/wbdecode.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-memory-resources.asm platform/wildbits-memory-resources.asm platform/wildbits-memory-resources.asm platform/wildbits-defsfile $(NITROS9DIR)/defs/wildbits.d
 	$(LWASM) $(AFLAGS) --list=wbdecode.list --map=wbdecode.map --symbols -o $@ $<
-wbrun: ../tests/probes/wbrun.asm platform/wildbits-graphics.asm platform/wildbits-decoder-code.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-memory-resources.asm platform/wildbits-memory-resources.asm platform/wildbits-memory-resources.asm platform/wildbits-presentation.d platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-defsfile $(NITROS9DIR)/defs/wildbits.d
+wbrun: ../tests/probes/wbrun.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-memory-resources.asm platform/wildbits-memory-resources.asm platform/wildbits-memory-resources.asm platform/wildbits-presentation.d platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-defsfile $(NITROS9DIR)/defs/wildbits.d
 	$(LWASM) $(AFLAGS) --list=wbrun.list --map=wbrun.map --symbols -o $@ $<
 wbasset: ../tests/probes/wbasset.asm \
 	platform/wildbits-memory-resources.asm \
@@ -22,12 +22,10 @@ wbasset: ../tests/probes/wbasset.asm \
 wbexec: ../tests/probes/wbexec.asm \
 	platform/wildbits-memory-resources.asm \
 	platform/wildbits-logic.asm \
-	platform/wildbits-logic-code.asm \
 	platform/wildbits-text-ui.asm \
-	platform/wildbits-object-code.asm \
+	platform/wildbits-objects.asm \
 	platform/wildbits-graphics.asm \
 	platform/wildbits-input.asm \
-	platform/wildbits-string-code.asm \
 	platform/wildbits-defsfile
 	$(LWASM) $(AFLAGS) --list=wbexec.list --map=wbexec.map --symbols -o $@ $<
 wbgame: sierra.asm $(wildcard platform/wildbits-*.asm) font-data.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-memory-resources.asm platform/wildbits-memory-resources.asm platform/wildbits-memory-resources.asm platform/wildbits-presentation.d platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-graphics.asm platform/wildbits-defsfile
@@ -140,13 +138,10 @@ wbexec wbgame: shared/condition-tests.asm
 
 wbexec wbgame: shared/agi-test-table.asm
 
-wbexec wbgame: shared/object-flag-mask.asm shared/object-flag-rules.asm
+wbexec wbgame: shared/object-commands.asm shared/object-flag-rules.asm
 
-wbexec wbgame: shared/object-cycle-state.asm
 
-wbexec wbgame: shared/object-motion-state.asm
 
-wbexec wbgame: shared/object-rate-state.asm
 
 wbgame: shared/said-match.asm
 

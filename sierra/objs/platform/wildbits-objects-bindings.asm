@@ -393,3 +393,16 @@ TERRAIN_STATUS_READ macro
 TERRAIN_TEST_WATER macro
                     tst       motionwater,x
                     endm
+
+* ===== wildbits-object-code local macros =====
+OBJECT_FLAG_RULE    macro
+                    ifne      OBJECT_FLAG_TABLE
+                    fcb       \2
+                    fdb       \1-ObjectFlagTable
+                    else
+\1                  equ       *
+                    OBJECT_FLAG_MASK \3,\4,\5,x
+                    clrb
+                    rts
+                    endc
+                    endm

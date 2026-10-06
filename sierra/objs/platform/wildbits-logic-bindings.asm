@@ -68,3 +68,65 @@ LOGIC_SKIP_HELPER   macro
 RANDOM_VARIABLE_TABLE macro
                     leax      vmvariables,u
                     endm
+
+* ===== wildbits-condition-stream local macros =====
+CONDITION_READ_CODE macro
+                    lbsr      VmFetchByte
+                    lbcs      VmConditionFailure
+                    tfr       b,a
+                    endm
+CONDITION_EVALUATE  macro
+                    lbsr      VmConditionTest
+                    lbcs      VmConditionFailure
+                    tfr       b,a
+                    endm
+CONDITION_SKIP_TEST macro
+                    lbsr      VmConditionOperands
+                    lbcs      VmConditionFailure
+                    clr       1,s
+                    endm
+CONDITION_BRANCH    macro
+                    l\1       \2
+                    endm
+CONDITION_VALIDATE_END macro
+                    ldd       ,s
+                    lbne      VmConditionInvalid
+                    endm
+CONDITION_VALIDATE_OR macro
+                    tst       1,s
+                    lbne      VmConditionInvalid
+                    endm
+CONDITION_SCAN_CONTROL macro
+                    lbsr      VmConditionScanControl
+                    lbcs      VmConditionFailure
+                    endm
+CONDITION_TRUE_SCAN_BEGIN macro
+                    inc       ,s
+                    endm
+CONDITION_TRUE_BRANCH macro
+                    lbsr      VmReadWord
+                    lbcs      VmConditionFailure
+                    lbra      VmNext
+                    endm
+
+* ===== wildbits-game-math-code local macros =====
+MATH_DIVIDE         macro
+                    lbsr      Div8
+                    endm
+
+* ===== wildbits-logic-code local macros =====
+VARIABLE_TABLE      macro
+                    leax      vmvariables,u
+                    endm
+FLAG_VARIABLE_TABLE macro
+                    leax      vmvariables,u
+                    endm
+TEST_VARIABLE_TABLE macro
+                    leax      vmvariables,u
+                    endm
+AGI_TEST            macro
+                    fcb       (\2)/256
+                    endm
+AGI_COMMAND         macro
+                    fcb       (\2)/256
+                    endm

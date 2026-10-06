@@ -1,7 +1,7 @@
 # Sierra platform features
 
 This directory groups platform-specific code, private state and assembly
-bindings by feature. It contains 34 assembly files, down from 208. Shared game
+bindings by feature. It contains 26 assembly files, down from 208. Shared game
 algorithms remain in `../shared`; `wildbits-runtime.asm` composes the native
 module and its process-private layout.
 
@@ -38,11 +38,11 @@ dispatch. This preserves the existing data offsets and module code order.
 Sections use conditional chains so nested feature includes cannot select a
 second section after changing `PLATFORM_SECTION`.
 
-Eight substantial native implementation files retain their existing names:
-condition stream, decoder, formatter, math, logic execution, object commands,
-parser and string commands. They mix macro definitions with executable bodies;
-keeping them as complete implementations avoids the assembler's handling of
-macro parameters inside skipped conditional sections.
+Condition traversal, picture decoding, formatting, math, logic execution,
+object commands, parsing and string commands now reside in their feature
+files. Their local macro definitions live in the corresponding binding files,
+loaded once before the body is emitted. Timing keeps its small clock interface
+in `coco-timing.asm` or `wildbits-timing.asm` alongside the feature boundary.
 
 The old per-operation selector files have been removed. Their compile-time
 CoCo/Wild Bits selection and unsupported-backend checks now appear at the

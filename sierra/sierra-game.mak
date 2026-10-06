@@ -123,13 +123,13 @@ mnln: ../objs/shared/condition-tests.asm
 
 mnln: ../objs/shared/agi-test-table.asm
 
-mnln: ../objs/shared/object-flag-mask.asm ../objs/shared/object-flag-rules.asm
+mnln: ../objs/shared/object-commands.asm ../objs/shared/object-flag-rules.asm
 
-mnln: ../objs/shared/object-cycle-state.asm
+mnln: ../objs/shared/object-commands.asm
 
-mnln: ../objs/shared/object-motion-state.asm
+mnln: ../objs/shared/object-commands.asm
 
-mnln: ../objs/shared/object-rate-state.asm
+mnln: ../objs/shared/object-commands.asm
 
 mnln: ../objs/shared/said-match.asm
 
@@ -139,7 +139,7 @@ mnln: ../objs/shared/tokenize-string.asm ../objs/shared/find-byte.asm ../objs/sh
 
 mnln: ../objs/shared/compare-strings.asm ../objs/shared/string-punctuation.asm
 
-mnln: ../objs/shared/object-coordinate-state.asm ../objs/shared/object-animation-state.asm
+mnln: ../objs/shared/object-commands.asm ../objs/shared/object-commands.asm
 mnln: ../objs/platform/sections.d ../objs/platform/coco-objects-bindings.asm
 
 mnln: ../objs/shared/condition-flow.asm ../objs/platform/coco-logic-bindings.asm

@@ -743,11 +743,13 @@ TickUpdate          ldd       <TickAccum load tick accumulator
 * Assembly-time clock storage interface; no runtime dispatch.
                     ifne      WILDBITS
                     ifndef PLATFORM_WILDBITS_TIMING_BINDINGS
-                    use platform/wildbits-timing-bindings.asm
+                    use platform/wildbits-timing.asm
                     endc
                     else
                     ifndef PLATFORM_COCO_TIMING_BINDINGS
-                    use platform/coco-timing-bindings.asm
+                    use platform/sections.d
+PLATFORM_SECTION    set PLATFORM_COCO_GAME_CLOCK_BINDINGS
+                    use platform/coco-timing.asm
                     endc
                     endc
                     use       shared/game-clock-tick.asm

@@ -9,6 +9,7 @@ labels, branches and instruction order are preserved without runtime calls.
 
 | Shared component | Contents | Platform interface |
 | --- | --- | --- |
+| `object-commands.asm` | Position, animation, cycle/rate/motion state, flags, blocking and field queries | CoCo/Wild Bits `objects-bindings.asm` |
 | `formatter.asm` | Character scan, directive selection, string slots, recursive calls and expansion | CoCo/Wild Bits `text-ui-bindings.asm` |
 | `object-motion.asm` | Scheduling, coordinate steps, clamping, position commits and target motion | CoCo/Wild Bits `objects-bindings.asm` |
 | `object-animation.asm` | Animation update, all cel-cycle modes and direction tables | CoCo/Wild Bits `objects-bindings.asm` |
@@ -65,22 +66,15 @@ owners. They allocate no state and contain no OS-9 module header.
   owners supply private scratch and result-store adapters.
 - `object-flag-rules.asm`: one catalog of 14 loop/priority/terrain/horizon/
   collision/cycling mask rules, used by both owners.
-- `object-flag-mask.asm`: common compile-time mask mutation body; owner supplies
-  the record pointer register. Identity operations emit no instructions.
-- `object-animation-state.asm`: idempotent animate.obj initialization.
-- `object-coordinate-state.asm`: literal/variable position assignment, position
-  queries, and signed reposition arithmetic; owners provide operand/storage
-  adapters and retain their placement/collision boundaries.
+- `object-commands.asm`: object position/coordinate state, animate/unanimate,
+  cycle and rate controls, normal/start/stop motion, block/flag mutations,
+  priority/direction assignment and field query handlers.
 - `object-animation.asm`: all four cel-cycle modes, one-tick suppression,
   unsigned reverse wrapping, endpoint completion flags and motion stopping;
   owners bind scratch, flag storage and view-selection/status callbacks.
-- `object-cycle-state.asm`: continuous/endpoint animation modes and flags.
 - `object-motion-setup.asm`: follow-distance selection and completion state,
   wander initialization, and saved/optional move speed with literal completion
   flags; owners provide flag, input-control and direction callbacks.
-- `object-motion-state.asm`: normal/start/stop record transitions; ego control
-  effects remain owner adapters.
-- `object-rate-state.asm`: cycle/step preset and countdown writes.
 - `object-block-test.asm`: strict rectangle containment, with owner-selected
   state addressing at assembly time.
 - `picture-command-table.asm`: a single F0-FA handler catalog, expanded as
@@ -105,7 +99,7 @@ implementation uses bounded OS-managed mapping windows. Selection takes place
 in `platform/sections.d` and emits no dispatch instructions.
 
 This is the first actual shared-source migration. The native logic interpreter
-(`platform/wildbits-logic-code.asm`) and CoCo `mnln.asm` still have different state layouts and command implementations;
+(`platform/wildbits-logic.asm`) and CoCo `mnln.asm` still have different state layouts and command implementations;
 that reconciliation is unfinished. Moving a native-only file here would not,
 by itself, make it shared with CoCo.
 
@@ -145,17 +139,17 @@ native object-file loader. `agi-xor-key.asm` defines their immutable key;
 native streaming message decryption references it too. File/mapped-message
 bounds and object validation stay in their storage providers.
 
-`object-block-state.asm` shares allowed/crossing control-bit updates and
-stopped-direction/ego handling. `object-unanimate.asm` shares bulk animated/
+`object-commands.asm` shares allowed/crossing control-bit updates and
+stopped-direction/ego handling. `object-commands.asm` shares bulk animated/
 visible-bit clearing over owned records. `platform/*-sections.d`
 binds ego state and record iteration. `object-step-deltas.asm` supplies the
 nine signed X/Y deltas used by both motion implementations. Vector arithmetic, clamping, terrain rules and collision scanning are described
 below; per-cycle orchestration still remains in owner components.
 
-`object-scalar-state.asm` shares priority/direction mutations with operand,
-range and ego-state interfaces. `object-field-query.asm` is the common
+`object-commands.asm` shares priority/direction mutations with operand,
+range and ego-state interfaces. `object-commands.asm` is the common
 record-to-variable query used by priority, direction and the five view-state
-handlers in `object-view-queries.asm`. Native range policies and the CoCo
+handlers in `object-commands.asm`. Native range policies and the CoCo
 byte-assignment policy remain explicit in `platform/*-sections.d`.
 
 `object-placement-step.asm` shares rejected-candidate spiral advancement;

@@ -38,6 +38,8 @@ VmPlatformCommand  ldb       #E$UnkSvc
                     orcc      #1
                     rts
 VmPlatformTest      bra       VmPlatformCommand
-                    use       platform/wildbits-logic-code.asm
+                    use platform/sections.d
+PLATFORM_SECTION    set PLATFORM_WILDBITS_LOGIC_CODE
+                    use platform/wildbits-logic.asm
                     emod
 eom                 equ       *

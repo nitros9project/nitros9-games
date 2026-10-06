@@ -1368,8 +1368,13 @@ ViewQuery           cmpb      #49
                     use platform/coco-objects-bindings.asm
                     endc
                     endc
-                    use       shared/object-field-query.asm
-                    use       shared/object-view-queries.asm
+                    ifndef SHARED_OBJECT_COMMANDS_DEFINED
+                    use shared/object-commands.asm
+                    endc
+                    ifndef SHARED_OBJECT_COMMANDS_DEFINED
+                    use shared/object-commands.asm
+                    endc
+                    OBJECT_EMIT_VIEW_QUERIES
 ViewInvalidQuery    ldb       #E$BMode
                     orcc      #1
                     rts

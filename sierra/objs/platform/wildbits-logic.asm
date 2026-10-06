@@ -803,7 +803,249 @@ VmSetPlayerControl     lda       #1
                     rts
 
                     else
+                    ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_CONDITION_STREAM
+* ===== wildbits-condition-stream =====
+                    ifndef PLATFORM_WILDBITS_LOGIC_BINDINGS
+                    use platform/wildbits-logic-bindings.asm
+                    endc
+* Bounded, process-private adapter to the common condition traversal.
+CONDITION_FALSE_LABEL equ     ExecScriptJump
+VmConditionInvalid  equ       VmLogicInvalid
+VmConditionFailure  equ       VmLogicFailure
+
+* A=test number. Decode operands for evaluated and skipped predicates alike.
+VmConditionOperands sta       <vmopcode
+                    cmpa      #1
+                    lblo      VmInvalid
+                    cmpa      #18
+                    lbhi      VmInvalid
+                    cmpa      #14
+                    beq       VmConditionSaid
+                    leax      VmTestCounts,pcr
+                    ldb       a,x
+                    stb       <vmargcount
+                    lbra      VmReadArguments
+VmConditionSaid     lbsr      VmFetchByte
+                    lbcs      VmReturn
+                    cmpb      #127
+                    lbhi      VmInvalid
+                    lslb
+                    stb       <vmargcount
+                    lbra      VmReadArguments
+VmConditionTest     lbsr      VmConditionOperands
+                    lbcs      VmReturn
+                    lbra      VmEvaluateTest
+* Validate grammar while skipping callbacks. Helper return occupies ,S;
+* the shared OR/NOT locals are therefore 2,S and 3,S. A remains the code byte.
+VmConditionScanControl cmpa   #$FE
+                    beq       VmConditionScanInvalid
+                    cmpa      #$FD
+                    beq       VmConditionScanNot
+                    cmpa      #$FC
+                    beq       VmConditionScanOr
+                    cmpa      #$FF
+                    bne       VmConditionScanValid
+                    ldb       2,s
+                    orb       3,s
+                    bne       VmConditionScanInvalid
+VmConditionScanValid andcc    #$FE
+                    rts
+VmConditionScanNot  ldb       3,s
+                    eorb      #1
+                    stb       3,s
+                    bra       VmConditionScanValid
+VmConditionScanOr   tst       3,s
+                    bne       VmConditionScanInvalid
+                    ldb       2,s
+                    eorb      #1
+                    stb       2,s
+                    bra       VmConditionScanValid
+VmConditionScanInvalid lbra   VmInvalid
+
+                    else
+                    ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_GAME_MATH_CODE
+* ===== wildbits-game-math-code =====
+                    ifndef PLATFORM_WILDBITS_LOGIC_BINDINGS
+                    use platform/wildbits-logic-bindings.asm
+                    endc
+* Native argument/validation adapter; byte arithmetic belongs to the common engine.
+GameMathCommand     ldu       <resourcebase
+                    leay      vmarguments,u
+                    ldb       <vmopcode
+                    cmpb      #167
+                    blo       GameMathReady
+                    ldb       vmarguments+1,u
+                    lda       <vmopcode
+                    cmpa      #168
+                    bne       GameMathDivisor
+                    VARIABLE_TABLE
+                    abx
+                    ldb       ,x
+GameMathDivisor     tstb
+                    lbeq      ObjectBadIndex
+GameMathReady       ldb       <vmopcode
+                    subb      #165
+                    lslb
+                    leax      GameMathHandlers,pcr
+                    ldd       b,x
+                    leax      d,x
+                    jsr       ,x
+                    clrb
+                    rts
+GameMathHandlers    fdb       cmd_multn-GameMathHandlers
+                    fdb       cmd_multv-GameMathHandlers
+                    fdb       cmd_divn-GameMathHandlers
+                    fdb       cmd_divv-GameMathHandlers
+                    use       shared/math-commands.asm
+
+GameRandomCommand   ldu       <resourcebase
+                    lda       vmarguments,u
+                    cmpa      vmarguments+1,u
+                    lbhi      ObjectBadIndex
+                    leay      vmarguments,u
+                    lbsr      CmdRandomImpl
+                    clrb
+                    rts
+                    ifndef PLATFORM_WILDBITS_LOGIC_BINDINGS
+                    use platform/wildbits-logic-bindings.asm
+                    endc
+                    use       shared/random-command.asm
+
+                    else
+                    ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_LOGIC_CODE
+* ===== wildbits-logic-code =====
+                    ifndef PLATFORM_WILDBITS_LOGIC_BINDINGS
+                    use platform/wildbits-logic-bindings.asm
+                    endc
+* Bounded AGI bytecode control/arithmetic layer, adapted from mnln's command
+* semantics. No address patching: dispatch uses opcode values and PCR tables.
+* ExecuteLogic uses VmFetchByte (B byte, C/error B) and platform command/test
+* callbacks. All callbacks preserve U/DP; private controls survive callbacks.
+* vmvariables and vmflags contain 256 bytes each; vmarguments holds 255 bytes.
+* Platform commands must implement their semantics or return an error, never
+* silently skip an unsupported command. This component is not a whole game.
+                    ifndef PLATFORM_WILDBITS_LOGIC_BINDINGS
+                    use platform/wildbits-logic-bindings.asm
+                    endc
+                    use platform/sections.d
+PLATFORM_SECTION    set PLATFORM_WILDBITS_CONDITION_STREAM
+                    use platform/wildbits-logic.asm
+ExecuteLogic        equ       ExecLogicScript
+VmNext              equ       ExecScriptLoop
+VmJump              equ       ExecScriptJump
+VmConditionStart    equ       ExecScriptIf
+                    use       shared/logic-executor.asm
+VmLogicInvalid      lbsr      VmInvalid
+VmLogicFailure      lbra      ExecLogicScriptRet
+VmReadArguments     clr       <vmargindex
+VmArgumentLoop      lda       <vmargindex
+                    cmpa      <vmargcount
+                    bhs       VmArgumentsDone
+                    lbsr      VmFetchByte
+                    lbcs      VmReturn
+                    ldu       <resourcebase
+                    leax      vmarguments,u
+                    pshs      b
+                    ldb       <vmargindex
+                    abx
+                    puls      b
+                    stb       ,x
+                    inc       <vmargindex
+                    bra       VmArgumentLoop
+VmArgumentsDone     clrb
+                    rts
+* The exact variable-command bodies are also assembled by CoCo mnln.
+* Operand acquisition remains in each owner; the arithmetic is shared.
+VmArithmetic        ldu       <resourcebase
+                    leay      vmarguments,u
+                    ldb       <vmopcode
+                    decb
+                    lslb
+                    leax      VmVariableCommands,pcr
+                    ldd       b,x
+                    leax      d,x
+                    jsr       ,x
+                    lbra      VmNext
+                    use       shared/variable-commands.asm
+VmVariableCommands  fdb       cmd_increment-VmVariableCommands
+                    fdb       cmd_decrement-VmVariableCommands
+                    fdb       cmd_assignn-VmVariableCommands
+                    fdb       cmd_assignv-VmVariableCommands
+                    fdb       cmd_addn-VmVariableCommands
+                    fdb       cmd_addv-VmVariableCommands
+                    fdb       cmd_subn-VmVariableCommands
+                    fdb       cmd_subv-VmVariableCommands
+                    fdb       cmd_lindirectv-VmVariableCommands
+                    fdb       cmd_rindirect-VmVariableCommands
+                    fdb       cmd_lindirectn-VmVariableCommands
+                    fdb       CmdSetImpl-VmVariableCommands
+                    fdb       CmdResetImpl-VmVariableCommands
+                    fdb       CmdToggleImpl-VmVariableCommands
+                    fdb       CmdSetVImpl-VmVariableCommands
+                    fdb       CmdResetVImpl-VmVariableCommands
+                    fdb       CmdToggleVImpl-VmVariableCommands
+                    use       shared/flag-commands.asm
+                    use platform/sections.d
+PLATFORM_SECTION    set PLATFORM_WILDBITS_FLAG_STORAGE
+                    use platform/wildbits-logic.asm
+
+VmReadWord          lbsr      VmFetchByte
+                    lbcs      VmReturn
+                    pshs      b
+                    lbsr      VmFetchByte
+                    bcs       VmWordError
+                    tfr       b,a
+                    puls      b
+                    andcc     #$FE
+                    rts
+VmWordError         leas      1,s
+                    rts
+VmEvaluateTest      ldu       <resourcebase
+                    ldb       <vmopcode
+                    cmpb      #8
+                    lbhi      VmExternalTest
+                    leay      vmarguments,u
+                    decb
+                    lslb
+                    leax      VmBuiltinTests,pcr
+                    ldd       b,x
+                    leax      d,x
+                    jmp       ,x
+CONDITION_TRUE      equ       VmTrue
+CONDITION_FALSE     equ       VmFalse
+                    use       shared/condition-tests.asm
+VmBuiltinTests      fdb       TestEqualN-VmBuiltinTests
+                    fdb       TestEqualV-VmBuiltinTests
+                    fdb       TestLessN-VmBuiltinTests
+                    fdb       TestLessV-VmBuiltinTests
+                    fdb       TestGreaterN-VmBuiltinTests
+                    fdb       TestGreaterV-VmBuiltinTests
+                    fdb       TestIsSet-VmBuiltinTests
+                    fdb       TestIsSetV-VmBuiltinTests
+VmFalse             clrb
+                    rts
+VmTrue              ldb       #1
+                    andcc     #$FE
+                    rts
+VmExternalTest      lbsr      VmPlatformTest
+                    rts
+VmSuccess           clrb
+                    rts
+VmInvalid           ldb       #E$BMode
+                    stb       <vmerror
+                    orcc      #1
+VmReturn            rts
+VmTestCounts        equ       *
+                    use       shared/agi-test-table.asm
+* Operand counts follow the existing CoCo command table.
+VmArgumentCounts    equ       *
+                    use       shared/agi-command-table.asm
+
+                    else
                     error Unknown platform feature section
+                    endc
+                    endc
+                    endc
                     endc
                     endc
                     endc

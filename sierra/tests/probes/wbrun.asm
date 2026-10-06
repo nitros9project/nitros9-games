@@ -34,7 +34,9 @@ PLATFORM_SECTION    set PLATFORM_WILDBITS_RESOURCE_CLI
                     use platform/wildbits-memory-resources.asm
 PLATFORM_SECTION    set PLATFORM_WILDBITS_RESOURCE_CODE
                     use platform/wildbits-memory-resources.asm
-                    use       platform/wildbits-decoder-code.asm
+                    use platform/sections.d
+PLATFORM_SECTION    set PLATFORM_WILDBITS_DECODER_CODE
+                    use platform/wildbits-graphics.asm
 PLATFORM_SECTION    set PLATFORM_WILDBITS_DECODER_LINES
                     use platform/wildbits-graphics.asm
 PLATFORM_SECTION    set PLATFORM_WILDBITS_PICTURE_MEMORY

@@ -216,3 +216,31 @@ INVENTORY_TEST_RESULT macro
                     andcc     #$FE
                     rts
                     endm
+
+* ===== wildbits-format-code local macros =====
+NUL_FRAME_WRITE     macro
+                    sta       ,y+
+                    endm
+
+* ===== wildbits-parser-code local macros =====
+TOKENIZE_OUTPUT     macro
+                    ldx       <resourcebase
+                    leax      parserline,x
+                    endm
+TOKENIZE_FOLD       macro
+                    lbsr      ParserLower
+                    endm
+TOKENIZE_FINISH     macro
+                    ldu       <resourcebase
+                    leax      parserline,u
+                    pshs      x
+                    ldd       2,s
+                    subd      ,s++
+                    stb       parserlength,u
+                    endm
+
+* ===== wildbits-string-code local macros =====
+NORMAL_STRING_TABLE macro
+                    ldu       <resourcebase
+                    leau      vmstrings,u
+                    endm
