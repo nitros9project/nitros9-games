@@ -127,6 +127,19 @@ TEST_VARIABLE_TABLE macro
 AGI_TEST            macro
                     fcb       (\2)/256
                     endm
+NATIVE_COMMAND_TABLE_MODE set 0
 AGI_COMMAND         macro
+                    ifne NATIVE_COMMAND_TABLE_MODE
+                    ifne \4
+                    ifne GAME_PRESENTATION
+                    fdb       \3-VmPlatformCommandTable
+                    else
+                    fdb       VmPlatformUnsupported-VmPlatformCommandTable
+                    endc
+                    else
+                    fdb       \3-VmPlatformCommandTable
+                    endc
+                    else
                     fcb       (\2)/256
+                    endc
                     endm

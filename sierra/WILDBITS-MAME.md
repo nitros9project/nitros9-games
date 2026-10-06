@@ -495,3 +495,16 @@ size to 24,570 bytes. Both acceptance commands passed with that exact build
 as well; artifacts are `/tmp/sierra-shared-cel-clipping-scratch-movement` and
 `/tmp/sierra-shared-cel-clipping-scratch-terminals`. Collection's temporary
 sort key is reused only after the ordered list has been completed.
+
+### Native indexed dispatch acceptance — 2026-10-06
+
+The native platform comparison chain was replaced with relative entries
+from the existing shared AGI catalog. The game is now 22,264 code bytes with
+24,570 private bytes. Both acceptance commands passed against this build:
+startup, inventory, modal/interrupt cleanup, movement and independent
+two-terminal restoration, exit, relaunch and free-memory checks. Artifacts
+are `/tmp/sierra-native-table-dispatch-movement` and
+`/tmp/sierra-native-table-dispatch-terminals`. Movement still measures nine
+AGI pixels over 200 frames; this is not evidence of a walking-speed increase.
+The CPU destination test separately checks all opcode routes and preserved
+entry state in the game and probe at two load addresses.

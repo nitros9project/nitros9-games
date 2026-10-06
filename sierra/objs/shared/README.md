@@ -61,7 +61,8 @@ owners. They allocate no state and contain no OS-9 module header.
 - `agi-test-table.asm`: one 19-entry condition catalog, expanded into CoCo
   handler/operand descriptors or native operand counts.
 - `agi-command-table.asm`: one command catalog, expanded into CoCo handler
-  descriptors or native operand-count bytes at assembly time.
+  descriptors, native operand-count bytes and native platform-command
+  relative dispatch entries at assembly time.
 - `object-distance.asm`: visible-object Manhattan distance with saturation;
   owners supply private scratch and result-store adapters.
 - `object-flag-rules.asm`: one catalog of 14 loop/priority/terrain/horizon/
@@ -316,3 +317,10 @@ right edge. The native view reader still validates dimensions before calling
 the rule. Direct execution at two load addresses passes 5,920 cases covering
 every coordinate, horizon and flag byte, all legal widths/heights, guards,
 registers and unrelated fields. All 14 CoCo `mnln` modules remain identical.
+
+The command catalog has four fields: CoCo handler, operand descriptor, native
+platform handler and a game-only marker. CoCo expands its original two fields;
+native expands operand counts and a separate relative dispatch table from the
+same rows. A probe redirects game-only rows to the explicit unsupported error
+handler. The production table replaces the native comparison chain and saves
+115 code bytes; it allocates no state and needs no initialization patching.

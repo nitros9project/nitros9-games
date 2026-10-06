@@ -10,7 +10,8 @@ these are distinct backend policies. The native discard failure path now
 preserves carry after clearing transient ownership, with failed slots retained
 for retry. Sprite visibility now uses the same shared per-cel rule for both
 owners; native publishes AGI flag 1 only for ego. Selected-cel positioning is also shared, including right-edge and
-height/horizon adjustment. The game is 22,379 bytes;
+height/horizon adjustment. Native platform commands now use an immutable relative dispatch table
+from the shared AGI catalog. The game is 22,264 bytes;
 process data is 24,570 bytes (six bytes below its three-page limit).
 The per-cel visibility byte reuses the sort key after collection completes.
 

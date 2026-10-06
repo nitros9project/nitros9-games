@@ -2438,3 +2438,44 @@ two-terminal MAME acceptance passed with this build; artifacts are
 layout also passed both checks, with artifacts at
 `/tmp/sierra-shared-cel-clipping-scratch-movement` and
 `/tmp/sierra-shared-cel-clipping-scratch-terminals`.
+
+### Native platform dispatch from the shared command catalog
+
+The native `VmPlatformCommand` comparison chain duplicated command-number
+routing already represented by the common AGI catalog. The catalog now also
+records each native platform handler and whether it requires the game owner.
+CoCo still expands its original handler/operand descriptors; native expands
+its original operand-count bytes and an immutable table of relative handler
+offsets. Optional probes route game-only entries to `VmPlatformUnsupported`.
+The common executor continues to handle its arithmetic/flag instructions
+before entering platform dispatch, preserving the existing routing boundary.
+
+Native checks the opcode against the 182-entry table, multiplies it by two,
+reads the signed relative handler offset and adds the table's PC-relative
+base. No module load address is written into code and no initialization
+fixup is needed. Out-of-range and unsupported opcodes still reach the explicit
+`E$UnkSvc` error return.
+
+The tail jump preserves the old entry ABI. Two bytes are reserved beneath
+the caller's return address, then D and X are pushed. The calculated target
+is stored at `4,S`, following the saved D/X. `PULS D,X,PC` restores both
+registers and jumps through that target, leaving the caller's original return
+address in place for the handler's `RTS`. Y and U are never changed. The
+transient six-byte frame is checked by the destination regression.
+
+Before replacement, `check_native_dispatch.py` verified all 256 opcode
+destinations in both the full game and the probe, at two load addresses
+(1,024 entries). Its independent routing contract covers game-only groups,
+shared resource/object/UI groups and explicit unsupported destinations. It
+also checks preserved registers, caller return address, private state, guards
+and immutable code. This baseline provides the equivalence check for the new
+table. All 14 CoCo main-loop modules remain byte-identical. The game shrinks
+from 22,379 to 22,264 code bytes; private size stays 24,570. The smaller probe
+grows from 7,153 to 7,244 because its old comparison chain omitted game-only
+cases, whereas the table deliberately retains a full indexed catalog.
+
+The indexed implementation passes the same 1,024 destination checks as the
+old comparison chain. Fresh MAME movement and two-terminal acceptance also
+pass; artifacts are `/tmp/sierra-native-table-dispatch-movement` and
+`/tmp/sierra-native-table-dispatch-terminals`. Movement remains nine AGI
+pixels over 200 frames, so no measured movement speedup is claimed.
