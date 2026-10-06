@@ -1,5 +1,24 @@
 # Shared Sierra routines
 
+## Component layout
+
+Formatter, motion and animation are grouped by feature rather than individual
+operations. Each component is included once per owner and defines named
+assembly macros. The owner expands a section where its code previously lived;
+labels, branches and instruction order are preserved without runtime calls.
+
+| Shared component | Contents | Platform interface |
+| --- | --- | --- |
+| `formatter.asm` | Character scan, directive selection, string slots, recursive calls and expansion | `platform/formatter-operands.asm` selects one CoCo or Wild Bits binding file |
+| `object-motion.asm` | Scheduling, coordinate steps, clamping, position commits and target motion | `platform/motion-operands.asm` selects one CoCo or Wild Bits binding file |
+| `object-animation.asm` | Animation update, all cel-cycle modes and direction tables | `platform/animation-operands.asm` selects one CoCo or Wild Bits binding file |
+
+For example, `FORMAT_EMIT_SCAN` expands the scan body in `formatter.asm`;
+`MOTION_EMIT_CLAMP` expands the clamp body in `object-motion.asm`. Algorithms
+are contained directly in these component files. The old fragment files have
+been removed. This replaces 41 files with 12, reducing the file count by 29.
+
+
 These are body includes used by both the CoCo modules and native Wild Bits
 owners. They allocate no state and contain no OS-9 module header.
 
@@ -11,7 +30,7 @@ owners. They allocate no state and contain no OS-9 module header.
   accumulation and a first-nondigit stop, using only stack-local scratch.
 - `divide-byte.asm`: unsigned byte quotient/remainder with private DP scratch.
 - `object-wander.asm`: direction/countdown changes shared with CoCo; native
-  random state is process-private. Coordinate stepping uses `object-coordinate-step.asm`.
+  random state is process-private. Coordinate stepping uses `object-motion.asm`.
 - `object-position-test.asm`: inclusive rectangle checks for left/center/right/
   full object extents, with owner-provided scratch and boolean return adapters.
 - `variable-commands.asm`: commands 1–11, including saturating increment/
@@ -51,7 +70,7 @@ owners. They allocate no state and contain no OS-9 module header.
 - `object-coordinate-state.asm`: literal/variable position assignment, position
   queries, and signed reposition arithmetic; owners provide operand/storage
   adapters and retain their placement/collision boundaries.
-- `object-cel-advance.asm`: all four cel-cycle modes, one-tick suppression,
+- `object-animation.asm`: all four cel-cycle modes, one-tick suppression,
   unsigned reverse wrapping, endpoint completion flags and motion stopping;
   owners bind scratch, flag storage and view-selection/status callbacks.
 - `object-cycle-state.asm`: continuous/endpoint animation modes and flags.
@@ -71,7 +90,7 @@ owners. They allocate no state and contain no OS-9 module header.
   using the same plotting and coordinate interfaces on both owners.
 - `picture-coordinates.asm`: common coordinate clamping and command-byte
   detection, with assembly-time contiguous/bounded input selection.
-- `object-direction-tables.asm`: movement-direction to view-loop selection.
+- `object-animation.asm`: movement-direction to view-loop selection.
 - `picture-line.asm`: integer line drawing with owner-provided direct-page
   coordinate and scratch symbols. Calls `SbuffPlot` through a direct `LBSR`.
 - `picture-pen.asm`: pen geometry and texture sequence, using the same plotting
@@ -105,8 +124,8 @@ and flags across the packed CoCo and byte-per-flag native layouts. It verifies
 forward/backward branches, mixed conditions, stack guards and immutable code
 after CoCo table initialization. The CoCo module remains byte-identical.
 
-The formatter now also shares `format-scan.asm` (character traversal),
-`format-directives.asm` (substitution selection), `format-string-slot.asm`
+The formatter now also shares `formatter.asm` (character traversal),
+`formatter.asm` (substitution selection), `formatter.asm`
 (string-slot resolution), `decimal-index.asm` and `unsigned-decimal.asm`.
 Their platform operands preserve each owner's storage, bounds and errors.
 `nul-string-copy.asm` is used by CoCo `StrCopy` and native formatter source
@@ -114,8 +133,8 @@ frames/string/numeric emission; checked emitters stop before copying NUL,
 while direct copies include it. Full formatting recursion and several
 substitution providers remain owner-specific.
 
-`format-recursive-call.asm` binds recursive formatting arguments/call/release;
-`format-expansion.asm` shares substitution result application, checked error
+`formatter.asm` binds recursive formatting arguments/call/release;
+`formatter.asm` shares substitution result application, checked error
 return and outer-scan continuation. CoCo generic/global substitutions and
 native message expansion use these pieces with their original argument ABI.
 The actual recursion frame layout and message readers remain owner-specific.
@@ -186,14 +205,14 @@ retain the previous native direction choices; target clamping still uses the
 real step size. The wrapper preserves private context X and object cursor U.
 `check_move_direction.py` exercises both production paths at two addresses.
 
-`object-coordinate-step.asm` owns direction-vector application to candidate X/Y
-coordinates for both production runtimes. `platform/*-coordinate-step-operands.asm`
+`object-motion.asm` owns direction-vector application to candidate X/Y
+coordinates for both production runtimes. `platform/*-motion-operands.asm`
 binds candidate/step storage and direction-table cursors. Store-joining policy
 preserves each owner's original branch schedule, so all fourteen CoCo title
 modules and native `wbgame` remain byte-identical. Candidate initialization and per-cycle orchestration remain owner-specific; the common clamp,
 terrain and collision components are described below.
 
-`object-coordinate-clamp.asm` now owns candidate screen/horizon clamping in both
+`object-motion.asm` now owns candidate screen/horizon clamping in both
 movement pipelines. Bindings reuse the coordinate-step storage interface and
 preserve dimension checks, comparison scheduling, early vertical exits and
 byte-versus-word horizon policy. Legacy entry aliases remain available. Native
@@ -220,9 +239,9 @@ contact, and their distinct baseline histories. The native first comparison's
 high-byte handling is preserved exactly. All fourteen CoCo `mnln` binaries and
 native `wbgame` remain byte-identical to the preceding revision.
 
-`object-position-commit.asm` owns candidate commit, collision result handling,
+`object-motion.asm` owns candidate commit, collision result handling,
 rejection restoration, accepted-state transition and boundary publication for
-both production movement paths. `platform/*-position-commit-operands.asm` binds
+both production movement paths. `platform/*-motion-operands.asm` binds
 coordinate/variable storage, collision ABI, terrain validation and recovery,
 and continuation into each owner's destination stage. CoCo validates terrain
 after committing/testing collision and recovers rejected positions; native
@@ -231,7 +250,7 @@ handler. These sequencing policies are explicit and preserve the original
 binary. All fourteen CoCo `mnln` modules and native `wbgame` are byte-identical.
 Destination triggering and per-cycle orchestration still remain separate.
 
-`object-target-motion.asm` shares the direction-call sequence and arrival
+`object-motion.asm` shares the direction-call sequence and arrival
 transition. Bindings select the threshold, context/result registers, packed or
 byte completion flags, stopping order and ego state. CoCo retains its actual-step
 threshold and zero-direction completion trigger; native retains threshold one
@@ -239,13 +258,13 @@ and its caller's exact-position trigger. CoCo flag-before-stop and native
 stop-before-flag order are preserved, as are their different record/ego updates.
 All fourteen CoCo `mnln` modules and native `wbgame` remain byte-identical.
 
-`object-animation-update.asm` now owns the per-object direction-driven loop
+`object-animation.asm` now owns the per-object direction-driven loop
 selection and cycle countdown stage in both `mnln.asm` and the native motion
 owner. It checks fixed-loop state, selects a direction loop, skips unchanged
 loops, checks/decrements the cycle timer, invokes the existing shared cel
 advance routine and reloads the timer. View selection, native error/context
 handling, CoCo reverse-enable storage and continuation ABI are provided by
-`platform/animation-update-operands.asm`.
+`platform/animation-operands.asm`.
 
 Assembly-time policy preserves the existing differences: CoCo may use the
 reverse table for views with more than four loops when its enable bit is set,
@@ -256,9 +275,9 @@ call. The outer object traversal, motion scheduling and rendering remain
 owner-specific. This extraction changes no instructions: all 14 CoCo `mnln`
 modules and native `wbgame` were rebuilt and compared byte for byte.
 
-`object-motion-schedule.asm` shares the active-object gate and complete
+`object-motion.asm` shares the active-object gate and complete
 normal/wander/follow/move-to dispatch in CoCo `DispatchMotion` and native
-`GameUpdateObjects`. `platform/motion-schedule-operands.asm` binds each
+`GameUpdateObjects`. `platform/motion-operands.asm` binds each
 owner's step scheduling and continuation: CoCo dispatches only when its step
 countdown equals one; native first advances animation, decrements or resets
 the countdown, then dispatches. Native restores the object/private context

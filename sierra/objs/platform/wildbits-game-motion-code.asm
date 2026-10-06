@@ -22,8 +22,9 @@ MotionObjectNext    ldb       motionid,x
                     leau      vmobjects,x
                     leau      d,u
                     stu       motionobject,x
-                    use platform/motion-schedule-operands.asm
-                    use shared/object-motion-schedule.asm
+                    use platform/motion-operands.asm
+                    use shared/object-motion.asm
+                    MOTION_EMIT_SCHEDULE
 MotionNotWander equ MotionScheduleNotWander
 MotionNotFollow equ MotionScheduleNotFollow
 MotionDirectionReady ldb      $21,u
@@ -39,15 +40,13 @@ MotionDirectionReady ldb      $21,u
                     ldb       $1E,u
                     std       motionstep,x
                     clr       motionedge,x
-                    use platform/coordinate-step-operands.asm
-                    use shared/object-coordinate-step.asm
-                    use platform/coordinate-clamp-operands.asm
+                    MOTION_EMIT_COORDINATE_STEP
 MotionClampX        equ ClampCoordinates
 MotionClampRight    equ ClampRightLimit
 MotionClampTop      equ ClampTopLimit
 MotionClampBottom   equ ClampBottomLimit
 MotionHorizon       equ ClampHorizon
-                    use shared/object-coordinate-clamp.asm
+                    MOTION_EMIT_CLAMP
 MotionTargetClamp   lda       $22,u
                     cmpa      #3
                     bne       MotionCheckTerrain
@@ -95,10 +94,9 @@ MotionCheckTerrain  lbsr      GameCheckBlock
                     lbcs      MotionReturn
                     tstb
                     lbne      MotionBlocked
-                    use platform/position-commit-operands.asm
 MotionAccept        equ PositionAccepted
 MotionOtherEdge     equ PositionOtherBoundary
-                    use shared/object-position-commit.asm
+                    MOTION_EMIT_COMMIT
 MotionCheckDestination lda    $22,u
                     cmpa      #3
                     bne       MotionNextObject
@@ -182,21 +180,20 @@ MotionCollided      equ CollisionScanHit
 MotionCrossDown     equ CollisionCrossDown
                     use shared/object-collision-scan.asm
 
-                    use platform/target-motion-operands.asm
 MotionMoveDirection equ TargetDirection
 MotionArrived       equ TargetReached
 MotionArrivedDone   equ TargetReachedReturn
-                    use shared/object-target-motion.asm
+                    MOTION_EMIT_TARGET
 
 * Animation modes match the CoCo forward/reverse/end-of-loop transitions.
-                    use platform/animation-update-operands.asm
+                    use platform/animation-operands.asm
 MotionAdvanceCel equ *
-                    use shared/object-animation-update.asm
+                    use shared/object-animation.asm
+                    ANIMATION_EMIT_UPDATE
 MotionCycleTick equ AnimationCycleTick
 MotionCycleDone equ AnimationCycleDone
-                    use       platform/wildbits-cel-advance.asm
-                    use       shared/object-cel-advance.asm
-                    use       shared/object-direction-tables.asm
+                    ANIMATION_EMIT_CEL_ADVANCE
+                    ANIMATION_EMIT_DIRECTION_TABLES
 * A=selection opcode, B=index. The ordinary view component refreshes cel
 * metadata; scratch instruction arguments/opcode are restored afterwards.
 MotionSelectView    pshs      a,b

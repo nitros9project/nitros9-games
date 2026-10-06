@@ -1423,12 +1423,12 @@ completion of the remaining source migration.
 
 ### Shared cel advancement
 
-`shared/object-cel-advance.asm` now supplies the cel progression routine to
+`shared/object-animation.asm` now supplies the cel progression routine to
 both owners. It handles continuous forward/reverse cycling, forward/reverse
 endpoint modes, one-tick suppression, endpoint completion flags, disabling
-cycling and stopping direction at completion. `platform/coco-cel-advance.asm`
+cycling and stopping direction at completion. `platform/coco-animation-operands.asm`
 binds the existing two scratch bytes, packed flags and `SetCelHelper`;
-`platform/wildbits-cel-advance.asm` binds adjacent process-private `vmleft` /
+`platform/wildbits-animation-operands.asm` binds adjacent process-private `vmleft` /
 `vmright` scratch, byte flags and the existing native view-selection callback.
 No private allocation is added. Native mode validation and callback B/carry
 status are preserved explicitly.
@@ -1679,9 +1679,9 @@ formatter, gameplay, or audio coverage.
 
 ### Shared formatter character traversal
 
-`shared/format-scan.asm` now owns the character loop for both formatters:
+`shared/formatter.asm` now owns the character loop for both formatters:
 end-of-string detection, percent dispatch, ordinary-character output, and
-continuation. Assembly-time interfaces in `platform/*-format-scan-operands.asm`
+continuation. Assembly-time interfaces in `platform/*-formatter-operands.asm`
 provide source consumption, completion/directive branches, output storage and
 line-buffer operands. CoCo peeks before dispatch and consumes during copying;
 Wild Bits consumes when reading and calls its existing bounded `FormatPut`.
@@ -1698,7 +1698,7 @@ claim a complete shared formatter or engine.
 
 ### Shared formatter directive selection
 
-`shared/format-directives.asm` selects word (`w`), string (`s`), message
+`shared/formatter.asm` selects word (`w`), string (`s`), message
 (`m`) and variable (`v`) substitutions for both owners. An assembly-time
 capability also includes CoCo's global-message (`g`) and object-name (`o`)
 branches. Platform macros supply the directive register and existing branch
@@ -1723,7 +1723,7 @@ substitution handlers and recursion remain separate work.
 
 ### Shared string-slot provider and NUL traversal
 
-`shared/format-string-slot.asm` resolves a string index into a 40-byte slot
+`shared/formatter.asm` resolves a string index into a 40-byte slot
 for both formatters. Platform bindings prepare/validate the index, address
 the appropriate private string table, and choose expansion. CoCo retains
 its existing decimal parser, table at `$0251` and recursive `FormatStr`
@@ -1753,9 +1753,9 @@ semantics still need further consolidation.
 
 ### Shared recursive substitution call and resume
 
-`shared/format-recursive-call.asm` invokes recursive formatting after binding
+`shared/formatter.asm` invokes recursive formatting after binding
 the owner's argument ABI and releases those arguments afterward.
-`shared/format-expansion.asm` applies the result, checks failure when the
+`shared/formatter.asm` applies the result, checks failure when the
 owner has an error return, and resumes the outer scan. CoCo's generic
 substitution continuation and native message expansion both use this sequence;
 CoCo's global-message path also uses the shared invocation before performing
@@ -2097,7 +2097,7 @@ probes build successfully.
 
 ### Shared direction-vector coordinate stepping
 
-`shared/object-coordinate-step.asm` now computes candidate coordinates in both
+`shared/object-motion.asm` now computes candidate coordinates in both
 `UpdateAllMotion` and `GameUpdateObjects`: zero direction components leave the
 axis alone; negative/positive components subtract/add the word-sized step. It
 consumes the existing common X/Y direction tables. The owner bindings expose
@@ -2117,7 +2117,7 @@ further consolidation work.
 
 ### Shared movement coordinate clamping
 
-`shared/object-coordinate-clamp.asm` replaces the two owner implementations of
+`shared/object-motion.asm` replaces the two owner implementations of
 left/right/top/bottom and horizon clamping. It reuses the candidate X/Y and step
 storage interfaces established for vector stepping. Separate clamp bindings
 supply width/height reads, boundary-code storage, horizon operands and native
@@ -2206,11 +2206,11 @@ Position commit and per-cycle orchestration remain further migration work.
 
 ### Common candidate-position transaction and boundary publication
 
-`shared/object-position-commit.asm` now supplies candidate writes, collision
+`shared/object-motion.asm` now supplies candidate writes, collision
 result branching, rejected-coordinate restoration, accepted-state transition
 and ego/other-object boundary publication for both movement paths. The owner
 routine bodies are replaced with one include and legacy entry aliases.
-`platform/*-position-commit-operands.asm` binds stack/private coordinate fields,
+`platform/*-motion-operands.asm` binds stack/private coordinate fields,
 collision calls/result registers, status and variable writes, terrain lifecycle,
 recovery and destination-stage continuations.
 
@@ -2235,7 +2235,7 @@ unfinished.
 
 ### Shared target direction and arrival transition
 
-`shared/object-target-motion.asm` replaces the CoCo `SetObjMotion`/`ObjMoveReached`
+`shared/object-motion.asm` replaces the CoCo `SetObjMotion`/`ObjMoveReached`
 and native `MotionMoveDirection`/`MotionArrived` bodies. It owns argument setup
 for the common direction classifier, direction storage, the optional zero-result
 completion call, saved-step restoration, completion flag/state sequencing and
@@ -2261,7 +2261,7 @@ behavior still require consolidation.
 ### Shared per-object animation update
 
 Direction-driven loop selection and cycle countdown now live in
-`objs/shared/object-animation-update.asm`, used by CoCo `mnln.asm` and the
+`objs/shared/object-animation.asm`, used by CoCo `mnln.asm` and the
 Wild Bits motion owner. Platform bindings retain view acquisition, error
 returns, reverse-enable storage and iteration versus subroutine continuation.
 The existing loop eligibility and timer reload order differences are explicit
@@ -2273,7 +2273,7 @@ Outer update traversal, motion scheduling and rendering remain to consolidate.
 
 ### Shared motion scheduling and dispatch
 
-Both owners now include `objs/shared/object-motion-schedule.asm` for the
+Both owners now include `objs/shared/object-motion.asm` for the
 active-object gate and all four motion-mode dispatch paths. The platform
 interface supplies step scheduling, follow context restoration, unknown-mode
 handling and move-to entry names. This preserves CoCo's separate direction
@@ -2283,3 +2283,14 @@ All 14 CoCo `mnln` modules, native Wild Bits and the probes build. Production
 main-loop/game bytes match the preceding revision exactly, with no additional
 code, private data or runtime dispatch. Existing emulator verification covers
 those identical bytes; this change adds shared ownership, not new gameplay.
+
+### Consolidated component files
+
+Replaced 41 formatter/motion/animation fragments with 12 files: one shared
+component, one platform selector/interface and one binding file per platform
+for each feature. Named assembly-time expansion macros preserve the existing
+code placement without wrappers or additional runtime dispatch. Removed the
+old fragments and updated assembly includes, dependencies and documentation.
+All 14 CoCo main-loop modules and native Wild Bits remain byte-identical;
+native/probe builds pass. This is a source-layout change with no additional
+runtime storage. Other independently maintained components remain separate.

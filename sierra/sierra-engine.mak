@@ -57,7 +57,7 @@ mnln: ../objs/platform/sound-elapsed.asm ../objs/platform/coco-sound-elapsed.asm
 
 shdw: ../objs/shared/picture-pen.asm ../objs/shared/picture-pen-tables.asm
 shdw: ../objs/shared/picture-line.asm
-mnln: ../objs/shared/object-direction-tables.asm
+mnln: ../objs/shared/object-animation.asm
 shdw: ../objs/shared/picture-coordinates.asm
 mnln: ../objs/shared/object-distance.asm
 mnln: ../objs/shared/agi-command-table.asm
@@ -83,21 +83,11 @@ mnln: ../objs/shared/decimal-index.asm \
 mnln: ../objs/shared/unsigned-decimal.asm \
 	../objs/platform/decimal-output-operands.asm \
 	../objs/platform/coco-decimal-output-operands.asm \
-	../objs/shared/format-scan.asm \
-	../objs/platform/format-scan-operands.asm \
-	../objs/platform/coco-format-scan-operands.asm \
-	../objs/shared/format-directives.asm \
-	../objs/platform/format-directive-operands.asm \
-	../objs/platform/coco-format-directive-operands.asm \
-	../objs/shared/format-string-slot.asm \
+	../objs/shared/formatter.asm \
+	../objs/platform/formatter-operands.asm \
+	../objs/platform/coco-formatter-operands.asm \
 	../objs/shared/nul-string-copy.asm \
-	../objs/platform/format-string-operands.asm \
-	../objs/platform/coco-format-string-operands.asm \
 	../objs/platform/coco-nul-string-write.asm \
-	../objs/shared/format-recursive-call.asm \
-	../objs/shared/format-expansion.asm \
-	../objs/platform/format-recursion-operands.asm \
-	../objs/platform/coco-format-recursion-operands.asm \
 	../objs/shared/agi-xor-key.asm \
 	../objs/shared/xor-decrypt.asm \
 	../objs/shared/object-block-state.asm \
@@ -122,23 +112,15 @@ mnln: ../objs/shared/unsigned-decimal.asm \
 mnln: ../objs/shared/dictionary-lookup.asm ../objs/platform/dictionary-operands.asm \
 	../objs/platform/coco-dictionary-operands.asm
 
-mnln: ../objs/shared/object-coordinate-step.asm ../objs/platform/coordinate-step-operands.asm \
-	../objs/platform/coco-coordinate-step-operands.asm
+mnln: ../objs/shared/object-motion.asm ../objs/platform/motion-operands.asm \
+	../objs/platform/coco-motion-operands.asm
 
-mnln: ../objs/shared/object-coordinate-clamp.asm ../objs/platform/coordinate-clamp-operands.asm \
-	../objs/platform/coco-coordinate-clamp-operands.asm
 
 shdw: ../objs/shared/object-terrain-scan.asm ../objs/shared/object-terrain-constraints.asm \
 	../objs/platform/terrain-operands.asm ../objs/platform/coco-terrain-operands.asm
 
 mnln: ../objs/shared/object-collision-scan.asm
 
-mnln: ../objs/shared/object-position-commit.asm ../objs/platform/position-commit-operands.asm \
-	../objs/platform/coco-position-commit-operands.asm
 
-mnln: ../objs/shared/object-target-motion.asm ../objs/platform/target-motion-operands.asm \
-	../objs/platform/coco-target-motion-operands.asm
 
-mnln: ../objs/shared/object-animation-update.asm ../objs/platform/animation-update-operands.asm
-
-mnln: ../objs/shared/object-motion-schedule.asm ../objs/platform/motion-schedule-operands.asm
+mnln: ../objs/platform/animation-operands.asm

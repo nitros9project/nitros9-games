@@ -1,3 +1,9 @@
+                    ifne WILDBITS
+                    use platform/wildbits-animation-operands.asm
+                    else
+                    use platform/coco-animation-operands.asm
+                    endc
+
 * View acquisition and continuation ABI for the shared animation stage.
 ANIMATION_SELECT_LOOP macro
                     ifne WILDBITS

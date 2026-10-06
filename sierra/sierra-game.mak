@@ -156,4 +156,4 @@ mnln: ../objs/shared/bounded-string-copy.asm ../objs/platform/coco-string-copy-c
 
 mnln: ../objs/shared/decimal-byte.asm
 
-mnln: ../objs/shared/object-cel-advance.asm ../objs/platform/coco-cel-advance.asm
+mnln: ../objs/shared/object-animation.asm ../objs/platform/coco-animation-operands.asm

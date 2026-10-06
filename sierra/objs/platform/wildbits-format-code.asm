@@ -1,8 +1,8 @@
 * Bounded formatter. Four 512-byte source frames and a 2048-byte output
 * share the idle fill stack; recursion never retains a mapped message pointer.
                     use shared/nul-string-copy.asm
-                    use platform/format-recursion-operands.asm
-                    use shared/format-recursive-call.asm
+                    use platform/formatter-operands.asm
+                    use shared/formatter.asm
 NUL_FRAME_WRITE     macro
                     sta       ,y+
                     endm
@@ -30,8 +30,7 @@ FormatPart          lda       formatdepth,u
                     puls      x
                     inc       formatdepth,u
 FormatNext          equ *
-                    use platform/format-scan-operands.asm
-                    use shared/format-scan.asm
+                    FORMAT_EMIT_SCAN
 FormatDirective     lda       ,x+
                     cmpa      #'%
                     bne       FormatNumberStart
@@ -50,8 +49,7 @@ FormatDispatch      lda       ,x
                     lbeq      FormatPartInvalid
                     lda       parsercharacter,u
                     ldb       parserwordlength,u
-                    use platform/format-directive-operands.asm
-                    use shared/format-directives.asm
+                    FORMAT_EMIT_DIRECTIVES
 FormatUnsupported   ldb       #E$UnkSvc
                     orcc      #1
                     bra       FormatPartError
@@ -108,14 +106,13 @@ FormatWordCopy      tstb
                     decb
                     bra       FormatWordCopy
 FormatString        equ *
-                    use platform/format-string-operands.asm
-                    use shared/format-string-slot.asm
+                    FORMAT_EMIT_STRING_SLOT
                     NUL_STRING_COPY y,FormatStringCopy,0,FORMAT_STRING_WRITE,FORMAT_STRING_DONE,FORMAT_STRING_ERROR
 FormatMessage       pshs      x
                     lbsr      ReadLogicMessage
                     bcs       FormatMessageReturn
 FormatMessageReturn equ FormatExpansionReturn
-                    use shared/format-expansion.asm
+                    FORMAT_EMIT_EXPANSION
 FormatVariable      leay      vmvariables,u
                     clra
                     ldb       d,y

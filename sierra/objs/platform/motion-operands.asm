@@ -1,3 +1,9 @@
+                    ifne WILDBITS
+                    use platform/wildbits-motion-operands.asm
+                    else
+                    use platform/coco-motion-operands.asm
+                    endc
+
 * Eligibility/countdown and continuation policy for the shared scheduler.
 SCHEDULE_SKIP_INACTIVE macro
                     ifne WILDBITS

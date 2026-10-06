@@ -94,7 +94,7 @@ wbdecode wbrun wbgame: shared/picture-pen.asm shared/picture-pen-tables.asm
 wbdecode wbrun wbgame: shared/picture-line.asm platform/picture-storage.asm platform/wildbits-picture-storage.asm
 
 wbrun wbgame: platform/presentation.asm
-wbgame: shared/object-direction-tables.asm
+wbgame: shared/object-animation.asm
 wbdecode wbrun wbgame: shared/picture-coordinates.asm
 wbexec wbgame: shared/object-distance.asm
 wbexec wbgame: shared/agi-command-table.asm
@@ -155,13 +155,10 @@ wbgame: platform/decimal-index-operands.asm
 
 wbgame: platform/decimal-output-operands.asm
 
-wbgame: platform/format-scan-operands.asm
+wbgame: platform/formatter-operands.asm
 
-wbgame: platform/format-directive-operands.asm
 
-wbgame: platform/format-string-operands.asm
 
-wbgame: platform/format-recursion-operands.asm
 
 wbexec wbgame: platform/object-control-operands.asm
 
@@ -175,16 +172,11 @@ wbgame: platform/object-collision-operands.asm
 
 wbgame: platform/dictionary-operands.asm
 
-wbgame: platform/coordinate-step-operands.asm
+wbgame: platform/motion-operands.asm
 
-wbgame: platform/coordinate-clamp-operands.asm
 
 wbgame: platform/terrain-operands.asm
 
-wbgame: platform/position-commit-operands.asm
 
-wbgame: platform/target-motion-operands.asm
 
-wbgame: platform/animation-update-operands.asm
-
-wbgame: platform/motion-schedule-operands.asm
+wbgame: platform/animation-operands.asm

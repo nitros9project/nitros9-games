@@ -547,8 +547,9 @@ DispatchCmdReturn   rts
 *   Advance an animated object's cel frame, handling normal, reverse, end-of-loop, and reverse-end-of-loop cycle modes.
 *======================================================================
 *
-                    use       platform/coco-cel-advance.asm
-                    use       shared/object-cel-advance.asm
+                    use platform/animation-operands.asm
+                    use shared/object-animation.asm
+                    ANIMATION_EMIT_CEL_ADVANCE
 
 *
 *======================================================================
@@ -694,7 +695,7 @@ StartUpdateHelper   lda       <$26,u    load object state flags
                     sta       <$26,u    store updated flags
                     lbsr      SwapObjRanges
 StartUpdateReturn   rts
-                    use       shared/object-direction-tables.asm
+                    ANIMATION_EMIT_DIRECTION_TABLES
 
 *
 *======================================================================
@@ -745,8 +746,7 @@ UpdateAllLoop       cmpu      <$0032    compare to end-of-object-table pointer
                     cmpa      #$51      check if object is animated and visible
                     bne       NextObjInUpdateLoop branch if not active
                     inc       ,s        mark that at least one object updated
-                    use platform/animation-update-operands.asm
-                    use shared/object-animation-update.asm
+                    ANIMATION_EMIT_UPDATE
 CheckCycleTick equ AnimationCycleTick
 NextObjInUpdateLoop leau      <$2B,u    advance U to next object struct
                     bra       UpdateAllLoop loop to process next object
@@ -784,8 +784,9 @@ UpdateAllReturn     leas      $01,s     release stack flag byte
 DispatchMotion      ldu       <$0030    load pointer to first object
 MotionObjLoop       cmpu      <$0032    compare to end-of-object-table pointer
                     bcc       DispatchMotionDone branch if past all objects
-                    use platform/motion-schedule-operands.asm
-                    use shared/object-motion-schedule.asm
+                    use platform/motion-operands.asm
+                    use shared/object-motion.asm
+                    MOTION_EMIT_SCHEDULE
 MotionTypeWander equ MotionScheduleNotWander
 MotionTypeFollow equ MotionScheduleNotFollow
 MotionCheckBlock    lda       <$26,u    reload object state flags
@@ -4462,21 +4463,18 @@ UpdateObjCycle      lda       ,u        load step-time reset value
                     lda       <$25,u    load object status flags
                     bita      #$04      check "ignore-blocks" flag
                     bne       ClampObjXLeft branch if ignoring blocks
-                    use platform/coordinate-step-operands.asm
-                    use shared/object-coordinate-step.asm
-                    use platform/coordinate-clamp-operands.asm
+                    MOTION_EMIT_COORDINATE_STEP
 ClampObjXLeft       equ ClampCoordinates
 ClampObjXRight      equ ClampRightLimit
 ClampObjYTop        equ ClampTopLimit
 ClampObjYBot        equ ClampBottomLimit
 CheckObjPriority    equ ClampHorizon
-                    use shared/object-coordinate-clamp.asm
-                    use platform/position-commit-operands.asm
+                    MOTION_EMIT_CLAMP
 ApplyObjPosition    equ PositionCommit
 ObjHitRestore       equ PositionRejected
 CheckObjBoundary    equ PositionAccepted
 ObjBoundaryHit      equ PositionOtherBoundary
-                    use shared/object-position-commit.asm
+                    MOTION_EMIT_COMMIT
 CheckMoveTarget     lda       <$22,u    load motion type
                     cmpa      #$03      check for move-to-position
                     bne       UpdateObjFlags skip if not move-to
@@ -4497,13 +4495,12 @@ MoveTableData       fcb       8,1,2,7,0,3,6,5,4
 *   the 8-way direction from delta X/Y.
 *======================================================================
 *
-                    use platform/target-motion-operands.asm
 SetObjMotion        equ TargetDirection
 SetObjMotionStore   equ TargetStoreDirection
 SetObjMotionRet     equ TargetDirectionReturn
 ObjMoveReached      equ TargetReached
 ObjMoveReachedRet   equ TargetReachedReturn
-                    use shared/object-target-motion.asm
+                    MOTION_EMIT_TARGET
                     use       shared/object-move-direction.asm
 *
 *======================================================================
@@ -5580,8 +5577,8 @@ MsgTextSetup        ldd       #$0000    ; zero
 MsgTextSetupNoStr   ldx       $02,s     ; return output buffer pointer
                     rts
 
-                    use platform/format-recursion-operands.asm
-                    use shared/format-recursive-call.asm
+                    use platform/formatter-operands.asm
+                    use shared/formatter.asm
 FormatStr           leas      -$02,s    ; allocate 2-byte local frame
                     pshs      x         ; save X (output buffer pointer)
                     ldx       $06,s     ; get input string pointer
@@ -5591,11 +5588,9 @@ FormatStr           leas      -$02,s    ; allocate 2-byte local frame
                     lda       >$015B    ; check current line count
                     cmpa      #$13      ; max lines = 19
                     lbhi      FormatStrDone ; too many lines, stop
-                    use platform/format-scan-operands.asm
-                    use shared/format-scan.asm
+                    FORMAT_EMIT_SCAN
 FormatStrEscape     ldd       ,x++      ; read format code byte and advance X
-                    use platform/format-directive-operands.asm
-                    use shared/format-directives.asm
+                    FORMAT_EMIT_DIRECTIVES
                     stu       $08,s     ; save output pointer
                     lbsr      ParseDecStr ; parse decimal index from input
                     clra                ; A = 0 (high byte of variable index)
@@ -5618,8 +5613,7 @@ FormatStrEscapeW    stu       $08,s     ; save output pointer
                     leau      [b,u]     ; indirect load window pointer
                     lbra      FormatStrEscapeRec ; copy window string to output
 FormatStrEscapeS    equ *
-                    use platform/format-string-operands.asm
-                    use shared/format-string-slot.asm
+                    FORMAT_EMIT_STRING_SLOT
 FormatStrEscapeM    stu       $08,s     ; save output pointer
                     lbsr      ParseDecStr ; parse message number
                     lbsr      GetMsgPtr ; get pointer to message
@@ -5661,7 +5655,7 @@ FormatStrEscapeV    stu       $08,s     ; save output pointer
                     lbsr      ParseDecStr ; parse pad width
                     lbsr      StrZeroPad ; zero-pad to width
 FormatStrEscapeRec  equ *
-                    use shared/format-expansion.asm
+                    FORMAT_EMIT_EXPANSION
 FormatStrWordWrap   ldd       >$0155    ; load saved word-wrap point
                     bne       FormatStrWordWrapMove ; have a wrap point, move word
                     lda       #$0A
