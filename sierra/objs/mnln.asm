@@ -784,26 +784,10 @@ UpdateAllReturn     leas      $01,s     release stack flag byte
 DispatchMotion      ldu       <$0030    load pointer to first object
 MotionObjLoop       cmpu      <$0032    compare to end-of-object-table pointer
                     bcc       DispatchMotionDone branch if past all objects
-                    lda       <$26,u    load object state flags
-                    anda      #$51      isolate animated+visible bits
-                    cmpa      #$51      check if object is animated and visible
-                    bne       NextMotionObj branch if not active
-                    lda       $01,u     load object draw/visibility flag
-                    cmpa      #$01      check if object is visible
-                    bne       NextMotionObj branch if not visible
-                    lda       <$22,u    load motion type
-                    beq       MotionCheckBlock branch if no special motion (type 0)
-                    cmpa      #$01      check for wander motion type
-                    bne       MotionTypeWander branch if not wander
-                    lbsr      ObjAnimStep do random direction step
-                    bra       MotionCheckBlock check for blocking after motion
-MotionTypeWander    cmpa      #$02      check for follow motion type
-                    bne       MotionTypeFollow branch if not follow
-                    lbsr      CalcFollowDir compute direction to follow target
-                    bra       MotionCheckBlock check for blocking after follow calc
-MotionTypeFollow    cmpa      #$03      check for move-to motion type
-                    bhi       MotionCheckBlock branch if unknown motion type
-                    lbsr      SetObjMotion compute next step toward target
+                    use platform/motion-schedule-operands.asm
+                    use shared/object-motion-schedule.asm
+MotionTypeWander equ MotionScheduleNotWander
+MotionTypeFollow equ MotionScheduleNotFollow
 MotionCheckBlock    lda       <$26,u    reload object state flags
                     ldb       >$01AC    load global blocking-rect enable flag
                     bne       MotionCheckCollide branch if blocking rect is active

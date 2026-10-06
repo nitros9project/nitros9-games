@@ -255,3 +255,14 @@ CoCo reloads cycle time after cel advancement; native reloads before its tail
 call. The outer object traversal, motion scheduling and rendering remain
 owner-specific. This extraction changes no instructions: all 14 CoCo `mnln`
 modules and native `wbgame` were rebuilt and compared byte for byte.
+
+`object-motion-schedule.asm` shares the active-object gate and complete
+normal/wander/follow/move-to dispatch in CoCo `DispatchMotion` and native
+`GameUpdateObjects`. `platform/motion-schedule-operands.asm` binds each
+owner's step scheduling and continuation: CoCo dispatches only when its step
+countdown equals one; native first advances animation, decrements or resets
+the countdown, then dispatches. Native restores the object/private context
+after follow-direction calculation and rejects unknown motion types; CoCo
+retains its existing skip behavior. All 14 CoCo main-loop modules and native
+`wbgame` remain byte-identical. Outer traversal and ordering of rendering,
+animation and position updates remain owner-specific.

@@ -22,36 +22,10 @@ MotionObjectNext    ldb       motionid,x
                     leau      vmobjects,x
                     leau      d,u
                     stu       motionobject,x
-                    lda       $26,u
-                    anda      #$51
-                    cmpa      #$51
-                    lbne      MotionNextObject
-                    lbsr      MotionAdvanceCel
-                    lbcs      MotionReturn
-                    ldx       <resourcebase
-                    ldu       motionobject,x
-                    lda       1,u
-                    cmpa      #1
-                    bls       MotionStepReady
-                    dec       1,u
-                    lbra      MotionNextObject
-MotionStepReady     lda       ,u
-                    sta       1,u
-                    lda       $22,u
-                    beq       MotionDirectionReady
-                    cmpa      #1
-                    bne       MotionNotWander
-                    lbsr      ObjAnimStep
-                    bra       MotionDirectionReady
-MotionNotWander     cmpa      #2
-                    bne       MotionNotFollow
-                    lbsr      CalcFollowDir
-                    ldx       <resourcebase
-                    ldu       motionobject,x
-                    bra       MotionDirectionReady
-MotionNotFollow     cmpa      #3
-                    lbne      MotionUnsupported
-                    lbsr      MotionMoveDirection
+                    use platform/motion-schedule-operands.asm
+                    use shared/object-motion-schedule.asm
+MotionNotWander equ MotionScheduleNotWander
+MotionNotFollow equ MotionScheduleNotFollow
 MotionDirectionReady ldb      $21,u
                     cmpb      #8
                     lbhi      MotionInvalid

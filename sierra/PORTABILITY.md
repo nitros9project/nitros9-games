@@ -2270,3 +2270,16 @@ byte-identical after rebuilding; native remains 22,274 code bytes and 24,570
 private-data bytes. Existing emulator evidence therefore applies to identical
 production bytes; no new runtime or speed improvement is claimed here.
 Outer update traversal, motion scheduling and rendering remain to consolidate.
+
+### Shared motion scheduling and dispatch
+
+Both owners now include `objs/shared/object-motion-schedule.asm` for the
+active-object gate and all four motion-mode dispatch paths. The platform
+interface supplies step scheduling, follow context restoration, unknown-mode
+handling and move-to entry names. This preserves CoCo's separate direction
+pass and Wild Bits' per-object animation/countdown pass; combining the outer
+loops would otherwise change when objects observe each other's state.
+All 14 CoCo `mnln` modules, native Wild Bits and the probes build. Production
+main-loop/game bytes match the preceding revision exactly, with no additional
+code, private data or runtime dispatch. Existing emulator verification covers
+those identical bytes; this change adds shared ownership, not new gameplay.

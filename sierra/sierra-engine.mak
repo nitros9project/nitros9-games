@@ -140,3 +140,5 @@ mnln: ../objs/shared/object-target-motion.asm ../objs/platform/target-motion-ope
 	../objs/platform/coco-target-motion-operands.asm
 
 mnln: ../objs/shared/object-animation-update.asm ../objs/platform/animation-update-operands.asm
+
+mnln: ../objs/shared/object-motion-schedule.asm ../objs/platform/motion-schedule-operands.asm
