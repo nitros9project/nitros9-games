@@ -26,6 +26,7 @@ class Debugger:
         self.s = socket.create_connection(('127.0.0.1', port), 5)
         self.s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self.s.settimeout(15)
+        self.received = bytearray()
         try:
             self.call('?')
         except (OSError, ConnectionError):
@@ -44,18 +45,30 @@ class Debugger:
         raise RuntimeError('debugger repeatedly rejected the packet')
 
     def receive(self):
-        while True:
-            c = self.s.recv(1)
-            if c == b'$':
-                break
-            if c == b'-':
-                return None
-            if not c:
+        def more():
+            chunk = self.s.recv(4096)
+            if not chunk:
                 raise ConnectionError('debugger disconnected')
-        data = b''
-        while (c := self.s.recv(1)) != b'#':
-            data += c
-        self.s.recv(2)
+            self.received.extend(chunk)
+
+        # Keep bytes beyond this packet for the next reply. TCP can split a
+        # packet or deliver its acknowledgement and payload in one read.
+        while True:
+            if not self.received:
+                more()
+            c = self.received[0]
+            del self.received[:1]
+            if c == ord('$'):
+                break
+            if c == ord('-'):
+                return None
+        while True:
+            end = self.received.find(b'#')
+            if end >= 0 and len(self.received) >= end + 3:
+                break
+            more()
+        data = bytes(self.received[:end])
+        del self.received[:end + 3]  # Consume both checksum bytes as well.
         self.s.sendall(b'+')
         return data.decode()
 
@@ -112,6 +125,50 @@ class Debugger:
             updates = calls[state['pc']](service, state)
             updates['pc'] = state['pc'] + 3
             self.regs(**updates)
+
+
+def check_transport():
+    """Replay packet boundaries independently of emulator timing."""
+    class ReplyStream:
+        def __init__(self, chunks):
+            self.chunks = list(chunks)
+            self.acks = []
+
+        def recv(self, size):
+            if not self.chunks:
+                return b''
+            chunk = self.chunks.pop(0)
+            if len(chunk) > size:
+                self.chunks.insert(0, chunk[size:])
+            return chunk[:size]
+
+        def sendall(self, data):
+            self.acks.append(data)
+
+    packet = b'+$OK#9a$1122#c6'
+    cases = [([packet], ['OK', '1122']),
+             ([bytes((c,)) for c in packet], ['OK', '1122']),
+             ([b'+$OK#', b'9', b'a$1122#c', b'6'], ['OK', '1122']),
+             ([b'-$OK#9a'], [None, 'OK']),
+             ([b'+$#00'], ['']),
+             ([b'+$partial'], []),
+             ([b'+$partial#0'], []),
+             ([], [])]
+    for chunks, expected in cases:
+        stream = ReplyStream(chunks)
+        debugger = Debugger.__new__(Debugger)
+        debugger.s = stream
+        debugger.received = bytearray()
+        assert [debugger.receive() for _ in expected] == expected
+        assert stream.acks == [b'+'] * sum(value is not None for value in expected)
+        try:
+            debugger.receive()
+        except ConnectionError:
+            pass
+        else:
+            raise AssertionError('debugger accepted a truncated reply or ignored EOF')
+    print('PASS: debugger coalesced/fragmented packets, split checksums, '
+          'acknowledgements, negative reply, empty payload and truncated EOF')
 
 
 def check(d):
@@ -317,12 +374,17 @@ def check(d):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--port', type=int)
+    parser.add_argument('--transport-only', action='store_true',
+                        help='check debugger packet handling without an emulator')
     parser.add_argument('--boot', action='store_true', help='boot King\'s Quest I and reach the interpreter cycle')
     parser.add_argument('--disk', type=Path)
     parser.add_argument('--instances', type=int, default=1)
     parser.add_argument('--setup-module', type=Path, default=ROOT / 'sierra/kingsquest1/sierra')
     parser.add_argument('--setup-map', type=Path, default=ROOT / 'sierra/kingsquest1/sierra.map')
     args = parser.parse_args()
+    if args.transport_only:
+        check_transport()
+        return
     if args.port is None:
         with socket.socket() as reservation:
             reservation.bind(('127.0.0.1', 0))

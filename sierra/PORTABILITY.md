@@ -2479,3 +2479,19 @@ old comparison chain. Fresh MAME movement and two-terminal acceptance also
 pass; artifacts are `/tmp/sierra-native-table-dispatch-movement` and
 `/tmp/sierra-native-table-dispatch-terminals`. Movement remains nine AGI
 pixels over 200 frames, so no measured movement speedup is claimed.
+
+### Regression debugger transport
+
+The shared CPU test debugger now receives socket data in buffered chunks,
+retaining bytes beyond each response. Earlier exhaustive private-state checks
+used one `recv(1)` per response byte; the test still reads and compares the
+same memory ranges and uses the same 200-byte debugger requests. Packet
+fragmentation, combined replies, acknowledgements, negative replies and both
+checksum bytes are handled across chunk boundaries. An EOF inside a packet
+now raises `ConnectionError` instead of repeatedly reading an empty socket.
+
+`check_instances.py --transport-only` replays fragmented/coalesced replies,
+split checksum bytes, empty payloads, rejection and truncated EOF. It is
+part of `wildbits.mk check`. The 1,024 actual native dispatch cases also pass
+through buffered reception. This changes host test tooling only, with no
+game module or CoCo executable changes.
