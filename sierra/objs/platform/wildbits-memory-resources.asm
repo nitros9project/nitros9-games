@@ -635,6 +635,7 @@ start               stu       <resourcebase
                     std       textstoreentry,u
                     std       textwaitentry,u
                     std       textrectentry,u
+                    std       restartentry,u
                     pshs      x
                     lbsr      GameTextInitialize
                     puls      x

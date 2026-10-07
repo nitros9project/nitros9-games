@@ -1507,3 +1507,52 @@ The simultaneous Larry/KQ1 MAME run also passes with the larger linked helper
 (`/tmp/sierra-cold-rect-pair`, using the documented expanded emulator kernel):
 independent inventory input, terminal restoration, Larry continuing after KQ1
 exits, 80 owned PSG writes, and recovery of both one-game and final memory maps.
+
+
+### Restart without recursive execution or stale ownership — 2026-10-07
+
+Native `restart.game` now implements the confirmation dialog. ENTER accepts;
+ESC or another key cancels and resumes the caller. Flag 16 bypasses the dialog.
+The dialog temporarily forces blocking input, then restores flag 15. Accepting
+sets pending action 3. Every nested logic call unwinds before the root applies
+the restart, so no active caller refers to resources being freed. The root
+tail-enters the normal startup loop; repeated restarts do not grow its stack.
+
+The immutable restart routine lives in the existing helper, assembled from
+`wildbits-text-ui.asm`. Its resident callback table stops owned audio, closes
+the process's clock subscription, releases temporary and cached resources,
+and releases picture/background slabs. It retains the terminal bitmap/window,
+font and linked helper. It clears game variables, flags, strings, object state,
+menus, controllers, logic cache and replay bookkeeping, initializes the UI,
+and reloads the original command-line root resource. Fresh initialization sets
+flag 6 for the restarted script. Instructions following restart in the old
+caller never run after acceptance. Loader failures follow ordinary cleanup.
+
+The helper header's seventh metadata word supplies the restart entry. Entry
+bounds exclude the CRC footer; the private-layout ABI hash covers this header,
+the new cached pointers and the cache stride. Install matching binaries. The
+logical WS version-1 save format is unchanged.
+
+A regression with 16 nested calls, a 127-character resource directory, an
+active sound and the confirmation dialog exposed stack overlap with cached
+helper pointers. Those pointers now precede the font, below the high stack
+area. Cache records use 12 bytes instead of 14: only two unused reserved bytes
+per record were removed, preserving all 32 slots and their fields. State capture
+uses the same stride. The recovered 64 bytes enlarge the high private padding;
+font, audio reservation, resource workspace and declared allocation are unchanged.
+The reset range ends before the preserved helper pointers.
+
+The resident is 23,805 of 23,808 bytes; the linked helper is 4,402 bytes and
+its writable prefix is 3,056 bytes. Private allocation remains 24,460 bytes.
+No production module or platform file was added.
+
+CPU tests cover confirm, cancel, ESC, automatic restart, maximum nesting and
+the long-directory case, with active owned audio. They check cleared state,
+caller unwinding, preserved font/private audio code, immutable helper bytes,
+invalid entries and ownership cleanup. The full game/audio suites and all
+1,024 dispatch checks pass. Original KQ1's menu restart passes in MAME: walking
+changes Graham's position, restart restores it, a subsequent `look room` works,
+and exit restores free memory (`/tmp/sierra-restart-kq1-safe`). Save/restore
+passes at `/tmp/sierra-restart-save-safe`; independent Larry/KQ1 terminals pass
+at `/tmp/sierra-restart-pair-safe` with the documented expanded emulator kernel.
+These checks establish restart behavior, not complete adventure coverage.

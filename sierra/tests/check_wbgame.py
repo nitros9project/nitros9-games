@@ -278,6 +278,67 @@ def check_cold_prefix_bounds(d):
     print('PASS: writable-prefix bounds, one-window module bounds and cold rectangle entry validation/cleanup')
 
 
+def restart_fixture(automatic=False,depth=0):
+    key=b'Avis Durgan';message=b'old state\0'
+    encrypted=bytes(value^key[i%len(key)] for i,value in enumerate(message))
+    # A fresh root must receive flag 6 and quit without executing old callers.
+    body=bytes([255,7,6,255,3,0,134,1,0,3,40,99,12,20,114,0,1,
+                121,0,65,77,98,0,99,0,200])
+    if automatic:body+=bytes([12,16])
+    body+=bytes([22,2,3,41,77,134,1,0])
+    root=len(body).to_bytes(2,'little')+body+bytes([1])+(4+len(message)).to_bytes(2,'little')+bytes([4,0])+encrypted
+    def record(payload):return b'\x12\x34\0'+len(payload).to_bytes(2,'little')*2+payload
+    volume=record(root);entries=[b'\xff'*3,bytes(3)]
+    for number in range(2,depth+3):
+        entries.append(len(volume).to_bytes(3,'big'))
+        script=bytes([22,number+1,0]) if number<depth+2 else bytes([128,3,42,88,0])
+        volume+=record(len(script).to_bytes(2,'little')+script)
+    sound_offset=len(volume);volume+=record(bytes([28,63,0,240,255,0,240]))
+    return {'/game/logDir':b''.join(entries),'/game/sndDir':sound_offset.to_bytes(3,'big'),'/game/vol.0':volume}
+
+
+def check_restarts(d):
+    cases=[('confirmation',False,b'\r',0,False),
+           ('cancellation',False,b'x',0,False),
+           ('escape cancellation',False,b'\x1b',0,False),
+           ('automatic at depth 16',True,b'',15,False),
+           ('manual at depth 16',False,b'\r',15,False),
+           ('long path at depth 16',False,b'\r',15,True)]
+    for label,automatic,key,depth,long_path in cases:
+        print('Checking restart:',label,flush=True)
+        files=restart_fixture(automatic,depth);arguments=b'/game 1\r'
+        if long_path:
+            directory=b'/'+b'x'*126
+            files={directory.decode()+name[5:]:data for name,data in files.items()}
+            arguments=directory+b' 1\r'
+        error,output,state=exercise(d,files,arguments=arguments,module='wbgame',
+            base=0xa000,database=0x0000,window=0x8000,blocks=None,multiple=True,
+            firstblock=0x10,capture=True,keyboard=key,psg={'version':4},
+            sol={'start':250,'step':1},os_call_limit=20000)
+        assert not error,(label,error,output)
+        assert state['gamefont']==(ROOT/'objs/wbfont').read_bytes(),(label,'font changed')
+        if key in (b'x',b'\x1b'):
+            assert state['vmflags'][6]==0 and state['vmflags'][20]==1
+            assert state['vmvariables'][40:43]==bytes([99,77,88])
+            assert state['vmkeycount']==b'\x01' and state['vmstrings'].startswith(b'old state\0')
+        else:
+            assert state['vmflags'][6]==1 and state['vmflags'][20]==0
+            assert state['vmvariables'][40:43]==bytes(3),(label,'old caller continued')
+            assert state['vmkeycount']==b'\0' and not any(state['vmkeys'])
+            assert not any(state['vmstrings']) and state['vmobjects'][3:5]==bytes(2)
+        assert state['audio_packets'],(label,'active sound was not exercised')
+    for name in ('zero','size','CRC'):
+        helper=bytearray((ROOT/'objs/wbstate').read_bytes());entry=int.from_bytes(helper[9:11],'big')
+        offset=0 if name=='zero' else len(helper)-(1 if name=='CRC' else 0)
+        helper[entry+22:entry+24]=offset.to_bytes(2,'big')
+        files=restart_fixture();files['wbstate']=bytes(helper)
+        error,output,state=exercise(d,files,module='wbgame',base=0xa000,
+            database=0x0000,window=0x8000,blocks=None,multiple=True,
+            firstblock=0x10,capture=True,keyboard=b'\r',os_call_limit=20000)
+        assert error==203,(name,error)
+    print('PASS: restart confirmation/cancellation/automatic mode, 16-call unwind, long-path private-code/font protection, logical reset, active sound/clock cleanup and invalid entries')
+
+
 def main():
     game = ROOT / 'kingsquest1'
     commands, volume, offset = resource(game, 1)
@@ -302,6 +363,7 @@ def main():
             check_positioned_messages(d)
             check_timed_messages(d)
             check_cold_prefix_bounds(d)
+            check_restarts(d)
             check_bounded_said(d)
             check_state_transfers(d)
             check_state_validation(d)

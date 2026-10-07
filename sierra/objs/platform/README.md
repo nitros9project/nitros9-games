@@ -70,3 +70,9 @@ The helper's linked code image and writable state copy have separate limits:
 returns that validated prefix length for save/restore copying. Rectangle
 clearing also executes read-only in the existing helper; sprite/glyph rendering
 remains resident. Metadata and private cache pointers are ABI-checked together.
+
+Restart also executes in the existing immutable helper. It requests root-level
+unwinding before releasing resources, then reloads the original root without
+recursively entering the interpreter. Cache records retain 32 slots at a
+12-byte stride. Preserved helper pointers precede the font so deep calls and
+long command-line parameters cannot overwrite them.

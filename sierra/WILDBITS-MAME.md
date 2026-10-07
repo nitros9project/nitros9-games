@@ -813,3 +813,21 @@ exceeds 4 KiB, with the writable prefix still bounded below 4 KiB and the
 existing shared code window retained. The pair captures 80 owned PSG writes and
 recovers its one-game and final free-memory maps. The full native CPU suite also
 checks rectangle colors/bounds and helper immutability with aligned test banks.
+
+
+### Original KQ1 menu restart
+
+Run `tests/check_wbgame_mame.py` with the usual `--mame`, `--disk`,
+`--firmware`, `--game` and fresh `--output` arguments, plus `--restart`.
+Use `--sol-driver` for the public counter driver and `--audio-trace` to verify
+owned PSG writes. The test walks Graham, selects Restart from the Game menu,
+confirms with ENTER, checks root unwinding and restart flag 6, then types
+`look room`. Red-shirt positions move from 449.5 to 625.5 and return to 449.5
+after restart. Exit recovers the original free-memory map.
+`/tmp/sierra-restart-kq1-safe` contains screenshots, debugger trace and
+`restart.json`; 59 owned PSG writes were observed.
+
+The same build passes save/restore (`/tmp/sierra-restart-save-safe`) and
+independent Larry/KQ1 terminal tests (`/tmp/sierra-restart-pair-safe`, expanded
+emulator kernel). CPU tests separately cover cancellation, automatic restart
+and the maximum-depth, 127-character-directory stack regression.

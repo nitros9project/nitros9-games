@@ -1,3 +1,6 @@
+                    ifndef VM_CACHE_ENTRY_BYTES
+VM_CACHE_ENTRY_BYTES equ 12
+                    endc
 * wildbits-logic feature: code and related private state.
 * Named layout sections preserve existing module and private-data addresses.
 
@@ -106,13 +109,12 @@ GameTraceStageReturn puls     cc,u,pc
                     else
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_LOGIC_CACHE
 * ===== wildbits-logic-cache =====
-* Bounded resident logic cache and nested calls. Cache entries (14 bytes):
-* id, owned, physical-first(2), count, kind, expanded(2), stored(2), scan(2),
-* reserved(2). Calls save id/index, IP, code-end and remaining instruction
+* Bounded resident logic cache and nested calls. Cache entries (12 bytes):
+* id, owned, physical-first(2), count, kind, expanded(2), stored(2), scan(2). Calls save id/index, IP, code-end and remaining instruction
 * budget in a private eight-byte frame. No resource pointers survive mapping.
 VmClearCache        ldu       <resourcebase
                     leax      vmcache,u
-                    ldy       #448
+                    ldy       #32*VM_CACHE_ENTRY_BYTES
                     clra
 VmCacheZero         sta       ,x+
                     leay      -1,y
@@ -144,7 +146,7 @@ VmStoreAsset        ldb       <assetowned
                     rts
 VmSlotAddress       ldu       <resourcebase
                     leax      vmcache,u
-                    lda       #14
+                    lda       #VM_CACHE_ENTRY_BYTES
                     mul
                     leax      d,x
                     rts
@@ -443,11 +445,18 @@ VmRunRoot           lbsr      ExecuteLogic
                     beq       VmCompletedRootCycle
                     ifne      GAME_PRESENTATION
                     lda       <vmroompending
+                    cmpa      #3
+                    beq       VmRestartRoot
                     cmpa      #2
                     bne       VmOrdinaryRoomChange
                     lbsr      GameStateApply
                     bcs       VmNativeReturn
                     bra       VmRunRoot
+VmRestartRoot       ldu       <resourcebase
+                    ldx       restartentry,u
+                    jsr       ,x
+                    bcs       VmNativeReturn
+                    lbra      StartLogic
 VmOrdinaryRoomChange equ      *
                     endc
                     lbsr      ApplyRoomChange

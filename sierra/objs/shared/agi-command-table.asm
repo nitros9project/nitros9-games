@@ -130,7 +130,7 @@
                     AGI_COMMAND cmd_save_game,$0000,GameStateCommand,1 *save game
                     AGI_COMMAND cmd_restore_game,$0000,GameStateCommand,1 *restore game
                     AGI_COMMAND NoopCmdsRet,$0000,VmSuccess,0 *init disk
-                    AGI_COMMAND cmd_restart_game,$0000,VmPlatformUnsupported,0 *restart game
+                    AGI_COMMAND cmd_restart_game,$0000,GameRestartCommand,1 *restart game
                     AGI_COMMAND cmd_show_obj,$100,VmPlatformUnsupported,0 *sow obj
                     AGI_COMMAND CmdRandomImpl,$320,GameRandomCommand,1 *random
                     AGI_COMMAND cmd_program_control,$0000,VmProgramControl,0 *program control

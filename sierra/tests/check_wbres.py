@@ -101,6 +101,7 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
     cold_ever_loaded=False
     sol_path=None
     sol_ticks=sol.get("start",0) if sol else 0
+    audio_ever_installed=False
     audio_path=None
     audio_claimed=False
     audio_packets=[]
@@ -151,7 +152,7 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
             assert not cold_loaded and not audio_claimed, 'leaked cold module/audio ownership'
             if cold_ever_loaded:
                 assert d.read(0x6000,len(files['wbstate']))==files['wbstate'], 'shared cold backend modified its module image'
-            if private_calls and d.read(database+syms['soundinstalled'],1)==b'\x01':
+            if private_calls and (audio_ever_installed or d.read(database+syms['soundinstalled'],1)==b'\x01'):
                 expected=files['wbstate'][blob_start:blob_end]
                 assert d.read(database+syms['soundcode'],len(expected))==expected, 'private audio code overwritten by the game stack or buffers'
             assert options==original_options, 'terminal options were not restored'
@@ -164,6 +165,9 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
                 for name, length in [('replayused',2),('replaybuffer',510)]:
                     if name in syms:
                         state[name]=d.read(database+syms[name],length)
+                if module=='wbgame':
+                    state['vmstrings']=d.read(database+syms['vmstrings'],480)
+                    state['gamefont']=d.read(database+syms['gamefont'],1024)
                 state['cycles']=cycles
                 state['audio_packets']=audio_packets
                 state['audio_polls']=audio_polls
@@ -309,6 +313,8 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
                 mapped = False
         elif service == syms['I$Open']:
             name = d.read(r['x'], 160).split(b'\r')[0].decode()
+            if name=='/fPSG':
+                audio_ever_installed=d.read(database+syms['soundinstalled'],1)==b'\x01'
             if name=='/fSOL' and sol is not None:
                 sol_path=nextpath
                 paths[nextpath]=[b'',0];path_names[nextpath]=name

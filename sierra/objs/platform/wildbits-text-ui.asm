@@ -249,6 +249,92 @@ AuxRectInvalid      puls      y
                     orcc      #1
                     rts
                     else
+                    ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_RESTART_CODE
+* Read-only restart backend. Request and apply run on opposite sides of unwind.
+AuxRestart          ldu       <resourcebase
+                    lda       <vmroompending
+                    cmpa      #3
+                    lbeq      AuxRestartApply
+                    sty       restartapi,u
+                    tst       vmflags+16,u
+                    bne       AuxRestartAccepted
+                    lda       vmflags+15,u
+                    pshs      a
+                    clr       vmflags+15,u
+                    leax      AuxRestartPrompt,pcr
+                    clra
+                    lbsr      AuxRestartCall
+                    puls      a
+                    sta       vmflags+15,u
+                    bcs       AuxRestartReturn
+                    lda       parsercharacter,u
+                    cmpa      #C$CR
+                    bne       AuxRestartSuccess
+AuxRestartAccepted  lda       #3
+                    sta       <vmroompending
+AuxRestartSuccess   clrb
+AuxRestartReturn    rts
+AuxRestartPrompt    fcc       /Restart game? ENTER confirms./
+                    fcb       0
+AuxRestartApply     lda       #2       stop owned sound
+                    lbsr      AuxRestartCall
+                    bcs       AuxRestartReturn
+                    lda       #4       unregister/close this raster subscription
+                    lbsr      AuxRestartCall
+                    bcs       AuxRestartReturn
+                    lda       #6       release temporary and all cached resources
+                    lbsr      AuxRestartCall
+                    bcs       AuxRestartReturn
+                    lda       #8       release the saved background
+                    lbsr      AuxRestartCall
+                    bcs       AuxRestartReturn
+                    lda       #10      release the combined picture slab
+                    lbsr      AuxRestartCall
+                    bcs       AuxRestartReturn
+* Strings, labels, key bindings, controllers, object records and cache cells.
+                    leax      vmvariables,u
+                    ldy       #textstoremodule-vmvariables
+                    clra
+AuxRestartClear     sta       ,x+
+                    leay      -1,y
+                    bne       AuxRestartClear
+                    clr       parserlastline,u
+                    clr       <vmkeycount
+                    clr       <vmhavekey
+                    clr       <vmdepth
+                    clr       <vmcurrent
+                    clr       <vmroomchanges
+                    clr       <replaylimit
+                    clr       <replayused
+                    clr       <replayused+1
+                    clr       <replaycheckpoint
+                    clr       <replaycheckpoint+1
+                    lda       #36
+                    sta       <vmhorizon
+                    clr       gameclockmuted,u
+                    clr       presentationconfigured,u
+                    lda       #14
+                    lbsr      AuxRestartCall
+                    lda       #16
+                    lbsr      AuxRestartCall
+                    lda       #18
+                    lbsr      AuxRestartCall
+* The original CLI root number/directory never change during resource loads.
+                    clr       <resourcekind
+                    ldx       <argdirectory
+                    ldy       <argnumber
+                    lda       #12
+                    lbra      AuxRestartCall
+AuxRestartCall      pshs      x,y
+                    ldy       restartapi,u
+                    ldd       a,y
+                    leax      d,y
+                    stx       restartcall,u
+                    puls      x,y
+                    jsr       [restartcall,u]
+                    ldu       <resourcebase
+                    rts
+                    else
 * wildbits-text-ui feature: code and related private state.
 * Named layout sections preserve existing module and private-data addresses.
 
@@ -334,9 +420,9 @@ GamePrintClear      lda       #32
                     bhi       GamePrintDefaultPosition
                     ldd       vmarguments+1,u
                     cmpa      #25
-                    lbhs      GamePrintAtBad
+                    bhs       GamePrintAtBad
                     cmpb      #40
-                    lbhs      GamePrintAtBad
+                    bhs       GamePrintAtBad
                     sta       textrow,u
                     stb       textcolumn,u
                     stb       dialogleft,u
@@ -377,7 +463,7 @@ GamePrintPositionReady ldx    textpointer,u
                     rts
 GamePrintAtBad      ldb       #E$BMode
                     orcc      #1
-                    lbra      GamePrintRestore
+                    bra       GamePrintRestore
 GamePrintWait       leax      textwaitentry,u
                     ldb       #6
                     leay      GameDialogCallbacks,pcr
@@ -414,6 +500,16 @@ GamePrintCopyBack   ldd       ,x++
 * State entry is a phase-local alias: no formatter runs between validated
 * staging and root-stack unwind. Both persistent text planes end before it.
 stateentry          equ       textpointer
+GameRestartCommand  ldu       <resourcebase
+                    leax      restartentry,u
+                    ldb       #12
+                    leay      RestartCallbacks,pcr
+                    lbra      GameColdInvoke
+RestartCallbacks          fdb       GamePrintText-RestartCallbacks,GameSoundStop-RestartCallbacks
+                    fdb       GameClockClose-RestartCallbacks,VmReleaseResources-RestartCallbacks
+                    fdb       GameReleaseBackground-RestartCallbacks,PictureRelease-RestartCallbacks
+                    fdb       LoadAsset-RestartCallbacks,GameTextInitialize-RestartCallbacks
+                    fdb       MenuInitialize-RestartCallbacks,ScreenInitialize-RestartCallbacks
 GameStateCommand    lbsr      GameSoundStop
                     lbcs      GameStateReturn
                     ldu       <resourcebase
@@ -503,7 +599,7 @@ StateLoadModule     pshs      u
                     ldd       M$Exec,u
                     cmpd      #13
                     blo       StateLoadBad
-                    addd      #25       branch, private ABI, six metadata words and CRC must fit
+                    addd      #27       branch, private ABI, seven metadata words and CRC must fit
                     bcs       StateLoadBad
                     cmpd      M$Size,u
                     bhi       StateLoadBad
@@ -518,7 +614,7 @@ StateCheckABI       lda       ,x+
                     tfr       y,x       validated metadata follows the ABI
 * Only the writable state prefix is copied; linked cold code stays shared.
                     ldd       M$Exec,u
-                    addd      #25
+                    addd      #27
                     cmpd      8,x
                     bhi       StateLoadBad
                     ldy       8,x
@@ -776,6 +872,7 @@ GameTextUnlink      ldu       <resourcebase
                     std       textstoreentry,u
                     std       textwaitentry,u
                     std       textrectentry,u
+                    std       restartentry,u
 GameTextUnlinkDone  rts
 GameTextPresent     lbsr      AssetUnmap
                     bcs       GameTextReturn
@@ -786,9 +883,6 @@ GameTextPresent     lbsr      AssetUnmap
                     bsr      GameCreateScreen
                     bcs       GameTextReturn
 GameTextShowPicture lbra      PresentPicture
-GameTextNeedsFormatter ldb    #E$UnkSvc
-                    orcc      #1
-                    rts
 GameTextInvalid     ldb       #E$IllArg
                     orcc      #1
 GameTextReturn      rts
@@ -2884,6 +2978,7 @@ NORMAL_STRING_FOLD  equ       ParserLower
 
                     else
                     error Unknown platform feature section
+                    endc
                     endc
                     endc
                     endc

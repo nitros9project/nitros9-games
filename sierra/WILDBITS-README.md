@@ -450,7 +450,7 @@ survive picture refreshes. `display`/`display.v` support colors, wrapping and
 bounded `%v`, `%s`, `%w` and recursive `%m` message expansion. `print`/`print.v`
 show a modal response and restore the scene after dismissal.
 
-`wbgame` currently uses 23,563 code bytes and 24,460 private bytes. Three private
+`wbgame` currently uses 23,805 code bytes and 24,460 private bytes. Three private
 blocks, the kernel block and one mapping window leave a conservative
 23,808-byte code budget.
 Physical memory also holds resource caches, two picture slabs and the terminal
@@ -464,12 +464,12 @@ end-of-loop animation, directional keys, and ownership cleanup. These CPU tests
 mock OS services; real-driver MAME acceptance is reported separately.
 
 Vocabulary parsing, typed input, formatted responses, follow motion and menu
-interaction are now integrated. Save/restore and audio remain unfinished, and
+interaction are now integrated. Save/restore, owned audio and restart are implemented and tested;
 later-game command coverage is incomplete. Native blocking rectangles use the
 same containment routine as CoCo. Follow motion and its axis-direction helper
 also use shared CoCo routines; the CoCo binary remains byte-for-byte identical.
-Menu construction and selection work; replay records are bounded bookkeeping,
-not a completed save/restore implementation.
+Menu construction and selection work. Save/restore uses the validated WS
+version-1 format described in the engine notes.
 The original `objs/wildbits_engine.asm` remains untouched and unbuilt.
 
 The native-owner MAME diagnostic passed on the existing 512 KB Jr2 test OS:
@@ -674,6 +674,6 @@ Pause retain their separate behavior. The optional public SOL counter supplies
 frame timing and rebases after terminal switching; the sleep-count fallback can
 run late under scheduling load. Both text storage and modal waiting execute
 through the matching immutable `wbstate` helper. Install it with `wbgame` from
-the same build. The current resident is 23,741 bytes, the linked helper is 4,172 bytes, and
-its writable state prefix is 3,054 bytes. Private allocation remains 24,460 bytes. See [the engine notes](WILDBITS-ENGINE.md#timed-blocking-messages--2026-10-07)
+the same build. The current resident is 23,805 bytes, the linked helper is 4,402 bytes, and
+its writable state prefix is 3,056 bytes. Private allocation remains 24,460 bytes. See [the engine notes](WILDBITS-ENGINE.md#timed-blocking-messages--2026-10-07)
 for the implementation and acceptance checks.

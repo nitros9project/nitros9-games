@@ -69,6 +69,12 @@ GameInitialize      lbsr      ParserInitialize
                     sta       vmflags+5,u
                     sta       vmflags+9,u     owned queued audio; unavailable service disables it
                     sta       vmflags+11,u
+                    ldb       <vmroompending
+                    cmpb      #3
+                    bne       GameInitialFlags
+                    sta       vmflags+6,u
+                    clr       <vmroompending
+GameInitialFlags    equ       *
                     sta       vmvariables+22,u     three-channel sound model
                     lda       #3
                     sta       vmvariables+26,u     EGA-compatible palette
