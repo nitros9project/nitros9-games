@@ -364,20 +364,15 @@ GameTextCharacter   pshs      a
                     leax      d,x
                     puls      a
                     sta       ,x
-                    lda       textrow,u
-                    ldb       #40
-                    mul
-                    addb      textcolumn,u
-                    adca      #0
-                    leax      textcolors,u
-                    leax      d,x
+* Color cells follow characters at the same fixed offset. Reuse the cell
+* address rather than multiplying its row a second time.
                     lda       <vmtextforeground
                     lsla
                     lsla
                     lsla
                     lsla
                     ora       <vmtextbackground
-                    sta       ,x
+                    sta       1000,x
                     inc       textcolumn,u
                     lda       textcolumn,u
                     cmpa      #40

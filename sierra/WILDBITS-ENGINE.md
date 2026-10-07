@@ -954,3 +954,18 @@ before adding the loader to the game.
 All 56 CoCo interpreter modules rebuilt byte-identically in isolated output
 directories after the shared command-table change and native clearing
 consolidation. Existing game-directory binaries were left untouched.
+
+### Single text-cell address calculation
+
+Persistent text writes now compute their cell address once and store the color
+1,000 bytes beyond the character. An assembly-time assertion protects the
+matching-plane layout. The exact-pixel game suite passed glyph colors, wrapping,
+text clearing, rectangles and modal restoration after this change. It removes
+17 code bytes without changing private storage: 23,674 code bytes and 24,460
+private bytes, with 134 bytes of code space available.
+
+An exact whole-scene sprite-history experiment was tested and removed. Although
+its CPU pixel tests and original Larry MAME checks passed, walking scenes changed
+on each cycle; median composition rose from 114.0 to 115.3 ms and the walking
+distance stayed 26.8 AGI pixels per 400 frames. The current game retains the
+measured mapped-pixel optimization and does not allocate sprite-history state.
