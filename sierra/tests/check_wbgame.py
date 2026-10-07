@@ -115,6 +115,58 @@ def main():
                                 expected_frame[start:start+2]=bytes([color+1])*2
                 assert frame == expected_frame, (mirrored, xpos, ypos, priority, erase,
                     next((i for i, (a,b) in enumerate(zip(frame, expected_frame)) if a != b), None))
+            # Overlay changes selected visual/priority pixels without clearing
+            # the scene or baking animated sprites into the static background.
+            for mode in ('blank','drawn','moved','erased','malformed'):
+                body = bytearray([142,32])
+                if mode != 'blank':
+                    body.extend([3,0,1,24,0,25,0,33,0,41,0,0,
+                                 37,0,20,30,54,0,14,35,0,26])
+                body.extend([3,0,2,24,0,28,0])
+                if mode not in ('blank','malformed'):
+                    body.extend([60,0])
+                if mode == 'moved':
+                    body.extend([37,0,40,30,60,0])
+                if mode == 'erased':
+                    body.extend([36,0])
+                body.extend([26,134,1,0])
+                logic = len(body).to_bytes(2,'little') + body
+                overlay = (bytes([240]) if mode == 'malformed' else
+                           bytes([240,3,242,15,246,23,28,23,30,255]))
+                view = bytes([0,0,2,0,0,9,0,9,0,1,3,0,4,3,31,
+                              18,241,33,0,49,67,0,81,0])
+                resources = bytearray(); offsets = []
+                for payload in (logic,b'\xff',overlay,view):
+                    offsets.append(len(resources))
+                    resources.extend(b'\x12\x34\0'+len(payload).to_bytes(2,'little')*2+payload)
+                files = {'/game/vol.0':bytes(resources),
+                    '/game/logDir':b'\xff'*3+offsets[0].to_bytes(3,'big'),
+                    '/game/picDir':b'\xff'*3+offsets[1].to_bytes(3,'big')+offsets[2].to_bytes(3,'big'),
+                    '/game/viewDir':offsets[3].to_bytes(3,'big')}
+                error,frame,state = exercise(d,files,module='wbgame',base=0xa000,
+                    database=0x1000,window=0x8000,blocks=None,multiple=True,
+                    firstblock=0x10,frame_capture=True,capture=True)
+                assert error == (203 if mode == 'malformed' else 0), ('overlay error',mode,error)
+                if mode == 'malformed':
+                    continue
+                wanted = bytearray([1])*76800
+                wanted[8*320:176*320] = bytes([16])*(168*320)
+                for row in range(28,31):
+                    start=(row+8)*320+23*2
+                    wanted[start:start+2]=bytes([4,4])
+                if mode in ('drawn','moved'):
+                    xpos=40 if mode == 'moved' else 20
+                    for rownum,row in enumerate(normal_rows):
+                        for col,color in enumerate(row):
+                            x=xpos+col
+                            if color is not None and x != 23:
+                                start=(28+rownum+8)*320+x*2
+                                wanted[start:start+2]=bytes([color+1])*2
+                assert frame == wanted, ('overlay pixels/priority/background',mode,
+                    next((i for i,(a,b) in enumerate(zip(frame,wanted)) if a!=b),None))
+                replay = (b'' if mode == 'blank' else bytes([2,1,4,1,1,0])) + bytes([2,2,8,2])
+                assert int.from_bytes(state['replayused'],'big') == len(replay)
+                assert state['replaybuffer'][:len(replay)] == replay
             # Repeated cycles must move the ego and stop precisely at a target.
             # An end-of-loop animation must set its completion flag as well.
             for mode in ('normal', 'move', 'animation', 'arrow', 'arrowtoggle', 'programarrow', 'backspace', 'wall', 'land', 'water', 'block', 'ignoreblock', 'unblock', 'wander'):

@@ -70,7 +70,10 @@ def main():
     parser.add_argument('--interpreter', action='store_true', help='exercise wbgame repeated logic cycles and keyboard-controller exit on both terminals')
     parser.add_argument('--picture-number', type=int, default=1)
     parser.add_argument('--text-modes', action='store_true', help='Switch the second game terminal through text and graphics modes')
+    parser.add_argument('--overlay', action='store_true', help='overlay a visual/priority edge on the second game terminal')
     args = parser.parse_args()
+    if args.overlay and not args.interpreter:
+        parser.error('--overlay requires --interpreter')
     if args.text_modes and not args.interpreter:
         parser.error('--text-modes requires --interpreter')
     if args.interpreter and not args.native_game:
@@ -111,6 +114,13 @@ def main():
         from export_picture import resource, render
         payload, volume, offset = resource(args.native_game, args.picture_number)
         picture = render(args.native_game, payload, shutil.which('lwasm.orig') or shutil.which('lwasm'), VIEWER.parents[2] / 'nitros9/defs')
+        overlay_commands = bytes([240,3,242,15,246,0,0,159,0,159,167,255])
+        if args.overlay:
+            picture = bytearray(picture)
+            picture[:160] = bytes([243])*160
+            for row in range(168):
+                picture[row*160+159] = 243
+            picture = bytes(picture)
         os9('makdir', f'{disk},game')
         install('picDir', (args.native_game / 'picDir').read_bytes(), 'game/picDir')
         install(f'vol.{volume}', (args.native_game / f'vol.{volume}').read_bytes(), f'game/vol.{volume}')
@@ -127,6 +137,8 @@ def main():
             assert volume != 0, 'diagnostic logic occupies volume zero'
             for directory, number in [('bars-game', 1), ('game', args.picture_number)]:
                 body = bytes([111,0,23,0,3,0,number,24,0,25,0,26])
+                if args.overlay and directory == 'game':
+                    body += bytes([3,0,0,24,0,28,0,26])
                 if args.text_modes:
                     body += bytes([119,121,ord('t'),0,8,121,ord('g'),0,9])
                 script = bytes([121,ord('x'),0,7,255,7,11,255,len(body),0]) + body
@@ -143,7 +155,14 @@ def main():
                     encrypted = bytes(v ^ cipher[i%len(cipher)] for i,v in enumerate(text))
                     payload += bytes([1]) + (4+len(text)).to_bytes(2,'little') + bytes([4,0]) + encrypted
                 install(directory + '-logDir', bytes(3), directory + '/logDir')
-                install(directory + '-logic', b'\x12\x34\0' + len(payload).to_bytes(2,'little') * 2 + payload, directory + '/vol.0')
+                data = b'\x12\x34\0' + len(payload).to_bytes(2,'little') * 2 + payload
+                if args.overlay and directory == 'game':
+                    assert number != 0, 'overlay fixture uses picture zero'
+                    entries = bytearray((args.native_game/'picDir').read_bytes())
+                    entries[:3] = len(data).to_bytes(3,'big')
+                    install('overlay-picDir',entries,'game/picDir')
+                    data += b'\x12\x34\0' + len(overlay_commands).to_bytes(2,'little')*2 + overlay_commands
+                install(directory + '-logic', data, directory + '/vol.0')
             first_command, second_command = 'wbgame /s0/bars-game 0', 'wbgame /s0/game 0'
 
     else:

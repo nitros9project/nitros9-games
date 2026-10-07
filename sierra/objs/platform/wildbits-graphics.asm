@@ -445,7 +445,11 @@ GameDrawPicture     bsr      GamePictureArgument
                     bcs       GamePictureReturn
 * Record drawing separately from loading for persistent reconstruction.
                     lda       #4
-                    ldb       ,x
+                    ldb       <vmopcode
+                    cmpb      #28
+                    bne       GameRecordPicture
+                    lda       #8
+GameRecordPicture   ldb       ,x
                     lbsr      ReplayPush
                     bcs       GamePictureReturn
                     lbsr      VmRestoreAsset
@@ -453,9 +457,25 @@ GameDrawPicture     bsr      GamePictureArgument
                     std       <gamepicturelength
                     lbsr      AssetUnmap
                     bcs       GamePictureReturn
+                    lda       <vmopcode
+                    cmpa      #28
+                    beq       GameOverlayBackground
                     lbsr      PictureRelease
-                    bcs       GamePictureReturn
-                    ldu       <resourcebase
+                    lbcs      GamePictureReturn
+                    bra       GameDecodePicture
+* Remove animated footprints before changing the saved background.
+* Preserve the overlay cache entry while background restoration uses X.
+GameOverlayBackground pshs   x
+                    ldx       <resourcebase
+                    tst       gamebackgroundowned,x
+                    beq       GameOverlayRestored
+                    lbsr      GameRestoreBackground
+GameOverlayRestored puls     x
+                    lbcs      GamePictureReturn
+                    lbsr      VmRestoreAsset
+                    lbsr      AssetUnmap
+                    lbcs      GamePictureReturn
+GameDecodePicture   ldu       <resourcebase
                     ldx       #0                logical input offset, not a mapped pointer
                     ldy       <gamepicturelength
                     lbsr      DecodeLines
@@ -2441,6 +2461,15 @@ DecodeLines         stu       <resourcebase
                     leay      d,x
                     sty       <decodeend
                     pshs      x
+                    ifne      GAME_PRESENTATION
+* Overlay resets drawing controls but retains the existing combined pixels.
+                    lda       <vmopcode
+                    cmpa      #28
+                    bne       DecodeNewPicture
+                    tst       <pictureowned
+                    bne       DecodeInitFailed
+DecodeNewPicture    equ       *
+                    endc
                     lbsr      PictureAllocate
                     bcs       DecodeInitFailed
                     lbsr      PictureClear

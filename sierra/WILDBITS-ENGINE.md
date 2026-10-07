@@ -1074,3 +1074,33 @@ The original Larry MAME room-transition check passed with the added records.
 These records prepare reconstruction for save/restore; the two commands remain
 unimplemented. The resident build uses 23,506 code bytes and 24,460 private
 bytes, with 302 code bytes available.
+
+### Overlay pictures
+
+`overlay.pic` (28) now uses the picture command path with replay type 8. Its
+operand remains a variable containing the picture identifier. It resets decoder
+color/mask/pen controls while retaining the existing combined visual/priority
+pixels. An overlay without an existing picture allocates and clears the normal
+blank picture first. Ordinary `draw.pic` still releases and clears its picture.
+
+If animated objects have touched the scene, overlay first restores their saved
+background and forgets their previous footprints. The overlay's cache entry is
+kept on the stack while that restoration temporarily selects background and
+root-logic assets. The decoder then selects the overlay resource again. The
+updated background is saved before the next object composition, so moving or
+erasing a sprite preserves overlay pixels rather than retaining old sprite
+pixels in the background. All mappings follow the existing one-window rules.
+
+CPU checks compare every visible pixel for blank overlays, visual/priority
+updates that occlude a sprite, subsequent movement and erasure, exact replay
+records and malformed-resource cleanup. The MAME harness supports `--overlay`
+with `--interpreter`, optionally combined with `--text-modes`; it installs a
+small diagnostic overlay and derives its expected horizontal/vertical pixels
+independently of the decoder. No new platform files were added. The build uses
+23,563 code bytes and 24,460 private bytes, with 245 code bytes available.
+
+The final full game CPU suite and all 1,024 dispatch cases passed. The combined
+`--overlay --text-modes` MAME run passed every displayed pixel on both terminals,
+restoration of the overlaid castle after text mode and focus changes, independent
+exit, relaunch and identical free-memory maps. All 56 CoCo interpreter modules
+rebuilt byte-identically in isolated output directories.
