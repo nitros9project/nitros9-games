@@ -259,6 +259,9 @@ UI_CALL           macro
                     endm
 AuxShowObject       ldu       <resourcebase
                     sty       coldapi,u
+                    lda       <vmopcode
+                    cmpa      #141
+                    lbeq      AuxInterpreterInfo
                     ldb       vmarguments,u
                     lda       <vmopcode
                     cmpa      #162
@@ -363,21 +366,12 @@ AuxShowCopied       UI_CALL 18
                     UI_CALL 20
                     UI_CALL 10
 * Inventory previews require dismissal, independent of print flags/timers.
-                    lda       vmflags+15,u
-                    ldb       vmvariables+21,u
-                    pshs      d
-                    clr       vmflags+15,u
-                    clr       vmvariables+21,u
                     leax      messagebuffer,u
                     inc       showactive,u
-                    UI_CALL 16
+                    lbsr      AuxBlockingPrint
                     pshs      cc,b
                     clr       showactive,u
                     puls      cc,b
-                    puls      a
-                    sta       vmflags+15,u
-                    puls      a
-                    sta       vmvariables+21,u
                     lbcs      AuxShowReturn
 * The fast sprite eraser scans game records, not this temporary preview.
 * Restore the pristine background fully, then recompose ordinary objects.
@@ -399,6 +393,25 @@ AuxShowDone         clrb
                     rts
 AuxShowInvalid      ldb       #E$BMode
                     orcc      #1
+                    rts
+* Interpreter information shares the existing text callback and cold entry.
+AuxInterpreterInfo  leax      InterpreterInfo,pcr
+                    bra       AuxBlockingPrint
+InterpreterInfo     fcc       /Adventure Game Interpreter/
+                    fcb       13
+                    fcc       /Wild Bits NitrOS-9 engine/
+                    fcb       0
+AuxBlockingPrint
+                    lda       vmflags+15,u
+                    ldb       vmvariables+21,u
+                    pshs      d
+                    clr       vmflags+15,u
+                    clr       vmvariables+21,u
+                    UI_CALL 16
+                    puls      a
+                    sta       vmflags+15,u
+                    puls      a
+                    sta       vmvariables+21,u
                     rts
 * Preserve caller arguments, including a scratch object's U. The indirect
 * destination is a stack word, never a patched instruction or shared variable.
@@ -678,6 +691,7 @@ GameShakeCommand    ldu       <resourcebase
                     lbra      GameColdInvoke
 ShakeCallbacks      fdb       GameFramePointer-ShakeCallbacks,unmap-ShakeCallbacks
                     fdb       GameModalForeground-ShakeCallbacks,GameClockSample-ShakeCallbacks
+GameVersionCommand  equ       *
 GameShowObjectCommand ldu     <resourcebase
                     leax      showentry,u
                     ldb       #16

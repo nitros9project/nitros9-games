@@ -862,3 +862,8 @@ actual helper load address rather than assuming a bank window.
 `/tmp/sierra-shake-final-pixels` passes with the public counter active and a
 0.723-second repeat. CPU tests additionally compare the entire bitmap, including
 the reserved dialog tail, and exercise the sleep fallback.
+
+The same generated UI regression accepts `--version` to check opcode 141's
+two-line interpreter information, dismissal, scene restoration and cleanup.
+It passes at `/tmp/sierra-version-real-drivers`. `--version` and `--shake`
+are mutually exclusive.

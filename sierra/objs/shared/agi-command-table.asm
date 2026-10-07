@@ -143,7 +143,7 @@
                     AGI_COMMAND cmd_cancel_line,$0000,GameCancelLine,1 *cancel line
                     AGI_COMMAND cmd_init_joy,$0000,VmPlatformUnsupported,0 *init joy
                     AGI_COMMAND cmd_toggle_monitor,$0000,VmPlatformUnsupported,0 *toggle monitor
-                    AGI_COMMAND CmdShowAgiInfo,$0000,VmPlatformUnsupported,0 *version
+                    AGI_COMMAND CmdShowAgiInfo,$0000,GameVersionCommand,1 *version
                     AGI_COMMAND cmd_script_size,$100,ReplayInitialize,0 *script size
                     AGI_COMMAND cmd_set_game_id,$100,VmCommandGameId,0 *set game id
                     AGI_COMMAND cmd_shake_screen,$100,VmPlatformUnsupported,0 *log

@@ -1684,3 +1684,21 @@ With the new helper, original KQ1 save/restore passes at
 `/tmp/sierra-shake-pair`, including independent inventory input, sound, surviving
 the other game's exit, and restored free-memory maps. The original CoCo main
 logic remains byte-for-byte identical to the baseline.
+
+### Interpreter information — 2026-10-07
+
+Opcode 141 now displays “Adventure Game Interpreter” and identifies the
+Wild Bits NitrOS-9 engine. It shares the inventory frontend, callback table,
+validated cold entry and blocking-print routine. The helper distinguishes the
+commands by opcode before reading any view argument. It does not claim a stock
+Sierra interpreter version. Flag 15 and variable 21 are preserved while the
+dialog itself always waits for dismissal. No new module, source fragment,
+private allocation or hot game-loop work is added.
+
+CPU tests verify ordinary, held-print and timed-print callers plus 16 nested
+logic calls. Existing preview cases pass after factoring the common print
+routine. The full 1,024-route dispatch regression passes. Real-driver MAME
+checks exact glyphs on both lines, keyboard dismissal, script continuation,
+scene restoration and recovered free memory at `/tmp/sierra-version-real-drivers`.
+The resident is 23,790 bytes, the helper 6,206 bytes, the writable prefix
+3,062 bytes, and private allocation remains 24,460 bytes.

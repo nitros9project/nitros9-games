@@ -398,6 +398,38 @@ def check_object_previews(d):
     print('PASS: literal/variable item pixels and descriptions, exact restoration, preserved cache/print flags, deep audio/long-path safety and bounded malformed-resource cleanup')
 
 
+def check_interpreter_information(d):
+    """A menu version request must dismiss, restore state and resume its caller."""
+    for label,prefix,depth in [('ordinary',b'',0),('held print',bytes([12,15]),0),
+                              ('timed print',bytes([3,21,2]),0),
+                              ('deep caller',bytes([12,15,3,21,2]),16)]:
+        print('Checking interpreter information:',label,flush=True)
+        data=bytearray();logs=[b'\xff'*3]
+        for number in range(1,depth+2):
+            logs.append(len(data).to_bytes(3,'big'))
+            command=bytes([22,number+1]) if number<=depth else prefix+bytes([141])
+            body=command+(bytes([3,240,73,134,1,0]) if number==1 else b'\0')
+            logic=len(body).to_bytes(2,'little')+body
+            data+=b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic
+        files={'/game/logDir':b''.join(logs),'/game/vol.0':bytes(data)}
+        modal={}
+        def inspect(cpu,r,syms):
+            modal['text']=cpu.read(syms['textcharacters'],1000)
+            assert cpu.read(syms['vmflags']+15,1)==b'\0'
+            assert cpu.read(syms['vmvariables']+21,1)==b'\0'
+        error,output,state=exercise(d,files,module='wbgame',base=0xa000,
+            database=0,window=0x8000,blocks=None,multiple=True,firstblock=0x10,
+            capture=True,keyboard=b'\r',os_call_limit=30000,
+            breakpoint_hooks={'GamePrintWait':inspect})
+        assert not error,(label,error)
+        assert state['vmvariables'][240]==73,(label,'caller did not resume')
+        assert b'Adventure Game Interpreter' in modal['text'],(label,modal)
+        assert b'Wild Bits NitrOS-9 engine' in modal['text'],(label,modal)
+        assert state['vmflags'][15]==(1 if 15 in prefix else 0),(label,'print flag changed')
+        assert state['vmvariables'][21]==(2 if 21 in prefix else 0),(label,'print timer changed')
+    print('PASS: interpreter information, blocking dismissal, preserved flags/timer and deep caller resume')
+
+
 def check_screen_backend(d):
     """Exercise every cold configuration branch and invalid entry cleanup."""
     key=b'Avis Durgan'
@@ -545,6 +577,7 @@ def main():
             check_timed_messages(d)
             check_screen_shakes(d)
             check_object_previews(d)
+            check_interpreter_information(d)
             check_screen_backend(d)
             check_cold_prefix_bounds(d)
             check_restarts(d)

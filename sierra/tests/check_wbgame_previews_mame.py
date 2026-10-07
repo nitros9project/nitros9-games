@@ -15,7 +15,9 @@ def main():
     for name in ('mame','disk','firmware','output'):
         ap.add_argument('--'+name,required=True,type=Path)
     ap.add_argument('--boot-file',type=Path,help='Optional matching OS9 boot image')
-    ap.add_argument('--shake',action='store_true',help='Check shake.screen timing and restoration instead of an item preview')
+    modes=ap.add_mutually_exclusive_group()
+    modes.add_argument('--version',action='store_true',help='Check the interpreter information dialog instead of an item preview')
+    modes.add_argument('--shake',action='store_true',help='Check shake.screen timing and restoration instead of an item preview')
     ap.add_argument('--interrupt',action='store_true',help='Exit with Ctrl-C instead of the bound quit controller')
     a=ap.parse_args()
     root=Path(__file__).resolve().parents[1]
@@ -34,6 +36,7 @@ def main():
     if a.boot_file:install('OS9Boot',a.boot_file.read_bytes())
     # Subsequent root cycles idle until the bound q controller quits normally.
     script=bytes([255,12,1,255,3,0,134,1,0,255,7,20,255,1,0,0,3,10,2,121,113,0,1,3,0,1,24,0,25,0,26,129,0,3,240,73,119,12,20,0])
+    if a.version:script=script.replace(bytes([129,0]),bytes([141]))
     if a.shake:
         script=bytes([255,12,1,255,3,0,134,1,0,255,7,20,255,1,0,0,3,10,2,121,113,0,1,
                       3,0,1,24,0,25,0,33,0,41,0,0,37,0,40,80,54,0,15,35,0,26,110,1,
@@ -100,7 +103,7 @@ def main():
         assert len([event for event in events if event[0]=='WAIT'])>=8,events
         (out/'shake-timing.json').write_text(json.dumps({'seconds':seconds,'counter_active':all(event[3]!='255' for event in events if event[0]=='WAIT')},indent=2)+'\n')
     else:
-        assert 'PREVIEW MODAL 129 0' in log,log[-2000:]
+        assert ('PREVIEW MODAL 141 0' if a.version else 'PREVIEW MODAL 129 0') in log,log[-2000:]
         assert 'PREVIEW RESUMED 119 73' in log,log[-2000:]
     for name in ('free-before','free-after','done'):
         target=out/(name+'.txt');os9('copy',f'{disk},{name}',target)
@@ -123,25 +126,28 @@ def main():
         print('PASS: real-driver shake displacement, eight phases, subsequent script execution, exact sprite restoration and memory cleanup',seconds)
     else:
         w,h,pixels=png_rgb(out/'preview-visible.png');assert (w,h)==(640,480)
-        palette=[bytes([0,0,170]),bytes([0,170,0]),bytes([0,170,170]),bytes([170,0,0]),bytes([170,0,170])]
-        rows=[[palette[0]]*4+[bytes([255])*3]*2+[palette[1]]*2,
-              [palette[2]]*2+[palette[3]]*6,[palette[4]]*2+[bytes([255])*3]*6]
-        for y,row in enumerate(rows):
-            for x,color in enumerate(row):
-                at=((346+y*2)*w+312+x*2)*3
-                assert pixels[at:at+3]==color,('preview pixel',x,y,pixels[at:at+3],color)
+        if not a.version:
+            palette=[bytes([0,0,170]),bytes([0,170,0]),bytes([0,170,170]),bytes([170,0,0]),bytes([170,0,170])]
+            rows=[[palette[0]]*4+[bytes([255])*3]*2+[palette[1]]*2,
+                  [palette[2]]*2+[palette[3]]*6,[palette[4]]*2+[bytes([255])*3]*6]
+            for y,row in enumerate(rows):
+                for x,color in enumerate(row):
+                    at=((346+y*2)*w+312+x*2)*3
+                    assert pixels[at:at+3]==color,('preview pixel',x,y,pixels[at:at+3],color)
         font=(root/'objs/wbfont').read_bytes()
-        for col,char in enumerate('A FINE TREASURE.'):
-            for y in range(8):
-                for x in range(8):
-                    expected=bytes(3) if font[ord(char)*8+y]&(128>>x) else bytes([255])*3
-                    at=((128+y*2)*w+32+col*16+x*2)*3
-                    assert pixels[at:at+3]==expected,('description glyph',col,x,y)
+        messages=['Adventure Game Interpreter','Wild Bits NitrOS-9 engine'] if a.version else ['A FINE TREASURE.']
+        for row,message in enumerate(messages):
+            for col,char in enumerate(message):
+                for y in range(8):
+                    for x in range(8):
+                        expected=bytes(3) if font[ord(char)*8+y]&(128>>x) else bytes([255])*3
+                        at=((128+row*16+y*2)*w+32+col*16+x*2)*3
+                        assert pixels[at:at+3]==expected,('dialog glyph',row,col,x,y)
         w,h,pixels=png_rgb(out/'preview-restored.png')
         for y in range(h):
             expected=(bytes([255])*3 if 16<=y<352 else bytes(3))*w
             assert pixels[y*w*3:(y+1)*w*3]==expected,('restored scene row',y)
-        print('PASS: real-driver item pixels, description glyphs, keyboard dismissal, subsequent script execution, exact scene restoration and memory cleanup')
+        print('PASS: real-driver '+('interpreter information' if a.version else 'item pixels and description')+', keyboard dismissal, subsequent script execution, exact scene restoration and memory cleanup')
 
 
 
