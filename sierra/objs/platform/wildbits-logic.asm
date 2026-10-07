@@ -124,7 +124,7 @@ VmInitializeCache   ldu       <resourcebase
                     leax      vmcache,u
                     ldb       <argnumber+1
                     stb       ,x
-                    lbsr      VmStoreAsset
+                    bsr      VmStoreAsset
                     rts
 VmStoreAsset        ldb       <assetowned
                     stb       1,x
@@ -168,7 +168,7 @@ VmLoadResource      sta       <vmrequestedkind
                     lbcs      VmCacheReturn
                     clr       <vmcacheindex
 VmCacheFind         ldb       <vmcacheindex
-                    lbsr      VmSlotAddress
+                    bsr      VmSlotAddress
                     tst       1,x
                     beq       VmCacheFindNext
                     ldb       5,x
@@ -183,7 +183,7 @@ VmCacheFindNext     inc       <vmcacheindex
                     blo       VmCacheFind
                     clr       <vmcacheindex
 VmCacheFreeSlot     ldb       <vmcacheindex
-                    lbsr      VmSlotAddress
+                    bsr      VmSlotAddress
                     tst       1,x
                     beq       VmCacheLoad
                     inc       <vmcacheindex
@@ -413,7 +413,7 @@ VmClearState        sta       ,x+
                     bne       VmClearState
                     ifne      GAME_PRESENTATION
                     lbsr      GameInitialize
-                    lbcs      VmNativeReturn
+                    bcs      VmNativeReturn
                     endc
                     lbsr      ObjectsInitialize
                     lbsr      VmInitializeCache
@@ -452,7 +452,7 @@ VmCompletedRootCycle equ      *
                     lbsr      VmRestoreAsset
                     ldd       10,x
                     std       <vmip
-                    lbra      VmRunRoot
+                    bra      VmRunRoot
                     endc
 VmNativeReturn      pshs      b,cc
                     lbsr      AssetUnmap
@@ -563,7 +563,7 @@ VmPlatformInputTest
                     blo       VmPlatformUnsupported
                     cmpb      #14
                     lbls      InputTest
-                    lbra      VmPlatformUnsupported
+                    bra      VmPlatformUnsupported
 VmCommandLoadLogic  ldu       <resourcebase
                     ldb       vmarguments,u
                     lbsr      VmLoadLogic
@@ -574,7 +574,7 @@ VmCommandLoadLogic  ldu       <resourcebase
                     lbsr      VmRestoreAsset
                     clrb
                     rts
-VmCommandLoadLogicVariable lbsr VmResolveLogicArgument
+VmCommandLoadLogicVariable bsr VmResolveLogicArgument
                     lbsr      VmLoadLogic
                     bcs       VmPlatformReturn
                     ldb       <vmcurrent
@@ -591,7 +591,7 @@ VmResolveLogicArgument ldu    <resourcebase
 VmCommandCallLogic  ldu       <resourcebase
                     ldb       vmarguments,u
                     lbra      VmCallLogic
-VmCommandCallLogicVariable lbsr VmResolveLogicArgument
+VmCommandCallLogicVariable bsr VmResolveLogicArgument
                     lbra      VmCallLogic
 VmCommandScanStart  ldb       <vmcurrent
                     lbsr      VmSlotAddress
@@ -608,7 +608,7 @@ VmCommandScanReset  ldb       <vmcurrent
 VmCommandLoadView   ldu       <resourcebase
                     ldb       vmarguments,u
                     bra       VmLoadViewResource
-VmCommandLoadViewVariable lbsr VmResolveLogicArgument
+VmCommandLoadViewVariable bsr VmResolveLogicArgument
 VmLoadViewResource  lda       #2
                     bra       VmLoadTypedResource
 VmCommandLoadSound  ldu       <resourcebase
@@ -624,7 +624,7 @@ VmPlatformResourceReturn rts
 VmCommandDiscardView ldu      <resourcebase
                     ldb       vmarguments,u
                     bra       VmDiscardViewResource
-VmCommandDiscardViewVariable lbsr VmResolveLogicArgument
+VmCommandDiscardViewVariable bsr VmResolveLogicArgument
 VmDiscardViewResource lda     #2
                     lbra      VmDiscardResource
 VmCommandNewRoom    ldu       <resourcebase
@@ -741,7 +741,7 @@ GameRandomCommand   ldu       <resourcebase
                     cmpa      vmarguments+1,u
                     lbhi      ObjectBadIndex
                     leay      vmarguments,u
-                    lbsr      CmdRandomImpl
+                    bsr      CmdRandomImpl
                     clrb
                     rts
                     ifndef PLATFORM_WILDBITS_LOGIC_BINDINGS
@@ -774,7 +774,7 @@ VmJump              equ       ExecScriptJump
 VmConditionStart    equ       ExecScriptIf
                     use       shared/logic-executor.asm
 VmLogicInvalid      lbsr      VmInvalid
-VmLogicFailure      lbra      ExecLogicScriptRet
+VmLogicFailure      bra      ExecLogicScriptRet
 VmReadArguments     clr       <vmargindex
 VmArgumentLoop      lda       <vmargindex
                     cmpa      <vmargcount

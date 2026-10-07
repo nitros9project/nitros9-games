@@ -50,7 +50,7 @@ InputTest           ldb       <vmopcode
                     rts
 InputControllerTest ldu       <resourcebase
                     ldb       vmarguments,u
-                    lbsr      InputControllerAddress
+                    bsr      InputControllerAddress
                     bita      ,x
                     beq       InputTestFalse
                     ldb       #1
@@ -198,7 +198,7 @@ GameGetCommitString lda      ,x+
                     bne       GameGetCommitString
                     bra       GameGetRestore
 GameGetCommitNumber leax      parserline,u
-                    lbsr      AtoI
+                    bsr      AtoI
                     tfr       a,b
 GameGetNumberStore  leay      vmvariables,u
                     lda       vmarguments+1,u

@@ -1016,3 +1016,20 @@ for the enlarged suite. The real-driver MAME mode test checks every displayed
 pixel on the second terminal, restores the first terminal unchanged, then
 checks independent exit, relaunch and identical free-memory maps. All 56 CoCo
 modules rebuilt byte-identically after the command-table change.
+
+### Native branch encoding reduction
+
+181 nearby branches and calls in the existing Wild Bits backend now use the
+6809 short encodings. They target the same labels and preserve the same register
+and condition-code behavior. Two resource branches remain long because their
+targets are farther away in the diagnostic owner's layout. All production and
+diagnostic owners assemble successfully with range checking. Shared and CoCo
+sources are unchanged. This recovers 290 resident code bytes: `wbgame` uses
+23,484 code bytes and the same 24,460 private bytes, leaving 324 code bytes.
+
+Validation passed all 1,024 dispatch cases, the full exact-pixel game suite,
+resource loading/error/cleanup checks (including 65,535-byte expanded assets),
+and the vocabulary/parser suite. The original Larry MAME test passed its quiz,
+opening the door, entering Lefty's bar, displaying and dismissing its interior
+description, interrupt cleanup and unchanged free memory. No additional
+platform files or private buffers were introduced.

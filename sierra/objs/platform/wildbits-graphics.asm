@@ -55,7 +55,7 @@ decodevalue         rmb       1
 PicFill             lbsr      ReadXyPos
                     bcs       FillCommandRet
                     std       <PosInitX
-                    lbsr      SbuffPicFill
+                    bsr      SbuffPicFill
                     bra       PicFill
 FillCommandRet      rts
 SbuffPicFill        pshs      x
@@ -137,7 +137,7 @@ FillScanRun         pshs      b
                     pshs      b
                     ldb       <fillneighbor
                     stb       <filly
-                    lbsr      FillMatch
+                    bsr      FillMatch
                     pshs      cc
                     ldb       1,s
                     stb       <filly
@@ -150,7 +150,7 @@ FillScanRun         pshs      b
                     inc       <fillrun
                     lda       <fillx
                     ldb       <fillneighbor
-                    lbsr      FillPush
+                    bsr      FillPush
                     bra       FillScanNext
 FillRunEnd          clr       <fillrun
 FillScanNext        lda       <fillx
@@ -240,7 +240,7 @@ PenSolidPosition    lbsr      ReadXyPos
 PenPositionReady    bcs       PenCommandRet
                     std       <ScratchA2
                     pshs      x
-                    lbsr      PlotWithPen2
+                    bsr      PlotWithPen2
                     puls      x
                     bra       PlotWithPen
 PenCommandRet       rts
@@ -344,20 +344,20 @@ GameBackgroundRead  ldd       ,u++
                     leay      -2,y
                     bne       GameBackgroundRead
                     lbsr      PictureUnmap
-                    lbcs      GameBackgroundReturn
+                    bcs      GameBackgroundReturn
                     lbsr      AssetUnmap
-                    lbcs      GameBackgroundReturn
+                    bcs      GameBackgroundReturn
                     ldx       <resourcebase
                     ldd       <pictureoutoffset
                     tst       gamecopydirection,x
                     bne       GameWritePicture
                     lbsr      AssetPointer
                     tst       <asseterror
-                    lbne      GameBackgroundAssetError
+                    bne      GameBackgroundAssetError
                     bra       GameWriteBackground
 GameWritePicture    lbsr      PicturePointer
                     tst       <decodeerror
-                    lbne      GameBackgroundDecodeError
+                    bne      GameBackgroundDecodeError
 GameWriteBackground leax      resourcecommands,x
                     ldy       <picturechunk
 GameBackgroundWrite ldd       ,x++
@@ -427,7 +427,7 @@ GamePictureArgument ldu       <resourcebase
                     lda       #1
                     lbsr      VmLoadResource
                     rts
-GameLoadPicture     lbsr      GamePictureArgument
+GameLoadPicture     bsr      GamePictureArgument
                     bcs       GamePictureReturn
                     ldb       <vmcurrent
                     lbsr      VmSlotAddress
@@ -441,7 +441,7 @@ GameDiscardPicture  ldu       <resourcebase
                     ldb       d,x
                     lda       #1
                     lbra      VmDiscardResource
-GameDrawPicture     lbsr      GamePictureArgument
+GameDrawPicture     bsr      GamePictureArgument
                     bcs       GamePictureReturn
                     lbsr      VmRestoreAsset
                     ldd       <resourcelength
@@ -459,7 +459,7 @@ GameDrawPicture     lbsr      GamePictureArgument
                     lbsr      VmSlotAddress
                     lbsr      VmRestoreAsset
                     lbsr      PictureUnmap
-                    lbcs      GamePictureReturn
+                    bcs      GamePictureReturn
                     lbsr      GameTextClearPicture
                     lbsr      GameDamageAll
                     ldx       <resourcebase
@@ -579,11 +579,11 @@ AddPicClearRecord   clr       ,x+
                     lda       #8                ignore horizon for static decoration
                     sta       $26,x
                     lbsr      ViewSelect
-                    lbcs      AddPicReturn
+                    bcs      AddPicReturn
                     leau      7,s
                     lda       5,s
                     cmpa      #15
-                    lbhi      AddPicInvalid
+                    bhi      AddPicInvalid
                     sta       $24,u
                     bne       AddPicPriorityReady
                     lbsr      SpriteCalculatePriority
@@ -591,18 +591,18 @@ AddPicPriorityReady ldx      <resourcebase
                     tst       gamebackgroundowned,x
                     beq       AddPicRender
                     lbsr      GameRestoreBackground
-                    lbcs      AddPicReturn
+                    bcs      AddPicReturn
 AddPicRender        leau      7,s
                     lbsr      SpriteRenderObject
-                    lbcs      AddPicReturn
+                    bcs      AddPicReturn
                     lda       6,s
                     cmpa      #3
                     bhi       AddPicSaveBackground
                     leau      7,s
-                    lbsr      AddPicControlBox
-                    lbcs      AddPicReturn
+                    bsr      AddPicControlBox
+                    bcs      AddPicReturn
 AddPicSaveBackground lbsr    GameSaveBackground
-                    lbcs      AddPicReturn
+                    bcs      AddPicReturn
                     lbsr      GameComposeScene
 AddPicReturn        leas      50,s
                     rts
@@ -736,12 +736,12 @@ SpriteCollectNext   inc       spriteid,x
                     tst       gamebackgroundowned,x
                     bne       SpriteRestoreBackground
                     tst       spritecount,x
-                    lbeq      SpriteSceneDone
+                    beq      SpriteSceneDone
                     lbsr      GameSaveBackground
-                    lbcs      SpriteReturn
+                    bcs      SpriteReturn
                     bra       SpriteBackgroundReady
 SpriteRestoreBackground lbsr GameRestoreBackground
-                    lbcs      SpriteReturn
+                    bcs      SpriteReturn
 SpriteBackgroundReady ldx    <resourcebase
                     clr       spriteorder,x
 SpriteDrawNext      ldb       spriteorder,x
@@ -753,8 +753,8 @@ SpriteDrawNext      ldb       spriteorder,x
                     leay      spritelist,x
                     leay      d,y
                     ldu       2,y
-                    lbsr      SpriteRenderObject
-                    lbcs      SpriteReturn
+                    bsr      SpriteRenderObject
+                    bcs      SpriteReturn
                     ldx       <resourcebase
                     inc       spriteorder,x
                     bra       SpriteDrawNext
@@ -1086,7 +1086,7 @@ GameObjectVisibility lbsr    ObjectAddress
                     cmpb      #36
                     beq       GameHideObject
                     ldd       $10,x
-                    lbeq      SpriteInvalid
+                    beq      SpriteInvalid
                     lda       $26,x
                     ora       #$11
                     bra       GameVisibilityStore
@@ -1145,17 +1145,17 @@ PictureAllocate     ldu       <resourcebase
                     lda       #0
                     ldb       #SS.Opt
                     os9       I$GetStt
-                    lbcs      PictureError
+                    bcs      PictureError
                     ldu       <resourcebase
                     tst       picturestage,u       SCF device type is zero
                     beq       PictureAllocateSCF
                     ldb       #E$BMode
-                    lbra      PictureError
+                    bra      PictureError
 PictureAllocateSCF  lda       #0
                     ldb       #$D4
                     ldx       #4
                     os9       I$SetStt
-                    lbcs      PictureError
+                    bcs      PictureError
                     stx       <picturefirst
                     inc       <pictureowned
                     clrb
@@ -1168,11 +1168,11 @@ PictureUnmap        tst       <picturemapped
                     ldu       <picturemapbase
                     ldb       #1
                     os9       F$ClrBlk
-                    lbcs      PictureError
+                    bcs      PictureError
                     clr       <picturemapped
 PictureUnmapped     clrb
                     rts
-PictureRelease      lbsr      PictureUnmap
+PictureRelease      bsr      PictureUnmap
                     bcs       PictureReleaseRet
                     tst       <pictureowned
                     beq       PictureUnmapped
@@ -1181,7 +1181,7 @@ PictureRelease      lbsr      PictureUnmap
                     ldx       <picturefirst
                     ldu       #4
                     os9       I$SetStt
-                    lbcs      PictureError
+                    bcs      PictureError
                     clr       <pictureowned
                     clrb
 PictureReleaseRet   rts
@@ -1200,7 +1200,7 @@ PicturePointer      pshs      d
                     beq       PictureAddress
 PictureMap          pshs      x,y
                     pshs      a
-                    lbsr      PictureUnmap
+                    bsr      PictureUnmap
                     puls      a
                     bcs       PictureMapDone
                     sta       <picturepage
@@ -1230,7 +1230,7 @@ PictureMapError     lbsr      PictureError
 PictureClear        pshs      x
                     ldy       #0
 PictureClearPage    tfr       y,d
-                    lbsr      PicturePointer
+                    bsr      PicturePointer
                     tst       <decodeerror
                     bne       PictureClearDone
                     ldx       #4096
@@ -1574,7 +1574,7 @@ waitforeground      tst       <aborted
                     beq       foregroundready
                     tst       <mapped
                     beq       foregroundunmapped
-                    lbsr      unmap
+                    bsr      unmap
                     bcs       foregrounderror
 foregroundunmapped  equ       *
                     ifne      GAME_PRESENTATION
@@ -1748,7 +1748,7 @@ clearbyte           sta       ,u+
                     ifne      GAME_PRESENTATION
 PresentReuseBitmap  lda       <presentationconfigured
                     bita      #$40
-                    lbne      PresentClearBitmap
+                    bne      PresentClearBitmap
                     clr       <presentoffset
                     clr       <presentoffset+1
                     clr       <presentband
@@ -1968,7 +1968,7 @@ copyspan            equ       *
                     lslb
                     rola
                     std       <remaining
-                    lbra      writespan
+                    bra      writespan
 PresentBandWritten  lbsr      unmap
                     lbcs      PresentFailure
                     else
@@ -1985,7 +1985,7 @@ PresentFinishBands  equ       *
                     ifne      GAME_PRESENTATION
                     lda       <presentationconfigured
                     bita      #1
-                    lbne      PresentDrawTextOnly
+                    bne      PresentDrawTextOnly
                     endc
                     leax      palette,pcr
                     ldy       #0
@@ -1999,7 +1999,7 @@ PresentFinishBands  equ       *
                     lbsr      GameTraceStage
                     puls      cc,a
                     endc
-                    lbcs      PresentFailure
+                    bcs      PresentFailure
                     lda       #1
                     ldb       #SS.Palet
                     ldx       #0
@@ -2011,7 +2011,7 @@ PresentFinishBands  equ       *
                     lbsr      GameTraceStage
                     puls      cc,a
                     endc
-                    lbcs      PresentFailure
+                    bcs      PresentFailure
                     lda       #1
                     ldb       #SS.PScrn
                     ldx       #0
@@ -2023,7 +2023,7 @@ PresentFinishBands  equ       *
                     lbsr      GameTraceStage
                     puls      cc,a
                     endc
-                    lbcs      PresentFailure
+                    bcs      PresentFailure
                     lda       #1
                     ldb       #SS.DScrn
                     ldx       #FX_BM+FX_GRF
@@ -2035,7 +2035,7 @@ PresentFinishBands  equ       *
                     lbsr      GameTraceStage
                     puls      cc,a
                     endc
-                    lbcs      PresentFailure
+                    bcs      PresentFailure
                     ifne      GAME_PRESENTATION
                     lda       #$81
                     sta       <presentationconfigured
@@ -2047,7 +2047,7 @@ PresentDrawTextOnly equ       *
                     lbsr      GameTraceStage
                     puls      cc,a
                     endc
-                    lbcs      PresentFailure
+                    bcs      PresentFailure
                     clr       <gamepresentdirty
                     clr       <gamepresentdirty+1
                     clr       <gamepresentdirty+2
@@ -2142,9 +2142,9 @@ PresentReleaseError tst       <errorcode
 * Modal overlays can cover pixels outside the game picture. Clear the whole
 * owned bitmap before restoring the picture and persistent text cells.
 RefreshPicture      lbsr      AssetUnmap
-                    lbcs      PresentFailure
+                    bcs      PresentFailure
                     lbsr      PictureUnmap
-                    lbcs      PresentFailure
+                    bcs      PresentFailure
                     tst       <bitmapowned
                     lbeq      PresentPicture
                     lbra      PresentClearBitmap
@@ -2431,7 +2431,7 @@ PLATFORM_SECTION    set PLATFORM_WILDBITS_PRESENT_DAMAGE
 * Picture storage uses one OS-managed window; PictureWrite exports its bytes.
 DecodeLines         stu       <resourcebase
                     tst       <decodeerror
-                    lbne      DecodeFailed
+                    bne      DecodeFailed
                     tfr       y,d
                     leay      d,x
                     sty       <decodeend
@@ -2441,13 +2441,13 @@ DecodeLines         stu       <resourcebase
                     lbsr      PictureClear
 DecodeInitFailed    puls      x
                     tst       <decodeerror
-                    lbne      DecodeFailed
+                    bne      DecodeFailed
                     lda       #$FF
                     sta       <DrawColor
                     clr       <DrawMask
                     clr       <PenStatus
                     clr       <ScratchA6
-                    lbsr      ReadNext
+                    bsr      ReadNext
 DecodeCommand       tst       <decodeerror
                     bne       DecodeFailed
                     cmpa      #$FF

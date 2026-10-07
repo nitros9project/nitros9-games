@@ -10,7 +10,7 @@
 GamePauseCommand    ldu       <resourcebase
                     clr       dialoginputmode,u
                     leax      GamePausePrompt,pcr
-                    lbsr      GamePrintText
+                    bsr      GamePrintText
                     bcs       GamePauseReturn
                     ldu       <resourcebase
                     lda       #1
@@ -104,14 +104,14 @@ GamePrintKey        lda       #0
                     leax      parsercharacter,u
                     ldy       #1
                     os9       I$Read
-                    lbcs      GamePrintRestore
+                    bcs      GamePrintRestore
                     ldu       <resourcebase
                     tst       dialoginputmode,u
                     beq       GamePrintRestore
                     lbsr      GameLineKey
-                    lbcs      GamePrintRestore
+                    bcs      GamePrintRestore
                     tsta
-                    lbeq      GamePrintWait
+                    beq      GamePrintWait
                     clrb
 GamePrintRestore    pshs      cc,b
                     ldu       <resourcebase
@@ -394,7 +394,7 @@ GameTextPresent     lbsr      AssetUnmap
                     bne       GameDrawText
                     tst       <pictureowned
                     bne       GameTextShowPicture
-                    lbsr      GameCreateScreen
+                    bsr      GameCreateScreen
                     bcs       GameTextReturn
 GameTextShowPicture lbra      PresentPicture
 GameTextNeedsFormatter ldb    #E$UnkSvc
@@ -716,13 +716,13 @@ InventoryFilename   fcc       /object/
                     endc
                     use       shared/inventory-commands.asm
 InventoryCommand    lbsr      InventoryLoad
-                    lbcs      InventoryReturn
+                    bcs      InventoryReturn
                     ldu       <resourcebase
                     leay      vmarguments,u
                     ldb       <vmopcode
                     subb      #92
                     cmpb      #5
-                    lbhi      InventoryInvalid
+                    bhi      InventoryInvalid
                     lslb
                     leax      InventoryCommands,pcr
                     ldd       b,x
@@ -890,7 +890,7 @@ InventoryWait       lbsr      foreground
                     lbne      InventoryRestoreError
                     ldx       #2
                     os9       F$Sleep
-                    lbra      InventoryWait
+                    bra      InventoryWait
 InventoryReadKey    ldu       <resourcebase
                     leax      inventorykey,u
                     ldy       #1
@@ -899,7 +899,7 @@ InventoryReadKey    ldu       <resourcebase
                     lbcs      InventoryRestoreError
                     ldu       <resourcebase
                     cmpy      #1
-                    lbne      InventoryWait
+                    bne      InventoryWait
                     tst       vmflags+13,u
                     lbeq      InventoryDismiss
                     ldd       inventoryselected,u
@@ -943,17 +943,17 @@ InventoryPageChange lbra      InventoryRedraw
 InventoryDrawAgain  lda       #$0F
                     sta       inventorypaint,u
                     ldd       inventoryprevious,u
-                    lbsr      InventoryPaintRow
-                    lbcs      InventoryRestoreError
+                    bsr      InventoryPaintRow
+                    bcs      InventoryRestoreError
                     ldu       <resourcebase
                     lda       #$F0
                     sta       inventorypaint,u
                     ldd       inventoryselected,u
-                    lbsr      InventoryPaintRow
-                    lbcs      InventoryRestoreError
+                    bsr      InventoryPaintRow
+                    bcs      InventoryRestoreError
                     lbra      InventoryWait
 InventoryChoose     ldd       inventoryvisible,u
-                    lbeq      InventoryCancel
+                    beq      InventoryCancel
                     ldd       inventoryselected,u
                     leax      inventorylist,u
                     lda       d,x
@@ -1109,7 +1109,7 @@ MenuFull            ldb       #E$MemFul
 MenuSetTitle        ldb       <menucount
                     cmpb      #8
                     bhs       MenuFull
-                    lbsr      MenuCopyLabel
+                    bsr      MenuCopyLabel
                     bcs       MenuReturn
                     ldu       <resourcebase
                     leax      menutitles,u
@@ -1329,7 +1329,7 @@ GameMenuReadKey     ldu       <resourcebase
                     ldy       #1
                     clra
                     os9       I$Read
-                    lbcs      GameMenuRestore
+                    bcs      GameMenuRestore
                     ldu       <resourcebase
                     lda       parsercharacter,u
                     cmpa      #5
@@ -1481,9 +1481,9 @@ MessageKeyReady     stb       <messagekey
                     clr       <messagelength+1
 MessageCopyNext     ldd       <messageposition
                     cmpd      <messageend
-                    lbhs      MessageInvalid
+                    bhs      MessageInvalid
                     lbsr      AssetReadByte
-                    lbcs      MessageReturn
+                    bcs      MessageReturn
                     pshs      b
                     ldd       <messageposition
                     addd      #1
@@ -1871,7 +1871,7 @@ GameFormatMessage   ldu       <resourcebase
                     leay      fillstack+2048,u
                     sty       parserreadindex,u
                     clr       ,y
-                    lbsr      FormatPart
+                    bsr      FormatPart
                     lbcs      FormatReturn
                     leax      fillstack+2048,u
                     clrb
@@ -1892,19 +1892,19 @@ FormatNext          equ *
 FormatDirective     lda       ,x+
                     cmpa      #'%
                     bne       FormatNumberStart
-                    lbsr      FormatPut
-                    lbcs      FormatPartError
+                    bsr      FormatPut
+                    bcs      FormatPartError
                     bra       FormatNext
 FormatNumberStart   sta       parsercharacter,u
                     clr       parserwordlength,u
                     clr       parserbestlength,u
 FormatNumber        lbsr      ParseDecStr
-                    lbcs      FormatPartError
+                    bcs      FormatPartError
 FormatDispatch      lda       ,x
                     cmpa      #'|
                     beq       FormatUnsupported
                     tst       parserbestlength,u
-                    lbeq      FormatPartInvalid
+                    beq      FormatPartInvalid
                     lda       parsercharacter,u
                     ldb       parserwordlength,u
                     FORMAT_EMIT_DIRECTIVES
@@ -1939,16 +1939,16 @@ FormatFull          puls      d,y
                     orcc      #1
                     rts
 FormatWord          tstb
-                    lbeq      FormatPartInvalid
+                    beq      FormatPartInvalid
                     cmpb      #20
-                    lbhi      FormatPartInvalid
+                    bhi      FormatPartInvalid
                     lda       parsercount,u
                     tst       vmvariables+9,u
                     beq       FormatWordBound
                     inca
 FormatWordBound     pshs      a
                     cmpb      ,s+
-                    lbhi      FormatPartInvalid
+                    bhi      FormatPartInvalid
                     decb
                     leay      parseroffsets,u
                     leay      b,y
@@ -1959,7 +1959,7 @@ FormatWordBound     pshs      a
 FormatWordCopy      tstb
                     lbeq      FormatNext
                     lda       ,y+
-                    lbsr      FormatPut
+                    bsr      FormatPut
                     lbcs      FormatPartError
                     decb
                     bra       FormatWordCopy
@@ -1979,7 +1979,7 @@ FormatVariable      leay      vmvariables,u
                     pshs      u,x
                     leas      -4,s
                     leax      3,s
-                    lbsr      UIntToDecStr
+                    bsr      UIntToDecStr
                     tfr       x,y
                     ldx       4,s
                     ldu       6,s
@@ -2053,14 +2053,14 @@ ParserCommand       ldu       <resourcebase
                     clr       parserlength,u
 ParserCopy          lda       ,x+
                     beq       ParserCopyDone
-                    lbsr      ParserLower
+                    bsr      ParserLower
                     sta       ,y+
                     inc       parserlength,u
                     ldb       parserlength,u
                     cmpb      #39
                     blo       ParserCopy
 ParserCopyDone      clr       ,y
-                    lbra      ParserParse
+                    bra      ParserParse
 ParserLower         equ       LowercaseByte
 ParserLowerDone     equ       LowercaseReturn
                     use       shared/ascii-lower.asm
@@ -2123,7 +2123,7 @@ ParserNextInput     ldu       <resourcebase
                     inc       parserposition,u
                     bra       ParserNextInput
 ParserSearch        tst       parserseen,u
-                    lbne      ParserSelectGroup
+                    bne      ParserSelectGroup
                     leax      dictionarygroups,u
                     ldy       #256
                     ldd       #$FFFF
@@ -2175,7 +2175,7 @@ ParserLookupLength  ldu       <resourcebase
                     puls      d
                     std       parserbestid,u
                     leas      2,s
-                    lbra      ParserSearchDone
+                    bra      ParserSearchDone
 ParserSearchDone    lda       parserbestlength,u
                     beq       ParserUnknown
                     adda      parserposition,u
@@ -2201,7 +2201,7 @@ ParserSearchDone    lda       parserbestlength,u
                     lbra      ParserNextInput
 ParserUnknown       ldb       parsercount,u
                     cmpb      #20
-                    lbhs      ParserMalformed
+                    bhs      ParserMalformed
                     leay      parseroffsets,u
                     leay      b,y
                     lda       parserposition,u
@@ -2242,24 +2242,24 @@ DictionaryValidateEntry ldd dictionarycachebase,u
                     lbne      ResourceFailed
                     lbra      DictionaryValidateDone
 ParserPrefix        cmpb      parserwordlength,u
-                    lbhi      ParserMalformed
+                    bhi      ParserMalformed
                     stb       parserwordlength,u
 ParserSuffix        lbsr      ParserByte
                     bcc       ParserSuffixByte
                     cmpb      #E$EOF
                     lbne      ResourceFailed
                     tst       parserwordlength,u
-                    lbeq      DictionaryValidateDone
-                    lbra      ParserMalformed
+                    beq      DictionaryValidateDone
+                    bra      ParserMalformed
 ParserSuffixByte
                     stb       parsercharacter,u
                     andb      #$7F
                     eorb      #$7F
                     cmpb      #32
-                    lblo      ParserMalformed
+                    blo      ParserMalformed
                     lda       parserwordlength,u
                     cmpa      #39
-                    lbhs      ParserMalformed
+                    bhs      ParserMalformed
                     leax      parserword,u
                     stb       a,x
                     inc       parserwordlength,u
@@ -2475,7 +2475,7 @@ ParserInputChanged  lda       <presentationconfigured
 * In-place adapter to the same sentence tokenizer assembled by CoCo.
 ParserNormalize     ldu       <resourcebase
                     leau      parserline,u
-                    lbsr      TokenizeString
+                    bsr      TokenizeString
                     ldu       <resourcebase
                     rts
                     use       shared/tokenize-string.asm
@@ -2524,10 +2524,10 @@ StringInvalid       ldb       #E$IllArg
 StringCompareTest   ldu       <resourcebase
                     ldd       vmarguments,u
                     cmpa      #12
-                    lbhs      StringInvalid
+                    bhs      StringInvalid
                     cmpb      #12
-                    lbhs      StringInvalid
-                    lbsr      MatchWord
+                    bhs      StringInvalid
+                    bsr      MatchWord
                     ldu       <resourcebase
                     tfr       a,b
                     andcc     #$FE

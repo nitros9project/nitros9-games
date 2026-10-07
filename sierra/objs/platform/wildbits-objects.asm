@@ -29,11 +29,11 @@ GameCheckBlock      OBJECT_BLOCK_CLEAR u
                     tst       gameblockenabled,x
                     beq       GameBlockAllowed
                     ldd       motionoldposition,x
-                    lbsr      InBlockRect
+                    bsr      InBlockRect
                     sta       motioncollision,x
                     lda       motionx+1,x
                     ldb       motiony+1,x
-                    lbsr      InBlockRect
+                    bsr      InBlockRect
                     cmpa      motioncollision,x
                     beq       GameBlockAllowed
 GameBlockCrossing   OBJECT_BLOCK_STOP u,GameBlockStopped
@@ -106,18 +106,18 @@ GameResetControllers clr     ,x+
                     leay      -1,y
                     bne       GameResetControllers
                     lbsr      GameClockGate
-                    lbcs      GameCycleReturn
+                    bcs      GameCycleReturn
                     lbsr      foreground
-                    lbcs      GameCycleReturn
-                    lbsr      GameReadClock
-                    lbcs      GameCycleReturn
+                    bcs      GameCycleReturn
+                    bsr      GameReadClock
+                    bcs      GameCycleReturn
                     lbsr      GameUpdateObjects
-                    lbcs      GameCycleReturn
+                    bcs      GameCycleReturn
                     ldu       <resourcebase
                     lda       #40
                     sta       gamekeybudget,u
 GameDrainKeyboard   lbsr      GamePollKeyboard
-                    lbcs      GameCycleReturn
+                    bcs      GameCycleReturn
                     ldu       <resourcebase
                     tst       gamekeypending,u
                     beq       GameKeyboardDone
@@ -132,7 +132,7 @@ GameKeyboardDone    tst       <bitmapowned
                     bne       GameCycleGraphics
                     lbra      GameDrawText
 GameCycleGraphics   lbsr      GameComposeScene
-                    lbcs      GameCycleReturn
+                    bcs      GameCycleReturn
                     lbsr      PresentPicture
 GameCycleReturn     rts
 GameCycleSuccess    clrb
@@ -143,7 +143,7 @@ GameCycleSuccess    clrb
 GameReadClock       ldu       <resourcebase
                     leax      gametime,u
 GameClockTimeCall   os9       F$Time
-                    lbcs      GameCycleReturn
+                    bcs      GameCycleReturn
                     ldu       <resourcebase
                     ldb       gametime+5,u
                     cmpb      #60
@@ -217,7 +217,7 @@ GameReadKey         ldu       <resourcebase
                     clr       gamekeyscan,u
                     lda       #1
                     sta       <vmhavekey
-                    lbsr      GameDirectionalKey
+                    bsr      GameDirectionalKey
                     ldu       <resourcebase
                     ldb       <vmkeybyte
                     stb       vmvariables+19,u
@@ -530,11 +530,11 @@ MotionTargetYStore  ldd       ,s
 MotionTargetYReady  leas      2,s
 MotionCheckTerrain  lbsr      GameCheckBlock
                     tstb
-                    lbne      MotionBlocked
+                    bne      MotionBlocked
                     lbsr      MotionTerrain
                     lbcs      MotionReturn
                     tstb
-                    lbne      MotionBlocked
+                    bne      MotionBlocked
 MotionAccept        equ PositionAccepted
 MotionOtherEdge     equ PositionOtherBoundary
                     MOTION_EMIT_COMMIT
@@ -578,7 +578,7 @@ MotionYDelta        equ StepYDelta
 * Each baseline pixel participates in control/water checks. Sprite colors
 * are restored out of the composition buffer before this function is called.
 MotionTerrain       tst       <pictureowned
-                    lbeq      MotionInvalid
+                    beq      MotionInvalid
                     lda       #1
                     sta       motionwater,x
                     clr       motiontrigger,x
@@ -1008,7 +1008,7 @@ ObjectBadIndex      ldb       #E$IllArg
 ObjectCommand       ldb       <vmopcode
                     cmpb      #34
                     beq       ObjectsUnanimate
-                    lbsr      ObjectAddress
+                    bsr      ObjectAddress
                     bcs       ObjectReturn
                     ldb       <vmopcode
                     cmpb      #33
@@ -1077,7 +1077,7 @@ ObjectArgumentValue leay      vmvariables,u
                     rts
 ObjectPriority      ldb       vmarguments+1,u
                     bra       ObjectSetPriority
-ObjectPriorityVariable lbsr   ObjectArgumentValue
+ObjectPriorityVariable bsr   ObjectArgumentValue
 ObjectSetPriority   OBJECT_SET_PRIORITY x,0
                     lbra      ObjectDone
 ObjectReleasePriority lbra    cmd_release_priority
@@ -1127,17 +1127,17 @@ ObjectCycleCommand  lbsr      ObjectAddress
                     lbcs      ObjectReturn
                     ldb       <vmopcode
                     cmpb      #70
-                    lbeq      ObjectStopCycle
+                    beq      ObjectStopCycle
                     cmpb      #71
-                    lbeq      ObjectStartCycle
+                    beq      ObjectStartCycle
                     cmpb      #72
-                    lbeq      ObjectNormalCycle
+                    beq      ObjectNormalCycle
                     cmpb      #74
-                    lbeq      ObjectReverseCycle
+                    beq      ObjectReverseCycle
                     cmpb      #73
-                    lbeq      ObjectEndCycle
+                    beq      ObjectEndCycle
                     cmpb      #75
-                    lbeq      ObjectReverseEnd
+                    beq      ObjectReverseEnd
                     cmpb      #76
                     lbeq      ObjectCycleTime
                     cmpb      #79
@@ -1216,7 +1216,7 @@ ObjectDistanceCommand lbsr    ObjectAddress
                     leau      vmobjects,u
                     leau      d,u
                     puls      x
-                    lbra      ObjectDistance
+                    bra      ObjectDistance
 ObjectDistanceBad   leas      2,s
                     lbra      ObjectBadIndex
 ObjectDistanceScratch equ     vmtemp
@@ -1252,7 +1252,7 @@ ObjectPositionEdge  adda      3,x
 ObjectPositionPoint sta       <vmtemp
 ObjectPositionRight sta       <vmright
 ObjectPositionBounds leay    vmarguments+1,u
-                    lbsr      TestPosnX
+                    bsr      TestPosnX
                     tfr       a,b
                     andcc     #$FE
                     rts

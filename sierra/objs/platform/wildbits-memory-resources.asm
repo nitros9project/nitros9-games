@@ -40,19 +40,19 @@ AssetPlain          lbsr      LzwReadByte
 * Picture bytes are high-nibble first; F0/F2 take one color nibble.
 * Reuse LZW scratch: the two codecs never execute concurrently.
 AssetPackedPicture  clr       <lzwbits
-AssetPackedCommand  lbsr      AssetReadNibble
+AssetPackedCommand  bsr      AssetReadNibble
                     lbcs      AssetLoadError
                     lslb
                     lslb
                     lslb
                     lslb
                     pshs      b
-                    lbsr      AssetReadNibble
+                    bsr      AssetReadNibble
                     bcs       AssetPackedPopError
                     orb       ,s+
                     stb       <lzwfirst
                     lbsr      LzwWriteByte
-                    lbcs      AssetLoadError
+                    bcs      AssetLoadError
                     ldb       <lzwfirst
                     cmpb      #$FF
                     beq       AssetPackedEnd
@@ -60,13 +60,13 @@ AssetPackedCommand  lbsr      AssetReadNibble
                     beq       AssetPackedColor
                     cmpb      #$F2
                     bne       AssetPackedCommand
-AssetPackedColor    lbsr      AssetReadNibble
-                    lbcs      AssetLoadError
+AssetPackedColor    bsr      AssetReadNibble
+                    bcs      AssetLoadError
                     lbsr      LzwWriteByte
-                    lbcs      AssetLoadError
+                    bcs      AssetLoadError
                     bra       AssetPackedCommand
 AssetPackedPopError leas      1,s
-                    lbra      AssetLoadError
+                    bra      AssetLoadError
 AssetPackedEnd      ldd       <assetoutoffset
                     cmpd      <resourcelength
                     bne       AssetPackedInvalid
@@ -77,12 +77,12 @@ AssetPackedEnd      ldd       <assetoutoffset
                     ldd       <assetinputleft
                     bne       AssetPackedInvalid
                     andcc     #$FE
-                    lbra      AssetDecoded
+                    bra      AssetDecoded
 AssetPackedInvalid  ldb       #E$BMode
-                    lbra      AssetLoadError
+                    bra      AssetLoadError
 AssetReadNibble     tst       <lzwbits
                     bne       AssetReadLowNibble
-                    lbsr      LzwReadByte
+                    bsr      LzwReadByte
                     bcs       AssetNibbleReturn
                     stb       <lzwbyte
                     inc       <lzwbits
@@ -97,11 +97,11 @@ AssetReadLowNibble  clr       <lzwbits
                     andb      #$0F
                     andcc     #$FE
                     rts
-AssetDecoded        lbcs      AssetLoadError
+AssetDecoded        bcs      AssetLoadError
                     lbsr      AssetUnmap
-                    lbcs      AssetLoadError
+                    bcs      AssetLoadError
                     lbsr      ResourceClose
-                    lbcs      AssetLoadError
+                    bcs      AssetLoadError
                     ldu       <resourcebase
                     ldx       <assetfirst
                     ldy       <resourcelength
@@ -121,14 +121,14 @@ AssetLoadClosed     ldu       <resourcebase
 * are consumed correctly. Neither padding nor unbounded reads are accepted.
 LzwReadByte         pshs      x,y,u
                     tst       <asseterror
-                    lbne      AssetReadFailure
+                    bne      AssetReadFailure
                     ldx       <assetinputpointer
                     cmpx      <assetinputend
                     blo       AssetReadBuffered
                     lbsr      AssetUnmap
-                    lbcs      AssetReadFailure
+                    bcs      AssetReadFailure
                     ldd       <assetinputleft
-                    lbeq      AssetReadEOF
+                    beq      AssetReadEOF
                     cmpd      #512
                     bls       AssetReadSize
                     ldd       #512
@@ -137,13 +137,13 @@ AssetReadSize       tfr       d,y
                     leax      assetinput,u
                     lda       <resourcepath
                     os9       I$Read
-                    lbcs      AssetReadService
+                    bcs      AssetReadService
                     cmpy      #0
-                    lbeq      AssetReadInvalid
+                    beq      AssetReadInvalid
                     cmpy      #512
-                    lbhi      AssetReadInvalid
+                    bhi      AssetReadInvalid
                     cmpy      <assetinputleft
-                    lbhi      AssetReadInvalid
+                    bhi      AssetReadInvalid
                     tfr       y,d
                     pshs      d
                     ldd       <assetinputleft
@@ -186,7 +186,7 @@ AssetAllocate       ldu       <resourcebase
                     lda       #0
                     ldb       #SS.Opt
                     os9       I$GetStt
-                    lbcs      AssetSetError
+                    bcs      AssetSetError
                     ldu       <resourcebase
                     tst       assetinput,u
                     bne       AssetBadMode
@@ -223,7 +223,7 @@ AssetUnmap          tst       <assetmapped
                     clr       <assetmapped
 AssetUnmapped       clrb
                     rts
-AssetRelease        lbsr      AssetUnmap
+AssetRelease        bsr      AssetUnmap
                     bcs       AssetReleaseDone
                     tst       <assetowned
                     beq       AssetUnmapped
@@ -250,7 +250,7 @@ AssetPointer        pshs      d
                     beq       AssetAddress
 AssetMap            pshs      x,y
                     pshs      a
-                    lbsr      AssetUnmap
+                    bsr      AssetUnmap
                     puls      a
                     bcs       AssetMapDone
                     sta       <assetpage
@@ -289,12 +289,12 @@ AssetSignalDone     rti
 * retained. Word result is little endian; byte result is B.
 AssetReadWord         pshs      x
                     tfr       d,x
-                    lbsr      AssetReadByte
+                    bsr      AssetReadByte
                     bcs       AssetReadWordFailed
                     pshs      b
                     leax      1,x
                     tfr       x,d
-                    lbsr      AssetReadByte
+                    bsr      AssetReadByte
                     bcs       AssetReadWordLowFailed
                     tfr       b,a
                     puls      b,x
@@ -454,7 +454,7 @@ LzwString           clr       <lzwtop
                     RESOURCE_LZW_WALK LzwWalk,LzwLiteral,x
 LzwLiteral          stb       <lzwfirst
                     lbsr      LzwPush
-                    lbcs      LzwReturn
+                    bcs      LzwReturn
 LzwPop              ldd       <lzwtop
                     subd      #1
                     std       <lzwtop
@@ -462,7 +462,7 @@ LzwPop              ldd       <lzwtop
                     leax      6144,x
                     ldb       d,x
                     lbsr      LzwEmit
-                    lbcs      LzwReturn
+                    bcs      LzwReturn
                     ldd       <lzwtop
                     bne       LzwPop
                     ldd       <lzwnext
@@ -737,9 +737,9 @@ NumberEnd           cmpa      #C$CR
 LoadResource        equ       *
                     ifne      GAME_PRESENTATION
                     lbsr      GameFontLoad
-                    lbcs      Exit
+                    bcs      Exit
                     lbsr      GameTerminalEnter
-                    lbcs      Exit
+                    bcs      Exit
                     endc
                     ldx       <argdirectory
                     ldy       <argnumber
@@ -752,7 +752,7 @@ LoadResource        equ       *
                     bcs       Exit
                     ifne      GAME_PRESENTATION
                     clrb
-                    lbra      Exit
+                    bra      Exit
                     else
                     ldu       <resourcebase
                     leax      vmvariables,u
@@ -764,7 +764,7 @@ LoadResource        equ       *
                     else
                     lbsr      AssetWrite
                     endc
-                    lbra      Exit
+                    bra      Exit
                     else
                     lbsr      LoadPicture
                     bcs       Exit
@@ -777,7 +777,7 @@ LoadResource        equ       *
                     else
                     lbsr      PictureWrite
                     endc
-                    lbra      Exit
+                    bra      Exit
                     endc
                     ifeq      GAME_PRESENTATION
                     stx       <resourcepointer
@@ -1004,40 +1004,40 @@ ResourceVolumeDigit adda      #'0
                     ldu       <resourceoffset+2
                     lda       <resourcepath
                     os9       I$Seek
-                    lbcs      ResourceFailed
+                    bcs      ResourceFailed
                     ldu       <resourcebase
                     leax      resourceheader,u
                     ldy       #7
                     lbsr      ResourceReadExact
-                    lbcs      ResourceFailed
+                    bcs      ResourceFailed
                     ldu       <resourcebase
                     leax      resourceheader,u
                     ldd       ,x
                     cmpd      #$1234
-                    lbne      ResourceInvalid
+                    bne      ResourceInvalid
                     lda       2,x
                     bita      #$80
                     ifne      AGI_ASSET
                     beq       ResourceHeaderFlagsOK
                     ldb       <resourcekind
                     cmpb      #1                packed encoding applies only to pictures
-                    lbne      ResourceInvalid
+                    bne      ResourceInvalid
 ResourceHeaderFlagsOK equ     *
                     else
                     lbne      ResourceInvalid   plain-resource probe only
                     endc
                     anda      #$0F
                     cmpa      <resourcevolume
-                    lbne      ResourceInvalid
+                    bne      ResourceInvalid
                     ldb       3,x               decoded size is little endian
                     lda       4,x
                     std       <resourcelength
-                    lbeq      ResourceInvalid
+                    beq      ResourceInvalid
                     ifne      AGI_ASSET
                     ldb       5,x
                     lda       6,x
                     std       <resourcestored
-                    lbeq      ResourceInvalid
+                    beq      ResourceInvalid
                     ldu       <resourcebase
                     clrb
                     rts
@@ -1073,7 +1073,7 @@ ResourceInvalid     ldb       #E$BMode
 ResourceFailed      stb       <resourceerror
                     tst       <resourceopen
                     beq       ResourceReturnErr
-                    lbsr      ResourceClose
+                    bsr      ResourceClose
 ResourceReturnErr   ldu       <resourcebase
                     ldb       <resourceerror
                     orcc      #1
@@ -1399,11 +1399,11 @@ ViewCelValid equ *
                     ldd       <viewcelbase
                     addd      #1
                     lbsr      AssetReadByte
-                    lbcs      ViewRestore
+                    bcs      ViewRestore
                     tstb
-                    lbeq      ViewInvalid
+                    beq      ViewInvalid
                     cmpb      #168
-                    lbhi      ViewInvalid
+                    bhi      ViewInvalid
                     ldx       <viewobject
                     stb       $1D,x
                     ldd       <viewcelbase
@@ -1431,14 +1431,14 @@ ViewInvalid         ldb       #E$BMode
                     bra       ViewRestore
 ViewReturn          rts
 ViewQuery           cmpb      #49
-                    lbeq      cmd_last_cel
+                    beq      cmd_last_cel
                     cmpb      #50
-                    lbeq      cmd_current_cel
+                    beq      cmd_current_cel
                     cmpb      #51
-                    lbeq      cmd_current_loop
+                    beq      cmd_current_loop
                     cmpb      #52
-                    lbeq      cmd_current_view
-                    lbra      cmd_number_of_loops
+                    beq      cmd_current_view
+                    bra      cmd_number_of_loops
 * ObjectAddress already validated the object and left its record in X.
 * Assembly-time object query operand/storage interface; no runtime dispatch.
                     ifne      WILDBITS

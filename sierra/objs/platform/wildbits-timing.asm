@@ -45,7 +45,7 @@ GameClockOpen       leax      GameClockDevice,pcr
                     rts
 GameClockOpenClose  puls      a
                     os9       I$Close
-                    lbcs      GameClockReturn
+                    bcs      GameClockReturn
 GameClockSuccess    clrb
                     rts
 GameClockDevice     fcc       |/fSOL|
@@ -59,11 +59,11 @@ GameClockClose      ldu       <resourcebase
                     ldx       #0
                     ldy       #0
                     os9       I$SetStt
-                    lbcs      GameClockReturn
+                    bcs      GameClockReturn
                     ldu       <resourcebase
                     lda       gameclockpath,u
                     os9       I$Close
-                    lbcs      GameClockReturn
+                    bcs      GameClockReturn
                     ldu       <resourcebase
                     lda       #$FF
                     sta       gameclockpath,u
@@ -93,11 +93,11 @@ GameClockSignalGate ldb       vmvariables+10,u
 GameClockCollect    ldu       <resourcebase
                     tst       gameclockreset,u
                     beq       GameClockCollectDelta
-                    lbsr      GameClockRebase
+                    bsr      GameClockRebase
                     bcs       GameClockGateReturn
                     lbsr      GameReadClock
                     bcs       GameClockGateReturn
-GameClockCollectDelta lbsr    GameClockSample
+GameClockCollectDelta bsr    GameClockSample
                     bcs       GameClockGateReturn
                     tfr       a,b
                     subb      gameclockseen,u
@@ -133,7 +133,7 @@ GameClockSample     ldu       <resourcebase
                     stb       gameclockticks,u
                     tfr       b,a
                     rts
-GameClockRebase     lbsr      GameClockSample
+GameClockRebase     bsr      GameClockSample
                     lbcs      GameClockReturn
                     sta       gameclockseen,u
                     clr       gameclockcredit,u
@@ -163,7 +163,7 @@ GameClockUnmute     ldu       <resourcebase
                     lbcs      GameClockReturn
                     ldu       <resourcebase
                     clr       gameclockmuted,u
-                    lbsr      GameClockRebase
+                    bsr      GameClockRebase
                     lbcs      GameClockReturn
                     clrb
                     rts
