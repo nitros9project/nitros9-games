@@ -251,6 +251,89 @@ def check_timed_messages(d):
     print('PASS: timed blocking messages, keyboard interruption, held/pause exclusions, raster wrap/coarse/max samples, foreground rebase and invalid wait-entry cleanup')
 
 
+def check_object_previews(d):
+    """Check item pixels during dismissal and exact restoration afterwards."""
+    default=bytearray([0,0,1,0,0,7,0,1,3,0,4,3,31,0x12,0xf1,0x21,0,0x31,0x43,0,0x51,0])
+    default[3:5]=len(default).to_bytes(2,'little');default+=b'A fine treasure.\0'
+    def fixture(command,view=default,depth=0,audio=False):
+        start=bytes([3,0,1,24,0,25,0,26])
+        if audio:start+=bytes([98,0,99,0,200])
+        script=start+(bytes([22,2]) if depth else command)+bytes([3,240,73,134,1,0])
+        logic=len(script).to_bytes(2,'little')+script
+        data=bytearray();offsets=[]
+        def record(payload):return b'\x12\x34\0'+len(payload).to_bytes(2,'little')*2+payload
+        for payload in (logic,b'\xff',view):offsets.append(len(data));data.extend(record(payload))
+        logs=[b'\xff'*3,offsets[0].to_bytes(3,'big')]
+        for number in range(2,depth+2):
+            logs.append(len(data).to_bytes(3,'big'))
+            body=bytes([22,number+1,0]) if number<depth+1 else command+b'\0'
+            data.extend(record(len(body).to_bytes(2,'little')+body))
+        sound=len(data);data.extend(record(bytes([28,63,0,240,255,0,240])))
+        return {'/game/vol.0':bytes(data),'/game/logDir':b''.join(logs),
+                '/game/picDir':b'\xff'*3+offsets[1].to_bytes(3,'big'),
+                '/game/viewDir':offsets[2].to_bytes(3,'big'),'/game/sndDir':sound.to_bytes(3,'big')}
+    baseline=None
+    cases=[('baseline',b'',0,False),('literal',bytes([129,0]),0,False),
+           ('variable',bytes([3,200,0,162,200]),0,False),
+           ('already cached',bytes([30,0,129,0]),0,False),
+           ('held/timer flags',bytes([12,15,3,21,2,129,0]),0,False),
+           ('depth 16 and long directory',bytes([129,0]),16,True),
+           ('moving-object baseline',bytes([33,0,41,0,0,37,0,20,30,54,0,15,35,0,37,0,30,40,26]),0,False),
+           ('moving-object preview',bytes([33,0,41,0,0,37,0,20,30,54,0,15,35,0,129,0,37,0,30,40,26]),0,False)]
+    for label,command,depth,audio in cases:
+        print('Checking object preview:',label,flush=True)
+        modal={}
+        def inspect(cpu,r,syms):
+            modal['text']=cpu.read(syms['textcharacters'],1000)
+            block=int.from_bytes(cpu.read(syms['firstblock'],2),'big')
+            old=cpu.read(0xffac,1);frame=bytearray()
+            for page in range(10):
+                cpu.write(0xffac,bytes([block+page]));frame.extend(cpu.read(0x8000,8192))
+            cpu.write(0xffac,old);modal['frame']=bytes(frame[:76800])
+        hooks={'GamePrintWait':inspect} if 'baseline' not in label else None
+        if label=='already cached':
+            def unexpected_discard(*args):raise AssertionError('preview discarded an existing cached view')
+            hooks['VmDiscardResource']=unexpected_discard
+        files=fixture(command,depth=depth,audio=audio);arguments=b'/game 1\r'
+        if depth:
+            directory=b'/'+b'x'*126
+            files={directory.decode()+name[5:]:data for name,data in files.items()}
+            arguments=directory+b' 1\r'
+        error,frame,state=exercise(d,files,arguments=arguments,module='wbgame',base=0xa000,
+            database=0,window=0x8000,blocks=None,multiple=True,firstblock=0x10,
+            capture=True,frame_capture=True,keyboard=b'\r',os_call_limit=60000,
+            breakpoint_hooks=hooks,psg={'version':4} if audio else None,
+            sol={'start':250,'step':1} if audio else None)
+        assert not error,(label,error)
+        assert state['vmvariables'][240]==73,(label,'caller not resumed')
+        assert state['gamefont']==(ROOT/'objs/wbfont').read_bytes(),(label,'font overwritten')
+        if 'baseline' in label:baseline=frame
+        else:
+            assert frame==baseline,(label,'scene not restored')
+            assert modal['text'][322:338]==b'A fine treasure.',(label,modal['text'][322:350])
+            assert modal['frame'][173*320+156:173*320+164]==bytes([2,2,2,2,16,16,3,3]),(label,'preview pixels missing')
+        if label=='held/timer flags':assert state['vmflags'][15]==1 and state['vmvariables'][21]==2
+    for label,view,expected_error in [('empty description',default[:3]+b'\0\0'+default[5:],0),
+                       ('maximum description',default[:22]+b'X'*511+b'\0',0),
+                       ('description outside slab',default[:3]+b'\xff\xff'+default[5:],203),
+                       ('unterminated description',default[:-1],203),
+                       ('oversized description',default[:22]+b'X'*512+b'\0',203)]:
+        print('Checking object preview:',label,flush=True)
+        error,output,state=exercise(d,fixture(bytes([129,0]),view),module='wbgame',base=0xa000,
+            database=0,window=0x8000,blocks=None,multiple=True,firstblock=0x10,
+            capture=True,keyboard=b'\r',os_call_limit=60000)
+        assert error==expected_error,(label,error)
+    original=(ROOT/'objs/wbstate').read_bytes();entry=int.from_bytes(original[9:11],'big')
+    for offset in (0,len(original),len(original)-1):
+        helper=bytearray(original);helper[entry+26:entry+28]=offset.to_bytes(2,'big')
+        files=fixture(bytes([129,0]));files['wbstate']=bytes(helper)
+        error,output,state=exercise(d,files,module='wbgame',base=0xa000,database=0,
+            window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,
+            keyboard=b'\r',os_call_limit=60000)
+        assert error==203,(offset,error)
+    print('PASS: literal/variable item pixels and descriptions, exact restoration, preserved cache/print flags, deep audio/long-path safety and bounded malformed-resource cleanup')
+
+
 def check_screen_backend(d):
     """Exercise every cold configuration branch and invalid entry cleanup."""
     key=b'Avis Durgan'
@@ -396,6 +479,7 @@ def main():
             check_compatibility_noops(d)
             check_positioned_messages(d)
             check_timed_messages(d)
+            check_object_previews(d)
             check_screen_backend(d)
             check_cold_prefix_bounds(d)
             check_restarts(d)

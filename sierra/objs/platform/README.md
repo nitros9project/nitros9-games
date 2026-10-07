@@ -81,3 +81,8 @@ Infrequent screen configuration also uses the retained immutable helper in the
 game build, with a resident callback for cursor messages. Diagnostics assemble
 the same grouped implementation directly. Screen initialization and rendering
 remain resident.
+
+Inventory previews use the same immutable helper and grouped text UI source.
+Resident callbacks select/render the view, present text and restore the scene.
+Their temporary record occupies idle private renderer-list storage, while
+cached entries and callback state stay private to each game.

@@ -20,7 +20,7 @@ GAME = {
     'GameSoundCommand': (99,100), 'GameBlockCommand': (90,91),
     'GameMoveCommand': (81,82), 'GameClearLines': (105,), 'GameClearTextRect': (154,),
     'GameDisplayCommand': (103,104), 'GameQuitCommand': (134,),
-    'GameRestartCommand': (128,), 'GamePauseCommand': (136,), 'GameObjectVisibility': (35,36),
+    'GameShowObjectCommand': (129,162), 'GameRestartCommand': (128,), 'GamePauseCommand': (136,), 'GameObjectVisibility': (35,36),
     'GameTextScreen': (106,), 'GameGraphicsMode': (107,),
     'GameLoadPicture': (24,), 'GameDrawPicture': (25,28),
     'GameShowPicture': (26,), 'GameDiscardPicture': (27,),

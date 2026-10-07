@@ -249,6 +249,174 @@ AuxRectInvalid      puls      y
                     orcc      #1
                     rts
                     else
+                    ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_SHOW_OBJECT_CODE
+* Non-game object preview uses an idle private renderer-list record.
+SHOW_CALL           macro
+                    pshs      d
+                    lda       #\1
+                    lbsr      AuxShowCall
+                    leas      2,s
+                    endm
+AuxShowObject       ldu       <resourcebase
+                    sty       showapi,u
+                    ldb       vmarguments,u
+                    lda       <vmopcode
+                    cmpa      #162
+                    bne       AuxShowNumber
+                    leax      vmvariables,u
+                    clra
+                    ldb       d,x
+AuxShowNumber       stb       showview,u
+                    clr       showcached,u
+                    leax      vmcache,u
+                    ldy       #32
+AuxShowFind          tst       1,x
+                    beq       AuxShowFindNext
+                    lda       5,x
+                    cmpa      #2
+                    bne       AuxShowFindNext
+                    cmpb      ,x
+                    bne       AuxShowFindNext
+                    inc       showcached,u
+                    bra       AuxShowPrepare
+AuxShowFindNext      leax      VM_CACHE_ENTRY_BYTES,x
+                    leay      -1,y
+                    bne       AuxShowFind
+AuxShowPrepare      SHOW_CALL 24
+                    lbcs      AuxShowReturn
+                    tst       <pictureowned
+                    bne       AuxShowHavePicture
+                    SHOW_CALL 26
+                    lbcs      AuxShowReturn
+AuxShowHavePicture  tst       gamebackgroundowned,u
+                    bne       AuxShowHaveBackground
+                    SHOW_CALL 2
+                    lbcs      AuxShowReturn
+AuxShowHaveBackground equ     *
+                    leax      spritelist+128,u
+                    stx       <viewobject
+                    ldb       #43
+AuxShowZero         clr       ,x+
+                    decb
+                    bne       AuxShowZero
+                    ldx       <viewobject
+                    lda       #255
+                    sta       2,x       preview must not publish ego visibility
+                    lda       showview,u
+                    sta       5,x
+                    lda       #167
+                    sta       4,x
+                    lda       #$18       fixed priority; ignore horizon
+                    sta       $26,x
+                    lda       #15
+                    sta       $24,x
+                    SHOW_CALL 0
+                    lbcs      AuxShowReturn
+                    ldx       <viewobject
+                    lda       #160
+                    suba      $1C,x
+                    lsra
+                    sta       3,x
+                    tfr       x,u
+                    SHOW_CALL 4
+                    lbcs      AuxShowReturn
+                    clr       gamebackgroundclean,u
+                    SHOW_CALL 6
+                    lbcs      AuxShowReturn
+* Copy the bounded plain view description before restoring the root slab.
+                    lda       #2
+                    ldb       showview,u
+                    SHOW_CALL 8
+                    lbcs      AuxShowReturn
+                    SHOW_CALL 10
+                    ldd       #3
+                    SHOW_CALL 12
+                    lbcs      AuxShowReturn
+                    std       showposition,u
+                    leax      messagebuffer,u
+                    stx       textpointer,u
+                    cmpd      #0
+                    beq       AuxShowEmpty
+                    cmpd      #5
+                    lblo      AuxShowInvalid
+                    ldy       #512
+AuxShowCopy         ldd       showposition,u
+                    cmpd      <resourcelength
+                    lbhs      AuxShowInvalid
+                    SHOW_CALL 14
+                    lbcs      AuxShowReturn
+                    ldx       textpointer,u
+                    stb       ,x+
+                    stx       textpointer,u
+                    tstb
+                    beq       AuxShowCopied
+                    ldd       showposition,u
+                    addd      #1
+                    std       showposition,u
+                    leay      -1,y
+                    bne       AuxShowCopy
+                    lbra      AuxShowInvalid
+AuxShowEmpty        clr       ,x
+AuxShowCopied       SHOW_CALL 18
+                    lbcs      AuxShowReturn
+                    ldb       <vmcurrent
+                    SHOW_CALL 20
+                    SHOW_CALL 10
+* Inventory previews require dismissal, independent of print flags/timers.
+                    lda       vmflags+15,u
+                    ldb       vmvariables+21,u
+                    pshs      d
+                    clr       vmflags+15,u
+                    clr       vmvariables+21,u
+                    leax      messagebuffer,u
+                    inc       showactive,u
+                    SHOW_CALL 16
+                    pshs      cc,b
+                    clr       showactive,u
+                    puls      cc,b
+                    puls      a
+                    sta       vmflags+15,u
+                    puls      a
+                    sta       vmvariables+21,u
+                    lbcs      AuxShowReturn
+* The fast sprite eraser scans game records, not this temporary preview.
+* Restore the pristine background fully, then recompose ordinary objects.
+                    lda       #1
+                    sta       gamecopydirection,u
+                    SHOW_CALL 28
+                    lbcs      AuxShowReturn
+                    SHOW_CALL 30
+                    lbcs      AuxShowReturn
+                    SHOW_CALL 32
+                    lbcs      AuxShowReturn
+                    tst       showcached,u
+                    bne       AuxShowDone
+                    lda       #2
+                    ldb       showview,u
+                    SHOW_CALL 22
+AuxShowReturn       rts
+AuxShowDone         clrb
+                    rts
+AuxShowInvalid      ldb       #E$BMode
+                    orcc      #1
+                    rts
+* Preserve caller arguments, including a scratch object's U. The indirect
+* destination is a stack word, never a patched instruction or shared variable.
+AuxShowCall         pshs      x,y,u
+                    ldu       <resourcebase
+                    ldy       showapi,u
+                    ldd       a,y
+                    leax      d,y
+                    pshs      x
+                    ldd       10,s
+                    ldx       2,s
+                    ldy       4,s
+                    ldu       6,s
+                    jsr       [,s]
+                    leas      8,s
+                    ldu       <resourcebase
+                    rts
+                    else
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_RESTART_CODE
 * Read-only restart backend. Request and apply run on opposite sides of unwind.
 AuxRestart          ldu       <resourcebase
@@ -403,7 +571,10 @@ GamePrintSave       ldd       ,x++
                     leax      textcharacters,u
                     ldy       #1000
 GamePrintClear      lda       #32
-                    sta       ,x
+                    tst       showactive,u
+                    beq       GamePrintClearCell
+                    clra       preview leaves cells outside its message transparent
+GamePrintClearCell  sta       ,x
                     lda       #$0F
                     sta       1000,x
                     leax      1,x
@@ -500,6 +671,20 @@ GamePrintCopyBack   ldd       ,x++
 * State entry is a phase-local alias: no formatter runs between validated
 * staging and root-stack unwind. Both persistent text planes end before it.
 stateentry          equ       textpointer
+GameShowObjectCommand ldu     <resourcebase
+                    leax      showentry,u
+                    ldb       #16
+                    leay      ShowCallbacks,pcr
+                    lbra      GameColdInvoke
+ShowCallbacks       fdb       ViewSelect-ShowCallbacks,GameSaveBackground-ShowCallbacks
+                    fdb       SpriteRenderObject-ShowCallbacks,PresentPicture-ShowCallbacks
+                    fdb       VmLoadResource-ShowCallbacks,VmRestoreAsset-ShowCallbacks
+                    fdb       AssetReadWord-ShowCallbacks,AssetReadByte-ShowCallbacks
+                    fdb       GamePrintText-ShowCallbacks,AssetUnmap-ShowCallbacks
+                    fdb       VmSlotAddress-ShowCallbacks,VmDiscardResource-ShowCallbacks
+                    fdb       GameCloseWindow-ShowCallbacks,GameCreateScreen-ShowCallbacks
+                    fdb       GameCopyBackground-ShowCallbacks,GameComposeScene-ShowCallbacks
+                    fdb       RefreshPicture-ShowCallbacks
 GameRestartCommand  ldu       <resourcebase
                     leax      restartentry,u
                     ldb       #12
@@ -599,7 +784,7 @@ StateLoadModule     pshs      u
                     ldd       M$Exec,u
                     cmpd      #13
                     blo       StateLoadBad
-                    addd      #29       branch, private ABI, seven metadata words and CRC must fit
+                    addd      #31       branch, private ABI, seven metadata words and CRC must fit
                     bcs       StateLoadBad
                     cmpd      M$Size,u
                     bhi       StateLoadBad
@@ -614,7 +799,7 @@ StateCheckABI       lda       ,x+
                     tfr       y,x       validated metadata follows the ABI
 * Only the writable state prefix is copied; linked cold code stays shared.
                     ldd       M$Exec,u
-                    addd      #29
+                    addd      #31
                     cmpd      8,x
                     bhi       StateLoadBad
                     ldy       8,x
@@ -874,6 +1059,7 @@ GameTextUnlink      ldu       <resourcebase
                     std       textrectentry,u
                     std       restartentry,u
                     std       screenentry,u
+                    std       showentry,u
 GameTextUnlinkDone  rts
 GameTextPresent     lbsr      AssetUnmap
                     bcs       GameTextReturn
@@ -2979,6 +3165,7 @@ NORMAL_STRING_FOLD  equ       ParserLower
 
                     else
                     error Unknown platform feature section
+                    endc
                     endc
                     endc
                     endc

@@ -831,3 +831,20 @@ The same build passes save/restore (`/tmp/sierra-restart-save-safe`) and
 independent Larry/KQ1 terminal tests (`/tmp/sierra-restart-pair-safe`, expanded
 emulator kernel). CPU tests separately cover cancellation, automatic restart
 and the maximum-depth, 127-character-directory stack regression.
+
+
+### Generated inventory preview on real drivers
+
+`tests/check_wbgame_previews_mame.py` requires no commercial game assets. It
+clones the disk/firmware and installs generated logic, picture and view resources.
+Run with `--mame`, `--disk`, `--firmware` and a fresh `--output` directory;
+`--boot-file` optionally supplies a matching OS9 boot image. `--interrupt` uses
+Ctrl-C for cleanup instead of the bound quit controller. The test checks
+exact item pixels and description glyphs while visible, dismisses the dialog,
+checks subsequent script execution and exact scene restoration, then uses a
+bound controller to quit and compares before/after memory maps. Its paced idle
+loop avoids using unbounded script execution as an emulator test clock.
+
+The passing run is `/tmp/sierra-preview-real-drivers-controlled`. Original KQ1
+save/restore passes at `/tmp/sierra-preview-original-kq1`; independent Larry/KQ1
+terminals pass at `/tmp/sierra-preview-pair` with the expanded emulator kernel.

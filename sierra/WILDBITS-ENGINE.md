@@ -1579,3 +1579,63 @@ game suite passes, including maximum-depth restart and long-directory audio
 protection. Original KQ1 movement, menu restart, subsequent input, 59 owned PSG
 writes and memory cleanup pass in MAME (`/tmp/sierra-screen-cold-kq1`). The
 CoCo KQ1 main-line module remains byte-for-byte identical to its baseline.
+
+
+### Inventory item previews — 2026-10-07
+
+Native `show.obj` and `show.obj.v` now display a view's first cel, centered
+horizontally at baseline 167 with priority 15, and wait for dismissal of its
+description. The variable form resolves its view number through the AGI
+variable table. This follows the CoCo item-display path; the expected view and
+description behavior is also visible in [ScummVM's AGI implementation](https://github.com/scummvm/scummvm/blob/master/engines/agi/sprite.cpp#L369).
+
+The command executes in the existing immutable helper. Its temporary object
+record uses an idle part of the process-private renderer list, so it neither
+replaces a game object nor publishes ego-visibility flags. The ordinary view
+selector and RLE sprite renderer are resident callbacks. View descriptions are
+copied with bounds checks into the private 512-byte message buffer before
+restoring the executing logic slab. An absent description is supported; up to
+511 characters plus a terminator fit. Out-of-range, unterminated and oversized
+descriptions fail with the normal malformed-resource error and cleanup.
+
+The preview forces a blocking, untimed dialog while preserving flag 15 and
+variable 21. Blank cells outside its description are transparent during this
+dialog, keeping the item visible. The preview does not replace the pristine
+background when one already exists. On dismissal it restores that background
+fully, then recomposes normal objects and refreshes the display. Full restoration
+is necessary because the fast sprite eraser scans game records and cannot see
+the temporary preview record. This also prevents ghost pixels when a normal
+object subsequently moves. A view loaded only for the preview is discarded;
+a preexisting cached view stays owned by the game.
+
+Resident callbacks are a read-only relative-address table. Cold calls preserve
+D/X/Y/U arguments and keep their indirect destination in a stack word; no
+instruction or shared module data is patched. The helper's ninth metadata word
+and new process-private fields are included in ABI validation. The resident is
+23,759 bytes, leaving 49 below its ceiling. The linked helper is 5,071 bytes
+and its writable prefix is 3,060 bytes. Private allocation remains 24,460 bytes,
+and the WS version-1 logical save schema is unchanged. Install matching binaries.
+No production module or platform source file was added.
+
+CPU tests verify literal/variable previews, item pixels while the dialog is
+active, description text, exact restoration, moving-object restoration,
+preexisting cache ownership, preserved print flags, empty/maximum descriptions,
+invalid resources and invalid helper entries. The maximum-depth, 127-character
+directory case passes with active owned audio and immutable font/private audio
+code. The full gameplay and audio suites pass. The CoCo KQ1 main-line module
+remains byte-for-byte identical to its baseline.
+
+`tests/check_wbgame_previews_mame.py` checks the generated item and description
+against real Wild Bits display drivers: exact pixels/glyphs, keyboard dismissal,
+subsequent script execution, controller-driven quit, exact scene restoration
+and recovery of the free-memory map (`/tmp/sierra-preview-real-drivers-controlled`).
+Original KQ1 save/restore and subsequent input pass at
+`/tmp/sierra-preview-original-kq1`, with 59 owned PSG writes. Simultaneous
+Larry/KQ1 terminals pass at `/tmp/sierra-preview-pair`, with 80 writes and
+recovered one-game/final memory maps using the documented expanded emulator
+kernel. These checks do not establish complete story-command coverage.
+
+A separate interrupted run also restores terminal options and the memory map
+(`/tmp/sierra-preview-interrupt-clean`). The preview test's `--interrupt` option
+reproduces that path, separating modifier/key events and clearing residual
+shell input before collecting the memory report.
