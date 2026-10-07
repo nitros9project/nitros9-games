@@ -2192,7 +2192,24 @@ ScreenInitialize    lda       #'_
                     lda       #23
                     sta       <vminputrow
                     rts
+                    ifne      GAME_PRESENTATION
 ScreenCommand       ldu       <resourcebase
+                    leax      screenentry,u
+                    ldb       #14
+                    leay      ReadLogicMessage,pcr
+                    lbra      GameColdInvoke
+                    else
+PLATFORM_SECTION    set PLATFORM_WILDBITS_SCREEN_COLD_CODE
+                    use platform/wildbits-graphics.asm
+                    endc
+
+                    else
+                    ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_SCREEN_COLD_CODE
+* Immutable UI configuration backend; Y is the resident message reader.
+                    ifeq      GAME_PRESENTATION
+ScreenCommand       equ       *
+                    endc
+AuxScreenCommand    ldu       <resourcebase
                     ldb       <vmopcode
                     cmpb      #108
                     beq       ScreenCursor
@@ -2212,7 +2229,12 @@ ScreenCommand       ldu       <resourcebase
                     orcc      #1
                     rts
 ScreenCursor        ldb       vmarguments,u
+                    ifne      GAME_PRESENTATION
+                    jsr       ,y
+                    ldu       <resourcebase
+                    else
                     lbsr      ReadLogicMessage
+                    endc
                     bcs       ScreenReturn
                     lda       ,x
                     sta       <vmcursor
@@ -2569,6 +2591,7 @@ InitialPosRet       rts
 
                     else
                     error Unknown platform feature section
+                    endc
                     endc
                     endc
                     endc

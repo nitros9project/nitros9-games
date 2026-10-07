@@ -251,6 +251,40 @@ def check_timed_messages(d):
     print('PASS: timed blocking messages, keyboard interruption, held/pause exclusions, raster wrap/coarse/max samples, foreground rebase and invalid wait-entry cleanup')
 
 
+def check_screen_backend(d):
+    """Exercise every cold configuration branch and invalid entry cleanup."""
+    key=b'Avis Durgan'
+    cases=[('cursor',bytes([108,1]),0,{'vmcursor':ord('!')}),
+           ('colors',bytes([109,2,3]),0,{'vmtextforeground':2,'vmtextbackground':3}),
+           ('configure',bytes([111,4,22,24]),0,{'vmpicturetop':4,'vminputrow':22,'vmstatusrow':24}),
+           ('status on',bytes([112]),0,{'vmstatusenabled':1}),
+           ('status off',bytes([112,113]),0,{'vmstatusenabled':0}),
+           ('input off',bytes([119]),0,{'vminputenabled':0}),
+           ('input on',bytes([119,120]),0,{'vminputenabled':1}),
+           ('bad colors',bytes([109,16,0]),187,{}),
+           ('bad picture row',bytes([111,5,23,0]),187,{}),
+           ('bad input row',bytes([111,1,25,0]),187,{}),
+           ('bad status row',bytes([111,1,23,25]),187,{}),
+           ('bad cursor message',bytes([108,2]),203,{})]
+    original=(ROOT/'objs/wbstate').read_bytes();entry=int.from_bytes(original[9:11],'big')
+    for label,command,error_expected,expected in cases:
+        print('Checking screen backend:',label,flush=True)
+        script=command+bytes([134,1,0])
+        logic=len(script).to_bytes(2,'little')+script+bytes([1,6,0,4,0])+bytes([ord('!')^key[0],key[1]])
+        files={'/game/logDir':b'\xff'*3+bytes(3),'/game/vol.0':b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic}
+        error,output,state=exercise(d,files,module='wbgame',base=0xa000,database=0,window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,os_call_limit=20000)
+        assert error==error_expected,(label,error)
+        for name,value in expected.items():assert state[name]==bytes([value]),(label,name,state[name])
+    for offset in (0,len(original),len(original)-1):
+        helper=bytearray(original);helper[entry+24:entry+26]=offset.to_bytes(2,'big')
+        files['wbstate']=bytes(helper)
+        script=bytes([112,134,1,0]);logic=len(script).to_bytes(2,'little')+script
+        files['/game/vol.0']=b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic
+        error,output,state=exercise(d,files,module='wbgame',base=0xa000,database=0,window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,os_call_limit=20000)
+        assert error==203,(offset,error)
+    print('PASS: immutable screen configuration, cursor message callback, bounds and invalid-entry cleanup')
+
+
 def check_cold_prefix_bounds(d):
     """Bound writable copies independently of the larger linked code image."""
     original=(ROOT/'objs/wbstate').read_bytes()
@@ -362,6 +396,7 @@ def main():
             check_compatibility_noops(d)
             check_positioned_messages(d)
             check_timed_messages(d)
+            check_screen_backend(d)
             check_cold_prefix_bounds(d)
             check_restarts(d)
             check_bounded_said(d)

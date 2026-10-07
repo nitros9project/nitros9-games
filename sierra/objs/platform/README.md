@@ -76,3 +76,8 @@ unwinding before releasing resources, then reloads the original root without
 recursively entering the interpreter. Cache records retain 32 slots at a
 12-byte stride. Preserved helper pointers precede the font so deep calls and
 long command-line parameters cannot overwrite them.
+
+Infrequent screen configuration also uses the retained immutable helper in the
+game build, with a resident callback for cursor messages. Diagnostics assemble
+the same grouped implementation directly. Screen initialization and rendering
+remain resident.

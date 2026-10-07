@@ -599,7 +599,7 @@ StateLoadModule     pshs      u
                     ldd       M$Exec,u
                     cmpd      #13
                     blo       StateLoadBad
-                    addd      #27       branch, private ABI, seven metadata words and CRC must fit
+                    addd      #29       branch, private ABI, seven metadata words and CRC must fit
                     bcs       StateLoadBad
                     cmpd      M$Size,u
                     bhi       StateLoadBad
@@ -614,7 +614,7 @@ StateCheckABI       lda       ,x+
                     tfr       y,x       validated metadata follows the ABI
 * Only the writable state prefix is copied; linked cold code stays shared.
                     ldd       M$Exec,u
-                    addd      #27
+                    addd      #29
                     cmpd      8,x
                     bhi       StateLoadBad
                     ldy       8,x
@@ -873,6 +873,7 @@ GameTextUnlink      ldu       <resourcebase
                     std       textwaitentry,u
                     std       textrectentry,u
                     std       restartentry,u
+                    std       screenentry,u
 GameTextUnlinkDone  rts
 GameTextPresent     lbsr      AssetUnmap
                     bcs       GameTextReturn

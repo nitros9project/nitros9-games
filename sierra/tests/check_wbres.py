@@ -168,6 +168,8 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
                 if module=='wbgame':
                     state['vmstrings']=d.read(database+syms['vmstrings'],480)
                     state['gamefont']=d.read(database+syms['gamefont'],1024)
+                    for name in ('vmcursor','vmtextforeground','vmtextbackground','vmpicturetop','vminputrow','vmstatusrow','vmstatusenabled','vminputenabled'):
+                        state[name]=d.read(database+syms[name],1)
                 state['cycles']=cycles
                 state['audio_packets']=audio_packets
                 state['audio_polls']=audio_polls

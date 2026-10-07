@@ -1556,3 +1556,26 @@ and exit restores free memory (`/tmp/sierra-restart-kq1-safe`). Save/restore
 passes at `/tmp/sierra-restart-save-safe`; independent Larry/KQ1 terminals pass
 at `/tmp/sierra-restart-pair-safe` with the documented expanded emulator kernel.
 These checks establish restart behavior, not complete adventure coverage.
+
+
+### Keep infrequent screen configuration outside the resident — 2026-10-07
+
+The native game now calls the existing immutable helper for cursor character,
+text colors, screen rows, status enable/disable and input enable/disable.
+`ScreenInitialize` and the pixel/sprite/glyph loops remain resident. The helper
+receives the resident message reader as a callback for cursor strings; the
+configuration fields remain process-private. Diagnostic modules assemble the
+same implementation directly. No duplicate handler body or new module is needed.
+
+The eighth metadata word selects this backend, with an ABI-checked private
+cached entry. Bounds now include all eight words. The private allocation and
+logical save schema are unchanged. Resident size falls from 23,805 to 23,697
+bytes, leaving 111 bytes below its ceiling. The helper is 4,532 bytes and its
+writable prefix is 3,058 bytes. Install the matching game and helper.
+
+Targeted CPU tests cover every handler, cursor-message decoding, invalid
+colors/rows/messages and zero/oversized/CRC entry rejection. The full native
+game suite passes, including maximum-depth restart and long-directory audio
+protection. Original KQ1 movement, menu restart, subsequent input, 59 owned PSG
+writes and memory cleanup pass in MAME (`/tmp/sierra-screen-cold-kq1`). The
+CoCo KQ1 main-line module remains byte-for-byte identical to its baseline.
