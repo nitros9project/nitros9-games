@@ -1864,3 +1864,47 @@ text backgrounds and text/graphics transitions, exact original castle pixels,
 sprite clipping/occlusion, movement, restart, save validation, input, inventory,
 and cleanup (`/tmp/sierra-preview-text-full-game.log`). CoCo's main logic remains
 byte-identical to the baseline; the canonical build budget passes.
+
+
+### Castle hall arrow controls — 2026-10-07
+
+The original KQ1 door script executes `stop.motion(0)` before opening the castle
+doors, which clears the native player-control byte. Entering room 55 then left
+that byte cleared, so `GameDirectionalKey` correctly rejected arrow input even
+though Graham was visible in the new hall. CoCo's `NewRoomSetup` restores player
+control during the transition; the native `ApplyRoomChange` had omitted it.
+
+Room entry now sets the private player-control byte to one and disables the
+previous room's movement block before executing destination logic. A destination
+that deliberately issues `program.control` can still take control immediately.
+The change covers both `new.room` and `new.room.v`; restart and saved-state
+restoration retain their separate paths. It adds six resident bytes, for
+23,725 / 23,808. Private allocation, helper size, save format and the grouped
+platform source layout are unchanged.
+
+The CPU regression reproduces the previous failure with player control zero and
+the old block still enabled. It checks stopped ego, explicit program control,
+variable room selection, and a destination that deliberately owns control.
+The full native game regression passes at `/tmp/sierra-hall-full-game.log`.
+
+The real-driver `--hall` fixture retains original KQ1 hall logic 55, picture and
+Graham view resources. Only its private root bootstrap replaces the long exterior
+navigation route: it sets the normal game speed, stops ego, and enters room 55
+from room 2, exactly the previous-room state expected by the door. Guarded debugger
+traces check that both arrow presses occur in room 55 with player control enabled;
+pixel measurements check that Graham moves, and the exit check requires complete
+memory recovery. This is a focused room-entry regression, not a claim to have
+completed the whole adventure.
+
+A normal playable image with the fix is prepared at `/tmp/sierra-play-hall-fixed`.
+Its game resources are unchanged; run `play.sh` and start a new game or restore a
+save from before entering the hall. An already running old interpreter retains
+its old code, and a save made with the broken control state retains that state.
+
+
+The old build fails the same hall test at
+`/tmp/sierra-hall-room55-before-final`: both arrow presses see room 55, player
+control zero, and Graham still at (75,164). The fixed build passes at
+`/tmp/sierra-hall-room55-final`: both presses see player control one, and his
+position advances from (75,164) to (75,130). The emulator returns to NitrOS-9 on
+exit and the free-memory map is unchanged.

@@ -1295,6 +1295,12 @@ RoomEnterBottom     lda       #37
                     sta       vmobjects+4,u
 RoomEntryDone       clr       2,x
                     lda       #1
+* Like CoCo NewRoomSetup, release program/stop-motion control on entry.
+* The destination logic may explicitly take control again afterwards.
+                    sta       <vmplayercontrol
+                    ifne      GAME_PRESENTATION
+                    clr       gameblockenabled,u
+                    endc
                     sta       vmflags+5,u
                     clr       <replayused
                     clr       <replayused+1

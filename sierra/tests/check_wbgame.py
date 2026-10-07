@@ -473,6 +473,39 @@ def check_cold_menus(d):
     print('PASS: cold menu selection, cancel, disabled items, paging, invalid entry and ownership cleanup')
 
 
+def check_room_controls(d):
+    """Door scripts stop ego; entering the next room must release that control."""
+    for label,stop,variable,retake in (
+            ('stopped ego',bytes([77,0]),False,False),
+            ('program control',bytes([131]),False,False),
+            ('variable room',bytes([77,0]),True,False),
+            ('destination owns control',bytes([77,0]),False,True)):
+        print('Checking room controls:',label,flush=True)
+        transition=stop+bytes([90,10,90,30,110])
+        transition+=bytes([3,250,1,19,250]) if variable else bytes([18,1])
+        root=bytes([255,1,0,0,255])+len(transition).to_bytes(2,'little')+transition+bytes([23,0,0])
+        room=(bytes([131]) if retake else b'')+bytes([255,13,255,6,0,4,200,6,134,1,0,0])
+        volume=bytearray();entries=[]
+        for body in (root,room):
+            entries.append(len(volume).to_bytes(3,'big'))
+            logic=len(body).to_bytes(2,'little')+body
+            volume+=b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic
+        observed={}
+        def inspect(cpu,r,syms):
+            observed['control']=cpu.read(syms['vmplayercontrol'],1)[0]
+            observed['block']=cpu.read(syms['gameblockenabled'],1)[0]
+        error,output,state=exercise(d,{'/game/logDir':b''.join(entries),'/game/vol.0':bytes(volume)},
+            arguments=b'/game 0\r',module='wbgame',base=0xa000,database=0,
+            window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,
+            keyboard_by_cycle={1:(b'\x09',0x40)},os_call_limit=20000,
+            breakpoint_hooks={'GameReadKey':inspect})
+        assert not error,(label,error)
+        assert state['vmvariables'][0:2]==bytes([1,0]),(label,'room variables')
+        assert observed=={'control':0 if retake else 1,'block':0},(label,observed)
+        assert state['vmvariables'][200]==(0 if retake else 3),(label,'arrow did not update ego direction')
+    print('PASS: new.room/new.room.v restore player control, release the old block and permit destination program control')
+
+
 def check_joystick_input(d):
     """Driver axes/buttons, ownership and unavailable-service keyboard fallback."""
     axes=[(x,y,0) for y in (0,128,255) for x in (0,128,255)]
@@ -781,6 +814,7 @@ def main():
             check_object_previews(d)
             check_interpreter_information(d)
             check_cold_menus(d)
+            check_room_controls(d)
             check_joystick_input(d)
             check_joystick_instances(d)
             check_monitor_profiles(d)

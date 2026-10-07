@@ -713,3 +713,8 @@ To launch a private playable MAME image without automated test input, follow
 Item previews now remain visible when opened from text mode and restore the
 opaque text screen after dismissal. [The regression notes](WILDBITS-ENGINE.md#text-mode-item-previews-and-room-travel--2026-10-07)
 explain that fix and the original KQ1 castle/lake round-trip check.
+
+
+Entering the castle hall now restores arrow control after the door script stops
+Graham. Room transitions also release the previous movement block. See
+[the hall-control regression](WILDBITS-ENGINE.md#castle-hall-arrow-controls--2026-10-07).

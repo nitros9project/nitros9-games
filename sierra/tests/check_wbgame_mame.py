@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run unmodified game resources on real Wild Bits drivers; diagnostic only."""
+"""Run original game resources on real Wild Bits drivers; optional private fixtures."""
 import argparse,json,re,shutil,subprocess,shlex
 from pathlib import Path
 from check_wbpic_mame import VIEWER,png_rgb
@@ -20,6 +20,7 @@ def main():
     ap.add_argument('--video-mode',action='store_true',help='Select KQ1 Video Mode twice and verify palette changes')
     ap.add_argument('--restart',action='store_true',help='Restart original KQ1 through its menu, then issue another command')
     ap.add_argument('--persistence',action='store_true',help='Save original KQ1, walk, restore, and issue another command')
+    ap.add_argument('--hall',action='store_true',help='Exercise original KQ1 hall logic after stop.motion/new.room')
     ap.add_argument('--journey',action='store_true',help='Walk original KQ1 to the lake, look, and return to the castle')
     ap.add_argument('--movement',action='store_true',help='Measure KQ1 movement over 200 emulated frames')
     ap.add_argument('--larry',action='store_true',help='Exercise Larry age quiz, street walking and look response')
@@ -42,6 +43,23 @@ def main():
     for source in a.game.iterdir():
         if source.is_file() and (source.name.startswith('vol.') or source.name in ('logDir','picDir','viewDir','sndDir','words.tok','object')):
             install(source.name,source.read_bytes(),'game/'+source.name)
+    if a.hall:
+        # Keep original hall picture, views and logic 55. The private fixture
+        # replaces only root logic to reproduce the door's control transition
+        # without depending on a long exterior navigation route.
+        transition=bytes([3,10,2,77,0,3,0,2,18,55])
+        root=bytes([255,1,0,0,255])+len(transition).to_bytes(2,'little')+transition
+        setup=bytes([33,0,30,0,41,0,0])
+        root+=bytes([255,7,5,255])+len(setup).to_bytes(2,'little')+setup
+        root+=bytes([121,113,0,1,255,12,1,255,2,0,134,1,23,0,0])
+        logic=len(root).to_bytes(2,'little')+root
+        volume=(a.game/'vol.0').read_bytes();offset=len(volume)
+        assert offset<0x100000,'hall fixture exceeds volume-zero directory range'
+        install('hall-vol.0',volume+b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic,'game/vol.0')
+        directory=bytearray((a.game/'logDir').read_bytes())
+        assert len(directory)>55*3 and directory[55*3:56*3]!=b'\xff'*3,'KQ1 hall logic missing'
+        directory[:3]=offset.to_bytes(3,'big')
+        install('hall-logDir',bytes(directory),'game/logDir')
     if a.larry_pair:
         os9('makdir',f'{disk},castle')
         for source in a.larry_pair.iterdir():
@@ -86,7 +104,7 @@ def main():
 
     with disk.open('ab') as f:f.truncate(1 << (disk.stat().st_size-1).bit_length())
     if a.prepare_play:
-        if any((a.menu,a.typed_command,a.sustained,a.journey,a.movement,a.persistence,a.larry,
+        if any((a.menu,a.typed_command,a.sustained,a.hall,a.journey,a.movement,a.persistence,a.larry,
                 a.larry_enter,a.larry_pair,a.restart,a.video_mode,a.audio_trace,a.profile)):
             ap.error('--prepare-play cannot be combined with scripted diagnostic modes')
         lua=out/'play.lua'
@@ -106,7 +124,7 @@ def main():
         print('Scroll Lock toggles MAME UI controls; Ctrl-C exits the game to NitrOS-9.')
         return
     response_frame=4000+max(700,120*len(a.typed_command or ""))
-    if sum(bool(v) for v in (a.menu,a.typed_command,a.sustained,a.journey,a.movement,a.persistence,a.larry,a.larry_enter,a.larry_pair,a.restart,a.video_mode))>1:
+    if sum(bool(v) for v in (a.menu,a.typed_command,a.sustained,a.hall,a.journey,a.movement,a.persistence,a.larry,a.larry_enter,a.larry_pair,a.restart,a.video_mode))>1:
         ap.error("choose menu, typed-command, sustained, movement, larry larry-enter or larry-pair")
     if a.menu: response_frame=4700
     delay=response_frame+1000-3900 if a.typed_command or a.menu else 0
@@ -211,6 +229,14 @@ def main():
                  ' if frames==5500 then shot("video-mode-alternate") end',
                  ' if frames==7100 then shot("video-mode-standard") end']
         command_events='\n'.join(events)+'\n'
+    if a.hall:
+        delay=2000
+        command_events='''
+ if frames==3900 then shot("hall-before") end
+ if frames==4000 or frames==4200 then keys["Up"]:set_value(1) end
+ if frames==4010 or frames==4210 then keys["Up"]:clear_value() end
+ if frames==4800 then shot("hall-after") end
+'''
     if a.journey:
         delay=7000
         command_events='''
@@ -343,6 +369,16 @@ end)
             source+=f' if frames=={frame+30} then keys["Ctrl"]:clear_value() end\n'
         source+=' if frames==24200 then manager.machine:exit() end\nend)\n'
         lua.write_text(source)
+    if a.hall:
+        module=a.module_file or (VIEWER/'wbgame')
+        syms=symbols(module.with_suffix('.map'));code=module.read_bytes()
+        base=(8-(len(code)+8191)//8192)*8192
+        guard=f'w@{base:x} == 87cd && w@{base+2:x} == {len(code):x}'
+        action=f'printf "HALL INPUT ROOM=%d X=%d Y=%d CONTROL=%d KEY=%d",b@(u+{syms["vmvariables"]:x}),b@(u+{syms["vmobjects"]+3:x}),b@(u+{syms["vmobjects"]+4:x}),b@(dp*100+{syms["vmplayercontrol"]:x}),b@(dp*100+{syms["vmkeybyte"]:x}); g'
+        event=f' if frames==950 then cpu.debug:bpset({base+syms["GameDirectionalKey"]},{json.dumps(guard)},{json.dumps(action)}) end'
+        source=lua.read_text().replace(' frames=frames+1',' frames=frames+1\n'+event,1)
+        source='local cpu=manager.machine.devices[":maincpu"]\nmanager.machine.debugger.execution_state="run"\nhall_stop=emu.add_machine_stop_notifier(function() local log=manager.machine.debugger.consolelog;for index=1,#log do if log[index] then print(log[index]) end end end)\n'+source
+        lua.write_text(source)
     if a.profile:
         syms=symbols(VIEWER/'wbgame.map');code=(VIEWER/'wbgame').read_bytes()
         base=(8-(len(code)+8191)//8192)*8192
@@ -407,8 +443,8 @@ end)
         if not a.audio_trace:
             source='local cpu=manager.machine.devices[":maincpu"]\nmanager.machine.debugger.execution_state="run"\nvideo_stop=emu.add_machine_stop_notifier(function() local log=manager.machine.debugger.consolelog;for index=1,#log do if log[index] then print(log[index]) end end end)\n'+source
         lua.write_text(source)
-    command=[str(a.mame.resolve()),'wbjr2','-bios','turbo','-rompath',str(roms.parent),'-hard',str(disk),'-skip_gameinfo', '-noui_mouse', '-mouseprovider', 'none','-video','none','-sound','none','-nothrottle','-autoboot_script',str(lua),'-seconds_to_run',str(420 if a.larry_pair else (5100+delay+(1200 if a.larry or a.larry_enter else 0))//60+10 if a.typed_command or a.menu or a.sustained or a.journey or a.movement or a.persistence or a.restart or a.larry or a.larry_enter or a.video_mode else 100),'-nvram_directory',str(out/'nvram'),'-cfg_directory',str(out/'cfg')]
-    if a.profile or a.audio_trace or a.restart or a.video_mode:command+=['-debug','-debugger','none']
+    command=[str(a.mame.resolve()),'wbjr2','-bios','turbo','-rompath',str(roms.parent),'-hard',str(disk),'-skip_gameinfo', '-noui_mouse', '-mouseprovider', 'none','-video','none','-sound','none','-nothrottle','-autoboot_script',str(lua),'-seconds_to_run',str(420 if a.larry_pair else (5100+delay+(1200 if a.larry or a.larry_enter else 0))//60+10 if a.typed_command or a.menu or a.sustained or a.hall or a.journey or a.movement or a.persistence or a.restart or a.larry or a.larry_enter or a.video_mode else 100),'-nvram_directory',str(out/'nvram'),'-cfg_directory',str(out/'cfg')]
+    if a.profile or a.audio_trace or a.restart or a.video_mode or a.hall:command+=['-debug','-debugger','none']
     (out/'command.json').write_text(json.dumps(command,indent=2)+'\n')
     with (out/'mame.log').open('w') as log:subprocess.run(command,cwd=out,stdout=log,stderr=subprocess.STDOUT,check=True,timeout=360 if a.larry_pair else 300 if a.larry or a.larry_enter else 180)
     if a.audio_trace:
@@ -446,6 +482,23 @@ end)
     before=os9('list',f'{disk},free-before');after=os9('list',f'{disk},free-after')
     (out/'free-before.txt').write_bytes(before);(out/'free-after.txt').write_bytes(after)
     assert before==after,'real game leaked memory'
+    if a.hall:
+        log=(out/'mame.log').read_text()
+        controls=re.findall(r'HALL INPUT ROOM=(\d+) X=(\d+) Y=(\d+) CONTROL=(\d+) KEY=12',log)
+        assert len(controls)==2 and all(room=='55' and control=='1' for room,x,y,control in controls),('hall arrow control',controls)
+        ego=[(int(x),int(y)) for room,x,y,control in controls]
+        assert ego[1][1]<ego[0][1]-8,('hall ego coordinates did not move',ego)
+        positions=[]
+        for name in ('hall-before','hall-after'):
+            w,h,pixels=png_rgb(out/(name+'.png'));assert (w,h)==(640,480)
+            shirt=[(x,y) for y in range(200,352) for x in range(296,328)
+                   if pixels[(y*w+x)*3:(y*w+x)*3+3]==bytes([255,85,85])]
+            assert shirt,(name,'Graham absent from hall')
+            positions.append((min(y for x,y in shirt)+max(y for x,y in shirt))/2)
+        assert positions[1]<positions[0]-16,('hall arrow input did not move Graham',positions)
+        (out/'hall-movement.json').write_text(json.dumps({'shirt_y':positions,'ego_xy':ego})+'\n')
+        print('PASS: original KQ1 hall logic/picture, scripted stop-motion room entry, arrow-controlled walking and unchanged free memory',positions)
+        return
     if a.journey:
         castle=png_rgb(out/'game-before-input.png')
         lake=png_rgb(out/'journey-lake.png')
