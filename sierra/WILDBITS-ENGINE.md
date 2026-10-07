@@ -1255,20 +1255,23 @@ is bounded to eight rounds across four channels. The driver advances queued
 notes at 60 Hz and reports completion; the interpreter sets the game's flag
 when all tracks finish. Disabling sound, issuing `stop.sound`, saving/restoring,
 backgrounding the terminal, and exiting close the owned path. Backgrounding
-terminates the current request rather than resuming it later. Modal waits can
-exhaust the queued notes; continuous playback through every modal is not yet
-an acceptance claim. CoCo continues to use its existing audio implementation.
+terminates the current request rather than resuming it later. Dialog, inventory and menu waits also refill the queue after visibility
+checks. These hooks run after labels and command arguments have been copied
+into private UI state, with no picture or resource mapping held. Generic
+foreground checks used by rendering do not refill sound or replace the
+renderer's resource context. CoCo continues to use its existing audio implementation.
 
-The resident module has only one byte left below its 23,808-byte ceiling.
+The resident module has twenty bytes left below its 23,808-byte ceiling.
 The kernel's `$FD00` common page and the `$FE00`/`$FF00` I/O area remain reserved.
 To fit the adapter, the existing `wbstate` helper exports an immutable audio
 code template and a small installer. The game validates the helper's private
 layout ABI, including the audio workspace, callback layout and driver protocol,
 runs the installer while the helper is linked, then unlinks it
-before opening the sound device. Installation copies 430 bytes into a separate
-432-byte permanent private workspace and resolves twelve engine callbacks into
-a 24-byte private table. It never patches the shared module and never aliases
-the font, formatter, inventory, flood-fill, or presentation buffers. Normal
+before opening the sound device. Installation copies 450 bytes into a separate
+512-byte permanent private workspace and resolves ten engine callbacks into
+a 20-byte private table. It never patches the shared module and never aliases
+the font, formatter, inventory, flood-fill, or presentation buffers. Device-only GetStat/SetStat helpers execute in that private copy, freeing
+resident space for the three modal hooks. Normal
 movement does not load the helper; only the first enabled sound request does.
 Sound state and pointers are transient and are excluded from saved games.
 
@@ -1294,7 +1297,9 @@ Verification completed for this integration:
   completion into a later cycle, recovered the active logic resource, handled
   missing/older/incompatible services, malformed notes and busy-then-available
   retry, cleared reused completion flags, released ownership, and preserved
-  private audio code at sixteen nested calls with a 127-byte directory.
+  private audio code at sixteen nested calls with a 127-byte directory. A
+  fourteen-note fixture exceeded an eight-note queue and completed while a
+  Pause dialog remained open, before its dismissal and any next game cycle.
 - All 1,024 relocated dispatch cases passed for the game/probe, including all
   256 opcode values, register/stack preservation and immutable shared code.
 - The full native gameplay CPU suite passed its picture, sprite, persistent
@@ -1313,5 +1318,4 @@ The driver lives on NitrOS-9 branch `codex/sierra-owned-psg`, based on the teste
 multi-terminal OS revision, not on the alternate terminal-private ABI. Driver
 CPU/public-SCF tests cover queued timing, contention, wrong-owner close,
 terminal initialization/bell guards, IRQ rollback/teardown and memory recovery.
-Physical hardware, envelope details, continuous modal playback and complete
-adventure compatibility still require further work.
+Physical hardware, envelope details and complete adventure compatibility still require further work.

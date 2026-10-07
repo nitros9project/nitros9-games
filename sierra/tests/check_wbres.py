@@ -105,6 +105,8 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
     audio_mode=0
     audio_polls=0
     audio_end_cycle=None
+    audio_queues=[[] for _ in range(4)]
+    audio_played_ends=[False]*4
     private_calls={}
     if module=='wbgame' and 'wbstate' in files:
         cold_syms=symbols(module_root/'wbstate.map')
@@ -179,6 +181,10 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
             if all(ended) and audio_end_cycle is None:audio_end_cycle=cycles
             finished=audio_end_cycle is not None and cycles>audio_end_cycle
             available=sum(1<<channel for channel in range(4) if not ended[channel])
+            if psg.get('queue_capacity'):
+                available=sum(1<<channel for channel in range(4)
+                    if not ended[channel] and len(audio_queues[channel])<psg['queue_capacity'])
+                finished=all(audio_played_ends)
             updates.update(x=psg.get('version',4),u=(0 if finished else 0x10|available) if r['x']==1 else audio_polls)
         elif service == syms['I$SetStt'] and r['b']==0xc5:
             assert psg is not None and r['a']==audio_path and not mapped
@@ -190,7 +196,9 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
             else:
                 assert audio_claimed and r['x'] in (4,5)
                 audio_mode=r['x']
-                if audio_mode==4:audio_current_packets.clear();audio_end_cycle=None
+                if audio_mode==4:
+                    audio_current_packets.clear();audio_end_cycle=None
+                    audio_queues=[[] for _ in range(4)];audio_played_ends=[False]*4
         elif service == syms.get('F$Time'):
             assert not mapped
             if clock:
@@ -199,6 +207,11 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
         elif service == syms.get('F$Sleep'):
             assert not mapped
             cycles += 1
+            if psg and psg.get('queue_capacity') and audio_claimed and audio_mode==5:
+                for channel,queue in enumerate(audio_queues):
+                    if queue:
+                        packet=queue.pop(0)
+                        if packet[1:3]==b'\xff\xff':audio_played_ends[channel]=True
             if keyboard_by_cycle and cycles in keyboard_by_cycle:
                 keys, key_sense = keyboard_by_cycle[cycles]
                 keyboard.extend(keys)
@@ -324,6 +337,10 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
             if packet[0]&128 and (packet[1]>=60 or packet[2]>63 or not 0<int.from_bytes(packet[3:5],'big')<65535 or packet[5]):
                 updates.update(cc=r['cc']|1,b=syms['E$IllArg'])
             else:
+                if psg.get('queue_capacity'):
+                    channel=packet[0]&3
+                    assert len(audio_queues[channel])<psg['queue_capacity'], 'audio queue overfilled'
+                    audio_queues[channel].append(packet)
                 audio_packets.append(packet);audio_current_packets.append(packet);updates['y']=6
         elif service == syms['I$Write']:
             assert not paths, 'output before complete resource validation/close'

@@ -855,7 +855,7 @@ PLATFORM_SECTION    set PLATFORM_WILDBITS_SOUND_CODE
                     emod
 StateEnd            equ *
                     ifp2
-                    ifgt AudioBlobEnd-AudioBlobStart-432
+                    ifgt AudioBlobEnd-AudioBlobStart-512
                     error Private audio adapter exceeds its reserved workspace
                     endc
                     ifgt StateEnd-4096

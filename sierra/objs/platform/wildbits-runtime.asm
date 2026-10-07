@@ -91,9 +91,9 @@ vmobjects           rmb       2752
 vmcache             rmb       448
 vmcallstack         rmb       128
 gamefont            rmb       1024
-soundcalls          rmb       24
-soundcode           rmb       432
-                    rmb       255
+soundcalls          rmb       20
+soundcode           rmb       512
+                    rmb       179
 size                equ       .
 * Stable save-field order; no paths, mapped pointers or physical handles.
 STATE_SCHEMA        macro
@@ -119,7 +119,7 @@ STATE_HASH_FIELD    macro
                     endm
                     STATE_SCHEMA STATE_HASH_FIELD
 * Immutable field expressions avoid ambiguous forward references to SET symbols.
-StateLayoutHash     equ       (SavedVariablesLayoutHash+SavedStringsLayoutHash+SavedObjectsLayoutHash+SavedInventoryLayoutHash+SavedInventoryControlLayoutHash+SavedKeysLayoutHash+SavedKeyCountLayoutHash+SavedMenusLayoutHash+SavedMenuControlLayoutHash+SavedScreenLayoutHash+SavedPlayerLayoutHash+SavedBlockLayoutHash+SavedRandomLayoutHash+SavedReplayLayoutHash+SavedReplayBufferLayoutHash+SavedTextLayoutHash+resourcebase+assetfirst*3+picturefirst*5+gamebackgroundfirst*7+vmip*11+vmcache*13+textpointer*17+soundcalls*19+soundcode*23+432*29+4*31)&$FFFFFFFF
+StateLayoutHash     equ       (SavedVariablesLayoutHash+SavedStringsLayoutHash+SavedObjectsLayoutHash+SavedInventoryLayoutHash+SavedInventoryControlLayoutHash+SavedKeysLayoutHash+SavedKeyCountLayoutHash+SavedMenusLayoutHash+SavedMenuControlLayoutHash+SavedScreenLayoutHash+SavedPlayerLayoutHash+SavedBlockLayoutHash+SavedRandomLayoutHash+SavedReplayLayoutHash+SavedReplayBufferLayoutHash+SavedTextLayoutHash+resourcebase+assetfirst*3+picturefirst*5+gamebackgroundfirst*7+vmip*11+vmcache*13+textpointer*17+soundcalls*19+soundcode*23+512*29+4*31)&$FFFFFFFF
 STATE_ABI           macro
                     fdb       1,size,StateLayoutHash>>16,StateLayoutHash&$FFFF
                     endm

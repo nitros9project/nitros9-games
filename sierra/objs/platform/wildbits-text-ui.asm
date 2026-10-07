@@ -7,6 +7,13 @@
 * The picture/LZW command workspace is idle until the window is dismissed.
 * Pause shares the modal restoration path. Rebaseline the game clock on
 * resume so the time spent waiting does not advance AGI seconds/minutes.
+* Modal waits own copied text and hold no picture/resource mapping.
+* Keep sound queued here; rendering foreground checks retain their context.
+GameModalForeground lbsr      foreground
+                    bcs       GameModalReturn
+                    lbra      GameSoundTick
+GameModalReturn     rts
+
 GamePauseCommand    ldu       <resourcebase
                     clr       dialoginputmode,u
                     leax      GamePausePrompt,pcr
@@ -88,7 +95,7 @@ GamePrintClear      lda       #32
                     stb       <vmtextbackground
                     clrb
                     rts
-GamePrintWait       lbsr      foreground
+GamePrintWait       lbsr      GameModalForeground
                     bcs       GamePrintRestore
                     lda       #0
                     ldb       #SS.Ready
@@ -1005,7 +1012,7 @@ InventoryNextRow    ldd       ,s
 InventoryItemsDone  leas      2,s
 InventoryPresent    lbsr      GameTextPresent
                     lbcs      InventoryRestoreError
-InventoryWait       lbsr      foreground
+InventoryWait       lbsr      GameModalForeground
                     lbcs      InventoryRestoreError
                     ldu       <resourcebase
                     clra
@@ -1439,7 +1446,7 @@ GameMenuRowColor    sta       1000,y
                     lblo      GameMenuItem
 GameMenuPresent     lbsr      GameDrawText
                     lbcs      GameMenuRestore
-GameMenuWait        lbsr      foreground
+GameMenuWait        lbsr      GameModalForeground
                     lbcs      GameMenuRestore
                     clra
                     ldb       #SS.Ready

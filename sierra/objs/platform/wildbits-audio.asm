@@ -24,7 +24,7 @@ SoundCommandBody    jsr [soundcalls+12,u]
                     ldu <resourcebase
                     ldb vmarguments+1,u
                     stb <soundflag
-                    jsr [soundcalls+22,u]    asynchronous requests clear their flag
+                    jsr [soundcalls+18,u]    asynchronous requests clear their flag
                     tst vmflags+9,u
                     lbeq SoundMarkPrivate
                     ldb vmarguments,u
@@ -66,15 +66,15 @@ SoundCommandBody    jsr [soundcalls+12,u]
                     inca
                     sta <soundpath
                     ldx #0
-                    jsr [soundcalls+20,u]
+                    lbsr SoundStatus
                     bcs GameSoundUnavailable
                     cmpx #4
                     bne GameSoundUnavailable
                     ldx #1
-                    jsr [soundcalls+18,u]
+                    lbsr GameSoundSet
                     bcs SoundClaimFailed
                     ldx #4
-SoundQueueStart     jsr [soundcalls+18,u]
+SoundQueueStart     lbsr GameSoundSet
                     bcs GameSoundUnavailable
                     leax 1,x
                     cmpx #6
@@ -108,7 +108,7 @@ SoundTickBody       tst vmflags+9,u
                     lda #8
                     sta <soundrounds
 GameSoundPoll       ldx #1
-                    jsr [soundcalls+20,u]
+                    lbsr SoundStatus
                     lbcs SoundTickBodyStop
                     bitb #$10
                     lbeq SoundTickBodyStop
@@ -185,6 +185,19 @@ SoundTickBodyRestore pshs cc,b
                     puls cc,b
                     leas 4,s
                     rts
+GameSoundSet        ldu <resourcebase
+                    lda <soundpath
+                    deca
+                    ldb #SS.PSG
+                    os9 I$SetStt
+                    rts
+SoundStatus         lda <soundpath
+                    deca
+                    ldb #SS.PSG
+                    os9 I$GetStt
+                    tfr u,d
+                    ldu <resourcebase
+                    rts
 AudioBlobEnd        equ *
 AudioInstall        pshs u
                     leax AudioBlobStart,pcr
@@ -198,7 +211,7 @@ AudioInstallCopy    pshs d
                     bne AudioInstallCopy
                     ldu ,s
                     leax soundcalls,u
-                    ldb #12
+                    ldb #10
                     stb <soundrounds
 AudioInstallCalls   ldd ,y
                     leau d,y
@@ -273,12 +286,6 @@ SoundStopBody       ldu <resourcebase
                     bcs SoundResidentReturn
                     clr <soundpath
                     bra GameSoundMarkDone
-GameSoundSet        ldu <resourcebase
-                    lda <soundpath
-                    deca
-                    ldb #SS.PSG
-                    os9 I$SetStt
-                    rts
 SoundRestoreRoot    lbsr AssetUnmap
                     bcs SoundResidentReturn
                     clr <asseterror
@@ -286,13 +293,6 @@ SoundRestoreRoot    lbsr AssetUnmap
                     lbsr VmSlotAddress
                     lbra VmRestoreAsset
 SoundResidentReturn rts
-SoundStatus         lda <soundpath
-                    deca
-                    ldb #SS.PSG
-                    os9 I$GetStt
-                    tfr u,d
-                    ldu <resourcebase
-                    rts
 SoundClearFlag      clra
                     bra SoundSetFlag
 SoundMainCallbacks  fdb VmLoadResource-*
@@ -304,8 +304,6 @@ SoundMainCallbacks  fdb VmLoadResource-*
                     fdb SoundStopBody-*
                     fdb GameSoundMarkDone-*
                     fdb SoundRestoreRoot-*
-                    fdb GameSoundSet-*
-                    fdb SoundStatus-*
                     fdb SoundClearFlag-*
                     endc
                     else

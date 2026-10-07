@@ -296,7 +296,7 @@ end)
             f'  cpu.debug:bpset({base+syms["GameSoundCommand"]},{json.dumps(condition)},{json.dumps(action)})',
             '  cpu.debug:wpset(cpu.spaces["program"],"w",0x4200,1,"b@1a != 0 && ((b@pc == f7 && w@(pc+1) == 4200) || (b@(pc-3) == f7 && w@(pc-2) == 4200))",\'printf "AUDIO PSG %02X OWNER %02X",wpdata,b@1a; g\')',
             ' end']
-        for label in ('GameSoundLoad','SoundLoadReturn','SoundOffline','GameSoundSet'):
+        for label in ('GameSoundLoad','SoundLoadReturn','SoundOffline'):
             event=f'printf "AUDIO {label} B=%02X CC=%02X FLAG9=%02X PATH=%02X X=%04X",b,cc,b@{syms["vmflags"]+9:x},b@{syms["soundpath"]:x},x; g'
             events.insert(-1,f'  cpu.debug:bpset({base+syms[label]},{json.dumps(condition)},{json.dumps(event)})')
         source=lua.read_text()

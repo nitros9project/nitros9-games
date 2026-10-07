@@ -6,9 +6,10 @@ from check_wbres import exercise, idle_rom, start_cpu
 ROOT=Path(__file__).resolve().parents[1]
 
 
-def fixture(sound, requests=1):
+def fixture(sound, requests=1, modal=False):
     # Start once, then wait for the completion flag before quitting.
     body=bytes([12,201])+bytes([99,0,200])*requests
+    if modal:body+=bytes([136])
     script=bytes([255,253,7,201,255,len(body),0])+body
     script+=bytes([255,7,200,255,2,0,134,1,0])
     logic=len(script).to_bytes(2,'little')+script
@@ -56,6 +57,20 @@ def main():
                     assert not state['audio_packets'] and state['vmflags'][9]==1
                 elif label not in ('truncated note','invalid amplitude'):
                     assert not state['audio_packets']
+            # More notes than the driver can hold must finish while Pause
+            # remains open, without a normal interpreter cycle refilling them.
+            long_sound=bytes([28,63,0,1])*14+bytes([255,0,1])
+            completed=[]
+            def modal_restoring(debug,registers,syms):
+                completed.append(debug.read(0x1000+syms['vmflags']+200,1)==b'\x01')
+            print('Checking native audio: bounded queue refill during a long modal wait',flush=True)
+            error,output,state=exercise(d,{**fixture(long_sound,modal=True),'wbstate':helper},
+                module='wbgame',base=0xa000,database=0x1000,window=0x8000,
+                blocks=None,multiple=True,firstblock=0x10,capture=True,
+                psg={'queue_capacity':8},keyboard_by_cycle={25:(b'\r',0)},
+                breakpoint_hooks={'GamePrintRestore':modal_restoring},os_call_limit=8000)
+            assert not error and not output and completed==[True],(error,output,completed)
+            assert len(state['audio_packets'])==18,state['audio_packets']
             # Exercise the adapter at the deepest supported AGI call depth,
             # with a maximum-length directory consuming parameter-stack space.
             directory=b'/'+b'a'*126
