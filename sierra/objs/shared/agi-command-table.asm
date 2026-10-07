@@ -127,8 +127,8 @@
                     AGI_COMMAND cmd_add_to_pic,$700,GameAddToPicture,1 *add to pic
                     AGI_COMMAND cmd_add_to_pic_v,$7fe,GameAddToPicture,1 *add to pic v
                     AGI_COMMAND cmd_status,$0000,InventoryStatus,1 *status
-                    AGI_COMMAND cmd_save_game,$0000,VmPlatformUnsupported,0 *save game
-                    AGI_COMMAND cmd_restore_game,$0000,VmPlatformUnsupported,0 *restore game
+                    AGI_COMMAND cmd_save_game,$0000,GameStateCommand,1 *save game
+                    AGI_COMMAND cmd_restore_game,$0000,GameStateCommand,1 *restore game
                     AGI_COMMAND NoopCmdsRet,$0000,VmPlatformUnsupported,0 *init disk
                     AGI_COMMAND cmd_restart_game,$0000,VmPlatformUnsupported,0 *restart game
                     AGI_COMMAND cmd_show_obj,$100,VmPlatformUnsupported,0 *sow obj

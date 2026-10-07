@@ -692,3 +692,19 @@ lwasm.orig --6809 --format=os9 \
 Add `--sol-driver /tmp/sierra-sol-counter` to either game acceptance command.
 This patches only its private emulator image; it does not update the user's
 active OS checkout or physical machine.
+
+
+## Native persistence checks
+
+Add `--interpreter --persistence --overlay` to the two-terminal picture harness
+with the King's Quest I resource directory. It checks saved variables and every
+pixel, validates the extracted file independently, rejects malformed/truncated
+snapshots, preserves an existing save, then checks independent exit/relaunch and
+exact free-memory recovery. `check_wbgame_mame.py --persistence --game
+sierra/kingsquest1` uses the original game's `save game` and `restore game`
+commands, walks out of the castle, restores Graham's position and exercises
+another command. Install `wbstate` alongside `wbgame` and `wbfont`; both harnesses
+now do so in their disposable disk images.
+
+Completed runs are recorded in [WILDBITS-ENGINE.md](WILDBITS-ENGINE.md). Audio
+and full-adventure completion remain unverified.

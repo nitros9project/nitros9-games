@@ -100,9 +100,12 @@ vmkeybyte           rmb       1
 * ===== wildbits-line-input-code =====
 * get.string/get.num use a modal bounded editor; pending game input is saved.
 * Cancel pending parser input; the ordinary cycle redraws its prompt row.
-GameCancelLine      ldu       <resourcebase
+ParserClearLine     ldu       <resourcebase
                     clr       parserlength,u
                     clr       parserline,u
+                    clrb
+                    rts
+GameCancelLine      lbsr      ParserClearLine
                     tst       <vminputenabled
                     lbne      ParserInputVisible
                     clrb
@@ -177,8 +180,7 @@ GameGetSaveByte     lda       ,x+
                     bne       GameGetSaveByte
                     lda       parserlength,u
                     sta       ,y
-                    clr       parserlength,u
-                    clr       parserline,u
+                    lbsr      ParserClearLine
                     puls      b
                     lbsr      GamePrintMessage
                     pshs      cc,b

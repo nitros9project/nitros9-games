@@ -8,7 +8,8 @@ algorithms live in `objs/shared`. See
 [the platform layout](objs/platform/README.md) for the feature map. The older `objs/wildbits_engine.asm` scaffold is not built.
 
 Build with `make -C sierra/objs -f wildbits.mk all` from the games repository. Install both
-`wbgame` and `wbfont` in the OS-9 execution directory, with read/execute access.
+`wbgame`, `wbfont`, and the optional `wbstate` save/restore helper in the OS-9
+execution directory, with read/execute access.
 Keep the original game resources together in a readable directory, then run:
 
 ```text
@@ -20,8 +21,18 @@ the castle description. CTRL-I opens inventory on the tested Wild Bits keyboard;
 Escape/Break opens the menu. ENTER selects; Escape/Break cancels. CTRL-C exits.
 The terminal's echo, EOF and quit settings are restored on exit.
 
+The game's Save and Restore commands ask for a filename (for example,
+`/s0/my-save`). Save creates a new file; choose a new name for each save rather
+than overwriting an existing file. Restore checks the complete file before
+replacing game resources. Files belong to this native port and must match the
+current game's ID. The `wbstate` helper loads only for these commands; it adds
+no permanent process data or normal movement work. A pictured snapshot needs
+five temporary 8 KiB blocks during validation, so available OS-9 memory matters
+when several games are running. A read/validation error leaves the game running;
+a resource reconstruction failure exits through cleanup.
+
 This is an **interactive early build**, not a complete AGI compatibility claim.
-Save/restore, audio, some later-game commands and timing optimizations remain.
+Audio, some later-game commands and timing optimizations remain.
 Do not infer that the entire adventure can be completed from the tested route.
 See [MAME.md](WILDBITS-MAME.md) for exact driver tests and [ENGINE.md](WILDBITS-ENGINE.md) for
 ownership, buffer aliases and shared-source boundaries.

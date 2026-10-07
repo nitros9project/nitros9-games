@@ -71,7 +71,10 @@ def main():
     parser.add_argument('--picture-number', type=int, default=1)
     parser.add_argument('--text-modes', action='store_true', help='Switch the second game terminal through text and graphics modes')
     parser.add_argument('--overlay', action='store_true', help='overlay a visual/priority edge on the second game terminal')
+    parser.add_argument('--persistence', action='store_true', help='save, change and restore the second terminal through the native file dialog')
     args = parser.parse_args()
+    if args.persistence and (not args.interpreter or args.text_modes):
+        parser.error('--persistence requires --interpreter and its own timeline')
     if args.overlay and not args.interpreter:
         parser.error('--overlay requires --interpreter')
     if args.text_modes and not args.interpreter:
@@ -104,6 +107,8 @@ def main():
     if args.interpreter:
         install('wbfont', (VIEWER / 'wbfont').read_bytes(), 'CMDS/wbfont')
         os9('attr', f'{disk},CMDS/wbfont', '-e', '-pe')
+        install('wbstate',(VIEWER/'wbstate').read_bytes(),'CMDS/wbstate')
+        os9('attr',f'{disk},CMDS/wbstate','-e','-pe')
     bars = bytes((((4 + y // 14) & 15) << 4) | (x // 10) for y in range(168) for x in range(160))
     picture = args.picture.read_bytes() if args.picture else bytes(
         ((y // 14) << 4) | ((x // 10 + y // 7) & 15) for y in range(168) for x in range(160))
@@ -137,8 +142,11 @@ def main():
             assert volume != 0, 'diagnostic logic occupies volume zero'
             for directory, number in [('bars-game', 1), ('game', args.picture_number)]:
                 body = bytes([111,0,23,0,3,0,number,24,0,25,0,26])
+                if args.persistence and directory == 'game':
+                    body += bytes([143,1,119,3,40,42,109,15,0,
+                        121,ord('s'),0,8,121,ord('c'),0,9,121,ord('r'),0,10])
                 if args.overlay and directory == 'game':
-                    body += bytes([3,0,0,24,0,28,0,26])
+                    body += bytes([3,0,0,24,0,28,0,26,27,0])
                 if args.text_modes:
                     body += bytes([119,121,ord('t'),0,8,121,ord('g'),0,9])
                 script = bytes([121,ord('x'),0,7,255,7,11,255,len(body),0]) + body
@@ -147,6 +155,10 @@ def main():
                     graphics_body = bytes([109,15,0,107,119])
                     for controller, part in ((8,text_body),(9,graphics_body)):
                         script += bytes([255,12,controller,255,len(part),0]) + part
+                if args.persistence and directory == 'game':
+                    for controller,part in ((8,bytes([125])),(9,bytes([3,40,77])),(10,bytes([126]))):
+                        script += bytes([255,12,controller,255,len(part),0])+part
+                    script += bytes([103,24,0,2])
                 script += bytes([255,12,7,255,2,0,134,1,0])
                 payload = len(script).to_bytes(2,'little') + script
                 if args.text_modes:
@@ -155,6 +167,14 @@ def main():
                     encrypted = bytes(v ^ cipher[i%len(cipher)] for i,v in enumerate(text))
                     payload += bytes([1]) + (4+len(text)).to_bytes(2,'little') + bytes([4,0]) + encrypted
                 install(directory + '-logDir', bytes(3), directory + '/logDir')
+                if args.persistence and directory == 'game':
+                    messages=[b'WBTST\0',b'Value: %v40\0']
+                    cursor=2+2*len(messages);offsets=bytearray()
+                    for text in messages:
+                        offsets += cursor.to_bytes(2,'little');cursor += len(text)
+                    text=b''.join(messages);cipher=b'Avis Durgan'
+                    encrypted=bytes(v^cipher[i%len(cipher)] for i,v in enumerate(text))
+                    payload += bytes([len(messages)])+cursor.to_bytes(2,'little')+offsets+encrypted
                 data = b'\x12\x34\0' + len(payload).to_bytes(2,'little') * 2 + payload
                 if args.overlay and directory == 'game':
                     assert number != 0, 'overlay fixture uses picture zero'
@@ -169,6 +189,22 @@ def main():
         install('bars.bin', bars)
         install('picture.bin', picture)
         first_command, second_command = 'wbpic /s0/bars.bin', 'wbpic /s0/picture.bin'
+    if args.persistence:
+        # A complete, correctly checksummed file with an invalid key count
+        # reaches field validation; a short copy independently checks EOF.
+        from check_instances import symbols
+        syms=symbols(VIEWER/'wbstate.map')
+        payload=bytearray(syms['StateCoreBytes']+160)
+        payload[syms['SavedKeyCount']]=51
+        payload[syms['StateCoreBytes']:syms['StateCoreBytes']+5]=b'\x01\0\0\x02\0'
+        crc=65535
+        for value in payload:
+            crc ^= value<<8
+            for bit in range(8):
+                crc=((crc<<1)^0x1021 if crc&32768 else crc<<1)&65535
+        header=b'WS\x01\0'+len(payload).to_bytes(2,'big')+crc.to_bytes(2,'big')+b'WBTST'+bytes(5)
+        install('badstate',header+payload)
+        install('shortstate',header+payload[:10])
     install('startup', f'load utilpak1\nload vt\nlink shell\nload {module}\nload grfdrv256\n'.encode(), text=True)
     install('feu.startup', b'bootos9 /s0/OS9Boot\n', 'FEU/startup', text=True)
     # Asset installation may extend a sparse disk: pad after all copies.
@@ -187,6 +223,22 @@ def main():
         del commands[2600]
         commands.update({2550:'t',2650:'g',2800:'x\n'})
         shots.update({2625:'picture-text-mode',2775:'picture-graphics-mode'})
+    if args.persistence:
+        commands={600:'iniz /vt1\n',720:'shell i=/vt1&\n',800:'mfree >/s0/free-before\n',
+            900:first_command+'\n',1500:second_command+'\n',
+            2550:'s',2650:'/s0/state1\n',2950:'c',3050:'r',3150:'/s0/state1\n',
+            3450:'r',3550:'/s0/badstate\n',3850:' ',
+            4050:'r',4150:'/s0/shortstate\n',4550:' ',
+            4750:'s',4850:'/s0/state1\n',5150:' ',5350:'x\n',5600:'x\n',
+            6000:first_command+'\n',6500:second_command+'\n',6900:'x\n',7700:'x\n',
+            8000:'mfree >/s0/free-after\n',8200:'echo WBTEST-DONE >/s0/wbtest-done\n'}
+        switches={1200:'Right',1950:'Left',2300:'Right',5450:'Left',6300:'Right',7200:'Left'}
+        shots={1150:'bars-initial',1800:'picture-initial',2200:'bars-restored',2500:'picture-restored',
+            2900:'picture-saved',3000:'picture-changed',3400:'picture-loaded',
+            3750:'invalid-error',3950:'invalid-restored',4450:'short-error',4650:'short-restored',
+            5050:'existing-error',5250:'existing-restored',5400:'picture-closed',
+            5500:'bars-survives',5750:'both-closed',6200:'bars-relaunch',6800:'picture-relaunch',
+            7500:'bars-survives-again'}
     factor = 2 if args.native_game else 1
     commands = {frame * factor: command for frame, command in commands.items()}
     switches = {frame * factor: direction for frame, direction in switches.items()}
@@ -210,14 +262,14 @@ sub = emu.add_machine_frame_notifier(function()
  if shots[frames] then
    manager.machine.screens[":screen"]:snapshot({json.dumps(str(out) + '/')} .. shots[frames] .. ".png")
  end
- if frames == {6500 * factor} then manager.machine:exit() end
+ if frames == {(8500 if args.persistence else 6500) * factor} then manager.machine:exit() end
 end)
 '''
     lua = out / 'drive.lua'
     lua.write_text(script)
     command = [str(mame), 'wbjr2', '-bios', 'turbo', '-rompath', str(roms.parent),
                '-hard', str(disk), '-skip_gameinfo', '-noui_mouse', '-mouseprovider', 'none', '-video', 'none', '-sound', 'none',
-               '-nothrottle', '-autoboot_script', str(lua), '-seconds_to_run', str(120 * factor),
+               '-nothrottle', '-autoboot_script', str(lua), '-seconds_to_run', str((150 if args.persistence else 120) * factor),
                '-nvram_directory', str(out / 'nvram'), '-cfg_directory', str(out / 'cfg')]
     (out / 'command.json').write_text(json.dumps(command, indent=2) + '\n')
     with (out / 'mame.log').open('w') as log:
@@ -241,6 +293,16 @@ end)
         expected = b''.join(colors[value & 15] * 4 for value in payload)
         expected = b''.join(expected[y * 1920:(y + 1) * 1920] * 2 for y in range(168))
         expected += colors[0] * (640 * (480 - 336))
+        if args.persistence and name == 'picture-initial':
+            expected=bytearray(expected);font=(VIEWER/'wbfont').read_bytes()
+            for column,char in enumerate(b'Value: 42'):
+                for row in range(8):
+                    for x in range(8):
+                        color=colors[15] if font[char*8+row]&(128>>x) else colors[0]
+                        for dy in range(2):
+                            for dx in range(2):
+                                offset=((384+row*2+dy)*width+column*16+x*2+dx)*3
+                                expected[offset:offset+3]=color
         assert pixels == expected, f'{name}: real driver output differs from combined buffer'
     if args.text_modes:
         assert images['picture-graphics-mode'] == images['picture-initial'], 'graphics did not restore the game picture'
@@ -256,6 +318,24 @@ end)
                             offset = ((row*2+dy)*width+column*16+x*2+dx)*3
                             wanted[offset:offset+3] = color
         assert pixels == wanted, 'text mode colors/glyphs differ on the second terminal'
+    if args.persistence:
+        assert images['picture-saved']==images['picture-initial'], 'save altered the scene'
+        assert images['picture-changed']!=images['picture-initial'], 'change controller did not change the variable'
+        assert images['picture-loaded']==images['picture-initial'], 'restore did not recover the variable and pixels'
+        for name in ('invalid','short','existing'):
+            assert images[name+'-restored']==images['picture-initial'], name+' failure altered the game'
+            assert images[name+'-error']!=images['picture-initial'], name+' error dialog missing'
+        saved=out/'state1.bin'
+        os9('copy',f'{disk},state1',saved)
+        data=saved.read_bytes()
+        assert data[:3]==b'WS\x01' and data[8:16]==b'WBTST'+bytes(3), 'snapshot identity/version'
+        assert len(data)==18+int.from_bytes(data[4:6],'big'), 'snapshot length'
+        crc=65535
+        for value in data[18:]:
+            crc ^= value<<8
+            for bit in range(8):
+                crc=((crc<<1)^0x1021 if crc&32768 else crc<<1)&65535
+        assert crc==int.from_bytes(data[6:8],'big'), 'snapshot checksum'
     memory = {}
     for name in ('free-before', 'free-after'):
         memory[name] = os9('list', f'{disk},{name}')

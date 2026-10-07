@@ -165,7 +165,7 @@ VmLoadLogic         clra
 VmLoadResource      sta       <vmrequestedkind
                     stb       <vmrequested
                     lbsr      AssetUnmap
-                    lbcs      VmCacheReturn
+                    bcs      VmCacheReturn
                     clr       <vmcacheindex
 VmCacheFind         ldb       <vmcacheindex
                     bsr      VmSlotAddress
@@ -441,6 +441,15 @@ VmRunRoot           lbsr      ExecuteLogic
                     bcs       VmNativeReturn
                     tst       <vmroompending
                     beq       VmCompletedRootCycle
+                    ifne      GAME_PRESENTATION
+                    lda       <vmroompending
+                    cmpa      #2
+                    bne       VmOrdinaryRoomChange
+                    lbsr      GameStateApply
+                    bcs       VmNativeReturn
+                    bra       VmRunRoot
+VmOrdinaryRoomChange equ      *
+                    endc
                     lbsr      ApplyRoomChange
                     bcs       VmNativeReturn
                     bra       VmRunRoot
@@ -636,7 +645,7 @@ VmDiscardViewResource lda     #2
 VmCommandNewRoom    ldu       <resourcebase
                     ldb       vmarguments,u
                     lbra      RequestRoom
-VmCommandNewRoomVariable lbsr VmResolveLogicArgument
+VmCommandNewRoomVariable bsr VmResolveLogicArgument
                     lbra      RequestRoom
 VmProgramControl    clr       <vmplayercontrol
                     clrb

@@ -15,6 +15,7 @@ def main():
     ap.add_argument('--typed-command', help='Exercise one command after inventory dismissal')
     ap.add_argument('--menu',action='store_true',help='Open and cancel the actual game menu')
     ap.add_argument('--sustained',action='store_true',help='Repeat commands and select Pause through the real game menu')
+    ap.add_argument('--persistence',action='store_true',help='Save original KQ1, walk, restore, and issue another command')
     ap.add_argument('--movement',action='store_true',help='Measure KQ1 movement over 200 emulated frames')
     ap.add_argument('--larry',action='store_true',help='Exercise Larry age quiz, street walking and look response')
     ap.add_argument('--larry-enter',action='store_true',help="Exercise Larry quiz and entering Lefty's")
@@ -42,6 +43,8 @@ def main():
                 install('castle-'+source.name,source.read_bytes(),'castle/'+source.name)
     install('wbgame',(a.module_file or (VIEWER/'wbgame')).read_bytes(),'CMDS/wbgame')
     os9('attr',f'{disk},CMDS/wbgame','-e','-pe')
+    install('wbstate',(VIEWER/'wbstate').read_bytes(),'CMDS/wbstate')
+    os9('attr',f'{disk},CMDS/wbstate','-e','-pe')
     install('wbfont',(VIEWER/'wbfont').read_bytes(),'CMDS/wbfont')
     os9('attr',f'{disk},CMDS/wbfont','-e','-pe')
     install('startup',b'load utilpak1\n'+(b'load vt\n' if a.larry_pair else b'')+b'link shell\nload wbgame\nload grfdrv256\n',text=True)
@@ -77,7 +80,7 @@ def main():
 
     with disk.open('ab') as f:f.truncate(1 << (disk.stat().st_size-1).bit_length())
     response_frame=4000+max(700,120*len(a.typed_command or ""))
-    if sum(bool(v) for v in (a.menu,a.typed_command,a.sustained,a.movement,a.larry,a.larry_enter,a.larry_pair))>1:
+    if sum(bool(v) for v in (a.menu,a.typed_command,a.sustained,a.movement,a.persistence,a.larry,a.larry_enter,a.larry_pair))>1:
         ap.error("choose menu, typed-command, sustained, movement, larry larry-enter or larry-pair")
     if a.menu: response_frame=4700
     delay=response_frame+1000-3900 if a.typed_command or a.menu else 0
@@ -122,6 +125,25 @@ def main():
  if frames==10800 then shot("play-second-response") end
  if frames==10850 then post(" ") end
  if frames==11200 then shot("play-final-scene") end
+'''
+    if a.persistence:
+        delay=7000
+        command_events='''
+ if frames==4000 then post("save game\\n") end
+ if frames==4700 then shot("save-prompt") end
+ if frames==4800 then post("/s0/kqsave\\n") end
+ if frames==5700 then shot("save-scene") end
+ if frames==5800 then keys["Right"]:set_value(1) end
+ if frames==6200 then keys["Right"]:clear_value() end
+ if frames==6300 then shot("save-moved") end
+ if frames==6400 then post("restore game\\n") end
+ if frames==7200 then shot("restore-prompt") end
+ if frames==7300 then post("/s0/kqsave\\n") end
+ if frames==8500 then shot("restore-scene") end
+ if frames==8600 then post("look room\\n") end
+ if frames==9900 then shot("restore-response") end
+ if frames==9950 then post(" ") end
+ if frames==10300 then shot("restore-final") end
 '''
     if a.movement:
         delay=2000
@@ -264,7 +286,7 @@ end)
         source='local cpu=manager.machine.devices[":maincpu"]\nmanager.machine.debugger.execution_state="run"\n'+source
         source=source.replace(' frames=frames+1',' frames=frames+1\n'+'\n'.join(events),1)
         lua.write_text(source)
-    command=[str(a.mame.resolve()),'wbjr2','-bios','turbo','-rompath',str(roms.parent),'-hard',str(disk),'-skip_gameinfo', '-noui_mouse', '-mouseprovider', 'none','-video','none','-sound','none','-nothrottle','-autoboot_script',str(lua),'-seconds_to_run',str(420 if a.larry_pair else (5100+delay+(1200 if a.larry or a.larry_enter else 0))//60+10 if a.typed_command or a.menu or a.sustained or a.movement or a.larry or a.larry_enter else 100),'-nvram_directory',str(out/'nvram'),'-cfg_directory',str(out/'cfg')]
+    command=[str(a.mame.resolve()),'wbjr2','-bios','turbo','-rompath',str(roms.parent),'-hard',str(disk),'-skip_gameinfo', '-noui_mouse', '-mouseprovider', 'none','-video','none','-sound','none','-nothrottle','-autoboot_script',str(lua),'-seconds_to_run',str(420 if a.larry_pair else (5100+delay+(1200 if a.larry or a.larry_enter else 0))//60+10 if a.typed_command or a.menu or a.sustained or a.movement or a.persistence or a.larry or a.larry_enter else 100),'-nvram_directory',str(out/'nvram'),'-cfg_directory',str(out/'cfg')]
     if a.profile:command+=['-debug','-debugger','none']
     (out/'command.json').write_text(json.dumps(command,indent=2)+'\n')
     with (out/'mame.log').open('w') as log:subprocess.run(command,cwd=out,stdout=log,stderr=subprocess.STDOUT,check=True,timeout=360 if a.larry_pair else 300 if a.larry or a.larry_enter else 180)
@@ -412,6 +434,21 @@ end)
             w,h,pixels=png_rgb(out/(name+'.png'))
             assert len(set(pixels[i:i+3] for i in range(0,len(pixels),3)))>=12, ('scene missing',name)
         print('PASS: sustained original-game commands, unknown-word response, real menu Pause selection, resume and subsequent command')
+    if a.persistence:
+        centers=[]
+        for name in ('save-scene','save-moved','restore-scene','restore-final'):
+            w,h,pixels=png_rgb(out/(name+'.png'))
+            shirt=[i//3%w for i in range(0,len(pixels),3)
+                if pixels[i:i+3]==bytes([255,85,85])
+                and 120<=i//3//w<240]
+            assert shirt,('Graham absent',name)
+            centers.append((min(shirt)+max(shirt))/2)
+        assert abs(centers[1]-centers[0])>8,('game did not change position before restore',centers)
+        assert abs(centers[2]-centers[0])<=4 and abs(centers[3]-centers[0])<=4,('restore did not recover position',centers)
+        saved=out/'kqsave.bin';os9('copy',f'{disk},kqsave',saved)
+        data=saved.read_bytes()
+        assert data[:3]==b'WS\x01' and len(data)==18+int.from_bytes(data[4:6],'big')
+        print('PASS: original KQ1 save dialog, walking, restored position, subsequent look command and unchanged free memory',centers)
     if a.movement:
         # The castle's other bright-red pixels are below this region. Graham's
         # shirt gives an observable centre; cel shape may shift it slightly.

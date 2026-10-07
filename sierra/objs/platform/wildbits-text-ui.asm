@@ -138,6 +138,120 @@ GamePrintCopyBack   ldd       ,x++
                     lbcs      GameTextReturn
                     lbra      RefreshPicture
 
+
+* State entry is a phase-local alias: no formatter runs between validated
+* staging and root-stack unwind. Both persistent text planes end before it.
+stateentry          equ       textpointer
+GameStateCommand    ldu       <resourcebase
+                    lda       #1
+                    sta       dialoginputmode,u
+                    ldd       #$0A02
+                    std       inventoryrow,u
+                    lda       #39
+                    sta       inventorypaint,u
+                    lbsr      ParserClearLine
+                    leax      StatePrompt,pcr
+                    lbsr      GamePrintText
+                    lbcs      GameStateReturn
+                    ldu       <resourcebase
+                    clr       dialoginputmode,u
+                    tst       parserlength,u
+                    lbeq      GameStateSuccess
+                    lbsr      AssetUnmap
+                    lbcs      GameStateReturn
+                    lbsr      PictureUnmap
+                    lbcs      GameStateReturn
+                    ldu       <resourcebase
+                    pshs      u
+                    leax      StateModule,pcr
+                    lda       #Sbrtn+Objct
+                    os9       F$Load
+                    bcs       StateLoadReturn
+                    ldd       M$Size,u
+                    cmpd      #4096
+                    bhi       StateLoadBad
+                    ldd       M$Exec,u
+                    cmpd      #13
+                    blo       StateLoadBad
+                    addd      #13       branch, private ABI and CRC must fit
+                    bcs       StateLoadBad
+                    cmpd      M$Size,u
+                    bhi       StateLoadBad
+                    leay      2,y
+                    leax      StateSignature,pcr
+                    ldb       #8
+StateCheckABI       lda       ,x+
+                    cmpa      ,y+
+                    bne       StateLoadBad
+                    decb
+                    bne       StateCheckABI
+                    ldx       ,s
+                    ldd       M$Exec,u
+                    addd      #fillstack
+                    addd      <resourcebase
+                    std       stateentry,x
+                    pshs      u
+                    tfr       u,x
+                    ldy       M$Size,u
+                    ldu       2,s
+                    leau      fillstack,u
+StateCopy           lda       ,x+
+                    sta       ,u+
+                    leay      -1,y
+                    bne       StateCopy
+                    puls      u
+                    os9       F$UnLink
+StateLoadReturn     puls      u
+                    bcs       GameStateFailure
+                    lda       <vmopcode
+                    suba      #125
+                    bra       GameStateInvoke
+StateLoadBad        os9       F$UnLink
+                    ldb       #E$BMode
+                    orcc      #1
+                    bra       StateLoadReturn
+GameStateApply      lda       #2
+GameStateInvoke     pshs      a
+                    ldu       <resourcebase
+                    leax      parserline,u
+                    leay      StateAPI,pcr
+                    jsr       [stateentry,u]
+                    puls      a
+                    bcs       GameStateCallFailed
+                    cmpa      #1
+                    bne       GameStateSuccess
+                    lda       #2
+                    sta       <vmroompending
+GameStateSuccess    ldu       <resourcebase
+                    lda       #1
+                    sta       gameclockreset,u
+                    lbra      ParserClearLine
+GameStateReturn     rts
+GameStateCallFailed deca
+                    deca                preserve the helper failure carry
+                    beq       GameStateReturn
+GameStateFailure    ldu       <resourcebase
+                    clr       dialoginputmode,u
+                    leax      StateFailure,pcr
+                    lbsr      GamePrintText
+                    bcc       GameStateSuccess
+                    rts
+StatePrompt         fcc       /File:/
+                    fcb       0
+StateFailure        fcc       /File error./
+                    fcb       0
+StateModule         fcc       /wbstate/
+                    fcb       C$CR
+StateSignature      STATE_ABI
+* Position-independent callbacks: offsets are relative to this table's base.
+StateAPI            fdb       AssetUnmap-StateAPI,PictureUnmap-StateAPI
+                    fdb       VmReleaseCache-StateAPI,GameReleaseBackground-StateAPI
+                    fdb       PictureRelease-StateAPI,VmLoadResource-StateAPI
+                    fdb       VmSlotAddress-StateAPI,VmRestoreAsset-StateAPI
+                    fdb       PictureAllocate-StateAPI,PicturePointer-StateAPI
+                    fdb       GameSaveBackground-StateAPI,GameComposeScene-StateAPI
+                    fdb       RefreshPicture-StateAPI
+
                     else
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_DICTIONARY_CODE
 * ===== wildbits-dictionary-code =====
@@ -340,7 +454,7 @@ GameTextRead        ldx       textpointer,u
                     lda       ,x+
                     stx       textpointer,u
                     tsta
-                    lbeq      GameTextPresent
+                    beq      GameTextPresent
                     cmpa      #10
                     beq       GameTextNewline
                     cmpa      #13
@@ -353,7 +467,7 @@ GameTextRead        ldx       textpointer,u
                     inc       dialogwordstart,u
                     ldb       textcolumn,u
                     cmpb      #2
-                    lbeq      GameTextStore
+                    beq      GameTextStore
 GameTextCharacter   pshs      a
                     lda       textrow,u
                     ldb       #40
@@ -828,7 +942,7 @@ InventoryFooter     leay      textcharacters+961,u
                     leax      InventoryNothing,pcr
                     leay      textcharacters+122,u
                     lbsr      InventoryString
-                    lbra      InventoryPresent
+                    bra      InventoryPresent
 InventoryItems      lda       #3
                     sta       inventoryrow,u
                     ldd       inventorytop,u
@@ -914,12 +1028,12 @@ InventoryReadKey    ldu       <resourcebase
                     cmpa      #13
                     lbeq      InventoryChoose
                     ldd       inventoryvisible,u
-                    lbeq      InventoryWait
+                    beq      InventoryWait
                     lda       inventorykey,u
                     cmpa      #12
                     beq       InventoryUp
                     cmpa      #10
-                    lbne      InventoryWait
+                    bne      InventoryWait
                     ldd       inventoryselected,u
                     addd      #1
                     cmpd      inventoryvisible,u
@@ -1128,11 +1242,11 @@ MenuSetTitle        ldb       <menucount
                     clrb
                     rts
 MenuSetItem         tst       <menucount
-                    lbeq      MenuInvalid
+                    beq      MenuInvalid
                     ldb       <menuitems
                     cmpb      #32
                     bhs       MenuFull
-                    lbsr      MenuCopyLabel
+                    bsr      MenuCopyLabel
                     bcs       MenuReturn
                     ldu       <resourcebase
                     leax      menuentries,u
@@ -1320,7 +1434,7 @@ GameMenuWait        lbsr      foreground
                     os9       I$GetStt
                     bcc       GameMenuReadKey
                     cmpb      #E$NotRdy
-                    lbne      GameMenuRestore
+                    bne      GameMenuRestore
                     ldx       #2
                     os9       F$Sleep
                     bra       GameMenuWait
@@ -1467,9 +1581,9 @@ ReadLogicMessage    stb       <messagenumber
                     addd      <messagebase
                     lbcs      MessageInvalid
                     cmpd      <messagestart
-                    lblo      MessageInvalid
+                    blo      MessageInvalid
                     cmpd      <messageend
-                    lbhs      MessageInvalid
+                    bhs      MessageInvalid
                     std       <messageposition
                     subd      <messagestart
 MessageKeyModulo    cmpd      #11
@@ -1960,7 +2074,7 @@ FormatWordCopy      tstb
                     lbeq      FormatNext
                     lda       ,y+
                     bsr      FormatPut
-                    lbcs      FormatPartError
+                    bcs      FormatPartError
                     decb
                     bra       FormatWordCopy
 FormatString        equ *
@@ -2240,7 +2354,7 @@ DictionaryValidateEntry ldd dictionarycachebase,u
                     bcc       ParserPrefix
                     cmpb      #E$EOF
                     lbne      ResourceFailed
-                    lbra      DictionaryValidateDone
+                    bra      DictionaryValidateDone
 ParserPrefix        cmpb      parserwordlength,u
                     bhi      ParserMalformed
                     stb       parserwordlength,u
@@ -2266,7 +2380,7 @@ ParserSuffixByte
                     tst       parsercharacter,u
                     bpl       ParserSuffix
                     lbsr      ParserByte
-                    lbcs      ParserTruncated
+                    bcs      ParserTruncated
                     lbsr      ParserByte
                     lbcs      ParserTruncated
                     lda       parserword,u

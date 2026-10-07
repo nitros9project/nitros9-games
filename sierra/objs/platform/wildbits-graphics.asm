@@ -322,7 +322,7 @@ GameCopyBackground  lbsr      PictureUnmap
                     clr       <pictureoutoffset+1
 GameBackgroundChunk ldd       #26880
                     subd      <pictureoutoffset
-                    lbeq      GameBackgroundDone
+                    beq      GameBackgroundDone
                     cmpd      #8192
                     bls       GameBackgroundSize
                     ldd       #8192
@@ -333,11 +333,11 @@ GameBackgroundSize  std       <picturechunk
                     bne       GameReadBackground
                     lbsr      PicturePointer
                     tst       <decodeerror
-                    lbne      GameBackgroundDecodeError
+                    bne      GameBackgroundDecodeError
                     bra       GameStageBackground
 GameReadBackground  lbsr      AssetPointer
                     tst       <asseterror
-                    lbne      GameBackgroundAssetError
+                    bne      GameBackgroundAssetError
 GameStageBackground leax      resourcecommands,x
 GameBackgroundRead  ldd       ,u++
                     std       ,x++
@@ -461,7 +461,7 @@ GameRecordPicture   ldb       ,x
                     cmpa      #28
                     beq       GameOverlayBackground
                     lbsr      PictureRelease
-                    lbcs      GamePictureReturn
+                    bcs      GamePictureReturn
                     bra       GameDecodePicture
 * Remove animated footprints before changing the saved background.
 * Preserve the overlay cache entry while background restoration uses X.
@@ -471,10 +471,10 @@ GameOverlayBackground pshs   x
                     beq       GameOverlayRestored
                     lbsr      GameRestoreBackground
 GameOverlayRestored puls     x
-                    lbcs      GamePictureReturn
+                    bcs      GamePictureReturn
                     lbsr      VmRestoreAsset
                     lbsr      AssetUnmap
-                    lbcs      GamePictureReturn
+                    bcs      GamePictureReturn
 GameDecodePicture   ldu       <resourcebase
                     ldx       #0                logical input offset, not a mapped pointer
                     ldy       <gamepicturelength
@@ -573,7 +573,7 @@ AddPicArgumentReady stb       ,x+
                     lbcs      AddPicReturn
                     ldd       2,s
                     lbsr      ReplayPush
-                    lbcs      AddPicReturn
+                    bcs      AddPicReturn
                     lda       6,s
                     lsla
                     lsla
@@ -583,7 +583,7 @@ AddPicArgumentReady stb       ,x+
                     tfr       a,b
                     lda       4,s
                     lbsr      ReplayPush
-                    lbcs      AddPicReturn
+                    bcs      AddPicReturn
                     leax      7,s
                     ldb       #43
 AddPicClearRecord   clr       ,x+
@@ -1058,7 +1058,7 @@ SpriteControlHidden equ       *
                     bra       SpriteNextColumn
 SpriteControlError  equ       *
 SpriteControlRestoreError leas 2,s
-                    lbra      SpriteDecodeError
+                    bra      SpriteDecodeError
 SpriteNextColumn    inc       spritecolumn,x
                     ldb       spritecolumn,x
                     cmpb      dirtycolumns,x
@@ -1250,7 +1250,7 @@ PictureAddress      ldd       <pictureoffset
                     ldu       <picturemapbase
                     leau      d,u
 PicturePointerRet   puls      d,pc
-PictureMapError     lbsr      PictureError
+PictureMapError     bsr      PictureError
                     bra       PictureMapDone
 PictureClear        pshs      x
                     ldy       #0
@@ -1696,7 +1696,7 @@ PresentPicture      lbsr      PictureUnmap
                     lbcs      PresentFailure
                     ifne      GAME_PRESENTATION
                     tst       <bitmapowned
-                    lbne      PresentReuseBitmap
+                    bne      PresentReuseBitmap
                     endc
 * Refuse an existing bitmap: it is not ours to modify or free.
                     lda       #1
@@ -1972,7 +1972,7 @@ copyspan            equ       *
                     std       <remaining
                     ifeq      GAME_PRESENTATION
                     lbsr      unmap
-                    lbcs      PresentFailure
+                    bcs      PresentFailure
                     endc
                     tst       <aborted
                     lbne      PresentAbort
@@ -1995,7 +1995,7 @@ copyspan            equ       *
                     std       <remaining
                     bra      writespan
 PresentBandWritten  lbsr      unmap
-                    lbcs      PresentFailure
+                    bcs      PresentFailure
                     else
                     dec       <rows
                     endc
@@ -2006,7 +2006,7 @@ PresentBandWritten  lbsr      unmap
 PresentFinishBands  equ       *
                     endc
                     lbsr      foreground
-                    lbcs      PresentFailure
+                    bcs      PresentFailure
                     ifne      GAME_PRESENTATION
                     lda       <presentationconfigured
                     bita      #1
@@ -2108,10 +2108,10 @@ PresentDecodeFailure ldb      <decodeerror
 PresentationRelease clr       <errorcode
                     tst       <mapped
                     beq       PresentReleaseSignal
-                    lbsr      unmap
+                    bsr      unmap
                     bcc       PresentReleaseSignal
                     stb       <errorcode
-                    lbsr      unmap
+                    bsr      unmap
 PresentReleaseSignal tst      <registered
                     beq       PresentReleaseBitmap
                     lda       #0

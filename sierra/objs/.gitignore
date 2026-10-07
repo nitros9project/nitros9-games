@@ -1,6 +1,7 @@
 
 # Wild Bits module build products
 /wbgame
+/wbstate
 /wbexec
 /wbdecode
 /wbrun

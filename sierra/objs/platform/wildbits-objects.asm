@@ -89,7 +89,7 @@ GameNextCycle       lbsr      AssetUnmap
                     tst       gamequit,u
                     lbne      GameCycleSuccess
                     lbsr      foreground
-                    lbcs      GameCycleReturn
+                    bcs      GameCycleReturn
                     ldu       <resourcebase
                     clr       vmflags+2,u
                     clr       vmflags+4,u
@@ -863,7 +863,7 @@ RepositionReject    ldu       motionobject,x
                     ldd       3,s
                     subd      #1
                     std       3,s
-                    lbeq      RepositionExhausted
+                    beq      RepositionExhausted
                     ifne WILDBITS
                     ifndef PLATFORM_WILDBITS_OBJECTS_BINDINGS
                     use platform/wildbits-objects-bindings.asm
@@ -1067,7 +1067,7 @@ ObjectStopUpdate    lda       $26,x
 ObjectStartUpdate   lda       $26,x
                     ora       #$10
 ObjectUpdateStore   sta       $26,x
-                    lbra      ObjectDone
+                    bra      ObjectDone
 ObjectFixLoop       lbra      CmdFixLoop
 ObjectReleaseLoop   lbra      CmdReleaseLoop
 ObjectArgumentValue leay      vmvariables,u
@@ -1139,7 +1139,7 @@ ObjectCycleCommand  lbsr      ObjectAddress
                     cmpb      #75
                     beq      ObjectReverseEnd
                     cmpb      #76
-                    lbeq      ObjectCycleTime
+                    beq      ObjectCycleTime
                     cmpb      #79
                     lbeq      ObjectStepSize
                     cmpb      #80
@@ -1156,8 +1156,8 @@ ObjectCycleCommand  lbsr      ObjectAddress
                     ifndef SHARED_OBJECT_COMMANDS_DEFINED
                     use shared/object-commands.asm
                     endc
-ObjectStopCycle     lbra      CmdStopCycling
-ObjectStartCycle    lbra      CmdStartCycling
+ObjectStopCycle     bra      CmdStopCycling
+ObjectStartCycle    bra      CmdStartCycling
 ObjectNormalCycle   OBJECT_CYCLE_STATE 0,x,0
                     lbra      ObjectDone
 ObjectReverseCycle  OBJECT_CYCLE_STATE 3,x,0

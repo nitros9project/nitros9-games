@@ -12,8 +12,8 @@ for retry. Sprite visibility now uses the same shared per-cel rule for both
 owners; native publishes AGI flag 1 only for ego. Selected-cel positioning is also shared, including right-edge and
 height/horizon adjustment. Native platform commands now use an immutable relative dispatch table
 from the shared AGI catalog. Both decoders also expand the shared LZW
-window-alignment/mask and dictionary-walk core. The game is 23,072 bytes;
-process data is 24,570 bytes (six bytes below its three-page limit).
+window-alignment/mask and dictionary-walk core. The game is 23,808 bytes, at its resident-code limit;
+process data is 24,460 bytes (116 bytes below its three-page limit).
 The per-cel visibility byte reuses the sort key after collection completes.
 
 
@@ -1104,3 +1104,93 @@ The final full game CPU suite and all 1,024 dispatch cases passed. The combined
 restoration of the overlaid castle after text mode and focus changes, independent
 exit, relaunch and identical free-memory maps. All 56 CoCo interpreter modules
 rebuilt byte-identically in isolated output directories.
+
+
+## Cold save and restore
+
+AGI commands 125 and 126 use `objs/wbstate.asm`, an optional subroutine module
+built by `wildbits.mk`. This is file persistence code, not another interpreter.
+The game loads it only when a save/restore dialog has collected a filename,
+checks its private-layout ABI, copies it into the process's 4 KiB `fillstack`,
+and unlinks the original module before executing the copy. Normal movement,
+logic dispatch and rendering do not load or call this helper.
+
+The entry point receives a mode, filename, private-data base and relative
+callback table. The shared `STATE_SCHEMA` in `wildbits-runtime.asm` defines the
+persistent field order and the helper's private-layout fingerprint. It contains
+variables/flags, strings, object records, inventory rooms and controls, key and
+menu definitions, screen controls, motion constraints, random/replay state and
+both native text planes. Unloaded inventory controls are normalized to zero.
+The callback table lets the helper reuse the existing resource and presentation
+owners without absolute module addresses or duplicate engine implementations.
+
+The file starts with an 18-byte big-endian header: two-byte `WS` magic, version
+1, picture-present flag, two-byte payload length, CRC-16/CCITT of the payload
+(seed $FFFF, polynomial $1021), eight-byte game ID, root logic number, and a
+reserved zero byte. The payload has 7,687 bytes of logical fields followed by
+32 five-byte cache recipes. Each recipe has resource kind plus one (zero means
+empty), ID, two-byte scan offset and a reserved zero. A present picture adds
+26,880 bytes in the native combined priority/color format. The largest file is
+34,745 bytes. Physical block numbers, open paths and mapped addresses never
+appear in the file. This format is specific to the native port.
+
+Save creates a new file and streams the fields, recipes and static background
+through public OS-9 file calls. Picture slabs are mapped only long enough to
+copy a bounded chunk into the helper's private buffer, then unmapped before
+I/O. The helper rewrites the header with its completed checksum and closes the
+file. Existing filenames are rejected; a failed save deletes only a new partial
+file that this operation created.
+
+Restore has two phases. First it reads into owned staging slabs, checks the
+header, identity, exact length, checksum, field bounds and cache recipes, and
+rejects trailing data. It retains the validated stage and asks the logic loop
+to unwind. At the root, with no nested frame left, it releases the old caches
+and images, reloads resources by kind/ID, derives logic bounds from their new
+bytes, restores the logical fields and copies the static pixels into a new
+owned picture. The staging slabs are released before allocating the permanent
+background copy. It then composes objects and text through the normal owner.
+The restored root starts at its saved scan offset, with AGI restore flag 12 set
+and transient parser/controller state cleared.
+
+`stateentry` aliases `textpointer` only between cold-module loading and root
+apply. No formatter, inventory-name loading or picture flood fill may execute
+while the copied helper occupies `fillstack`; those operations use the same
+workspace. Rendering callbacks used here do not use it. The helper takes no
+separate permanent private allocation and does not add a platform source file.
+
+Read/validation failures leave the running game intact. A failure rebuilding
+resources after apply begins exits through normal game cleanup rather than
+resuming partially replaced state. Public I/O and mapping failures are reported
+as file errors during save/prepare; apply failures propagate to the game owner.
+This does not establish complete adventure or audio compatibility.
+
+
+Persistence verification uses `check_wbpic_mame.py --interpreter --persistence`:
+it saves variable 40 and every combined-plane pixel, changes the variable,
+restores it, checks both terminals, exits/relaunches both owners and compares the
+initial/final OS-9 free-memory maps. The extracted file's exact length, game ID
+and CRC are checked independently on the host. `check_wbgame.py` also executes
+zero, partial, complete and oversized transfer counts with both incoming Z-flag
+states, and malformed field/cache recipes with exact mapping cleanup. The
+ordinary native game regression suite passed and all 56 CoCo modules remained
+byte-identical after these changes.
+
+
+The extended two-terminal MAME test also overlays and discards a picture source,
+then checks save/restore, a valid-CRC snapshot with an invalid key count, a short
+snapshot, and an attempted save to the existing filename. All three error paths
+restore the identical live scene; the original save still has its expected
+length and checksum. Both owners exit and relaunch and the free-memory map is
+unchanged. Artifacts: `/tmp/sierra-state-invalid-overlay-complete`.
+
+Unmodified King's Quest I was saved at the castle, walked into the neighboring
+room and restored to the castle. Graham's measured shirt center was 449.5 pixels
+before save, 21.5 in the next room, and 449.5 after restore and after the next
+`look room` interaction. The original-game memory map recovered exactly.
+Artifacts: `/tmp/sierra-state-original-kq1-final`. The first test assertion assumed
+movement stayed in one room; host verification of the same artifacts uses the
+correct room-transition check now present in `check_wbgame_mame.py --persistence`.
+
+The cold helper is 3,045 bytes of its 4,096-byte workspace. The main game is
+23,808 bytes and retains 24,460 bytes of private data. No new platform assembly
+file was added; the platform feature count remains 26.

@@ -4,8 +4,87 @@ from pathlib import Path
 import subprocess
 import tempfile
 from check_wbres import exercise, idle_rom, start_cpu
+from check_instances import symbols
 ROOT = Path(__file__).resolve().parents[1]
 from export_picture import resource, render
+
+
+def check_state_transfers(d):
+    """File counts must be checked independently of the service's Z flag."""
+    root=ROOT/'objs'; syms=symbols(root/'wbstate.map'); base=0x9000
+    d.write(base,(root/'wbstate').read_bytes())
+    labels=('StateTransferBad','StateTransferDone','StateReadMore')
+    for label in labels: d.breakpoint(base+syms[label])
+    try:
+        for zero_flag in (0,4):
+            for actual,wanted in ((0,'StateTransferBad'),(8,'StateReadMore'),
+                                  (16,'StateTransferDone'),(17,'StateTransferBad')):
+                d.write(0x7ef0,b'\x20\x00\x00\x10')
+                d.write(base+syms['StateCreated'],b'\0')
+                d.regs(pc=base+syms['StateTransferCount'],s=0x7ef0,
+                       y=actual,cc=0x50|zero_flag)
+                d.call('c'); r=d.regs()
+                assert r['pc']==base+syms[wanted], (actual,zero_flag,wanted,r)
+                if actual==8:
+                    assert d.read(0x7ef0,4)==b'\x20\x08\x00\x08'
+    finally:
+        for label in labels: d.breakpoint(base+syms[label],False)
+    print('PASS: cold snapshot transfers reject zero/oversized counts and advance partial reads regardless of the incoming zero flag')
+
+
+def check_state_validation(d):
+    root=ROOT/'objs'; syms=symbols(root/'wbstate.map'); base=0x9000
+    d.write(base,(root/'wbstate').read_bytes())
+    import re
+    calls={base+int(m[1],16):int(m[2],16) for m in re.finditer(
+        r'^([0-9A-F]{4}) 103F([0-9A-F]{2}).*os9',
+        (root/'wbstate.list').read_text(),re.M)}
+    for address in calls: d.breakpoint(address)
+    d.breakpoint(0x5000)
+    clean=bytearray(syms['StateCoreBytes']+160)
+    clean[syms['StateCoreBytes']:syms['StateCoreBytes']+5]=b'\x01\0\0\x02\0'
+    cases=[('valid',None,b''),
+        ('key count','SavedKeyCount',bytes([51])),
+        ('menu count','SavedMenuControl',bytes([9])),
+        ('foreground','SavedScreen',bytes([0,16])),
+        ('input row','SavedScreen',bytes([0,0,0,0,25])),
+        ('inventory count','SavedInventoryControl',b'\x01\0\0\x01\x01'),
+        ('odd replay length','SavedReplay',b'\0\0\x01'),
+        ('glyph','SavedText',bytes([128])),
+        ('resource kind','StateCoreBytes',bytes([5])),
+        ('cache reserved','StateCoreBytes',b'\x01\0\0\x02\x01'),
+        ('empty cache payload','StateCoreBytes',b'\0\x01'),
+        ('root ID','StateCoreBytes',b'\x01\x01\0\x02\0')]
+    try:
+        for label,field,value in cases:
+            stage=clean[:]
+            if field is not None: stage[syms[field]:syms[field]+len(value)]=value
+            d.write(0x6000,stage)
+            d.write(base+syms['StateFirst'],b'\0\x30')
+            d.write(base+syms['StateHeader'],bytes(18))
+            d.write(base+syms['StateMapped'],b'\0')
+            d.write(0x5100,b'\x50\0')
+            d.regs(pc=base+syms['StateValidate'],s=0x5100,dp=0x10,u=0x1000,cc=0x50)
+            mapped=False; maps=unmaps=0
+            for count in range(4):
+                d.call('c'); r=d.regs()
+                if r['pc']==0x5000: break
+                service=calls[r['pc']]
+                if service==syms['F$MapBlk']:
+                    assert not mapped and r['b']==1
+                    mapped=True; maps+=1; d.regs(u=0x6000,cc=r['cc']&~1,pc=r['pc']+3)
+                elif service==syms['F$ClrBlk']:
+                    assert mapped and r['u']==0x6000 and r['b']==1
+                    mapped=False; unmaps+=1; d.regs(cc=r['cc']&~1,pc=r['pc']+3)
+                else: raise AssertionError((label,service,r))
+            assert r['pc']==0x5000 and maps==unmaps==1 and not mapped,(label,r)
+            assert bool(r['cc']&1)==(field is not None),(label,r)
+            if field is not None: assert r['b']==syms['E$BMode'],(label,r)
+            assert d.read(0x6000,len(stage))==stage,label
+    finally:
+        for address in calls: d.breakpoint(address,False)
+        d.breakpoint(0x5000,False)
+    print('PASS: cold snapshot validation rejects malformed counts, colors, rows, glyphs and resource recipes without changing staged bytes or leaking its mapping')
 
 
 def main():
@@ -28,6 +107,8 @@ def main():
             d.write(0xff90, b'\x4c')
             d.write(0xff91, b'\x01')
             d.write(0xffa8, bytes(range(8)))
+            check_state_transfers(d)
+            check_state_validation(d)
             error, frame = exercise(d, files, module='wbgame', base=0xa000,
                 database=0x1000, window=0x8000, blocks=None, multiple=True,
                 firstblock=0x10, frame_capture=True)

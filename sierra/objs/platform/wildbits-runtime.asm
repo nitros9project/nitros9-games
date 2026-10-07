@@ -88,6 +88,36 @@ vmcallstack         rmb       128
 gamefont            rmb       1024
                     rmb       512
 size                equ       .
+* Stable save-field order; no paths, mapped pointers or physical handles.
+STATE_SCHEMA        macro
+                    \1 SavedVariables,vmvariables,512
+                    \1 SavedStrings,vmstrings,480
+                    \1 SavedObjects,vmobjects,2752
+                    \1 SavedInventory,inventoryrooms,256
+                    \1 SavedInventoryControl,inventoryloaded,5
+                    \1 SavedKeys,vmkeys,150
+                    \1 SavedKeyCount,vmkeycount,1
+                    \1 SavedMenus,menutitles,992
+                    \1 SavedMenuControl,menucount,6
+                    \1 SavedScreen,vmcursor,9
+                    \1 SavedPlayer,vmhorizon,2
+                    \1 SavedBlock,gameblockenabled,5
+                    \1 SavedRandom,gamerandom,2
+                    \1 SavedReplay,replaylimit,5
+                    \1 SavedReplayBuffer,replaybuffer,510
+                    \1 SavedText,textcharacters,2000
+                    endm
+STATE_HASH_FIELD    macro
+\1LayoutHash        equ       ((\2*65599+\3)*\3)&$FFFFFFFF
+                    endm
+                    STATE_SCHEMA STATE_HASH_FIELD
+* Immutable field expressions avoid ambiguous forward references to SET symbols.
+StateLayoutHash     equ       (SavedVariablesLayoutHash+SavedStringsLayoutHash+SavedObjectsLayoutHash+SavedInventoryLayoutHash+SavedInventoryControlLayoutHash+SavedKeysLayoutHash+SavedKeyCountLayoutHash+SavedMenusLayoutHash+SavedMenuControlLayoutHash+SavedScreenLayoutHash+SavedPlayerLayoutHash+SavedBlockLayoutHash+SavedRandomLayoutHash+SavedReplayLayoutHash+SavedReplayBufferLayoutHash+SavedTextLayoutHash+resourcebase+assetfirst*3+picturefirst*5+gamebackgroundfirst*7+vmip*11+vmcache*13+textpointer*17)&$FFFFFFFF
+STATE_ABI           macro
+                    fdb       1,size,StateLayoutHash>>16,StateLayoutHash&$FFFF
+                    endm
+* A cold state module reuses this exact private layout without emitting the game.
+                    ifeq      WILDBITS_LAYOUT_ONLY
                     mod       eom,name,Prgrm+Objct,ReEnt+1,start,size
 name                fcs       /wbgame/
                     fcb       1
@@ -212,3 +242,4 @@ help                fcc       /Usage: wbgame game-directory logic-number/
                     fcb       C$CR
                     emod
 eom                 equ       *
+                    endc      WILDBITS_LAYOUT_ONLY
