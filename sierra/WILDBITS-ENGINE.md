@@ -1401,3 +1401,50 @@ also pass independent terminal switching, inventory input, exits and exact
 memory recovery (`/tmp/sierra-positioned-pair`, with the documented emulator-only
 expanded-memory kernel). The latter captured 80 owned PSG writes. These remain
 emulator checks rather than physical-hardware or full-adventure acceptance.
+
+
+### Timed blocking messages — 2026-10-07
+
+Native `print`, `print.v`, `print.at` and `print.at.v` now honor AGI variable 21:
+a nonzero value dismisses the blocking message after that many half-seconds.
+The interpreter multiplies it by 30 into a private 16-bit frame budget, so the
+maximum value of 255 retains its full 7,650-frame duration. A key can dismiss
+it earlier. Blocking dismissal clears variable 21; held messages (flag 15),
+input editing and Pause retain their separate behavior. This follows the timer
+and nonblocking distinction in the maintained
+[ScummVM AGI text implementation](https://github.com/scummvm/scummvm/blob/master/engines/agi/text.cpp).
+
+With the public SOL raster counter, the loop subtracts the actual frame delta
+between samples, including modulo-256 counter wrap. On a foreground notification
+it rebases the dialog sample instead of charging hidden time to the budget.
+Without that optional service, it counts the existing one-tick sleep requests;
+that fallback can run late under scheduling load. The loop holds no asset or
+picture mapping while waiting and continues to refill owned sound queues.
+
+The modal wait and key-reading code remain grouped in
+`platform/wildbits-text-ui.asm`, but assemble into the existing immutable
+`wbstate` backend. A small resident callback table supplies foreground/audio
+processing, line editing, screen restoration and counter sampling. Each process
+owns its cached wait entry, budget, sample, mode and visibility epoch. No helper
+code or callback address is patched. The text and wait frontends share a loader,
+reuse one retained module reference, and validate each entry against the module
+header and executable end before jumping. Failure restores the modal call frame
+and normal exit releases the reference.
+
+The module metadata now includes a fourth word for the modal entry. Its private-layout hash covers
+the added transient fields, so mismatched helpers fail validation. Install
+`wbgame` and `wbstate` together. The saved-file schema is still version 1, and
+the timer/cache fields do not enter the serialized state. Private allocation is
+still 24,460 bytes; the resident is 23,807 of 23,808 bytes and the helper is 4,048
+of its 4,096-byte copied-state workspace. Neither memory ceiling was increased,
+and the platform source count remains 26.
+
+Verification covers all four timed print commands, early keyboard dismissal,
+maximum timeout, held/Pause exclusions, counter wrap and coarse samples,
+foreground rebasing, and invalid wait entries including CRC bytes. The full
+native gameplay CPU suite and queued-audio regression pass. Original KQ1 passes
+save/restore, movement, subsequent input, audio and exact memory recovery in real
+MAME (`/tmp/sierra-timed-kq1`). Larry and KQ1 also pass independent inventory
+input, terminal switching, one game's exit and final memory recovery together
+(`/tmp/sierra-timed-pair`, using the documented emulator-only expanded kernel).
+These tests do not establish complete adventure or physical-hardware acceptance.

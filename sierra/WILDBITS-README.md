@@ -666,3 +666,14 @@ also passed. Save/restore, sound and full adventure completeness remain open.
 The current audio implementation and verification are described under
 [Owned, queued native sound](WILDBITS-ENGINE.md#owned-queued-native-sound). Older
 sound-disabled entries below record earlier implementation stages.
+
+
+Timed blocking messages now honor AGI variable 21 (half-second units), with early
+keyboard dismissal and automatic clearing after dismissal. Held messages and
+Pause retain their separate behavior. The optional public SOL counter supplies
+frame timing and rebases after terminal switching; the sleep-count fallback can
+run late under scheduling load. Both text storage and modal waiting execute
+through the matching immutable `wbstate` helper. Install it with `wbgame` from
+the same build. The current resident is 23,807 bytes, the helper 4,048 bytes, and
+private allocation remains 24,460 bytes. See [the engine notes](WILDBITS-ENGINE.md#timed-blocking-messages--2026-10-07)
+for the implementation and acceptance checks.

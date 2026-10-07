@@ -193,6 +193,64 @@ def check_positioned_messages(d):
     print('PASS: native print.at/print.at.v positions, word/newline/hard wrapping, default width, clipped edges, safe invalid coordinates and normal-print reset')
 
 
+def check_timed_messages(d):
+    """Exercise blocking timeouts, public counter wrap and modal exclusions."""
+    cases=[
+        ('print',101,1,None,b'',None,30,0),
+        ('print.v',102,2,None,b'',None,60,0),
+        ('print.at',151,1,None,b'',None,30,0),
+        ('print.at.v',152,1,None,b'',None,30,0),
+        ('keyboard before timeout',101,2,None,b'',{5:(b'\r',0)},5,0),
+        ('maximum timeout interrupted',101,255,None,b'\r',None,0,0),
+        ('untimed keyboard',101,0,None,b'\r',None,0,0),
+        ('held message',101,1,None,b'',None,0,1),
+        ('pause ignores print timer',136,1,None,b'\r',None,0,1),
+        ('raster counter wrap',101,1,{'start':250,'step':1},b'',None,30,0),
+        ('raster coarse samples',151,2,{'start':250,'step':7},b'',None,9,0),
+        ('raster maximum timeout',102,255,{'start':250,'step':17},b'',None,450,0),
+        ('foreground rebase',101,1,{'start':250,'step':200},b'',None,2,0),
+    ]
+    key=b'Avis Durgan'
+    for label,opcode,timeout,sol,keyboard,keys,wanted_cycles,wanted_timer in cases:
+        print('Checking timed message:',label,flush=True)
+        script=bytes([3,21,timeout,3,6,1])
+        if label=='held message':script+=bytes([12,15])
+        script+=bytes([opcode])
+        if opcode!=136:script+=bytes([6 if opcode in (102,152) else 1])
+        if opcode in (151,152):script+=bytes([3,7,12])
+        script+=bytes([134,1,0])
+        plaintext=b'timed test\0'
+        encrypted=bytes(value^key[i%len(key)] for i,value in enumerate(plaintext))
+        logic=len(script).to_bytes(2,'little')+script+bytes([1])+(4+len(plaintext)).to_bytes(2,'little')+bytes([4,0])+encrypted
+        files={'/game/logDir':b'\xff'*3+bytes(3),
+               '/game/vol.0':b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic}
+        hooks={}
+        if label=='foreground rebase':
+            def resume(debug,registers,syms):
+                # A foreground notification advances the visibility epoch.
+                # The following 200-frame counter jump must be discarded.
+                debug.write(0x1000+syms['gameclockreset'],b'\x01')
+            hooks['GameModalForeground']=resume
+        error,output,state=exercise(d,files,module='wbgame',base=0xa000,
+            database=0x1000,window=0x8000,blocks=None,multiple=True,
+            firstblock=0x10,capture=True,keyboard=keyboard,
+            keyboard_by_cycle=keys,sol=sol,breakpoint_hooks=hooks,
+            os_call_limit=20000)
+        assert not error and state['cycles']==wanted_cycles,(label,error,state['cycles'])
+        assert state['vmvariables'][21]==wanted_timer,(label,state['vmvariables'][21])
+    for offset_name in ('zero','size','CRC'):
+        helper=bytearray((ROOT/'objs/wbstate').read_bytes())
+        entry=int.from_bytes(helper[9:11],'big')
+        offset=0 if offset_name=='zero' else len(helper)-(1 if offset_name=='CRC' else 0)
+        helper[entry+16:entry+18]=offset.to_bytes(2,'big')
+        files['wbstate']=bytes(helper)
+        error,output,state=exercise(d,files,module='wbgame',base=0xa000,
+            database=0x1000,window=0x8000,blocks=None,multiple=True,
+            firstblock=0x10,capture=True,keyboard=b'\r',os_call_limit=20000)
+        assert error==203,(offset_name,error)
+    print('PASS: timed blocking messages, keyboard interruption, held/pause exclusions, raster wrap/coarse/max samples, foreground rebase and invalid wait-entry cleanup')
+
+
 def main():
     game = ROOT / 'kingsquest1'
     commands, volume, offset = resource(game, 1)
@@ -215,6 +273,7 @@ def main():
             d.write(0xffa8, bytes(range(8)))
             check_compatibility_noops(d)
             check_positioned_messages(d)
+            check_timed_messages(d)
             check_bounded_said(d)
             check_state_transfers(d)
             check_state_validation(d)

@@ -1,5 +1,5 @@
 * Native auxiliary module: writable state operations execute in a private
-* copy; immutable text code executes while linked, using only private cells.
+* copy; immutable text/dialog code executes linked, using private cells.
 * The audio installer also exports immutable code for a permanent private copy.
 * No formatter or flood-fill runs during the copied state operations.
 AUDIO_USER_COPY     equ 1
@@ -12,7 +12,7 @@ StateName           fcs /wbstate/
                     fcb 1
 StateEntry          bra StateBegin
                     STATE_ABI
-                    fdb AudioBlobEnd-AudioBlobStart,AudioInstall,AuxTextStore
+                    fdb AudioBlobEnd-AudioBlobStart,AudioInstall,AuxTextStore,AuxPrintWait
 * A=0 save, 1 validate/stage restore, 2 apply after nested logic unwinds.
 * X=filename, Y=engine callback table, U=the game's private base.
 StateBegin          stu StateBase,pcr
@@ -854,6 +854,8 @@ StateBuffer         zmb 512
 PLATFORM_SECTION    set PLATFORM_WILDBITS_SOUND_CODE
                     use platform/wildbits-audio.asm
 PLATFORM_SECTION    set PLATFORM_WILDBITS_TEXT_STORE_CODE
+                    use platform/wildbits-text-ui.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_DIALOG_WAIT_CODE
                     use platform/wildbits-text-ui.asm
                     emod
 StateEnd            equ *

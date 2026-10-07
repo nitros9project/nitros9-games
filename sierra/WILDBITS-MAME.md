@@ -771,3 +771,12 @@ original games with independent terminal input, switching and exits at
 The latter uses the expanded-memory test kernel. CPU cases additionally verify
 positioned-message wrapping/clipping, immutable helper bytes, link cleanup,
 repeated text/graphics switches and early font errors.
+
+
+The timed-message build also passes original KQ1 save/restore and subsequent
+input at `/tmp/sierra-timed-kq1`, capturing 59 owned PSG writes. The independent
+Larry/KQ1 terminal test passes at `/tmp/sierra-timed-pair`, capturing 80 writes
+with the documented expanded-memory emulator kernel. These runs exercise the
+relocated immutable modal wait/key loop against real drivers. Timer arithmetic,
+foreground rebasing and invalid entry cleanup have separate CPU fixtures in
+`check_wbgame.py`; the original-resource MAME runs are integration checks.

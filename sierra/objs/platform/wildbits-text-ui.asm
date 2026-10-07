@@ -83,6 +83,113 @@ GameTextAdvanceRow  inc       textrow,u
                     lblo      AuxTextStore
 AuxTextPresent      jmp       ,y
                     else
+                    ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_DIALOG_WAIT_CODE
+* Read-only modal loop. Timer and callback state belong to this process.
+AuxPrintWait        pshs      y
+                    lda       gameclockreset,u
+                    sta       dialogepoch,u
+                    tst       dialoginputmode,u
+                    bne       AuxWaitUntimed
+                    lda       <vmopcode
+                    cmpa      #101
+                    beq       AuxWaitTimer
+                    cmpa      #102
+                    beq       AuxWaitTimer
+                    cmpa      #151
+                    blo       AuxWaitUntimed
+                    cmpa      #152
+                    bhi       AuxWaitUntimed
+AuxWaitTimer        ldb       vmvariables+21,u
+                    lda       #30
+                    mul
+                    std       dialogticks,u
+                    beq       AuxWaitUntimed
+                    lda       #1
+                    sta       dialogtimed,u
+                    lda       gameclockpath,u
+                    cmpa      #$FF
+                    beq       AuxWaitLoop
+                    lbsr      AuxWaitSample
+                    bcs       AuxWaitRestore
+                    sta       dialogseen,u
+                    lda       #2
+                    sta       dialogtimed,u
+                    bra       AuxWaitLoop
+AuxWaitUntimed      clr       dialogtimed,u
+AuxWaitLoop         ldy       ,s
+                    ldd       ,y
+                    leax      d,y
+                    jsr       ,x
+                    bcs       AuxWaitRestore
+                    lda       #0
+                    ldb       #SS.Ready
+                    os9       I$GetStt
+                    bcc       AuxWaitKey
+                    cmpb      #E$NotRdy
+                    bne       AuxWaitRestore
+                    ldx       #2
+                    os9       F$Sleep
+                    ldu       <resourcebase
+                    lda       dialogtimed,u
+                    beq       AuxWaitLoop
+                    cmpa      #2
+                    bne       AuxWaitOneTick
+                    lbsr      AuxWaitSample
+                    bcs       AuxWaitRestore
+                    ldb       gameclockreset,u
+                    cmpb      dialogepoch,u
+                    beq       AuxWaitDelta
+                    stb       dialogepoch,u
+                    sta       dialogseen,u
+                    lbra      AuxWaitLoop
+AuxWaitDelta        suba      dialogseen,u
+                    ldb       gameclockticks,u
+                    stb       dialogseen,u
+                    tfr       a,b
+                    clra
+                    bra       AuxWaitSubtract
+AuxWaitOneTick      ldd       #1
+AuxWaitSubtract     pshs      d
+                    ldd       dialogticks,u
+                    subd      ,s++
+                    bls       AuxWaitExpired
+                    std       dialogticks,u
+                    bra       AuxWaitLoop
+AuxWaitExpired      clrb
+AuxWaitRestore      pshs      cc,b
+                    ldu       <resourcebase
+                    tst       dialogtimed,u
+                    beq       AuxWaitRestoreFlags
+                    clr       vmvariables+21,u
+AuxWaitRestoreFlags ldy       2,s
+                    ldd       4,y
+                    leax      d,y
+                    puls      cc,b
+                    leas      2,s
+                    jmp       ,x
+AuxWaitKey          lda       #0
+                    ldu       <resourcebase
+                    leax      parsercharacter,u
+                    ldy       #1
+                    os9       I$Read
+                    bcs       AuxWaitRestore
+                    ldu       <resourcebase
+                    tst       dialoginputmode,u
+                    beq       AuxWaitKeyDone
+                    ldy       ,s
+                    ldd       2,y
+                    leax      d,y
+                    jsr       ,x
+                    bcs       AuxWaitRestore
+                    tsta
+                    lbeq      AuxWaitLoop
+AuxWaitKeyDone      clrb
+                    lbra      AuxWaitRestore
+AuxWaitSample       ldy       2,s
+                    ldd       6,y
+                    leax      d,y
+                    jmp       ,x
+                    else
 * wildbits-text-ui feature: code and related private state.
 * Named layout sections preserve existing module and private-data addresses.
 
@@ -212,35 +319,17 @@ GamePrintPositionReady ldx    textpointer,u
 GamePrintAtBad      ldb       #E$BMode
                     orcc      #1
                     lbra      GamePrintRestore
-GamePrintWait       lbsr      GameModalForeground
-                    bcs       GamePrintRestore
-                    lda       #0
-                    ldb       #SS.Ready
-                    os9       I$GetStt
-                    bcc       GamePrintKey
-                    cmpb      #E$NotRdy
-                    bne       GamePrintRestore
-                    ldx       #2
-                    os9       F$Sleep
-                    bra       GamePrintWait
-GamePrintKey        lda       #0
-                    ldu       <resourcebase
-                    leax      parsercharacter,u
-                    ldy       #1
-                    os9       I$Read
-                    bcs      GamePrintRestore
-                    ldu       <resourcebase
-                    tst       dialoginputmode,u
-                    beq       GamePrintRestore
-                    lbsr      GameLineKey
-                    bcs      GamePrintRestore
-                    tsta
-                    beq      GamePrintWait
-                    clrb
+GamePrintWait       leax      textwaitentry,u
+                    ldb       #6
+                    leay      GameDialogCallbacks,pcr
+                    lbra      GameColdInvoke
+GameDialogCallbacks fdb       GameModalForeground-GameDialogCallbacks
+                    fdb       GameLineKey-GameDialogCallbacks
+                    fdb       GamePrintRestore-GameDialogCallbacks
+                    fdb       GameClockSample-GameDialogCallbacks
 GamePrintRestore    pshs      cc,b
                     ldu       <resourcebase
                     clr       dialogactive,u
-                    ldu       <resourcebase
                     leax      resourcecommands,u
                     leay      textcharacters,u
                     ldd       #1000
@@ -355,7 +444,7 @@ StateLoadModule     pshs      u
                     ldd       M$Exec,u
                     cmpd      #13
                     blo       StateLoadBad
-                    addd      #19       branch, private ABI, three entries and CRC must fit
+                    addd      #21       branch, private ABI, four metadata words and CRC must fit
                     bcs       StateLoadBad
                     cmpd      M$Size,u
                     bhi       StateLoadBad
@@ -559,26 +648,52 @@ GameTextValidate    lbsr      GameFormatMessage
                     lbcs      GameTextReturn
                     stx       textpointer,u
 * The immutable helper retains a code window; all cells remain process-private.
-GameTextStore       ldx       textstoreentry,u
-                    bne       GameTextColdReady
+GameTextStore       leax      textstoreentry,u
+                    ldb       #4
+                    leay      GameTextPresent,pcr
+* B selects the immutable entry; X names its private cache, Y its callback.
+GameColdInvoke      tst       ,x
+                    beq       GameColdLoad
+                    ldx       ,x
+                    jmp       ,x
+GameColdLoad         pshs      b,x,y
+                    ldu       textstoremodule,u
+                    bne       GameColdLinked
+                    ldu       <resourcebase
                     lbsr      StateLoadModule
-                    lbcs      GameTextReturn
-                    ldd       4,x
+                    bcs       GameColdFailure
+                    ldy       <resourcebase
+                    stu       textstoremodule,y
+                    bra       GameColdMetadata
+GameColdLinked      ldd       M$Exec,u
+                    addd      #10
+                    leax      d,u
+GameColdMetadata    ldb       ,s
+                    ldd       b,x
                     cmpd      #13
-                    lblo      SoundLoadBad
+                    blo       GameColdBad
                     ldy       M$Size,u
-                    leay      -3,y       CRC bytes are not executable entry points
+                    leay      -3,y
                     pshs      y
                     cmpd      ,s
                     leas      2,s
-                    lbhs      SoundLoadBad
+                    bhs       GameColdBad
                     leax      d,u
-                    ldy       <resourcebase
-                    stx       textstoreentry,y
-                    stu       textstoremodule,y
-                    tfr       y,u
-GameTextColdReady   leay      GameTextPresent,pcr
+                    ldy       1,s
+                    stx       ,y
+                    ldu       <resourcebase
+                    leas      3,s
+                    puls      y
                     jmp       ,x
+GameColdBad         ldb       #E$BMode
+GameColdFailure     ldu       <resourcebase
+                    lda       ,s
+                    leas      5,s
+                    cmpa      #6
+                    orcc      #1
+                    bne       GameColdReturn
+                    lbra      GamePrintRestore
+GameColdReturn      rts
 GameTextUnlink      ldu       <resourcebase
                     ldx       textstoremodule,u
                     beq       GameTextUnlinkDone
@@ -590,6 +705,7 @@ GameTextUnlink      ldu       <resourcebase
                     clrb
                     std       textstoremodule,u
                     std       textstoreentry,u
+                    std       textwaitentry,u
 GameTextUnlinkDone  rts
 GameTextPresent     lbsr      AssetUnmap
                     bcs       GameTextReturn
@@ -2743,6 +2859,7 @@ NORMAL_STRING_FOLD  equ       ParserLower
 
                     else
                     error Unknown platform feature section
+                    endc
                     endc
                     endc
                     endc

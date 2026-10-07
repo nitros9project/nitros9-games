@@ -57,3 +57,10 @@ private to the caller. The frontend caches the validated entry and releases the
 module during cleanup; clearing a text screen preserves that reference. Install
 the matching helper for text output. Source grouping stays in
 `wildbits-text-ui.asm`; no additional platform file is needed.
+
+The same grouped text UI source supplies the immutable modal wait/key loop to
+`wbstate`. The resident passes a read-only callback table, and each game keeps
+its own timer and cached entry. Both cold entry points share one validated,
+retained helper link. Timed blocking prints use variable 21 in half-seconds;
+SOL counter sampling handles frame wrap and foreground rebasing, with a
+sleep-count fallback when the counter service is unavailable.

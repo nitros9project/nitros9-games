@@ -51,7 +51,7 @@ def start_cpu(bootrom, timeout=300):
     raise RuntimeError('XRoar debugger did not attach after four fresh starts')
 
 
-def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zero_read=False, seek_error=False, write_error=False, module='wbres', map_failure=0, allocation_error=False, unmap_error=False, window=0x8000, terminal=True, blocks=4, capture=False, multiple=False, firstblock=0x30, frame_capture=False, keyboard=b'', clock=(0,), bitmap_error=False, key_sense=0, cycle_limit=None, os_call_limit=20000, keyboard_by_cycle=None, option_set_error=False, resource_kind=None, module_root=None, breakpoint_hooks=None, psg=None):
+def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zero_read=False, seek_error=False, write_error=False, module='wbres', map_failure=0, allocation_error=False, unmap_error=False, window=0x8000, terminal=True, blocks=4, capture=False, multiple=False, firstblock=0x30, frame_capture=False, keyboard=b'', clock=(0,), bitmap_error=False, key_sense=0, cycle_limit=None, os_call_limit=20000, keyboard_by_cycle=None, option_set_error=False, resource_kind=None, module_root=None, breakpoint_hooks=None, psg=None, sol=None):
     if module == 'wbgame':
         files = {'wbfont': (ROOT / 'wbfont').read_bytes(), 'wbstate': (ROOT / 'wbstate').read_bytes(), **files}
     module_root = Path(module_root) if module_root is not None else ROOT
@@ -99,6 +99,8 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
     options_failed=False
     cold_loaded=0
     cold_ever_loaded=False
+    sol_path=None
+    sol_ticks=sol.get("start",0) if sol else 0
     audio_path=None
     audio_claimed=False
     audio_packets=[]
@@ -116,6 +118,12 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
             for m in re.finditer(r'^([0-9A-F]{4}) 103F([0-9A-F]{2}).*os9',
                 (module_root/'wbstate.list').read_text(),re.M)
             if blob_start<=int(m[1],16)<blob_end}
+        cold_calls={0x7000+int(m[1],16):int(m[2],16)
+            for m in re.finditer(r'^([0-9A-F]{4}) 103F([0-9A-F]{2}).*os9',
+                (module_root/'wbstate.list').read_text(),re.M)
+            if cold_syms['AuxPrintWait']<=int(m[1],16)<cold_syms['StateEnd']}
+        calls.update(cold_calls)
+        for address in cold_calls:d.breakpoint(address)
         calls.update(private_calls)
         for address in private_calls:d.breakpoint(address)
 
@@ -155,6 +163,7 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
                 for name, length in [('replayused',2),('replaybuffer',510)]:
                     if name in syms:
                         state[name]=d.read(database+syms[name],length)
+                state['cycles']=cycles
                 state['audio_packets']=audio_packets
                 state['audio_polls']=audio_polls
                 state['map_calls']=maps
@@ -177,6 +186,11 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
         elif service == syms.get('F$UnLink'):
             assert cold_loaded and r['u']==0x7000
             cold_loaded-=1
+        elif service == syms['I$GetStt'] and r['b']==0xc3:
+            assert sol is not None and r['a']==sol_path and not mapped
+            updates.update(x=7,y=sol_ticks)
+        elif service == syms['I$SetStt'] and r['b'] in (0xc3,0xc4):
+            assert sol is not None and r['a']==sol_path and not mapped
         elif service == syms['I$GetStt'] and r['b']==0xc5:
             assert psg is not None and r['a']==audio_path and not mapped
             audio_polls+=1
@@ -211,6 +225,7 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
         elif service == syms.get('F$Sleep'):
             assert not mapped
             cycles += 1
+            if sol:sol_ticks=(sol_ticks+sol.get("step",1))&255
             if psg and psg.get('queue_capacity') and audio_claimed and audio_mode==5:
                 for channel,queue in enumerate(audio_queues):
                     if queue:
@@ -293,7 +308,11 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
                 mapped = False
         elif service == syms['I$Open']:
             name = d.read(r['x'], 160).split(b'\r')[0].decode()
-            if name=='/fPSG' and psg is not None:
+            if name=='/fSOL' and sol is not None:
+                sol_path=nextpath
+                paths[nextpath]=[b'',0];path_names[nextpath]=name
+                updates['a']=nextpath;nextpath+=1
+            elif name=='/fPSG' and psg is not None:
                 assert cold_loaded==bool(int.from_bytes(d.read(database+syms['textstoremodule'],2),'big')), 'temporary adapter reference leaked into device I/O'
                 audio_path=nextpath
                 paths[nextpath]=[b'',0];path_names[nextpath]=name
