@@ -1214,6 +1214,9 @@ RequestRoom         stb       <vmnewroom
                     sta       <vmroompending
                     clrb
                     rts
+                    ifndef SHARED_OBJECT_COMMANDS_DEFINED
+                    use shared/object-commands.asm
+                    endc
 ApplyRoomChange     tst       <vmdepth
                     lbne      VmInvalid
                     inc       <vmroomchanges
@@ -1222,6 +1225,15 @@ ApplyRoomChange     tst       <vmdepth
                     lbhs      VmInvalid
                     lbsr      AssetUnmap
                     lbcs      RoomReturn
+                    ifne      GAME_PRESENTATION
+* Release foreign mappings before owned audio I/O and cancel only the
+* software command line. SCF's queued keys remain available to the player.
+                    lbsr      PictureUnmap
+                    lbcs      RoomReturn
+                    lbsr      GameSoundStop
+                    lbcs      RoomReturn
+                    lbsr      GameCancelLine
+                    endc
                     lda       #1
                     sta       <vmcacheindex
 RoomFreeNext        ldb       <vmcacheindex
@@ -1242,22 +1254,7 @@ RoomFreeAdvance     inc       <vmcacheindex
                     ldu       <resourcebase
                     leax      vmobjects,u
                     ldy       #64
-RoomResetObject     lda       $26,x
-                    anda      #$BE
-                    ora       #$10
-                    sta       $26,x
-                    clra
-                    clrb
-                    sta       $25,x
-                    std       $10,x
-                    std       6,x
-                    std       $16,x
-                    inca
-                    sta       $1E,x
-                    sta       $1F,x
-                    sta       $20,x
-                    sta       1,x
-                    sta       ,x
+RoomResetObject     OBJECT_ROOM_RESET x,1
                     leax      43,x
                     leay      -1,y
                     bne       RoomResetObject

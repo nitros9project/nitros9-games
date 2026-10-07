@@ -506,6 +506,45 @@ def check_room_controls(d):
     print('PASS: new.room/new.room.v restore player control, release the old block and permit destination program control')
 
 
+def check_room_input_sound(d):
+    """A pending line and active sound must not survive into destination logic."""
+    for variable in (False,True):
+        transition=bytes([12,9,98,0,99,0,200])
+        transition+=bytes([3,250,1,19,250]) if variable else bytes([18,1])
+        root=bytes([255,1,0,0,255])+len(transition).to_bytes(2,'little')+transition+bytes([23,0,0])
+        room=bytes([255,7,200,255,3,0,3,201,1,255,13,255,2,0,134,1,0])
+        volume=bytearray();entries=[]
+        def record(payload):return b'\x12\x34\0'+len(payload).to_bytes(2,'little')*2+payload
+        for body in (root,room):
+            entries.append(len(volume).to_bytes(3,'big'))
+            volume+=record(len(body).to_bytes(2,'little')+body)
+        sound=len(volume);volume+=record(bytes([28,63,0,240,255,0,240]))
+        observed={}
+        def pending_line(cpu,r,syms):
+            assert cpu.read(syms['soundpath'],1)!=b'\0','fixture sound never started'
+            cpu.write(syms['parserlength'],b'\x03');cpu.write(syms['parserline'],b'abc\0')
+            cpu.write(syms['vmstrings'],b'> \0')
+            row=cpu.read(syms['vminputrow'],1)[0]*40
+            cpu.write(syms['textcharacters']+row,b'> abc_'+b' '*34)
+        def destination(cpu,r,syms):
+            observed['length']=cpu.read(syms['parserlength'],1)[0]
+            observed['line']=cpu.read(syms['parserline'],1)[0]
+            observed['sound']=cpu.read(syms['soundpath'],1)[0]
+            row=cpu.read(syms['vminputrow'],1)[0]*40
+            observed['prompt']=cpu.read(syms['textcharacters']+row,3)
+        def fresh_key(cpu,r,syms):
+            observed['new']=cpu.read(syms['parserline'],2)
+        error,output,state=exercise(d,{'/game/logDir':b''.join(entries),'/game/vol.0':bytes(volume),
+            '/game/sndDir':sound.to_bytes(3,'big')},arguments=b'/game 0\r',module='wbgame',
+            base=0xa000,database=0,window=0x8000,blocks=None,multiple=True,firstblock=0x10,
+            capture=True,keyboard_by_cycle={1:(b'd',0)},psg={'version':4},os_call_limit=30000,
+            breakpoint_hooks={'ApplyRoomChange':pending_line,'GameReadKey':destination,'GameQuitCommand':fresh_key})
+        assert not error,(variable,error)
+        assert observed=={'length':0,'line':0,'sound':0,'prompt':b'> _','new':b'd\0'},(variable,observed)
+        assert state['vmvariables'][201]==1,'sound completion was not visible to destination logic'
+    print('PASS: direct/variable room changes cancel pending parser text, stop owned sound and publish completion before destination logic')
+
+
 def check_joystick_input(d):
     """Driver axes/buttons, ownership and unavailable-service keyboard fallback."""
     axes=[(x,y,0) for y in (0,128,255) for x in (0,128,255)]
@@ -815,6 +854,7 @@ def main():
             check_interpreter_information(d)
             check_cold_menus(d)
             check_room_controls(d)
+            check_room_input_sound(d)
             check_joystick_input(d)
             check_joystick_instances(d)
             check_monitor_profiles(d)

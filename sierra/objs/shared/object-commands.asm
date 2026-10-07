@@ -1,6 +1,34 @@
 * Shared object command/state component. Macro definitions emit no code.
 SHARED_OBJECT_COMMANDS_DEFINED equ 1
 
+* ===== room-object-reset =====
+* Room entry disables animation/drawing and resets cel/rate state in each
+* 43-byte object record. Preserve owner zero-load encodings (CoCo LDD,
+* native CLRA/CLRB), so sharing this transition does not change CoCo bytes.
+* Parameters: record register, split-zero-load flag. Leaves A=1, B=0.
+OBJECT_ROOM_RESET macro
+                    lda       <$26,\1
+                    anda      #$BE
+                    ora       #$10
+                    sta       <$26,\1
+                    ifne      \2
+                    clra
+                    clrb
+                    else
+                    ldd       #0
+                    endc
+                    sta       <$25,\1
+                    std       <$10,\1
+                    std       6,\1
+                    std       <$16,\1
+                    inca
+                    sta       <$1E,\1
+                    sta       <$1F,\1
+                    sta       <$20,\1
+                    sta       1,\1
+                    sta       ,\1
+                    endm
+
 * ===== object-animation-state =====
 * Begin animation only once; repeated animate.obj preserves the live record.
 * Parameters: record pointer register, owner's already-animated continuation.

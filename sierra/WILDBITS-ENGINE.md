@@ -1908,3 +1908,59 @@ control zero, and Graham still at (75,164). The fixed build passes at
 `/tmp/sierra-hall-room55-final`: both presses see player control one, and his
 position advances from (75,164) to (75,130). The emulator returns to NitrOS-9 on
 exit and the free-memory map is unchanged.
+
+### Room-transition parity audit — 2026-10-07
+
+Comparing native `ApplyRoomChange` with CoCo `NewRoomSetup` confirmed two more
+omissions: an unfinished software command line survived the transition, and
+the old room's process-owned sound path remained active. The regression first
+observed parser length 3, first character `a`, and an open sound path in the
+destination room. Both direct and variable room changes exhibited the problem.
+
+Native room teardown now releases foreign picture mappings, stops owned sound,
+and cancels the software command line before freeing room resources or running
+destination logic. Sound completion is published to the command's completion
+flag before destination logic executes. Cancellation redraws the visible prompt
+and cursor through the existing input path. It does not discard queued terminal
+keystrokes: CoCo's `ClearInputBuffer` also clears a software buffer, rather than
+flushing the SCF driver's queue. Driver errors return through existing cleanup
+handling before the room's referenced resources are released.
+
+The regression seeds an active sound and unfinished `abc` line, enters a second
+room, checks the cleared line and visible prompt, and checks sound completion
+from destination logic. It then submits a fresh queued `d` and verifies that the
+new line contains only that character. Both room-change opcodes pass. This tests
+the transition itself rather than relying on process-exit cleanup.
+
+The complete per-object room reset is now `OBJECT_ROOM_RESET` in the existing
+`shared/object-commands.asm`, invoked by both native and CoCo owners. Traversal,
+resource ownership, and room-loading code remain in their respective engines.
+The macro preserves each owner's zero-load instruction encoding; CoCo's main
+logic remains byte-identical to the baseline. No new platform fragments are
+introduced. The native lifecycle calls add 17 resident bytes: `wbgame` is
+23,742 / 23,808, `wbstate` is 6,991 / 8,192 with a 3,080-byte writable prefix,
+and private allocation remains 24,460 bytes. Save format and helper ABI are
+unchanged.
+
+This audit does not establish complete interpreter parity. In particular,
+native `ScreenStatusOn`, `ScreenStatusOff`, and `ScreenConfigure` currently only
+store status-line settings; no native renderer consumes those settings. CoCo
+renders and refreshes the score/sound line. That is a confirmed implementation
+gap, separate from the fixed room-transition bugs. Remaining audit targets
+include destination animation/motion initialization, modal input restoration,
+and game-state restoration across scripts. Those are risks to investigate,
+not additional confirmed failures.
+
+The real-driver original KQ1 east/west round trip passes at
+`/tmp/sierra-room-cleanup-journey`, including exact room descriptions, continued
+play, 59 PSG writes, and unchanged exit memory. The two-terminal Larry/KQ1 test
+passes at `/tmp/sierra-room-cleanup-pair`: independent input, terminal restoration,
+Larry continuing after KQ1 exits, 83 PSG writes, and complete memory recovery.
+The native audio suite and all 1,024 native dispatch checks pass. A fresh normal
+play image is available at `/tmp/sierra-play-room-cleanup/play.sh`.
+
+The full native game suite passes at `/tmp/sierra-room-cleanup-game.log`, including
+the new direct/variable transition regression, original castle pixel comparison,
+movement and animation, dialogs, inventory, restart, save validation, terminal
+input, private-instance isolation, and cleanup. The canonical build budget and
+CoCo byte comparison also pass.

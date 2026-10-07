@@ -4705,21 +4705,7 @@ NewRoomSetup        leas      -$01,s    allocate one byte for room num
                     ldu       <$0030    load view-object array pointer
 NewRoomObjLoop      cmpu      <$0032    check if past end of array
                     bcc       NewRoomObjsDone branch when all objects done
-                    lda       <$26,u    load object control flags
-                    anda      #$BE      clear animated + cycling bits
-                    ora       #$10      set position-update bit
-                    sta       <$26,u    store updated flags
-                    ldd       #$0000    zero value
-                    sta       <$25,u    clear object status flags
-                    std       <$10,u    clear loop/cel fields
-                    std       $06,u     clear priority/position hi
-                    std       <$16,u    clear block/range fields
-                    inca                value = 1
-                    sta       <$1E,u    set step size = 1
-                    sta       <$1F,u    set step counter = 1
-                    sta       <$20,u    set cycle time = 1
-                    sta       $01,u     set cycle counter = 1
-                    sta       ,u        set step-time reset = 1
+                    OBJECT_ROOM_RESET u,0
                     leau      <$2B,u    advance to next object struct
                     bra       NewRoomObjLoop continue for all objects
 NewRoomObjsDone     lbsr      ResetGameTables reset all game tables
