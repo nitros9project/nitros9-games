@@ -969,3 +969,19 @@ its CPU pixel tests and original Larry MAME checks passed, walking scenes change
 on each cycle; median composition rose from 114.0 to 115.3 ms and the walking
 distance stayed 26.8 AGI pixels per 400 frames. The current game retains the
 measured mapped-pixel optimization and does not allocate sprite-history state.
+
+### Cold-code workspace restriction
+
+The loading probe establishes module and mapping-window behavior, not a general
+UI overlay workspace. A tested modal-code experiment was removed after MAME
+exposed scratch overlap: `fillstack` also contains four 512-byte formatter source
+frames, the 2,048-byte formatter output, inventory-file staging and transient
+dictionary groups. A modal routine calling the formatter can overwrite its own
+code there. Dialogs remain resident in the verified game. A future persistence
+routine may use that space only while those consumers are inactive and must
+return before formatting or rendering resumes. The current build requires
+`wbgame` and `wbfont`; it has no UI helper-module dependency.
+
+The current resident build passed the original Larry age quiz, opening the
+door, transitioning into Lefty's bar, showing and dismissing the interior
+description, interrupt cleanup and unchanged free memory in MAME.
