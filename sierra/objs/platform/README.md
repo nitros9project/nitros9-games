@@ -90,3 +90,7 @@ cached entries and callback state stay private to each game.
 Screen shake lives in the grouped Wild Bits graphics source and uses the existing
 immutable helper, private callbacks and idle fill scratch. It maps one bank at
 a time and releases mappings before clock, sound and foreground calls.
+
+The menu frontend stays in grouped text UI, with display/navigation in that
+same source's cold section. Its callback table reuses resident presentation
+and foreground services; ordinary game cycles have no additional helper calls.

@@ -1702,3 +1702,34 @@ checks exact glyphs on both lines, keyboard dismissal, script continuation,
 scene restoration and recovered free memory at `/tmp/sierra-version-real-drivers`.
 The resident is 23,790 bytes, the helper 6,206 bytes, the writable prefix
 3,062 bytes, and private allocation remains 24,460 bytes.
+
+### Menu display in the existing cold helper — 2026-10-07
+
+`GameMenuInput` now dispatches to `AuxMenuInput` in the immutable helper.
+Menu construction, the normal game loop, object updates and rendering remain
+resident. The display/navigation body stays in grouped `wildbits-text-ui.asm`;
+there are still 26 platform assembly files and no additional runtime module.
+This frees 541 resident bytes for input support without adding calls to ordinary
+movement or rendering. The resident is 23,249 bytes (559 spare), the helper
+6,857 bytes (1,335 spare), and its writable prefix 3,064 bytes. Private allocation
+remains 24,460 bytes in three banks.
+
+The eleventh metadata word supplies a range-checked entry cached in private
+`menuentry`. The layout ABI includes it; install matching game/helper builds.
+Eight relative callbacks provide unmapping, bounded label copying, text
+presentation, foreground/sound service, controller addressing, scene composition
+and final refresh. No callback address or menu state is patched into shared code.
+The menu keeps its existing labels, 32-item capacity, disabled-item policy, paging
+and Escape/Enter controls. Its cell backup still uses the idle resource-command
+scratch. Errors restore saved cells before normal exit cleanup.
+
+Presentation now uses `GameTextPresent`, which creates an owned screen when a
+menu precedes the first picture. Previously direct text rendering in that case
+tried to map an unallocated bitmap. The CPU regression covers this order,
+selection, cancellation, disabled items, paging, an unsubmitted menu and invalid
+helper entry offsets, checking exact controller bits, continuation and cleanup.
+Native dispatch and audio regressions pass. Real-driver MAME verifies original
+KQ1 menu restart at `/tmp/sierra-cold-menu-restart`, independent Larry/KQ1
+terminals at `/tmp/sierra-cold-menu-pair`, and Larry's actual transition into
+Lefty's plus an inside look command at `/tmp/sierra-cold-menu-leftys`. All
+recover their original free-memory maps.

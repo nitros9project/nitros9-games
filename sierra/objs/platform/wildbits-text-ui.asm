@@ -805,7 +805,7 @@ StateLoadModule     pshs      u
                     ldd       M$Exec,u
                     cmpd      #13
                     blo       StateLoadBad
-                    addd      #33       branch, private ABI, seven metadata words and CRC must fit
+                    addd      #35       branch, private ABI, eleven metadata words and CRC must fit
                     bcs       StateLoadBad
                     cmpd      M$Size,u
                     bhi       StateLoadBad
@@ -1082,6 +1082,7 @@ GameTextUnlink      ldu       <resourcebase
                     std       screenentry,u
                     std       showentry,u
                     std       shakeentry,u
+                    std       menuentry,u
 GameTextUnlinkDone  rts
 GameTextPresent     lbsr      AssetUnmap
                     bcs       GameTextReturn
@@ -1838,22 +1839,35 @@ MenuInvalid         ldb       #E$BMode
 
                     else
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_MENU_CODE
+* Only the requested menu display is cold; the game loop remains resident.
+GameMenuInput       ldu       <resourcebase
+                    ifne      GAME_TRACE
+                    inc       gametracemenuhit,u
+                    endc
+                    leax      menuentry,u
+                    ldb       #20
+                    leay      MenuCallbacks,pcr
+                    lbra      GameColdInvoke
+MenuCallbacks       fdb       AssetUnmap-MenuCallbacks,PictureUnmap-MenuCallbacks
+                    fdb       InventoryString-MenuCallbacks,GameTextPresent-MenuCallbacks
+                    fdb       GameModalForeground-MenuCallbacks,InputControllerAddress-MenuCallbacks
+                    fdb       GameComposeScene-MenuCallbacks,RefreshPicture-MenuCallbacks
+
+                    else
+                    ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_MENU_COLD_CODE
 * ===== wildbits-menu-code =====
 * Process-private modal menu. Existing labels/controllers retain their ABI.
 * Display a paged list of titled items; disabled entries cannot be selected.
-GameMenuInput       equ       *
-                    ifne      GAME_TRACE
-                    ldu       <resourcebase
-                    inc       gametracemenuhit,u
-                    endc
+AuxMenuInput        ldu       <resourcebase
+                    sty       coldapi,u
                     tst       <menuready
-                    lbeq      MenuInvalid
+                    lbeq      AuxMenuInvalid
                     tst       <menuitems
-                    lbeq      GameCycleSuccess
-                    lbsr      AssetUnmap
-                    lbcs      GameCycleReturn
-                    lbsr      PictureUnmap
-                    lbcs      GameCycleReturn
+                    lbeq      AuxMenuSuccess
+                    UI_CALL   0
+                    lbcs      AuxMenuReturn
+                    UI_CALL   2
+                    lbcs      AuxMenuReturn
                     ldu       <resourcebase
                     leax      textcharacters,u
                     leay      resourcecommands,u
@@ -1880,10 +1894,10 @@ GameMenuWhite       lda       #32
                     bne       GameMenuWhite
                     leax      GameMenuTitle,pcr
                     leay      textcharacters+42,u
-                    lbsr      InventoryString
+                    UI_CALL   4
                     leax      GameMenuHelp,pcr
                     leay      textcharacters+961,u
-                    lbsr      InventoryString
+                    UI_CALL   4
                     clra
                     ldb       inventoryselected+1,u
                     cmpb      #21
@@ -1959,16 +1973,16 @@ GameMenuRowColor    sta       1000,y
                     lda       inventoryrow,u
                     cmpa      #24
                     lblo      GameMenuItem
-GameMenuPresent     lbsr      GameDrawText
+GameMenuPresent     UI_CALL   6
                     lbcs      GameMenuRestore
-GameMenuWait        lbsr      GameModalForeground
+GameMenuWait        UI_CALL   8
                     lbcs      GameMenuRestore
                     clra
                     ldb       #SS.Ready
                     os9       I$GetStt
                     bcc       GameMenuReadKey
                     cmpb      #E$NotRdy
-                    bne      GameMenuRestore
+                    lbne      GameMenuRestore
                     ldx       #2
                     os9       F$Sleep
                     bra       GameMenuWait
@@ -1977,7 +1991,7 @@ GameMenuReadKey     ldu       <resourcebase
                     ldy       #1
                     clra
                     os9       I$Read
-                    bcs      GameMenuRestore
+                    lbcs      GameMenuRestore
                     ldu       <resourcebase
                     lda       parsercharacter,u
                     cmpa      #5
@@ -2014,7 +2028,7 @@ GameMenuSelect      ldb       inventoryselected+1,u
                     tst       4,x
                     lbeq      GameMenuWait
                     ldb       2,x
-                    lbsr      InputControllerAddress
+                    UI_CALL   10
                     ora       ,x
                     sta       ,x
 GameMenuCancel      clrb
@@ -2032,10 +2046,11 @@ GameMenuCopyBack    ldd       ,x++
                     bne       GameMenuCopyBack
                     leas      2,s
                     puls      cc,b
-                    lbcs      GameCycleReturn
-                    lbsr      GameComposeScene
-                    lbcs      GameCycleReturn
-                    lbra      RefreshPicture
+                    lbcs      AuxMenuReturn
+                    UI_CALL   12
+                    lbcs      AuxMenuReturn
+                    UI_CALL   14
+                    rts
 GameMenuLabel       tstb
                     beq       GameMenuLabelDone
                     lda       ,x+
@@ -2051,6 +2066,11 @@ GameMenuColon       fcc       /: /
 GameMenuHelp        fcc       /Arrows select; ENTER opens; ESC cancels/
                     fcb       0
 
+AuxMenuSuccess      clrb
+AuxMenuReturn       rts
+AuxMenuInvalid      ldb       #E$BMode
+                    orcc      #1
+                    rts
                     else
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_MENU_DATA
 * ===== wildbits-menu-data =====
@@ -3187,6 +3207,7 @@ NORMAL_STRING_FOLD  equ       ParserLower
 
                     else
                     error Unknown platform feature section
+                    endc
                     endc
                     endc
                     endc

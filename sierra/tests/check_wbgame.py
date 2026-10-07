@@ -430,6 +430,45 @@ def check_interpreter_information(d):
     print('PASS: interpreter information, blocking dismissal, preserved flags/timer and deep caller resume')
 
 
+def check_cold_menus(d):
+    """Cold navigation must retain labels, selection policy and ownership."""
+    def fixture(command,picture=True):
+        script=(bytes([3,0,1,24,0,25,0,26]) if picture else b'')+command+bytes([3,240,73,134,1,0])
+        plain=b'Title\0Item\0';key=b'Avis Durgan'
+        messages=bytes([2,17,0,6,0,12,0])+bytes(v^key[i%11] for i,v in enumerate(plain))
+        logic=len(script).to_bytes(2,'little')+script+messages
+        volume=b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic
+        picture=len(volume);volume+=b'\x12\x34\0\x01\0\x01\0\xff'
+        return {'/game/logDir':b'\xff'*3+bytes(3),'/game/vol.0':volume,
+                '/game/picDir':b'\xff'*3+picture.to_bytes(3,'big')}
+    cases=[('before picture',bytes([156,1,157,2,255,158,161]),b'\r',255,0),
+           ('select',bytes([156,1,157,2,255,158,161]),b'\r',255,0),
+           ('cancel',bytes([156,1,157,2,255,158,161]),b'\x1b',None,0),
+           ('disabled then next',bytes([156,1,157,2,1,157,2,255,160,1,158,161]),b'\r\n\r',255,0),
+           ('paged',bytes([156,1])+b''.join(bytes([157,2,n]) for n in range(32))+bytes([158,161]),b'\n'*22+b'\r',22,0),
+           ('unsubmitted',bytes([161]),b'\r',None,203)]
+    for label,command,keyboard,controller,expected in cases:
+        print('Checking cold menu:',label,flush=True)
+        error,output,state=exercise(d,fixture(command,picture=label!='before picture'),module='wbgame',base=0xa000,
+            database=0,window=0x8000,blocks=None,multiple=True,firstblock=0x10,
+            capture=True,keyboard=keyboard,os_call_limit=60000)
+        assert error==expected,(label,error)
+        if not error:
+            assert state['vmvariables'][240]==73,(label,'caller did not resume')
+            wanted=bytearray(32)
+            if controller is not None:wanted[controller//8]=1<<(controller%8)
+            assert state['vmcontrollers']==wanted,(label,state['vmcontrollers'],wanted)
+        assert state['gamefont']==(ROOT/'objs/wbfont').read_bytes(),(label,'font overwritten')
+    original=(ROOT/'objs/wbstate').read_bytes();entry=int.from_bytes(original[9:11],'big')
+    for offset in (0,len(original),len(original)-1):
+        files=fixture(bytes([156,1,157,2,1,158,161]));helper=bytearray(original)
+        helper[entry+30:entry+32]=offset.to_bytes(2,'big');files['wbstate']=bytes(helper)
+        error,output,state=exercise(d,files,module='wbgame',base=0xa000,database=0,
+            window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,keyboard=b'\r',os_call_limit=30000)
+        assert error==203,(offset,error)
+    print('PASS: cold menu selection, cancel, disabled items, paging, invalid entry and ownership cleanup')
+
+
 def check_screen_backend(d):
     """Exercise every cold configuration branch and invalid entry cleanup."""
     key=b'Avis Durgan'
@@ -578,6 +617,7 @@ def main():
             check_screen_shakes(d)
             check_object_previews(d)
             check_interpreter_information(d)
+            check_cold_menus(d)
             check_screen_backend(d)
             check_cold_prefix_bounds(d)
             check_restarts(d)

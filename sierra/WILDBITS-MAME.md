@@ -867,3 +867,10 @@ The same generated UI regression accepts `--version` to check opcode 141's
 two-line interpreter information, dismissal, scene restoration and cleanup.
 It passes at `/tmp/sierra-version-real-drivers`. `--version` and `--shake`
 are mutually exclusive.
+
+The cold-menu helper passes original KQ1 `--restart` at
+`/tmp/sierra-cold-menu-restart`, two games with `--larry-pair` at
+`/tmp/sierra-cold-menu-pair`, and `--larry-enter` at
+`/tmp/sierra-cold-menu-leftys`. The last test verifies the open-door response,
+transition into Lefty's, inside look/dismissal and full cleanup, using actual
+game resources rather than a generated startup fixture.
