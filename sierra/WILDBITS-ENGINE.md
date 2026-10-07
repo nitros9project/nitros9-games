@@ -1448,3 +1448,12 @@ MAME (`/tmp/sierra-timed-kq1`). Larry and KQ1 also pass independent inventory
 input, terminal switching, one game's exit and final memory recovery together
 (`/tmp/sierra-timed-pair`, using the documented emulator-only expanded kernel).
 These tests do not establish complete adventure or physical-hardware acceptance.
+
+
+A generated-message MAME probe subsequently measured all four blocking print
+commands against the actual public SOL counter, confirming its path remained
+active. Half-second messages measured approximately 0.492–0.494 seconds and a
+one-second message 0.995 seconds. The untimed completion message waited for a
+key, its glyphs matched the font exactly, and exit recovered the original
+free-memory map. The reusable test is `tests/check_wbgame_timers_mame.py`;
+its final artifacts are `/tmp/sierra-timed-counter-final`.

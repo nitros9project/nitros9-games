@@ -780,3 +780,27 @@ with the documented expanded-memory emulator kernel. These runs exercise the
 relocated immutable modal wait/key loop against real drivers. Timer arithmetic,
 foreground rebasing and invalid entry cleanup have separate CPU fixtures in
 `check_wbgame.py`; the original-resource MAME runs are integration checks.
+
+
+### Real raster timing of modal messages
+
+`tests/check_wbgame_timers_mame.py` generates its own AGI logic and messages,
+clones the supplied disk/firmware, and runs a private headless MAME instance.
+It does not require game assets. The disk or optional `--boot-file` must contain
+the public SOL counter driver. For example:
+
+```sh
+python3 tests/check_wbgame_timers_mame.py \
+  --mame "$MAME" --disk "$DISK" --firmware "$FEU" \
+  --boot-file "$COUNTER_BOOT" --output /tmp/wbgame-timer-check
+```
+
+The test records resident wait/restore boundaries in CPU cycles and confirms
+that the same non-`$FF` SOL path is active at both boundaries. Under the Jr2 turbo
+clock, a half-second print measured 0.49174 seconds; a one-second `print.v`
+measured 0.99451 seconds; positioned half-second prints measured 0.49380 and
+0.49375 seconds. The final untimed print remains visible until keyboard
+input. Exact completion-message glyphs, normal process exit and identical
+before/after free-memory maps also pass (`/tmp/sierra-timed-counter-final`).
+The slight sub-frame difference follows the phase of the existing raster counter.
+The test preserves events, timing, screenshots, command line and disk artifacts.
