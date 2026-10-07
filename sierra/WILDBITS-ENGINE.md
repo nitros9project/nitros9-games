@@ -12,7 +12,7 @@ for retry. Sprite visibility now uses the same shared per-cel rule for both
 owners; native publishes AGI flag 1 only for ego. Selected-cel positioning is also shared, including right-edge and
 height/horizon adjustment. Native platform commands now use an immutable relative dispatch table
 from the shared AGI catalog. Both decoders also expand the shared LZW
-window-alignment/mask and dictionary-walk core. The game is 23,808 bytes, at its resident-code limit;
+window-alignment/mask and dictionary-walk core. The game is 23,725 bytes, with 83 resident code bytes free;
 process data is 24,460 bytes (116 bytes below its three-page limit).
 The per-cel visibility byte reuses the sort key after collection completes.
 
@@ -1202,3 +1202,12 @@ room-transition assertion and explicit post-restore modal response check:
 not only a host recheck of earlier screenshots. King's Quest I returns to the
 saved castle position, accepts `look room`, exits on Ctrl-C and recovers the
 initial free-memory map.
+
+Native operand-count storage now uses two four-bit counts per byte, generated
+from the same command catalog as CoCo. The lookup selects the nibble using
+opcode parity; handler routing and the CoCo table format are unchanged. This
+recovers 83 resident bytes without changing private layout or snapshot ABI.
+The native game CPU suite and all 1,024 dispatch cases pass; every one of the
+182 decoded counts also matches the common catalog in game and probe builds.
+The lookup adds a few instructions per command and leaves rendering loops
+unchanged. This space is being recovered for the native audio frontend.

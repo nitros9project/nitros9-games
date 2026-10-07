@@ -33,8 +33,15 @@ LOGIC_DISPATCH      macro
                     cmpb      #181
                     lbhi      VmLogicInvalid
                     leax      VmArgumentCounts,pcr
-                    clra
-                    ldb       d,x
+* Two operand counts share a byte; carry retains the opcode parity.
+                    lsrb
+                    ldb       b,x
+                    bcs       NativeCountLow
+                    lsrb
+                    lsrb
+                    lsrb
+                    lsrb
+NativeCountLow    andb      #15
                     stb       <vmargcount
                     lbsr      VmReadArguments
                     lbcs      VmLogicFailure
@@ -128,6 +135,8 @@ AGI_TEST            macro
                     fcb       (\2)/256
                     endm
 NATIVE_COMMAND_TABLE_MODE set 0
+NATIVE_COUNT_PAIR    set 0
+NATIVE_COUNT_HIGH    set 0
 AGI_COMMAND         macro
                     ifne NATIVE_COMMAND_TABLE_MODE
                     ifne \4
@@ -140,6 +149,12 @@ AGI_COMMAND         macro
                     fdb       \3-VmPlatformCommandTable
                     endc
                     else
-                    fcb       (\2)/256
+                    ifeq NATIVE_COUNT_PAIR
+NATIVE_COUNT_HIGH    set (\2)/256
+NATIVE_COUNT_PAIR    set 1
+                    else
+                    fcb       NATIVE_COUNT_HIGH*16+(\2)/256
+NATIVE_COUNT_PAIR    set 0
+                    endc
                     endc
                     endm

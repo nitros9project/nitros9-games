@@ -2,6 +2,7 @@
 """Check every native platform-command destination before its body executes."""
 from pathlib import Path
 import tempfile
+import re
 from check_logic_executor import compile_module
 from check_wbres import idle_rom, start_cpu
 
@@ -51,6 +52,14 @@ def main():
         game, gs = compile_module(ROOT/'objs/sierra.asm', tmp/'wbgame',
                                   defines=('WILDBITS=1',))
         probe, ps = compile_module(ROOT/'tests/probes/wbexec.asm', tmp/'wbexec')
+        counts = [int(value[1:],16)//256 for value in re.findall(
+            r'^\s*AGI_COMMAND\s+[^,]+,(\$[0-9A-Fa-f]+),',
+            (ROOT/'objs/shared/agi-command-table.asm').read_text(),re.M)]
+        assert len(counts)==182
+        for owner,code,syms in [('game',game,gs),('probe',probe,ps)]:
+            offset=syms['VmArgumentCounts'];packed=code[offset:offset+91]
+            assert [(packed[i//2]>>(4 if i%2==0 else 0))&15
+                    for i in range(182)] == counts, owner
         d, emulator = start_cpu(idle_rom(tmp/'idle.rom'), timeout=900)
         calls = 0
         try:
