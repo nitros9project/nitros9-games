@@ -16,7 +16,7 @@ Keep the original game resources together in a readable directory, then run:
 wbgame /s0/game 0
 ```
 
-Use the arrows to move, type a command and press ENTER. `look room` requests
+Press an arrow to move and press the same arrow again to stop. Type a command and press ENTER. `look room` requests
 the castle description. CTRL-I opens inventory on the tested Wild Bits keyboard;
 Escape/Break opens the menu. ENTER selects; Escape/Break cancels. CTRL-C exits.
 The terminal's echo, EOF and quit settings are restored on exit.
@@ -708,3 +708,8 @@ Video Mode now switches each instance between the standard AGI colors and the
 original CoCo Sierra RGB colors. See [the implementation and validation notes](WILDBITS-ENGINE.md#per-terminal-video-mode--2026-10-07).
 To launch a private playable MAME image without automated test input, follow
 [the interactive preparation instructions](WILDBITS-MAME.md#prepare-an-interactive-game).
+
+
+Item previews now remain visible when opened from text mode and restore the
+opaque text screen after dismissal. [The regression notes](WILDBITS-ENGINE.md#text-mode-item-previews-and-room-travel--2026-10-07)
+explain that fix and the original KQ1 castle/lake round-trip check.

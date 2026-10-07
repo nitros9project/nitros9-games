@@ -344,7 +344,10 @@ def check_object_previews(d):
            ('held/timer flags',bytes([12,15,3,21,2,129,0]),0,False),
            ('depth 16 and long directory',bytes([129,0]),16,True),
            ('moving-object baseline',bytes([33,0,41,0,0,37,0,20,30,54,0,15,35,0,37,0,30,40,26]),0,False),
-           ('moving-object preview',bytes([33,0,41,0,0,37,0,20,30,54,0,15,35,0,129,0,37,0,30,40,26]),0,False)]
+           ('moving-object preview',bytes([33,0,41,0,0,37,0,20,30,54,0,15,35,0,129,0,37,0,30,40,26]),0,False),
+           ('text-screen baseline',bytes([106]),0,False),
+           ('text-screen preview',bytes([106,129,0]),0,False),
+           ('text-screen held/timer flags',bytes([106,12,15,3,21,2,129,0]),0,False)]
     for label,command,depth,audio in cases:
         print('Checking object preview:',label,flush=True)
         modal={}
@@ -377,7 +380,7 @@ def check_object_previews(d):
             assert frame==baseline,(label,'scene not restored')
             assert modal['text'][322:338]==b'A fine treasure.',(label,modal['text'][322:350])
             assert modal['frame'][173*320+156:173*320+164]==bytes([2,2,2,2,16,16,3,3]),(label,'preview pixels missing')
-        if label=='held/timer flags':assert state['vmflags'][15]==1 and state['vmvariables'][21]==2
+        if 'held/timer flags' in label:assert state['vmflags'][15]==1 and state['vmvariables'][21]==2
     for label,view,expected_error in [('empty description',default[:3]+b'\0\0'+default[5:],0),
                        ('maximum description',default[:22]+b'X'*511+b'\0',0),
                        ('description outside slab',default[:3]+b'\xff\xff'+default[5:],203),

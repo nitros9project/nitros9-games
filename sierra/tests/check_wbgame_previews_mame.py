@@ -16,6 +16,7 @@ def main():
         ap.add_argument('--'+name,required=True,type=Path)
     ap.add_argument('--boot-file',type=Path,help='Optional matching OS9 boot image')
     modes=ap.add_mutually_exclusive_group()
+    modes.add_argument('--text-preview',action='store_true',help='Check item visibility and restoration from opaque text mode')
     modes.add_argument('--monitor',action='store_true',help='Check native/CoCo RGB palette switching on real drivers')
     modes.add_argument('--joystick',action='store_true',help='Check real-driver joystick enable, neutral polling, toggle and cleanup')
     modes.add_argument('--version',action='store_true',help='Check the interpreter information dialog instead of an item preview')
@@ -38,6 +39,7 @@ def main():
     if a.boot_file:install('OS9Boot',a.boot_file.read_bytes())
     # Subsequent root cycles idle until the bound q controller quits normally.
     script=bytes([255,12,1,255,3,0,134,1,0,255,7,20,255,1,0,0,3,10,2,121,113,0,1,3,0,1,24,0,25,0,26,129,0,3,240,73,119,12,20,0])
+    if a.text_preview:script=script.replace(bytes([129,0]),bytes([106,129,0]))
     if a.version:script=script.replace(bytes([129,0]),bytes([141]))
     if a.shake:
         script=bytes([255,12,1,255,3,0,134,1,0,255,7,20,255,1,0,0,3,10,2,121,113,0,1,
@@ -201,7 +203,7 @@ def main():
                         assert pixels[at:at+3]==expected,('dialog glyph',row,col,x,y)
         w,h,pixels=png_rgb(out/'preview-restored.png')
         for y in range(h):
-            expected=(bytes([255])*3 if 16<=y<352 else bytes(3))*w
+            expected=(bytes([255])*3 if not a.text_preview and 16<=y<352 else bytes(3))*w
             assert pixels[y*w*3:(y+1)*w*3]==expected,('restored scene row',y)
         print('PASS: real-driver '+('interpreter information' if a.version else 'item pixels and description')+', keyboard dismissal, subsequent script execution, exact scene restoration and memory cleanup')
 

@@ -1094,6 +1094,11 @@ GameTextUnlink      ldu       <resourcebase
 GameTextUnlinkDone  rts
 GameTextPresent     lbsr      AssetUnmap
                     bcs       GameTextReturn
+* Preview dialogs replace opaque text-mode cells with transparent cells.
+* Repaint their underlying picture; a text-only pass cannot undo old pixels.
+                    ldu       <resourcebase
+                    tst       showactive,u
+                    lbne      RefreshPicture
                     tst       <bitmapowned
                     bne       GameDrawText
                     tst       <pictureowned

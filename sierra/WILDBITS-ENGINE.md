@@ -1823,3 +1823,44 @@ pixel checks through the real MAME drivers. The original KQ1 menu run at
 owned PSG writes, and recovers its memory on exit. The generated fixture at
 `/tmp/sierra-monitor-real-drivers` preserves every picture index and restores
 exactly the original frame after the second toggle.
+
+
+### Text-mode item previews and room travel — 2026-10-07
+
+A preview opened after `text.screen` previously lost its item pixels: the opaque
+text cells were drawn over the item before the dialog made its outside cells
+transparent. Merely skipping those transparent cells could not undo pixels
+already painted into the bitmap. `GameTextPresent` now refreshes the underlying
+picture while the private `showactive` flag is set. Normal text operations retain
+the existing text-only path. The original cells are still restored on dismissal,
+and the helper restores the pristine background and recomposes ordinary objects.
+This adds ten resident bytes, giving 23,719 / 23,808; helper size and private
+allocation are unchanged. It runs during item dialogs, not ordinary movement.
+
+The preview regression now checks opaque text-mode baseline/restoration and
+held/timed print flags in addition to existing graphic-mode, deep-call, audio,
+and malformed-resource cases. The real-driver `--text-preview` run at
+`/tmp/sierra-preview-text-real-drivers` checks each item pixel and description
+glyph, script continuation, exact black text-screen restoration, and memory
+recovery. The original failure was reproduced before the fix.
+
+The original-game runner also provides `--journey`: Graham walks east from the
+castle to the lake, reads the original lake description, and walks west back.
+Direction keys use AGI's toggle controls: press again to stop; releasing alone
+does not stop walking. The regression checks changed room scenery, exact message
+glyphs, restored castle masonry, a subsequent castle description, and exit
+memory recovery. Normal tree occlusion is allowed at the arrival point.
+
+
+The complete real-driver round trip passes at
+`/tmp/sierra-preview-text-kq1-journey-final`, including the subsequent original
+castle description, 59 process-owned PSG writes, and an unchanged free-memory
+map on exit. The updated interactive image is prepared at
+`/tmp/sierra-play-latest`; run its `play.sh` for normal keyboard play.
+All 1,024 native dispatch cases pass with the preview fix present.
+
+The full native game regression passes with this change, including all sixteen
+text backgrounds and text/graphics transitions, exact original castle pixels,
+sprite clipping/occlusion, movement, restart, save validation, input, inventory,
+and cleanup (`/tmp/sierra-preview-text-full-game.log`). CoCo's main logic remains
+byte-identical to the baseline; the canonical build budget passes.

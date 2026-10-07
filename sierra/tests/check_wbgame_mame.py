@@ -20,6 +20,7 @@ def main():
     ap.add_argument('--video-mode',action='store_true',help='Select KQ1 Video Mode twice and verify palette changes')
     ap.add_argument('--restart',action='store_true',help='Restart original KQ1 through its menu, then issue another command')
     ap.add_argument('--persistence',action='store_true',help='Save original KQ1, walk, restore, and issue another command')
+    ap.add_argument('--journey',action='store_true',help='Walk original KQ1 to the lake, look, and return to the castle')
     ap.add_argument('--movement',action='store_true',help='Measure KQ1 movement over 200 emulated frames')
     ap.add_argument('--larry',action='store_true',help='Exercise Larry age quiz, street walking and look response')
     ap.add_argument('--larry-enter',action='store_true',help="Exercise Larry quiz and entering Lefty's")
@@ -85,7 +86,7 @@ def main():
 
     with disk.open('ab') as f:f.truncate(1 << (disk.stat().st_size-1).bit_length())
     if a.prepare_play:
-        if any((a.menu,a.typed_command,a.sustained,a.movement,a.persistence,a.larry,
+        if any((a.menu,a.typed_command,a.sustained,a.journey,a.movement,a.persistence,a.larry,
                 a.larry_enter,a.larry_pair,a.restart,a.video_mode,a.audio_trace,a.profile)):
             ap.error('--prepare-play cannot be combined with scripted diagnostic modes')
         lua=out/'play.lua'
@@ -101,11 +102,11 @@ def main():
         launcher.write_text('#!/bin/sh\nset -e\ncd '+shlex.quote(str(out))+'\nexec '+shlex.join(command)+'\n')
         launcher.chmod(0o755)
         print('Prepared interactive game. Run:',launcher)
-        print('Press Space at the introduction; arrows move, Escape opens the game menu.')
+        print('Press Space at the introduction; press an arrow to move and again to stop; Escape opens the menu.')
         print('Scroll Lock toggles MAME UI controls; Ctrl-C exits the game to NitrOS-9.')
         return
     response_frame=4000+max(700,120*len(a.typed_command or ""))
-    if sum(bool(v) for v in (a.menu,a.typed_command,a.sustained,a.movement,a.persistence,a.larry,a.larry_enter,a.larry_pair,a.restart,a.video_mode))>1:
+    if sum(bool(v) for v in (a.menu,a.typed_command,a.sustained,a.journey,a.movement,a.persistence,a.larry,a.larry_enter,a.larry_pair,a.restart,a.video_mode))>1:
         ap.error("choose menu, typed-command, sustained, movement, larry larry-enter or larry-pair")
     if a.menu: response_frame=4700
     delay=response_frame+1000-3900 if a.typed_command or a.menu else 0
@@ -210,6 +211,23 @@ def main():
                  ' if frames==5500 then shot("video-mode-alternate") end',
                  ' if frames==7100 then shot("video-mode-standard") end']
         command_events='\n'.join(events)+'\n'
+    if a.journey:
+        delay=7000
+        command_events='''
+ -- AGI directions toggle on a new press. Release alone does not stop walking.
+ if frames==4000 or frames==4400 then keys["Right"]:set_value(1) end
+ if frames==4010 or frames==4410 then keys["Right"]:clear_value() end
+ if frames==5500 then shot("journey-lake") end
+ if frames==6000 then post("look room\\n") end
+ if frames==7000 then shot("journey-look") end
+ if frames==7050 then post(" ") end
+ if frames==7500 or frames==7900 then keys["Left"]:set_value(1) end
+ if frames==7510 or frames==7910 then keys["Left"]:clear_value() end
+ if frames==10000 then shot("journey-return") end
+ if frames==10100 then post("look room\\n") end
+ if frames==10800 then shot("journey-castle-look") end
+ if frames==10850 then post(" ") end
+'''
     if a.movement:
         delay=2000
         command_events='''
@@ -389,7 +407,7 @@ end)
         if not a.audio_trace:
             source='local cpu=manager.machine.devices[":maincpu"]\nmanager.machine.debugger.execution_state="run"\nvideo_stop=emu.add_machine_stop_notifier(function() local log=manager.machine.debugger.consolelog;for index=1,#log do if log[index] then print(log[index]) end end end)\n'+source
         lua.write_text(source)
-    command=[str(a.mame.resolve()),'wbjr2','-bios','turbo','-rompath',str(roms.parent),'-hard',str(disk),'-skip_gameinfo', '-noui_mouse', '-mouseprovider', 'none','-video','none','-sound','none','-nothrottle','-autoboot_script',str(lua),'-seconds_to_run',str(420 if a.larry_pair else (5100+delay+(1200 if a.larry or a.larry_enter else 0))//60+10 if a.typed_command or a.menu or a.sustained or a.movement or a.persistence or a.restart or a.larry or a.larry_enter or a.video_mode else 100),'-nvram_directory',str(out/'nvram'),'-cfg_directory',str(out/'cfg')]
+    command=[str(a.mame.resolve()),'wbjr2','-bios','turbo','-rompath',str(roms.parent),'-hard',str(disk),'-skip_gameinfo', '-noui_mouse', '-mouseprovider', 'none','-video','none','-sound','none','-nothrottle','-autoboot_script',str(lua),'-seconds_to_run',str(420 if a.larry_pair else (5100+delay+(1200 if a.larry or a.larry_enter else 0))//60+10 if a.typed_command or a.menu or a.sustained or a.journey or a.movement or a.persistence or a.restart or a.larry or a.larry_enter or a.video_mode else 100),'-nvram_directory',str(out/'nvram'),'-cfg_directory',str(out/'cfg')]
     if a.profile or a.audio_trace or a.restart or a.video_mode:command+=['-debug','-debugger','none']
     (out/'command.json').write_text(json.dumps(command,indent=2)+'\n')
     with (out/'mame.log').open('w') as log:subprocess.run(command,cwd=out,stdout=log,stderr=subprocess.STDOUT,check=True,timeout=360 if a.larry_pair else 300 if a.larry or a.larry_enter else 180)
@@ -428,6 +446,39 @@ end)
     before=os9('list',f'{disk},free-before');after=os9('list',f'{disk},free-after')
     (out/'free-before.txt').write_bytes(before);(out/'free-after.txt').write_bytes(after)
     assert before==after,'real game leaked memory'
+    if a.journey:
+        castle=png_rgb(out/'game-before-input.png')
+        lake=png_rgb(out/'journey-lake.png')
+        returned=png_rgb(out/'journey-return.png')
+        assert all(image[:2]==(640,480) for image in (castle,lake,returned))
+        def wall(image):
+            w,h,pixels=image
+            return b''.join(pixels[(y*w+20)*3:(y*w+360)*3] for y in range(60,260))
+        assert wall(lake)!=wall(castle),'east boundary did not load the lake room'
+        assert wall(returned)==wall(castle),'west boundary did not restore the castle'
+        w,h,pixels=lake
+        assert pixels[(200*w+590)*3:(200*w+590)*3+3]==bytes([85,85,255]),'lake water missing'
+        w,h,pixels=png_rgb(out/'journey-look.png')
+        font=(VIEWER/'wbfont').read_bytes()
+        for row,message in enumerate(('A rapidly moving stream is flowing out','of this lake.')):
+            for col,char in enumerate(message):
+                for y in range(8):
+                    for x in range(8):
+                        expected=bytes(3) if font[ord(char)*8+y]&(128>>x) else bytes([255])*3
+                        at=((128+row*16+y*2)*w+32+col*16+x*2)*3
+                        assert pixels[at:at+3]==expected,('lake description',row,col,x,y)
+        # The castle tree can correctly occlude Graham at the arrival point.
+        # A second exact room description proves continued play without assuming
+        # that the hero must always be visible through foreground scenery.
+        w,h,pixels=png_rgb(out/'journey-castle-look.png')
+        for col,char in enumerate('You are standing outside a castle'):
+            for y in range(8):
+                for x in range(8):
+                    expected=bytes(3) if font[ord(char)*8+y]&(128>>x) else bytes([255])*3
+                    at=((128+y*2)*w+32+col*16+x*2)*3
+                    assert pixels[at:at+3]==expected,('returned castle description',col,x,y)
+        print('PASS: original KQ1 east/west room transitions, exact lake/castle descriptions, continued play, interrupt exit and unchanged free memory')
+        return
     if a.video_mode:
         log=(out/'mame.log').read_text()
         assert re.findall(r'VIDEO MODE (\d+)',log)==['0','1'],'actual menu did not invoke both palette switches'

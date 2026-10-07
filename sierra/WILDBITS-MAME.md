@@ -20,14 +20,15 @@ python3 sierra/tests/check_wbgame_mame.py --prepare-play \
 /tmp/sierra-play/play.sh
 ```
 
-Run this from the games repository after building `sierra/objs/wildbits.mk`.
+Run this from the games repository after `make -C sierra/objs -f wildbits.mk all`.
 The output directory must be new. The runner copies the source disk, matching
 current `wbgame`, `wbstate`, and `wbfont`, and converted game resources into the
 private image. Optional `--sol-driver` and `--expanded-krnp2` have the same meaning
 as in acceptance tests. Neither the source disk nor an existing emulator is
 changed. The launcher uses normal display, sound and throttling, with the MAME
 UI initially disabled so the emulated computer receives keys. It starts the
-game after boot; press Space through the introduction, use arrows to walk,
+game after boot; press Space through the introduction, press an arrow to walk
+and press the same arrow again to stop,
 Escape for the game menu, and Ctrl-C to return to NitrOS-9. Scroll Lock toggles
 MAME UI controls. The disk retains saved games between launches.
 
