@@ -828,7 +828,7 @@ StateCheckABI       lda       ,x+
                     tfr       y,x       validated metadata follows the ABI
 * Only the writable state prefix is copied; linked cold code stays shared.
                     ldd       M$Exec,u
-                    addd      #33
+                    addd      #35
                     cmpd      8,x
                     bhi       StateLoadBad
                     ldy       8,x

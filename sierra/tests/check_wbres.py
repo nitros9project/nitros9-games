@@ -51,7 +51,7 @@ def start_cpu(bootrom, timeout=300):
     raise RuntimeError('XRoar debugger did not attach after four fresh starts')
 
 
-def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zero_read=False, seek_error=False, write_error=False, module='wbres', map_failure=0, allocation_error=False, unmap_error=False, window=0x8000, terminal=True, blocks=4, capture=False, multiple=False, firstblock=0x30, frame_capture=False, keyboard=b'', clock=(0,), bitmap_error=False, key_sense=0, cycle_limit=None, os_call_limit=20000, keyboard_by_cycle=None, option_set_error=False, resource_kind=None, module_root=None, breakpoint_hooks=None, psg=None, sol=None, joystick=None):
+def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zero_read=False, seek_error=False, write_error=False, module='wbres', map_failure=0, allocation_error=False, unmap_error=False, window=0x8000, terminal=True, blocks=4, capture=False, multiple=False, firstblock=0x30, frame_capture=False, keyboard=b'', clock=(0,), bitmap_error=False, key_sense=0, cycle_limit=None, os_call_limit=20000, keyboard_by_cycle=None, option_set_error=False, resource_kind=None, module_root=None, breakpoint_hooks=None, psg=None, sol=None, joystick=None, palette_error=0):
     if module == 'wbgame':
         files = {'wbfont': (ROOT / 'wbfont').read_bytes(), 'wbstate': (ROOT / 'wbstate').read_bytes(), **files}
     module_root = Path(module_root) if module_root is not None else ROOT
@@ -91,6 +91,7 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
     joystick_sample=(128,128,0)
     maps = 0
     map_sites = {}
+    palettes=[]
     unmap_failed = False
     original_options=bytearray(32)
     original_options[0]=0 if terminal else 1
@@ -170,6 +171,8 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
                         state[name]=d.read(database+syms[name],length)
                 if module=='wbgame':
                     state['vmstrings']=d.read(database+syms['vmstrings'],480)
+                    state['palettes']=palettes
+                    if 'monitorprofile' in syms:state['monitorprofile']=d.read(database+syms['monitorprofile'],1)
                     state['joystick_polls']=joystick_polls
                     for name in ('joystickenabled','joysticklast','joystickbuttons','joystickpressed'):
                         if name in syms:state[name]=d.read(database+syms[name],1)
@@ -297,7 +300,12 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
             if option_set_error and not options_failed:
                 options_failed=True
                 updates.update(cc=r['cc']|1,b=syms['E$BMode'])
-        elif service == syms['I$SetStt'] and r['b'] in (0xcf, 0xe1, syms.get('SS.PScrn'), syms.get('SS.DScrn'), syms.get('SS.Palet')):
+        elif service == syms['I$SetStt'] and r['b']==0xcf:
+            assert not mapped and r['a']==1 and r['y']==0 and r['u']==17,r
+            assert bitmapfirst is not None and bitmapfirst in owned,'palette without an owned bitmap'
+            palettes.append(d.read(r['x'],68))
+            if len(palettes)==palette_error:updates.update(cc=r['cc']|1,b=syms['E$BMode'])
+        elif service == syms['I$SetStt'] and r['b'] in (0xe1, syms.get('SS.PScrn'), syms.get('SS.DScrn'), syms.get('SS.Palet')):
             assert not mapped
         elif service == syms['I$SetStt'] and r['b'] == 0xD4:
             assert r['a'] == 0 and (blocks is None or r['x'] == blocks) and (multiple or not owned)

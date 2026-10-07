@@ -61,6 +61,7 @@ GameInitialize      lbsr      ParserInitialize
                     clr       soundinstalled,u
                     clr       inventoryloaded,u
                     clr       gameblockenabled,u
+                    clr       monitorprofile,u
                     clr       joystickenabled,u
                     clr       joysticklast,u
                     clr       joystickbuttons,u

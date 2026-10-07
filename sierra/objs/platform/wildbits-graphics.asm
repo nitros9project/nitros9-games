@@ -1661,6 +1661,14 @@ palette             fcb       0,0,0,0,0,0,0,255,170,0,0,255,0,170,0,255
                     fcb       255,85,85,255,85,255,85,255,255,255,85,255
                     fcb       85,85,255,255,255,85,255,255,85,255,255,255
                     fcb       255,255,255,255
+                    ifne      GAME_PRESENTATION
+* CoCo Sierra RGB palette codes, expanded to BGRA (GIME R/G/B bit pairs).
+CoCoRGBPalette      fcb       0,0,0,0,0,0,0,255,170,0,0,255,0,170,85,255
+                    fcb       170,170,0,255,0,0,170,255,170,0,170,255,0,85,170,255
+                    fcb       170,170,170,255,85,85,85,255,255,85,0,255,0,255,85,255
+                    fcb       255,255,85,255,85,85,255,255,255,0,255,255,85,255,255,255
+                    fcb       255,255,255,255
+                    endc
 
                     else
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_PRESENTATION
@@ -1678,6 +1686,14 @@ PresentationInitLoop clr      ,x+
                     clr       <presentoffset
                     clr       <presentoffset+1
                     rts
+                    ifne      GAME_PRESENTATION
+* Re-publish colors without copying the game image or touching other terminals.
+GamePaletteRefresh  lbsr      AssetUnmap
+                    lbcs      PresentFailure
+                    lbsr      PictureUnmap
+                    lbcs      PresentFailure
+                    lbra      PresentFinishBands
+                    endc
 PresentPicture      lbsr      PictureUnmap
                     ifne      GAME_TRACE
                     pshs      cc,a
@@ -1972,7 +1988,7 @@ copyspan            equ       *
                     std       <remaining
                     ifeq      GAME_PRESENTATION
                     lbsr      unmap
-                    bcs      PresentFailure
+                    lbcs     PresentFailure
                     endc
                     tst       <aborted
                     lbne      PresentAbort
@@ -1995,7 +2011,7 @@ copyspan            equ       *
                     std       <remaining
                     bra      writespan
 PresentBandWritten  lbsr      unmap
-                    bcs      PresentFailure
+                    lbcs     PresentFailure
                     else
                     dec       <rows
                     endc
@@ -2006,13 +2022,20 @@ PresentBandWritten  lbsr      unmap
 PresentFinishBands  equ       *
                     endc
                     lbsr      foreground
-                    bcs      PresentFailure
+                    lbcs     PresentFailure
                     ifne      GAME_PRESENTATION
                     lda       <presentationconfigured
                     bita      #1
                     bne      PresentDrawTextOnly
                     endc
                     leax      palette,pcr
+                    ifne      GAME_PRESENTATION
+                    ldu       <resourcebase
+                    tst       monitorprofile,u
+                    beq       PresentPaletteReady
+                    leax      CoCoRGBPalette,pcr
+PresentPaletteReady equ       *
+                    endc
                     ldy       #0
                     ldu       #17
                     lda       #1
@@ -2024,7 +2047,7 @@ PresentFinishBands  equ       *
                     lbsr      GameTraceStage
                     puls      cc,a
                     endc
-                    bcs      PresentFailure
+                    lbcs     PresentFailure
                     lda       #1
                     ldb       #SS.Palet
                     ldx       #0
@@ -2036,7 +2059,7 @@ PresentFinishBands  equ       *
                     lbsr      GameTraceStage
                     puls      cc,a
                     endc
-                    bcs      PresentFailure
+                    lbcs     PresentFailure
                     lda       #1
                     ldb       #SS.PScrn
                     ldx       #0
@@ -2048,7 +2071,7 @@ PresentFinishBands  equ       *
                     lbsr      GameTraceStage
                     puls      cc,a
                     endc
-                    bcs      PresentFailure
+                    lbcs     PresentFailure
                     lda       #1
                     ldb       #SS.DScrn
                     ldx       #FX_BM+FX_GRF
@@ -2060,7 +2083,7 @@ PresentFinishBands  equ       *
                     lbsr      GameTraceStage
                     puls      cc,a
                     endc
-                    bcs      PresentFailure
+                    lbcs     PresentFailure
                     ifne      GAME_PRESENTATION
                     lda       #$81
                     sta       <presentationconfigured
@@ -2072,7 +2095,7 @@ PresentDrawTextOnly equ       *
                     lbsr      GameTraceStage
                     puls      cc,a
                     endc
-                    bcs      PresentFailure
+                    lbcs     PresentFailure
                     clr       <gamepresentdirty
                     clr       <gamepresentdirty+1
                     clr       <gamepresentdirty+2
@@ -2167,9 +2190,9 @@ PresentReleaseError tst       <errorcode
 * Modal overlays can cover pixels outside the game picture. Clear the whole
 * owned bitmap before restoring the picture and persistent text cells.
 RefreshPicture      lbsr      AssetUnmap
-                    bcs      PresentFailure
+                    lbcs     PresentFailure
                     lbsr      PictureUnmap
-                    bcs      PresentFailure
+                    lbcs     PresentFailure
                     tst       <bitmapowned
                     lbeq      PresentPicture
                     lbra      PresentClearBitmap
@@ -2193,11 +2216,13 @@ ScreenInitialize    lda       #'_
                     sta       <vminputrow
                     rts
                     ifne      GAME_PRESENTATION
+GameMonitorCommand  equ       *
 ScreenCommand       ldu       <resourcebase
                     leax      screenentry,u
                     ldb       #14
-                    leay      ReadLogicMessage,pcr
+                    leay      ScreenCallbacks,pcr
                     lbra      GameColdInvoke
+ScreenCallbacks     fdb       ReadLogicMessage-ScreenCallbacks,GamePaletteRefresh-ScreenCallbacks
                     else
 PLATFORM_SECTION    set PLATFORM_WILDBITS_SCREEN_COLD_CODE
                     use platform/wildbits-graphics.asm
@@ -2570,11 +2595,17 @@ AuxShakeChunkDone   ldu       <resourcebase
                     rts
                     else
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_SCREEN_COLD_CODE
-* Immutable UI configuration backend; Y is the resident message reader.
+* Immutable UI configuration backend; native Y is a resident callback table.
                     ifeq      GAME_PRESENTATION
 ScreenCommand       equ       *
                     endc
 AuxScreenCommand    ldu       <resourcebase
+                    ifne      GAME_PRESENTATION
+                    sty       coldapi,u
+                    ldb       <vmopcode
+                    cmpb      #140
+                    lbeq      ScreenMonitor
+                    endc
                     ldb       <vmopcode
                     cmpb      #108
                     beq       ScreenCursor
@@ -2593,10 +2624,21 @@ AuxScreenCommand    ldu       <resourcebase
                     ldb       #E$UnkSvc
                     orcc      #1
                     rts
+                    ifne      GAME_PRESENTATION
+ScreenMonitor       lda       monitorprofile,u
+                    eora      #1
+                    sta       monitorprofile,u
+                    lda       <presentationconfigured
+                    anda      #$FE       publish this terminal's palette next time
+                    sta       <presentationconfigured
+                    tst       <bitmapowned
+                    lbeq      ScreenDone
+                    UI_CALL   2
+                    rts
+                    endc
 ScreenCursor        ldb       vmarguments,u
                     ifne      GAME_PRESENTATION
-                    jsr       ,y
-                    ldu       <resourcebase
+                    UI_CALL   0
                     else
                     lbsr      ReadLogicMessage
                     endc

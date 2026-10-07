@@ -1787,3 +1787,39 @@ checks both complete private images, font contents, stack balance and shared-cod
 immutability (`/tmp/sierra-joystick-instances.log`). Simultaneous original
 Larry/KQ1 terminals pass at `/tmp/sierra-joystick-pair`, with 80 owned PSG writes
 and both intermediate and final free-memory maps restored.
+
+
+### Per-terminal Video Mode — 2026-10-07
+
+AGI command 140 now toggles the standard AGI palette and the original CoCo
+Sierra RGB palette. The latter is derived from the second sixteen color codes
+in `coco-graphics.asm`, using [MAME’s GIME RGB conversion](https://github.com/mamedev/mame/blob/master/src/mame/trs/gime.cpp).
+This changes the color lookup table, rather than simulating a composite monitor.
+The original KQ1 Video Mode menu selects both profiles successfully.
+
+One byte in existing private padding records each instance’s choice. Restart
+returns to the standard palette; save/restore retains the current display
+preference without changing the WSv1 file format. Selection before the first
+picture performs no display I/O. Once a bitmap exists, the cold screen command
+calls the resident palette refresh through a relative callback table. That
+callback releases resource and picture mappings before the existing foreground
+and terminal ownership checks publish the palette. Picture indices, font data,
+and shared executable modules remain unchanged.
+
+The cached screen entry continues to use the existing `wbstate` helper. Its
+linked image is 6,991 bytes within one 8K window; only its 3,080-byte writable
+prefix is copied into the existing 4K reservation. The canonical make rule now
+checks those two limits independently, and both runtime prefix checks require
+all eleven current metadata words. Layout definition files also participate in
+make dependencies. The main module is 23,709 / 23,808 bytes, with 24,460 bytes of
+private storage. No additional platform source files or runtime modules are
+introduced.
+
+Validation includes independent private maps sharing both executable modules,
+pre-picture selection, repeated toggles, injected palette failure cleanup, all
+cold screen operations, the full native game/audio/dispatch regressions, and
+pixel checks through the real MAME drivers. The original KQ1 menu run at
+`/tmp/sierra-monitor-original-kq1` returns the palette to standard, produces 59
+owned PSG writes, and recovers its memory on exit. The generated fixture at
+`/tmp/sierra-monitor-real-drivers` preserves every picture index and restores
+exactly the original frame after the second toggle.

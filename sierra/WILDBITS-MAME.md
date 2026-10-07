@@ -7,6 +7,30 @@ not provide this machine. The OS image needs the extended drivers from
 The [porting guide](https://github.com/jfed6000/f256_porting) describes this
 emulator and explains why it must not be used to establish hardware timing.
 
+## Prepare an interactive game
+
+The existing acceptance runner can prepare a separate playable image without
+running its scripted controls or exiting MAME automatically:
+
+```sh
+python3 sierra/tests/check_wbgame_mame.py --prepare-play \
+  --mame /path/to/mamed --disk /path/to/wildbits.dsk \
+  --firmware /path/to/nitros9/recipes/wildbits/feu \
+  --game /path/to/converted/game --output /tmp/sierra-play
+/tmp/sierra-play/play.sh
+```
+
+Run this from the games repository after building `sierra/objs/wildbits.mk`.
+The output directory must be new. The runner copies the source disk, matching
+current `wbgame`, `wbstate`, and `wbfont`, and converted game resources into the
+private image. Optional `--sol-driver` and `--expanded-krnp2` have the same meaning
+as in acceptance tests. Neither the source disk nor an existing emulator is
+changed. The launcher uses normal display, sound and throttling, with the MAME
+UI initially disabled so the emulated computer receives keys. It starts the
+game after boot; press Space through the introduction, use arrows to walk,
+Escape for the game menu, and Ctrl-C to return to NitrOS-9. Scroll Lock toggles
+MAME UI controls. The disk retains saved games between launches.
+
 ## Build dependencies
 
 Build the emulator using the porting guide's command:

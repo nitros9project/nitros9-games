@@ -702,3 +702,9 @@ use the keyboard for modal dialogs. Missing joystick service keeps keyboard play
 available. Current MAME verifies neutral readings but does not model physical
 stick input; directional/button tests use the CPU fixture. See
 [the input and performance notes](WILDBITS-ENGINE.md#terminal-joystick-input--2026-10-07).
+
+
+Video Mode now switches each instance between the standard AGI colors and the
+original CoCo Sierra RGB colors. See [the implementation and validation notes](WILDBITS-ENGINE.md#per-terminal-video-mode--2026-10-07).
+To launch a private playable MAME image without automated test input, follow
+[the interactive preparation instructions](WILDBITS-MAME.md#prepare-an-interactive-game).

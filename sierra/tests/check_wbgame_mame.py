@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Run unmodified game resources on real Wild Bits drivers; diagnostic only."""
-import argparse,json,re,shutil,subprocess
+import argparse,json,re,shutil,subprocess,shlex
 from pathlib import Path
 from check_wbpic_mame import VIEWER,png_rgb
 from check_instances import symbols
@@ -11,11 +11,13 @@ def main():
     for name in ('mame','disk','firmware','game','output'):
         ap.add_argument('--'+name,required=True,type=Path)
     ap.add_argument('--os9',default='os9')
+    ap.add_argument('--prepare-play',action='store_true',help='Prepare a private interactive image and launcher without running scripted tests')
     ap.add_argument('--module-file',type=Path)
     ap.add_argument('--helper-file',type=Path,help='Matching helper for a supplied module build')
     ap.add_argument('--typed-command', help='Exercise one command after inventory dismissal')
     ap.add_argument('--menu',action='store_true',help='Open and cancel the actual game menu')
     ap.add_argument('--sustained',action='store_true',help='Repeat commands and select Pause through the real game menu')
+    ap.add_argument('--video-mode',action='store_true',help='Select KQ1 Video Mode twice and verify palette changes')
     ap.add_argument('--restart',action='store_true',help='Restart original KQ1 through its menu, then issue another command')
     ap.add_argument('--persistence',action='store_true',help='Save original KQ1, walk, restore, and issue another command')
     ap.add_argument('--movement',action='store_true',help='Measure KQ1 movement over 200 emulated frames')
@@ -82,8 +84,28 @@ def main():
         install('OS9Boot-with-'+module,boot,'OS9Boot')
 
     with disk.open('ab') as f:f.truncate(1 << (disk.stat().st_size-1).bit_length())
+    if a.prepare_play:
+        if any((a.menu,a.typed_command,a.sustained,a.movement,a.persistence,a.larry,
+                a.larry_enter,a.larry_pair,a.restart,a.video_mode,a.audio_trace,a.profile)):
+            ap.error('--prepare-play cannot be combined with scripted diagnostic modes')
+        lua=out/'play.lua'
+        lua.write_text('local frames=0\nemu.register_frame_done(function()\n'
+                       ' frames=frames+1\n'
+                       ' if frames==1000 then manager.machine.natkeyboard:post("wbgame /s0/game 0\\n") end\n'
+                       'end)\n')
+        command=[str(a.mame.resolve()),'wbjr2','-bios','turbo',
+                 '-rompath',str(out/'roms'),'-hard',str(disk),'-skip_gameinfo',
+                 '-window','-noui_active','-autoboot_script',str(lua),
+                 '-nvram_directory',str(out/'nvram'),'-cfg_directory',str(out/'cfg')]
+        launcher=out/'play.sh'
+        launcher.write_text('#!/bin/sh\nset -e\ncd '+shlex.quote(str(out))+'\nexec '+shlex.join(command)+'\n')
+        launcher.chmod(0o755)
+        print('Prepared interactive game. Run:',launcher)
+        print('Press Space at the introduction; arrows move, Escape opens the game menu.')
+        print('Scroll Lock toggles MAME UI controls; Ctrl-C exits the game to NitrOS-9.')
+        return
     response_frame=4000+max(700,120*len(a.typed_command or ""))
-    if sum(bool(v) for v in (a.menu,a.typed_command,a.sustained,a.movement,a.persistence,a.larry,a.larry_enter,a.larry_pair,a.restart))>1:
+    if sum(bool(v) for v in (a.menu,a.typed_command,a.sustained,a.movement,a.persistence,a.larry,a.larry_enter,a.larry_pair,a.restart,a.video_mode))>1:
         ap.error("choose menu, typed-command, sustained, movement, larry larry-enter or larry-pair")
     if a.menu: response_frame=4700
     delay=response_frame+1000-3900 if a.typed_command or a.menu else 0
@@ -174,6 +196,20 @@ def main():
  if frames==8550 then post(" ") end
  if frames==8900 then shot("restart-final") end
 '''
+    if a.video_mode:
+        delay=5000
+        events=[' if frames==4000 or frames==6000 then manager.machine.ioport.ports[":KEY2"].fields["Escape"]:set_value(1) end',
+                ' if frames==4010 or frames==6010 then manager.machine.ioport.ports[":KEY2"].fields["Escape"]:clear_value() end']
+        for start in (4600,6200):
+            for n in range(5):
+                events+=[f' if frames=={start+n*50} then keys["Up"]:set_value(1) end',
+                         f' if frames=={start+n*50+10} then keys["Up"]:clear_value() end']
+        events+=[' if frames==4850 then shot("video-mode-selected") end',
+                 ' if frames==4900 or frames==6500 then manager.machine.ioport.ports[":KEY2"].fields["Return"]:set_value(1) end',
+                 ' if frames==4910 or frames==6510 then manager.machine.ioport.ports[":KEY2"].fields["Return"]:clear_value() end',
+                 ' if frames==5500 then shot("video-mode-alternate") end',
+                 ' if frames==7100 then shot("video-mode-standard") end']
+        command_events='\n'.join(events)+'\n'
     if a.movement:
         delay=2000
         command_events='''
@@ -344,8 +380,17 @@ end)
         if not a.audio_trace:
             source='local cpu=manager.machine.devices[":maincpu"]\nmanager.machine.debugger.execution_state="run"\nrestart_stop=emu.add_machine_stop_notifier(function() local log=manager.machine.debugger.consolelog;for index=1,#log do if log[index] then print(log[index]) end end end)\n'+source
         lua.write_text(source)
-    command=[str(a.mame.resolve()),'wbjr2','-bios','turbo','-rompath',str(roms.parent),'-hard',str(disk),'-skip_gameinfo', '-noui_mouse', '-mouseprovider', 'none','-video','none','-sound','none','-nothrottle','-autoboot_script',str(lua),'-seconds_to_run',str(420 if a.larry_pair else (5100+delay+(1200 if a.larry or a.larry_enter else 0))//60+10 if a.typed_command or a.menu or a.sustained or a.movement or a.persistence or a.restart or a.larry or a.larry_enter else 100),'-nvram_directory',str(out/'nvram'),'-cfg_directory',str(out/'cfg')]
-    if a.profile or a.audio_trace or a.restart:command+=['-debug','-debugger','none']
+    if a.video_mode:
+        syms=symbols(VIEWER/'wbgame.map');code=(VIEWER/'wbgame').read_bytes();base=(8-(len(code)+8191)//8192)*8192
+        condition=f'w@{base:x} == 87cd && w@{base+2:x} == {len(code):x} && b@(w@{syms["resourcebase"]:x}+{syms["vmopcode"]:x})==8c'
+        action=f'printf "VIDEO MODE %d",b@(u+{syms["monitorprofile"]:x}); g'
+        event=f' if frames==950 then cpu.debug:bpset({base+syms["GameMonitorCommand"]},{json.dumps(condition)},{json.dumps(action)}) end'
+        source=lua.read_text().replace(' frames=frames+1',' frames=frames+1\n'+event,1)
+        if not a.audio_trace:
+            source='local cpu=manager.machine.devices[":maincpu"]\nmanager.machine.debugger.execution_state="run"\nvideo_stop=emu.add_machine_stop_notifier(function() local log=manager.machine.debugger.consolelog;for index=1,#log do if log[index] then print(log[index]) end end end)\n'+source
+        lua.write_text(source)
+    command=[str(a.mame.resolve()),'wbjr2','-bios','turbo','-rompath',str(roms.parent),'-hard',str(disk),'-skip_gameinfo', '-noui_mouse', '-mouseprovider', 'none','-video','none','-sound','none','-nothrottle','-autoboot_script',str(lua),'-seconds_to_run',str(420 if a.larry_pair else (5100+delay+(1200 if a.larry or a.larry_enter else 0))//60+10 if a.typed_command or a.menu or a.sustained or a.movement or a.persistence or a.restart or a.larry or a.larry_enter or a.video_mode else 100),'-nvram_directory',str(out/'nvram'),'-cfg_directory',str(out/'cfg')]
+    if a.profile or a.audio_trace or a.restart or a.video_mode:command+=['-debug','-debugger','none']
     (out/'command.json').write_text(json.dumps(command,indent=2)+'\n')
     with (out/'mame.log').open('w') as log:subprocess.run(command,cwd=out,stdout=log,stderr=subprocess.STDOUT,check=True,timeout=360 if a.larry_pair else 300 if a.larry or a.larry_enter else 180)
     if a.audio_trace:
@@ -383,6 +428,16 @@ end)
     before=os9('list',f'{disk},free-before');after=os9('list',f'{disk},free-after')
     (out/'free-before.txt').write_bytes(before);(out/'free-after.txt').write_bytes(after)
     assert before==after,'real game leaked memory'
+    if a.video_mode:
+        log=(out/'mame.log').read_text()
+        assert re.findall(r'VIDEO MODE (\d+)',log)==['0','1'],'actual menu did not invoke both palette switches'
+        for name,color in [('video-mode-alternate',bytes([85,170,0])),('video-mode-standard',bytes([0,170,0]))]:
+            w,h,pixels=png_rgb(out/(name+'.png'));assert (w,h)==(640,480)
+            assert sum(pixels[i:i+3]==color for i in range(0,len(pixels),3))>100,(name,'expected green absent')
+            forbidden=bytes([0,170,0]) if name.endswith('alternate') else bytes([85,170,0])
+            assert not any(pixels[i:i+3]==forbidden for i in range(0,len(pixels),3)),(name,'other palette remains')
+        print('PASS: original KQ1 Video Mode menu switches to CoCo RGB and back, with continued gameplay and recovered memory')
+        return
     if a.restart:
         log=(out/'mame.log').read_text()
         assert 'RESTART GameRestartCommand' in log,'original script did not request restart'

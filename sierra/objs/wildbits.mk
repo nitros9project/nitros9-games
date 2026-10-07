@@ -29,6 +29,7 @@ wbgame: sierra.asm wbfont font-data.asm
 # This deliberately includes all common bodies for the optional probes too.
 wbstate wbgame wbexec wbpic wbdecode wbrun wbasset wbres: \
 	$(wildcard platform/wildbits-*.asm) $(wildcard shared/*.asm) \
+	$(wildcard *.d) $(wildcard platform/*.d) \
 	platform/sections.d platform/wildbits-defsfile \
 	platform/wildbits-presentation.d $(NITROS9DIR)/defs/wildbits.d
 
@@ -42,7 +43,7 @@ probe-budget: wbpic wbres wbdecode wbrun wbasset wbexec
 	@python3 -c 'from pathlib import Path; b=Path("wbasset").read_bytes(); data=int.from_bytes(b[11:13], "big"); limit=(7-(data+8191)//8192-1)*8192-768; assert len(b) <= limit, (len(b),limit); print("wbasset: %d / %d code bytes; private data: %d bytes; one mapping window" % (len(b),limit,data))'
 	@python3 -c 'from pathlib import Path; b=Path("wbexec").read_bytes(); data=int.from_bytes(b[11:13], "big"); limit=(7-(data+8191)//8192-1)*8192-768; assert len(b) <= limit, (len(b),limit); print("wbexec: %d / %d code bytes; private data: %d bytes; one mapping window" % (len(b),limit,data))'
 budget: wbgame wbstate
-	@python3 -c 'from pathlib import Path; b=Path("wbstate").read_bytes(); assert len(b)<=4096; assert int.from_bytes(b[11:13],"big")==0; print("wbstate: %d / 4096 cold bytes; no separate private allocation" % len(b))'
+	@python3 -c 'from pathlib import Path; b=Path("wbstate").read_bytes(); entry=int.from_bytes(b[9:11],"big"); prefix=int.from_bytes(b[entry+18:entry+20],"big"); assert len(b)<=8192; assert int.from_bytes(b[11:13],"big")==0; assert entry+35<=prefix<=4096 and prefix<=len(b)-3, (entry,prefix,len(b)); print("wbstate: %d / 8192 linked bytes; writable prefix: %d / 4096 bytes; no separate private allocation" % (len(b),prefix))'
 	@python3 -c 'from pathlib import Path; b=Path("wbgame").read_bytes(); data=int.from_bytes(b[11:13], "big"); limit=(7-(data+8191)//8192-1)*8192-768; assert len(b) <= limit, (len(b),limit); print("wbgame: %d / %d code bytes; private data: %d bytes; sequential resource/picture/frame mapping" % (len(b),limit,data))'
 clean:
 	rm -f wbgame wbgame.list wbgame.map wbfont wbstate wbstate.list wbstate.map

@@ -868,10 +868,10 @@ PLATFORM_SECTION    set PLATFORM_WILDBITS_TEXT_RECT_CODE
                     use platform/wildbits-text-ui.asm
 PLATFORM_SECTION    set PLATFORM_WILDBITS_RESTART_CODE
                     use platform/wildbits-text-ui.asm
-PLATFORM_SECTION    set PLATFORM_WILDBITS_SCREEN_COLD_CODE
-                    use platform/wildbits-graphics.asm
 PLATFORM_SECTION    set PLATFORM_WILDBITS_SHOW_OBJECT_CODE
                     use platform/wildbits-text-ui.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_SCREEN_COLD_CODE
+                    use platform/wildbits-graphics.asm
 PLATFORM_SECTION    set PLATFORM_WILDBITS_SHAKE_CODE
                     use platform/wildbits-graphics.asm
 PLATFORM_SECTION    set PLATFORM_WILDBITS_MENU_COLD_CODE

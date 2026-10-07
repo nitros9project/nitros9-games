@@ -557,6 +557,77 @@ def check_joystick_instances(d):
     print('PASS: joystick direction ownership is independent across two physical private maps; shared code, fonts and stack remain intact')
 
 
+def check_monitor_profiles(d):
+    """The legacy video command changes owned colors, never picture indices."""
+    root=ROOT/'objs';syms=symbols(root/'wbgame.map');code=(root/'wbgame').read_bytes()
+    standard=code[syms['palette']:syms['palette']+68]
+    source=(root/'platform/coco-graphics.asm').read_text().split('PaletteData',1)[1].split('PLATFORM_COCO_GAME_PALETTE_SET',1)[0]
+    codes=[int(value,16) for value in re.findall(r'fcb\s+\$([0-9A-F]{2})',source)]
+    assert len(codes)==32,codes
+    rgb=bytearray(4)
+    for color in codes[16:]:
+        red=(((color>>4)&2)|((color>>2)&1))*85
+        green=(((color>>3)&2)|((color>>1)&1))*85
+        blue=(((color>>2)&2)|(color&1))*85
+        rgb+=bytes([blue,green,red,255])
+    assert code[syms['CoCoRGBPalette']:syms['CoCoRGBPalette']+68]==rgb
+    baseline=None
+    for label,command,before,palette_failure,wanted,error_expected in [
+        ('baseline',b'',False,0,[standard],0),
+        ('CoCo RGB',bytes([140]),False,0,[standard,bytes(rgb)],0),
+        ('back to AGI',bytes([140,140]),False,0,[standard,bytes(rgb),standard],0),
+        ('before screen',bytes([140]),True,0,[bytes(rgb)],0),
+        ('palette error',bytes([140]),False,2,[standard,bytes(rgb)],203)]:
+        print('Checking monitor profile:',label,flush=True)
+        start=bytes([3,0,1,24,0,25,0,26])
+        script=(command+start if before else start+command)+bytes([3,240,73,134,1,0])
+        logic=len(script).to_bytes(2,'little')+script
+        volume=b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic
+        picture=len(volume);volume+=b'\x12\x34\0\x01\0\x01\0\xff'
+        files={'/game/logDir':b'\xff'*3+bytes(3),'/game/vol.0':volume,
+               '/game/picDir':b'\xff'*3+picture.to_bytes(3,'big')}
+        error,frame,state=exercise(d,files,module='wbgame',base=0xa000,database=0,
+            window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,
+            frame_capture=True,palette_error=palette_failure,os_call_limit=30000)
+        assert error==error_expected,(label,error)
+        assert state['palettes']==wanted,(label,state['palettes'],wanted)
+        assert state['monitorprofile']==bytes([label in ('CoCo RGB','before screen','palette error')]),(label,state['monitorprofile'])
+        if label=='baseline':baseline=frame
+        else:assert frame==baseline,(label,'picture indices changed')
+        if not error:assert state['vmvariables'][240]==73,(label,'caller did not resume')
+        assert state['gamefont']==(root/'wbfont').read_bytes(),(label,'font overwritten')
+    print('PASS: exact CoCo RGB conversion, owned palette writes, toggle back, early selection, unchanged picture indices and driver-error cleanup')
+
+
+def check_monitor_instances(d):
+    """The shared cold configuration body keeps each palette preference private."""
+    root=ROOT/'objs';syms=symbols(root/'wbgame.map');hs=symbols(root/'wbstate.map')
+    base=0xa000;helperbase=0x6000;code=(root/'wbgame').read_bytes();helper=(root/'wbstate').read_bytes()
+    d.write(base,code);d.write(helperbase,helper)
+    saved=d.read(0xffa8,3);banks={0:bytes([0x20,0x21,0x22]),1:bytes([0x23,0x24,0x25])};expected={}
+    stop=helperbase+hs['ScreenReturn'];callback=base+syms['ScreenCallbacks']
+    def select(owner):d.write(0xffa8,banks[owner])
+    try:
+        d.breakpoint(stop)
+        for owner in banks:
+            select(owner);state=bytearray(syms['size']);state[syms['vmopcode']]=140
+            state[syms['monitorprofile']]=owner;state[syms['vmvariables']+250]=40+owner
+            state[syms['gamefont']:syms['gamefont']+1024]=(root/'wbfont').read_bytes()
+            d.write(0,state);expected[owner]=state
+        for owner in (0,1,0):
+            select(owner);d.regs(pc=helperbase+hs['AuxScreenCommand'],s=0x5ff0,u=0,y=callback,dp=0,cc=0x50)
+            d.call('c');r=d.regs()
+            assert r['pc']==stop and r['s']==0x5ff0 and r['b']==0 and not r['cc']&1,r
+            expected[owner][syms['monitorprofile']]^=1
+            expected[owner][syms['coldapi']:syms['coldapi']+2]=callback.to_bytes(2,'big')
+            for other in banks:
+                select(other);assert d.read(0,syms['size'])==expected[other],(owner,other)
+            assert d.read(base,len(code))==code and d.read(helperbase,len(helper))==helper,'shared code changed'
+    finally:
+        d.breakpoint(stop,False);d.write(0xffa8,saved)
+    print('PASS: independent palette preferences in two physical private maps, intact fonts/stack and immutable main/helper code')
+
+
 def check_screen_backend(d):
     """Exercise every cold configuration branch and invalid entry cleanup."""
     key=b'Avis Durgan'
@@ -599,6 +670,7 @@ def check_cold_prefix_bounds(d):
     logic=len(script).to_bytes(2,'little')+script
     cases=[('valid',None,None),
            ('short prefix',entry+18,entry+24),
+           ('incomplete current metadata',entry+18,entry+34),
            ('oversized prefix',entry+18,4097),
            ('prefix beyond module',2,int.from_bytes(original[entry+18:entry+20],'big')-1),
            ('oversized module',2,8193),
@@ -708,6 +780,8 @@ def main():
             check_cold_menus(d)
             check_joystick_input(d)
             check_joystick_instances(d)
+            check_monitor_profiles(d)
+            check_monitor_instances(d)
             check_screen_backend(d)
             check_cold_prefix_bounds(d)
             check_restarts(d)
