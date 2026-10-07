@@ -874,3 +874,15 @@ The cold-menu helper passes original KQ1 `--restart` at
 `/tmp/sierra-cold-menu-leftys`. The last test verifies the open-door response,
 transition into Lefty's, inside look/dismissal and full cleanup, using actual
 game resources rather than a generated startup fixture.
+
+The generated UI regression accepts `--joystick` to check real `SS.Joy`
+availability, neutral readings, enable/toggle, continued keyboard quit and
+free-memory recovery. This MAME revision returns open-bus values at the
+unmodeled VIA joystick port; the terminal driver interprets them as neutral.
+This test does not claim emulated physical direction/button support. CPU fixtures
+provide those samples and verify the game adapter across complete AGI cycles.
+
+For movement comparisons with an earlier binary, `check_wbgame_mame.py` now
+accepts `--helper-file` alongside `--module-file`; supply a matching pair.
+The pre/post joystick runs at `/tmp/sierra-joystick-movement-before` and
+`/tmp/sierra-joystick-movement-after` each measure 32 AGI pixels in 200 frames.

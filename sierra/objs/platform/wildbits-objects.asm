@@ -61,6 +61,10 @@ GameInitialize      lbsr      ParserInitialize
                     clr       soundinstalled,u
                     clr       inventoryloaded,u
                     clr       gameblockenabled,u
+                    clr       joystickenabled,u
+                    clr       joysticklast,u
+                    clr       joystickbuttons,u
+                    clr       joystickpressed,u
                     clr       gamequit,u
                     clr       gameclockreset,u
                     lda       #$FF
@@ -97,7 +101,7 @@ GameNextCycle       lbsr      AssetUnmap
                     tst       gamequit,u
                     lbne      GameCycleSuccess
                     lbsr      foreground
-                    bcs      GameCycleReturn
+                    lbcs     GameCycleReturn
                     ldu       <resourcebase
                     clr       vmflags+2,u
                     clr       vmflags+4,u
@@ -114,18 +118,20 @@ GameResetControllers clr     ,x+
                     leay      -1,y
                     bne       GameResetControllers
                     lbsr      GameClockGate
-                    bcs      GameCycleReturn
+                    lbcs     GameCycleReturn
                     lbsr      foreground
-                    bcs      GameCycleReturn
+                    lbcs     GameCycleReturn
                     bsr      GameReadClock
-                    bcs      GameCycleReturn
+                    lbcs     GameCycleReturn
+                    lbsr      GamePollJoystick
+                    bcs       GameCycleReturn
                     lbsr      GameUpdateObjects
-                    bcs      GameCycleReturn
+                    lbcs     GameCycleReturn
                     ldu       <resourcebase
                     lda       #40
                     sta       gamekeybudget,u
 GameDrainKeyboard   lbsr      GamePollKeyboard
-                    bcs      GameCycleReturn
+                    lbcs     GameCycleReturn
                     ldu       <resourcebase
                     tst       gamekeypending,u
                     beq       GameKeyboardDone
@@ -140,7 +146,7 @@ GameKeyboardDone    tst       <bitmapowned
                     bne       GameCycleGraphics
                     lbra      GameDrawText
 GameCycleGraphics   lbsr      GameComposeScene
-                    bcs      GameCycleReturn
+                    lbcs     GameCycleReturn
                     lbsr      PresentPicture
 GameCycleReturn     rts
 GameCycleSuccess    clrb
@@ -151,7 +157,7 @@ GameCycleSuccess    clrb
 GameReadClock       ldu       <resourcebase
                     leax      gametime,u
 GameClockTimeCall   os9       F$Time
-                    bcs      GameCycleReturn
+                    lbcs     GameCycleReturn
                     ldu       <resourcebase
                     ldb       gametime+5,u
                     cmpb      #60

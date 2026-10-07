@@ -1733,3 +1733,57 @@ KQ1 menu restart at `/tmp/sierra-cold-menu-restart`, independent Larry/KQ1
 terminals at `/tmp/sierra-cold-menu-pair`, and Larry's actual transition into
 Lefty's plus an inside look command at `/tmp/sierra-cold-menu-leftys`. All
 recover their original free-memory maps.
+
+### Terminal joystick input — 2026-10-07
+
+Opcode 139 toggles digital stick 0 through stdin's public `SS.Joy` service,
+using its compatibility mode: X/Y are 0, 128 or 255 and A supplies button bits.
+The resident adapter in grouped `wildbits-input.asm` reads no device registers.
+Its direction table covers all eight directions and neutral. Polling runs once
+per completed cycle, after foreground gating and before object motion; disabled
+input performs only the private enable check. The terminal driver restricts
+physical input to its live terminal, preserving the multiple-terminal design.
+
+Centering or disabling the stick clears a direction only when variable 6 still
+contains that stick's last direction. Keyboard or script changes survive.
+Program-controlled movement ignores joystick directions. The first two buttons
+produce Enter/Escape through normal key/controller/parser dispatch on their
+rising edges, so holding a button does not repeat it. This currently services
+normal game cycles; use the keyboard to dismiss modal dialogs. The initial
+query primes already-held buttons. Restore retains the current enable preference,
+clears direction ownership and primes button state on the first sample, preventing
+a held fire button from producing an extra action after loading. Restart disables
+joystick input. None of these transient controls enters the WSv1 save format.
+
+Initialization releases resource mappings before calling the terminal driver.
+If the service is unavailable, an untimed blocking message explains that keyboard
+play remains available, preserving flag 15 and variable 21. A later polling error
+disables the stick, releases only its own direction and continues keyboard play.
+No stdin path is closed or reconfigured. Four private bytes use existing padding;
+the allocation remains 24,460 bytes in three banks. The current resident is
+23,584 bytes, the linked helper 6,941 bytes and its writable prefix 3,080 bytes.
+The private ABI includes the new fields; install the game/helper together.
+
+Generated AGI scripts capture directions and controller edges across complete
+cycles, testing all nine directions, release ownership, program control, toggle,
+unavailable/lost service and held-button priming. The native dispatch and audio
+regressions pass. Original KQ1 save/restore passes at
+`/tmp/sierra-joystick-original-kq1`. CoCo's main logic remains byte-identical.
+A controlled MAME comparison before/after joystick support moves Graham about
+32 AGI pixels in 200 frames (3.33 emulated seconds) in both builds, at
+`/tmp/sierra-joystick-movement-before` and `-after`. This is an observable
+keyboard-movement comparison, not a claim of zero instruction overhead.
+
+This MAME revision has no VIA joystick port model: its unmapped port reads yield
+neutral input through the real driver. `/tmp/sierra-joystick-final-drivers` verifies
+service availability, neutral axes/buttons, toggle, scene preservation, subsequent
+keyboard quit and memory recovery. Direction/button stimulation is covered by
+the CPU driver fixture; physical stick operation still needs target hardware or
+an emulator revision that models the port.
+
+The full native game regression passes with joystick state present. A separate
+CPU test executes the same resident body against two physical private maps and
+checks both complete private images, font contents, stack balance and shared-code
+immutability (`/tmp/sierra-joystick-instances.log`). Simultaneous original
+Larry/KQ1 terminals pass at `/tmp/sierra-joystick-pair`, with 80 owned PSG writes
+and both intermediate and final free-memory maps restored.

@@ -51,7 +51,7 @@ def start_cpu(bootrom, timeout=300):
     raise RuntimeError('XRoar debugger did not attach after four fresh starts')
 
 
-def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zero_read=False, seek_error=False, write_error=False, module='wbres', map_failure=0, allocation_error=False, unmap_error=False, window=0x8000, terminal=True, blocks=4, capture=False, multiple=False, firstblock=0x30, frame_capture=False, keyboard=b'', clock=(0,), bitmap_error=False, key_sense=0, cycle_limit=None, os_call_limit=20000, keyboard_by_cycle=None, option_set_error=False, resource_kind=None, module_root=None, breakpoint_hooks=None, psg=None, sol=None):
+def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zero_read=False, seek_error=False, write_error=False, module='wbres', map_failure=0, allocation_error=False, unmap_error=False, window=0x8000, terminal=True, blocks=4, capture=False, multiple=False, firstblock=0x30, frame_capture=False, keyboard=b'', clock=(0,), bitmap_error=False, key_sense=0, cycle_limit=None, os_call_limit=20000, keyboard_by_cycle=None, option_set_error=False, resource_kind=None, module_root=None, breakpoint_hooks=None, psg=None, sol=None, joystick=None):
     if module == 'wbgame':
         files = {'wbfont': (ROOT / 'wbfont').read_bytes(), 'wbstate': (ROOT / 'wbstate').read_bytes(), **files}
     module_root = Path(module_root) if module_root is not None else ROOT
@@ -86,6 +86,9 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
     clock = list(clock)
     clocksecond = clock[0]
     cycles = 0
+    joystick_polls=0
+    joystick_samples=list(joystick.get("samples",())) if joystick else []
+    joystick_sample=(128,128,0)
     maps = 0
     map_sites = {}
     unmap_failed = False
@@ -167,6 +170,9 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
                         state[name]=d.read(database+syms[name],length)
                 if module=='wbgame':
                     state['vmstrings']=d.read(database+syms['vmstrings'],480)
+                    state['joystick_polls']=joystick_polls
+                    for name in ('joystickenabled','joysticklast','joystickbuttons','joystickpressed'):
+                        if name in syms:state[name]=d.read(database+syms[name],1)
                     state['gamefont']=d.read(database+syms['gamefont'],1024)
                     for name in ('vmcursor','vmtextforeground','vmtextbackground','vmpicturetop','vminputrow','vmstatusrow','vmstatusenabled','vminputenabled'):
                         state[name]=d.read(database+syms[name],1)
@@ -250,6 +256,14 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
         elif service == syms['I$GetStt'] and r['b'] == syms.get('SS.KySns'):
             assert not mapped
             updates.update(a=key_sense)
+        elif service == syms['I$GetStt'] and r['b'] == syms.get('SS.Joy'):
+            assert not mapped and r['a']==0 and r['x']==0,r
+            joystick_polls+=1
+            if joystick is None or joystick_polls==joystick.get('fail_at'):
+                updates.update(cc=r['cc']|1,b=syms['E$UnkSvc'])
+            else:
+                if joystick_samples:joystick_sample=joystick_samples.pop(0)
+                updates.update(x=joystick_sample[0],y=joystick_sample[1],a=joystick_sample[2])
         elif service == syms['I$GetStt'] and r['b'] == syms['SS.Opt']:
             assert r['a'] == 0
             d.write(r['x'],options)

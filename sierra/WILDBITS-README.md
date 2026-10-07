@@ -450,7 +450,7 @@ survive picture refreshes. `display`/`display.v` support colors, wrapping and
 bounded `%v`, `%s`, `%w` and recursive `%m` message expansion. `print`/`print.v`
 show a modal response and restore the scene after dismissal.
 
-`wbgame` currently uses 23,249 code bytes and 24,460 private bytes. Three private
+`wbgame` currently uses 23,584 code bytes and 24,460 private bytes. Three private
 blocks, the kernel block and one mapping window leave a conservative
 23,808-byte code budget.
 Physical memory also holds resource caches, two picture slabs and the terminal
@@ -674,8 +674,8 @@ Pause retain their separate behavior. The optional public SOL counter supplies
 frame timing and rebases after terminal switching; the sleep-count fallback can
 run late under scheduling load. Both text storage and modal waiting execute
 through the matching immutable `wbstate` helper. Install it with `wbgame` from
-the same build. The current resident is 23,249 bytes, the linked helper is 6,857 bytes, and
-its writable state prefix is 3,064 bytes. Private allocation remains 24,460 bytes. See [the engine notes](WILDBITS-ENGINE.md#timed-blocking-messages--2026-10-07)
+the same build. The current resident is 23,584 bytes, the linked helper is 6,941 bytes, and
+its writable state prefix is 3,080 bytes. Private allocation remains 24,460 bytes. See [the engine notes](WILDBITS-ENGINE.md#timed-blocking-messages--2026-10-07)
 for the implementation and acceptance checks.
 
 
@@ -695,3 +695,10 @@ It shares the existing text helper and introduces no additional module.
 Menu display/navigation uses the same immutable helper while ordinary movement
 and rendering remain resident. Menus also work before the first picture creates
 a screen. See [the backend notes](WILDBITS-ENGINE.md#menu-display-in-the-existing-cold-helper--2026-10-07).
+
+Joystick initialization now toggles terminal-owned digital stick 0 through
+`SS.Joy`. Movement and Enter/Escape button edges work in normal game cycles;
+use the keyboard for modal dialogs. Missing joystick service keeps keyboard play
+available. Current MAME verifies neutral readings but does not model physical
+stick input; directional/button tests use the CPU fixture. See
+[the input and performance notes](WILDBITS-ENGINE.md#terminal-joystick-input--2026-10-07).

@@ -94,3 +94,7 @@ a time and releases mappings before clock, sound and foreground calls.
 The menu frontend stays in grouped text UI, with display/navigation in that
 same source's cold section. Its callback table reuses resident presentation
 and foreground services; ordinary game cycles have no additional helper calls.
+
+Joystick handling belongs to grouped Wild Bits input, calls the terminal's
+`SS.Joy` interface and leaves hardware access to its driver. Its private
+movement ownership and button edges stay separate from shared code and saves.

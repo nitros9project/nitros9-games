@@ -3,6 +3,7 @@
 from pathlib import Path
 import subprocess
 import tempfile
+import re
 from check_wbres import exercise, idle_rom, start_cpu
 from check_instances import symbols
 ROOT = Path(__file__).resolve().parents[1]
@@ -469,6 +470,93 @@ def check_cold_menus(d):
     print('PASS: cold menu selection, cancel, disabled items, paging, invalid entry and ownership cleanup')
 
 
+def check_joystick_input(d):
+    """Driver axes/buttons, ownership and unavailable-service keyboard fallback."""
+    axes=[(x,y,0) for y in (0,128,255) for x in (0,128,255)]
+    cases=[('nine directions',b'',axes,[8,1,2,7,0,3,6,5,4],None),
+           ('release preserves another direction',b'',[(255,128,0),(128,128,0)],[7,7],None),
+           ('program control',bytes([131,3,6,3]),[(0,128,0)],[3],None),
+           ('toggle off',bytes([3,6,3,139]),[(255,128,0)],[3],None),
+           ('unavailable service',b'',[(128,128,0)],[0],{'fail_at':1}),
+           ('poll service fails',b'',[(255,128,0),(128,128,0)],[3,0],{'fail_at':3}),
+           ('restore primes held button',bytes([121,13,0,200]),
+            [(128,128,b) for b in (1,1,0,1)],[0]*4,None),
+           ('button edges',bytes([121,13,0,200,121,27,0,201]),
+            [(128,128,b) for b in (1,1,0,2,2,0)],[0]*6,None)]
+    for label,prefix,samples,wanted,options in cases:
+        print('Checking joystick:',label,flush=True)
+        capture=bytes([9,251,6,1,251,11,252,0,
+                       255,12,200,255,3,0,11,252,1,
+                       255,12,201,255,3,0,11,252,2,
+                       1,252,1,250,255,1,250,len(wanted),255,2,0,134,1,0])
+        setup=bytes([3,251,200,3,252,220])+prefix+bytes([139,12,20,0])
+        script=bytes([255,7,20,255])+len(capture).to_bytes(2,'little')+capture+setup
+        logic=len(script).to_bytes(2,'little')+script
+        files={'/game/logDir':b'\xff'*3+bytes(3),'/game/vol.0':b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic}
+        def replace_direction(cpu,r,syms):
+            assert cpu.read(syms['vmvariables']+6,1)==b'\x03'
+            cpu.write(syms['vmvariables']+6,b'\x07')
+        def prime_buttons(cpu,r,syms):
+            cpu.write(syms['joysticklast'],b'\0')
+            cpu.write(syms['joystickbuttons'],b'\0')
+            cpu.write(syms['joystickpressed'],b'\xff')
+        hooks=({'GameUpdateObjects':replace_direction} if label=='release preserves another direction'
+               else {'GamePollJoystick':prime_buttons} if label=='restore primes held button' else None)
+        device={'samples':[(128,128,0)]+samples,**(options or {})}
+        error,output,state=exercise(d,files,module='wbgame',base=0xa000,database=0,
+            window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,
+            keyboard=b'\r' if options and options.get('fail_at')==1 else b'',
+            os_call_limit=30000,joystick=device,breakpoint_hooks=hooks)
+        assert not error,(label,error)
+        seen=list(state['vmvariables'][200:200+len(wanted)])
+        assert seen==wanted,(label,seen,wanted)
+        if label=='restore primes held button':
+            assert state['vmvariables'][220:224]==bytes([0,0,0,1]),(label,state['vmvariables'][220:224])
+        if label=='button edges':
+            assert state['vmvariables'][220:226]==bytes([1,0,0,2,0,0]),(label,state['vmvariables'][220:226])
+        if label in ('toggle off','unavailable service','poll service fails'):
+            assert state['joystickenabled']==b'\0',(label,state)
+        assert state['gamefont']==(ROOT/'objs/wbfont').read_bytes(),(label,'font overwritten')
+    print('PASS: all nine joystick directions, release ownership, program control, toggle, unavailable/error fallback and edge-only Enter/Escape controllers')
+
+
+def check_joystick_instances(d):
+    """Two physical private maps execute one immutable resident joystick body."""
+    root=ROOT/'objs';syms=symbols(root/'wbgame.map');base=0xa000
+    code=(root/'wbgame').read_bytes();d.write(base,code)
+    calls=[base+int(m[1],16) for m in re.finditer(
+        r'^([0-9A-F]{4}) 103F8D.*os9.*I\$GetStt',(root/'wbgame.list').read_text(),re.M)
+        if syms['GamePollJoystick']<=int(m[1],16)<syms['GameJoystickDisable']]
+    assert len(calls)==1,calls
+    stop=base+syms['GameJoystickReturn'];saved=d.read(0xffa8,3)
+    expected={};banks={0:bytes([0x20,0x21,0x22]),1:bytes([0x23,0x24,0x25])}
+    def select(owner):d.write(0xffa8,banks[owner])
+    try:
+        d.breakpoint(calls[0]);d.breakpoint(stop)
+        for owner in banks:
+            select(owner);state=bytearray(syms['size'])
+            state[syms['vmplayercontrol']]=1;state[syms['joystickenabled']]=1
+            state[syms['vmvariables']+250]=40+owner
+            state[syms['gamefont']:syms['gamefont']+1024]=(root/'wbfont').read_bytes()
+            if owner:
+                state[syms['joysticklast']]=3;state[syms['vmvariables']+6]=3
+            d.write(0,state);expected[owner]=state
+        for owner,axes,direction in [(0,(255,128),3),(1,(128,128),0),(0,(128,128),0)]:
+            select(owner);d.regs(pc=base+syms['GamePollJoystick'],s=0x5ff0,u=0,dp=0,cc=0x50)
+            d.call('c');r=d.regs();assert r['pc']==calls[0] and r['a']==0 and r['x']==0,r
+            d.regs(pc=r['pc']+3,x=axes[0],y=axes[1],a=0,cc=r['cc']&~1)
+            d.call('c');r=d.regs();assert r['pc']==stop and r['s']==0x5ff0,r
+            expected[owner][syms['vmvariables']+6]=direction
+            expected[owner][syms['joysticklast']]=direction
+            for other in banks:
+                select(other)
+                assert d.read(0,syms['size'])==expected[other],(owner,other,'private context changed')
+            assert d.read(base,len(code))==code,'joystick modified shared code'
+    finally:
+        d.breakpoint(calls[0],False);d.breakpoint(stop,False);d.write(0xffa8,saved)
+    print('PASS: joystick direction ownership is independent across two physical private maps; shared code, fonts and stack remain intact')
+
+
 def check_screen_backend(d):
     """Exercise every cold configuration branch and invalid entry cleanup."""
     key=b'Avis Durgan'
@@ -618,6 +706,8 @@ def main():
             check_object_previews(d)
             check_interpreter_information(d)
             check_cold_menus(d)
+            check_joystick_input(d)
+            check_joystick_instances(d)
             check_screen_backend(d)
             check_cold_prefix_bounds(d)
             check_restarts(d)

@@ -262,6 +262,8 @@ AuxShowObject       ldu       <resourcebase
                     lda       <vmopcode
                     cmpa      #141
                     lbeq      AuxInterpreterInfo
+                    cmpa      #139
+                    lbeq      AuxJoystickInfo
                     ldb       vmarguments,u
                     lda       <vmopcode
                     cmpa      #162
@@ -395,6 +397,12 @@ AuxShowInvalid      ldb       #E$BMode
                     orcc      #1
                     rts
 * Interpreter information shares the existing text callback and cold entry.
+AuxJoystickInfo     leax      JoystickInfo,pcr
+                    bra       AuxBlockingPrint
+JoystickInfo        fcc       /Joystick service unavailable./
+                    fcb       13
+                    fcc       /Use the keyboard to play./
+                    fcb       0
 AuxInterpreterInfo  leax      InterpreterInfo,pcr
                     bra       AuxBlockingPrint
 InterpreterInfo     fcc       /Adventure Game Interpreter/

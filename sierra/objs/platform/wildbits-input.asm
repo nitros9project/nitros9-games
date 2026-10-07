@@ -87,6 +87,119 @@ InputSaidTest       ldu       <resourcebase
 InputTestFalse      clrb
                     rts
 
+                    ifne      GAME_PRESENTATION
+* Digital stick 0 through the terminal driver. Never read hardware directly.
+GameJoystickCommand lbsr      AssetUnmap
+                    lbcs      GameJoystickReturn
+                    ldu       <resourcebase
+                    lda       joystickenabled,u
+                    eora      #1
+                    sta       joystickenabled,u
+                    beq       GameJoystickStop
+                    clra
+                    ldb       #SS.Joy
+                    ldx       #0
+                    os9       I$GetStt
+                    ldu       <resourcebase
+                    bcs       GameJoystickUnavailable
+                    anda      #3
+                    sta       joystickbuttons,u
+                    clr       joystickpressed,u
+                    clr       joysticklast,u
+                    clrb
+                    rts
+GameJoystickUnavailable clr   joystickenabled,u
+                    clr       joysticklast,u
+                    lbra      GameVersionCommand
+GameJoystickStop    lda       joysticklast,u
+                    cmpa      vmvariables+6,u
+                    bne       GameJoystickForget
+                    clr       vmvariables+6,u
+GameJoystickForget  clr       joysticklast,u
+                    clr       joystickbuttons,u
+                    clr       joystickpressed,u
+GameJoystickDone    clrb
+GameJoystickReturn  rts
+
+* Poll once per completed cycle, after foreground gating and before motion.
+* Release only a direction this stick still owns; retain keyboard/script changes.
+GamePollJoystick    ldu       <resourcebase
+                    tst       joystickenabled,u
+                    lbeq      GameJoystickDone
+                    clra
+                    ldb       #SS.Joy
+                    ldx       #0
+                    os9       I$GetStt
+                    ldu       <resourcebase
+                    lbcs      GameJoystickDisable
+                    anda      #3
+                    tfr       a,b
+                    lda       joystickpressed,u
+                    cmpa      #$FF
+                    beq       GameJoystickPrime
+                    tfr       b,a
+                    eora      joystickbuttons,u
+                    pshs      b
+                    anda      ,s+
+                    sta       joystickpressed,u
+                    stb       joystickbuttons,u
+                    bra       GameJoystickMotion
+GameJoystickPrime   stb       joystickbuttons,u
+                    clr       joystickpressed,u
+GameJoystickMotion  tst       <vmplayercontrol
+                    beq       GameJoystickNoMotion
+                    tfr       x,d
+                    cmpd      #128
+                    blo       GameJoystickLeft
+                    bhi       GameJoystickRight
+                    ldb       #1
+                    bra       GameJoystickColumn
+GameJoystickLeft    clrb
+                    bra       GameJoystickColumn
+GameJoystickRight   ldb       #2
+GameJoystickColumn  pshs      b
+                    tfr       y,d
+                    cmpd      #128
+                    blo       GameJoystickUp
+                    bhi       GameJoystickDown
+                    ldb       #1
+                    bra       GameJoystickRow
+GameJoystickUp      clrb
+                    bra       GameJoystickRow
+GameJoystickDown    ldb       #2
+GameJoystickRow     lda       #3
+                    mul
+                    addb      ,s+
+                    leax      GameJoystickDirections,pcr
+                    lda       b,x
+                    beq       GameJoystickRelease
+                    sta       joysticklast,u
+                    sta       vmvariables+6,u
+                    bra       GameJoystickButton
+GameJoystickRelease lda       joysticklast,u
+                    cmpa      vmvariables+6,u
+                    bne       GameJoystickNoMotion
+                    clr       vmvariables+6,u
+GameJoystickNoMotion clr      joysticklast,u
+GameJoystickButton  lda       joystickpressed,u
+                    lbeq      GameJoystickDone
+                    ldb       #13
+                    bita      #1
+                    bne       GameJoystickKey
+                    ldb       #27
+GameJoystickKey     stb       <vmkeybyte
+                    stb       vmvariables+19,u
+                    lda       #1
+                    sta       <vmhavekey
+                    clr       gamekeyscan,u
+                    leax      vmkeys,u
+                    ldy       #0
+                    lbra      GameKeyBinding
+GameJoystickDisable clr       joystickenabled,u
+                    lbra      GameJoystickStop
+GameJoystickDirections fcb    8,1,2,7,0,3,6,5,4
+                    endc
+
                     else
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_INPUT_DATA
 * ===== wildbits-input-data =====

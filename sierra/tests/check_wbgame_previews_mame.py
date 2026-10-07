@@ -16,6 +16,7 @@ def main():
         ap.add_argument('--'+name,required=True,type=Path)
     ap.add_argument('--boot-file',type=Path,help='Optional matching OS9 boot image')
     modes=ap.add_mutually_exclusive_group()
+    modes.add_argument('--joystick',action='store_true',help='Check real-driver joystick enable, neutral polling, toggle and cleanup')
     modes.add_argument('--version',action='store_true',help='Check the interpreter information dialog instead of an item preview')
     modes.add_argument('--shake',action='store_true',help='Check shake.screen timing and restoration instead of an item preview')
     ap.add_argument('--interrupt',action='store_true',help='Exit with Ctrl-C instead of the bound quit controller')
@@ -41,6 +42,12 @@ def main():
         script=bytes([255,12,1,255,3,0,134,1,0,255,7,20,255,1,0,0,3,10,2,121,113,0,1,
                       3,0,1,24,0,25,0,33,0,41,0,0,37,0,40,80,54,0,15,35,0,26,110,1,
                       3,240,73,119,12,20,0])
+    if a.joystick:
+        script=bytes([255,12,1,255,3,0,134,1,0,
+                      255,12,2,255,4,0,139,3,240,74,
+                      255,7,20,255,1,0,0,3,10,2,121,113,0,1,121,106,0,2,
+                      3,0,1,24,0,25,0,33,0,41,0,0,37,0,40,80,54,0,15,35,0,26,
+                      139,3,240,73,119,12,20,0])
     logic=len(script).to_bytes(2,'little')+script
     view=bytearray([0,0,1,0,0,7,0,1,3,0,4,3,31,0x12,0xf1,0x21,0,0x31,0x43,0,0x51,0])
     view[3:5]=len(view).to_bytes(2,'little');view+=b'A FINE TREASURE.\0'
@@ -55,7 +62,17 @@ def main():
     syms=symbols(root/'objs/wbgame.map');size=(root/'objs/wbgame').stat().st_size;base=0xa000
     condition=f'w@{base:x} == 87cd && w@{base+2:x} == {size:x}'
     lines=['local cpu=manager.machine.devices[":maincpu"]','manager.machine.debugger.execution_state="run"','local frames=0','local function post(s) manager.machine.natkeyboard:post(s) end',f'local function shot(name) manager.machine.screens[":screen"]:snapshot({json.dumps(str(out)+"/")}..name..".png") end','stopped=emu.add_machine_stop_notifier(function() local log=manager.machine.debugger.consolelog;for index=1,#log do if log[index] then print(log[index]) end end end)','sub=emu.add_machine_frame_notifier(function()',' frames=frames+1',' if frames==950 then']
-    if a.shake:
+    if a.joystick:
+        calls=[int(m[1],16)+3 for m in re.finditer(r'^([0-9A-F]{4}) 103F8D.*os9.*I\$GetStt',
+               (root/'objs/wbgame.list').read_text(),re.M)
+               if syms['GamePollJoystick']<=int(m[1],16)<syms['GameJoystickDisable']]
+        assert len(calls)==1,calls
+        for offset,action in [(calls[0],'printf "JOYSTICK SAMPLE %d %d %d",x,y,a; g'),
+                              (syms['GameJoystickCommand'],'printf "JOYSTICK TOGGLE %d",b@(u+'+f'{syms["joystickenabled"]:x}'+'); g')]:
+            lines.append(f'  cpu.debug:bpset({base+offset},{json.dumps(condition)},{json.dumps(action)})')
+        action=f'printf "JOYSTICK QUIT %d %d",b@(u+{syms["vmvariables"]+240:x}),b@(u+{syms["joystickenabled"]:x}); g'
+        lines.append(f'  cpu.debug:bpset({base+syms["GameQuitCommand"]},{json.dumps(condition)},{json.dumps(action)})')
+    elif a.shake:
         helper=symbols(root/'objs/wbstate.map')
         wait=f'printf "SHAKE WAIT %d %d %d",totalcycles,b@(w@{syms["resourcebase"]:x}+{syms["shakeshifted"]:x}),b@(w@{syms["resourcebase"]:x}+{syms["gameclockpath"]:x}); g'
         end=f'printf "SHAKE NEXT %d %d",totalcycles,b@(w@{syms["resourcebase"]:x}+{syms["shakeshifted"]:x}); g'
@@ -77,6 +94,7 @@ def main():
             action=f'printf "PREVIEW {tag} %d %d",b@{syms["vmopcode"]:x},b@(u+{syms["vmvariables"]+240:x}); g'
             lines.append(f'  cpu.debug:bpset({base+syms[label]},{json.dumps(condition)},{json.dumps(action)})')
     lines+=[' end',' if frames==800 then post("mfree >/s0/free-before\\n") end',' if frames==1000 then post("wbgame /s0/preview 1\\n") end',' if frames==1400 then shot("preview-visible") end',' if frames==1500 then post(" ") end',' if frames==1700 then shot("preview-restored") end',' if frames==2000 then post("q") end',' if frames==2300 then post("mfree >/s0/free-after\\n") end',' if frames==2500 then post("echo DONE >/s0/done\\n") end',' if frames==3100 then shot("closed");manager.machine:exit() end','end)']
+    if a.joystick:lines[lines.index(' if frames==1500 then post(" ") end')]=' if frames==1500 then post("j") end'
     if a.interrupt:
         lines.insert(0,'local c=nil;for _,field in pairs(manager.machine.ioport.ports[":KEY0"].fields) do if field.mask==4 then c=field end end;assert(c,"C key missing")')
         event=lines.index(' if frames==2000 then post("q") end')
@@ -91,7 +109,13 @@ def main():
     (out/'command.json').write_text(json.dumps(cmd,indent=2))
     with (out/'mame.log').open('w') as log:subprocess.run(cmd,cwd=out,stdout=log,stderr=subprocess.STDOUT,check=True,timeout=180)
     log=(out/'mame.log').read_text()
-    if a.shake:
+    if a.joystick:
+        samples=[tuple(map(int,row)) for row in re.findall(r'JOYSTICK SAMPLE (\d+) (\d+) (\d+)',log)]
+        assert len(samples)>=3 and all(row==(128,128,0) for row in samples),samples
+        assert re.findall(r'JOYSTICK TOGGLE (\d+)',log)==['0','1'],log[-2000:]
+        assert 'JOYSTICK QUIT 74 0' in log,log[-2000:]
+        (out/'joystick.json').write_text(json.dumps({'samples':samples,'marker':74,'enabled_at_quit':False},indent=2)+'\n')
+    elif a.shake:
         events=re.findall(r'SHAKE (START|WAIT|NEXT|END) (\d+) (\d+)(?: (\d+))?',log)
         (out/'shake-events.json').write_text(json.dumps(events,indent=2)+'\n')
         starts=[event for event in events if event[0]=='START'];ends=[event for event in events if event[0]=='END']
@@ -110,7 +134,10 @@ def main():
         assert target.is_file(),f'missing shell output: {name}'
     assert (out/'free-before.txt').read_bytes()==(out/'free-after.txt').read_bytes()
     assert b'DONE' in (out/'done.txt').read_bytes()
-    if a.shake:
+    if a.joystick:
+        assert png_rgb(out/'preview-visible.png')==png_rgb(out/'preview-restored.png'),'neutral joystick altered the scene'
+        print('PASS: real-driver joystick enable, neutral axes/buttons, toggle, script continuation and memory cleanup')
+    elif a.shake:
         def colors(path):
             w,h,pixels=png_rgb(path);assert (w,h)==(640,480)
             blue=[]

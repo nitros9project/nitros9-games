@@ -531,6 +531,11 @@ StateRestorePixels  ldu StateBase,pcr
                     clr <vmdepth
                     clr <vmroompending
                     clr <vmroomchanges
+                    clr joysticklast,u
+                    clr joystickbuttons,u
+                    lda #$FF              prime held buttons without an edge on resume
+                    sta joystickpressed,u
+                    lda #1
                     clr parserlength,u
                     clr parserline,u
                     clr vmflags+2,u
