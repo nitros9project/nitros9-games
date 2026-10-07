@@ -467,6 +467,56 @@ GameFrameAddress    ldd       ,s
                     andcc     #$FE
 GameFrameReturn     puls      d,x,y,pc
 
+* clear.text.rect(top,left,bottom,right,color): inclusive cell bounds.
+GameClearTextRect   ldu       <resourcebase
+                    leax      vmarguments,u
+                    lda       ,x
+                    ldb       2,x
+                    cmpb      #25
+                    lbhs      GameTextInvalid
+                    cmpa      2,x
+                    lbhi      GameTextInvalid
+                    lda       1,x
+                    ldb       3,x
+                    cmpb      #40
+                    lbhs      GameTextInvalid
+                    cmpa      3,x
+                    lbhi      GameTextInvalid
+                    subb      1,x
+                    incb
+                    pshs      b
+                    lda       2,x
+                    suba      ,x
+                    inca
+                    pshs      a
+                    lda       ,x
+                    ldb       #40
+                    mul
+                    addb      1,x
+                    adca      #0
+                    leay      textcharacters,u
+                    leay      d,y
+                    clra
+                    tst       4,x
+                    beq       GameRectRow
+                    lda       #$FF
+GameRectRow         ldb       1,s
+GameRectCell        pshs      b
+                    ldb       #32
+                    stb       ,y
+                    sta       1000,y
+                    leay      1,y
+                    puls      b
+                    decb
+                    bne       GameRectCell
+                    ldb       #40
+                    subb      1,s
+                    leay      b,y
+                    dec       ,s
+                    bne       GameRectRow
+                    leas      2,s
+                    lbra      GameTextPresent
+
 * clear.lines(start,end,color): inclusive rows; persistent opaque blank cells.
 GameClearLines      ldu       <resourcebase
                     lda       vmarguments,u

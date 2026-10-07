@@ -225,6 +225,31 @@ def main():
                 cleared = bytearray(expected_frame)
                 cleared[24*320:32*320] = bytes([16 if clearcolor else 1]) * (8*320)
                 assert frame == cleared, 'clear.lines range/color/persistence'
+            # Inclusive rectangles preserve neighboring glyphs and reject invalid
+            # geometry before changing cells. Expected pixels are independent of
+            # the renderer's row/cell addressing.
+            rectangles = [(3,39,4,39,0), (3,0,4,0,1), (0,0,24,39,0),
+                          (24,39,24,39,15), (3,38,4,39,1)]
+            rectangles += [(25,0,25,0,0), (0,40,0,40,0),
+                           (4,0,3,1,0), (3,2,4,1,0)]
+            for top,left,bottom,right,color in rectangles:
+                invalid = top > bottom or left > right or bottom >= 25 or right >= 40
+                script = bytes([109,14,1,103,3,39,1,154,top,left,bottom,right,color,
+                                26,134,1,0])
+                logic = len(script).to_bytes(2,'little') + script
+                logic += bytes([1]) + (4+len(message)).to_bytes(2,'little') + bytes([4,0]) + encrypted
+                files = {'/game/logDir': b'\xff'*3 + bytes(3),
+                    '/game/vol.0': b'\x12\x34\0' + len(logic).to_bytes(2,'little')*2 + logic}
+                error, frame = exercise(d, files, module='wbgame', base=0xa000,
+                    database=0x1000, window=0x8000, blocks=None, multiple=True,
+                    firstblock=0x10, frame_capture=True)
+                assert error == (187 if invalid else 0), ('clear.text.rect', error)
+                cleared = bytearray(expected_frame)
+                if not invalid:
+                    for pixelrow in range(top*8,(bottom+1)*8):
+                        start = pixelrow*320 + left*8
+                        cleared[start:pixelrow*320+(right+1)*8] = bytes([16 if color else 1]) * ((right-left+1)*8)
+                assert frame == cleared, ('clear.text.rect pixels', (top,left,bottom,right,color))
             # Inventory locations are private and names come from encrypted object data.
             raw_object = bytes([6,0,2,6,0,255,10,0,1]) + b'key\0coin\0'
             cipher = b'Avis Durgan'
@@ -315,7 +340,7 @@ def main():
             assert not error and not output
             assert state['vmvariables'][250] == 2, 'controller did not reach the next logic cycle'
             assert state['vmvariables'][11] == 1, 'clock lost the second at minute rollover'
-            print('PASS: native picture/view composition matches every castle pixel and handles transparent/mirrored/clipped/occluded/erased sprites and ego-hidden flag ownership with persistent native text, repeated logic cycles, keyboard controllers, clock rollover, stepping, move-to completion, end-of-loop animation, arrows/backspace, shared object distance, blocking/ignoring/clearing rectangles, inventory transfers/predicates/selection/scrolling, font validation, full-frame restoration, one mapping and complete cleanup')
+            print('PASS: native picture/view composition matches every castle pixel and handles transparent/mirrored/clipped/occluded/erased sprites and ego-hidden flag ownership with persistent native text, inclusive text rectangles and exact invalid-bound errors, repeated logic cycles, keyboard controllers, clock rollover, stepping, move-to completion, end-of-loop animation, arrows/backspace, shared object distance, blocking/ignoring/clearing rectangles, inventory transfers/predicates/selection/scrolling, font validation, full-frame restoration, one mapping and complete cleanup')
         finally:
             d.s.close()
             emulator.terminate()

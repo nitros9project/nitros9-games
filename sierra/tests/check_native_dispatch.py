@@ -16,7 +16,7 @@ GAME = {
     'InventoryStatus': (124,), 'InventoryCommand': tuple(range(92,98)),
     'GameFollowCommand': (83,), 'GameWanderCommand': (84,),
     'GameSoundCommand': (99,100), 'GameBlockCommand': (90,91),
-    'GameMoveCommand': (81,82), 'GameClearLines': (105,),
+    'GameMoveCommand': (81,82), 'GameClearLines': (105,), 'GameClearTextRect': (154,),
     'GameDisplayCommand': (103,104), 'GameQuitCommand': (134,),
     'GamePauseCommand': (136,), 'GameObjectVisibility': (35,36),
     'GameLoadPicture': (24,), 'GameDrawPicture': (25,),

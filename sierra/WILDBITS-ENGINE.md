@@ -899,3 +899,27 @@ glyphs and interrupt cleanup with unchanged free memory. Its 400-frame walking
 distance remained 26.8 AGI pixels; median composition fell from 116.2 to 114.0 ms
 over 56 and 57 samples respectively. This is a small measured rendering saving,
 not an observed increase in that walking-distance measurement.
+
+### Persistent rectangular text clearing
+
+Wild Bits now implements AGI opcode 154, `clear.text.rect(top,left,bottom,right,color)`,
+in the existing text component. Bounds are inclusive. Each selected cell becomes
+an opaque space: color zero clears black, and a nonzero color clears white in
+graphics mode. The argument order and graphics-mode color rule match the
+[ScummVM AGI command implementation](https://github.com/scummvm/scummvm/blob/master/engines/agi/op_cmd.cpp)
+and its [text background conversion](https://github.com/scummvm/scummvm/blob/master/engines/agi/text.cpp).
+The cell planes retain the result across picture refreshes. Rectangles outside
+25 rows or 40 columns, or with reversed bounds, return OS-9 `E$IllArg` (187)
+before changing cells. This follows the native renderer's checked-input policy.
+The command uses two stack bytes and adds no private data or platform files.
+CoCo retains its existing handler; the diagnostic bytecode probe retains its
+explicit unsupported response.
+
+The CPU integration test compares every framebuffer pixel for five valid
+rectangles, including full-screen and bottom-right clearing, and four invalid
+rectangles with exact error codes and unchanged pixels. Neighboring glyphs
+and refresh persistence are checked. All 1,024 dispatch cases passed. The
+updated game also passed simultaneous original Larry/KQ1 play, independent
+input and inventory, terminal restoration, surviving-peer behavior and final
+free-memory restoration in MAME. The build uses 23,739 code bytes and 24,460
+private bytes, leaving 69 bytes in its current code budget.
