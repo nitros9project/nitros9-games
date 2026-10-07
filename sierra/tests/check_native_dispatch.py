@@ -28,6 +28,7 @@ GAME = {
     'GamePrintCommand': (101,102), 'ParserCommand': (117,),
 }
 COMMON = {
+    'VmSuccess': (127,163,164,173,176,178,181),
     'ScreenCommand': (108,109,111,112,113,119,120), 'SetKeyCommand': (121,),
     'SetStringCommand': (114,), 'VmCommandNewRoom': (18,),
     'VmCommandNewRoomVariable': (19,), 'MenuCommand': tuple(range(156,161)),

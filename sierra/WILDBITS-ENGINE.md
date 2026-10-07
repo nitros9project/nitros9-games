@@ -1261,7 +1261,7 @@ into private UI state, with no picture or resource mapping held. Generic
 foreground checks used by rendering do not refill sound or replace the
 renderer's resource context. CoCo continues to use its existing audio implementation.
 
-The resident module has twenty bytes left below its 23,808-byte ceiling.
+The resident module has eighteen bytes left below its 23,808-byte ceiling.
 The kernel's `$FD00` common page and the `$FE00`/`$FF00` I/O area remain reserved.
 To fit the adapter, the existing `wbstate` helper exports an immutable audio
 code template and a small installer. The game validates the helper's private
@@ -1283,10 +1283,10 @@ The declared private data remains 24,460 bytes, within the same three 8 KiB
 banks. Tests place the user stack above the rounded allocation and parameters,
 as OS-9 does, and check that deep logic calls do not overwrite the private code.
 
-Native platform routes now use 182 byte-sized indices and 62 unique relative
+Native platform routes now use 182 byte-sized indices and 63 unique relative
 handler offsets, generated from the existing shared command catalog. The
 lookup zero-extends the opcode before indexing; a signed byte index would break
-opcodes 128–181. This saves 50 resident bytes including the decoder. Local
+opcodes 128–181. This saves 48 resident bytes including the decoder. Local
 native dictionary branches and a few nearby native calls use short branches;
 the assembler rejects an out-of-range displacement. CoCo's instruction bytes
 are unchanged.
@@ -1319,3 +1319,23 @@ multi-terminal OS revision, not on the alternate terminal-private ABI. Driver
 CPU/public-SCF tests cover queued timing, contention, wrong-owner close,
 terminal initialization/bell guards, IRQ rollback/teardown and memory recovery.
 Physical hardware, envelope details and complete adventure compatibility still require further work.
+
+
+### Preserve the CoCo command catalog's explicit no-ops
+
+The shared catalog now routes the seven zero-operand commands whose CoCo
+handler is `NoopCmdsRet` to native `VmSuccess`: `init.disk` (127),
+`open.dialogue`/`close.dialogue` (163/164), `hold.key` (173), and the catalog's
+unused commands 176, 178 and 181. Previously these reached `E$UnkSvc` and
+terminated an otherwise valid native script. They now continue without
+changing game variables, flags or display state, matching this CoCo port's
+behavior. This does not implement a new held-key policy or silently accept
+other unsupported commands. The actual close-window command 169 retains its
+existing handler.
+
+The native route table grows by one shared success target (two bytes), giving
+a 23,790-byte resident engine. The CoCo handler and operand columns are
+unchanged; rebuilt King's Quest I `mnln` remains byte-identical. A CPU script
+executes all seven commands, continues with variable copying, and verifies
+preserved variables/flags plus complete cleanup. The relocated dispatch test
+also checks their exact game/probe destinations.

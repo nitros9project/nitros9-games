@@ -117,6 +117,21 @@ def check_bounded_said(d):
     assert error and not output,'truncated discarded predicate tail was accepted'
     print('PASS: bounded said storage preserves 20 words plus a following wildcard, accepts complete 127-word predicates, rejects truncated tails and preserves the next private buffer')
 
+def check_compatibility_noops(d):
+    """CoCo's explicit zero-operand no-ops must not abort native scripts."""
+    script=bytes([3,240,73,12,221,127,163,164,173,176,178,181,4,241,240,134,1,0])
+    logic=len(script).to_bytes(2,'little')+script
+    files={'/game/logDir':b'\xff'*3+bytes(3),
+           '/game/vol.0':b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic}
+    error,output,state=exercise(d,files,module='wbgame',base=0xa000,
+        database=0x1000,window=0x8000,blocks=None,multiple=True,
+        firstblock=0x10,capture=True)
+    assert not error and not output,(error,output)
+    assert state['vmvariables'][240:242]==bytes([73,73])
+    assert state['vmflags'][221]==1
+    print('PASS: CoCo-compatible zero-operand no-ops continue native scripts and preserve variables/flags')
+
+
 def main():
     game = ROOT / 'kingsquest1'
     commands, volume, offset = resource(game, 1)
@@ -137,6 +152,7 @@ def main():
             d.write(0xff90, b'\x4c')
             d.write(0xff91, b'\x01')
             d.write(0xffa8, bytes(range(8)))
+            check_compatibility_noops(d)
             check_bounded_said(d)
             check_state_transfers(d)
             check_state_validation(d)

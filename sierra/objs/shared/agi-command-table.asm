@@ -129,7 +129,7 @@
                     AGI_COMMAND cmd_status,$0000,InventoryStatus,1 *status
                     AGI_COMMAND cmd_save_game,$0000,GameStateCommand,1 *save game
                     AGI_COMMAND cmd_restore_game,$0000,GameStateCommand,1 *restore game
-                    AGI_COMMAND NoopCmdsRet,$0000,VmPlatformUnsupported,0 *init disk
+                    AGI_COMMAND NoopCmdsRet,$0000,VmSuccess,0 *init disk
                     AGI_COMMAND cmd_restart_game,$0000,VmPlatformUnsupported,0 *restart game
                     AGI_COMMAND cmd_show_obj,$100,VmPlatformUnsupported,0 *sow obj
                     AGI_COMMAND CmdRandomImpl,$320,GameRandomCommand,1 *random
@@ -165,8 +165,8 @@
                     AGI_COMMAND cmd_disable_item,$100,MenuCommand,0 *disable item
                     AGI_COMMAND cmd_menu_input,$0000,GameMenuInput,1 *menu input
                     AGI_COMMAND cmd_show_obj_v,$100,VmPlatformUnsupported,0 *show obj v
-                    AGI_COMMAND NoopCmdsRet,$0000,VmPlatformUnsupported,0 *open dialogue
-                    AGI_COMMAND NoopCmdsRet,$0000,VmPlatformUnsupported,0 *close dialogue
+                    AGI_COMMAND NoopCmdsRet,$0000,VmSuccess,0 *open dialogue
+                    AGI_COMMAND NoopCmdsRet,$0000,VmSuccess,0 *close dialogue
                     AGI_COMMAND cmd_multn,$280,GameMathCommand,1 *mult n
                     AGI_COMMAND cmd_multv,$2c0,GameMathCommand,1 *mult v
                     AGI_COMMAND cmd_divn,$280,GameMathCommand,1 *div n
@@ -175,12 +175,12 @@
                     AGI_COMMAND cmd_set_simple,$100,VmPlatformUnsupported,0 *set simple
                     AGI_COMMAND cmd_push_script,$0000,ReplaySaveCheckpoint,0 *push script
                     AGI_COMMAND cmd_pop_script,$0000,ReplayRestore,0 *pop script
-                    AGI_COMMAND NoopCmdsRet,$0000,VmPlatformUnsupported,0 *hold key
+                    AGI_COMMAND NoopCmdsRet,$0000,VmSuccess,0 *hold key
                     AGI_COMMAND SetPriBaseStub,$100,VmPlatformUnsupported,0 *set pri base, via patch stub
                     AGI_COMMAND cmd_shake_screen,$180,VmPlatformUnsupported,0 *discard sound
-                    AGI_COMMAND NoopCmdsRet,$0000,VmPlatformUnsupported,0 *do nothing
+                    AGI_COMMAND NoopCmdsRet,$0000,VmSuccess,0 *do nothing
                     AGI_COMMAND cmd_show_menu,$100,VmPlatformUnsupported,0
-                    AGI_COMMAND NoopCmdsRet,$0000,VmPlatformUnsupported,0 *do nothing
+                    AGI_COMMAND NoopCmdsRet,$0000,VmSuccess,0 *do nothing
                     AGI_COMMAND cmd_hide_mouse,$400,VmPlatformUnsupported,0 *hide mouse
                     AGI_COMMAND cmd_set_upper_left,$2c0,VmPlatformUnsupported,0 *allow menu
-                    AGI_COMMAND NoopCmdsRet,$0000,VmPlatformUnsupported,0 *do nothing
+                    AGI_COMMAND NoopCmdsRet,$0000,VmSuccess,0 *do nothing
