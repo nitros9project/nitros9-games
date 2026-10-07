@@ -53,7 +53,7 @@ InputControllerTest ldu       <resourcebase
                     bsr      InputControllerAddress
                     bita      ,x
                     beq       InputTestFalse
-                    ldb       #1
+InputTestTrue       ldb       #1
                     andcc     #$FE
                     rts
 * B=controller (all 256 supported); X=private byte, A=one-bit mask.
@@ -71,9 +71,19 @@ InputControllerAddress pshs   b
                     leax      d,x
                     puls      a,pc
 InputControllerMasks fcb      1,2,4,8,16,32,64,128
-InputHaveKeyTest    ldb       <vmhavekey
+InputHaveKeyTest
+                    ifne      GAME_PRESENTATION
+* Scripts clear v19 to request a fresh key, including inside a logic loop.
+* The submitting key's cycle flag must not satisfy that request.
+                    ldu       <resourcebase
+                    ldb       vmvariables+19,u
+                    bne       InputTestTrue
+                    lbra      GameHaveKeyWait
+                    else
+                    ldb       <vmhavekey
                     andcc     #$FE
                     rts
+                    endc
 InputSaidTest       ldu       <resourcebase
                     tst       vmflags+2,u
                     beq       InputTestFalse

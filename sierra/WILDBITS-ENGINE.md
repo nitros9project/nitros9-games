@@ -1964,3 +1964,58 @@ the new direct/variable transition regression, original castle pixel comparison,
 movement and animation, dialogs, inventory, restart, save validation, terminal
 input, private-instance isolation, and cleanup. The canonical build budget and
 CoCo byte comparison also pass.
+
+### King speech waits for a fresh key — 2026-10-07
+
+KQ1's king speech in logic 53 uses `text.screen` and a sequence of `display`
+commands. It then clears key variable 19 and loops on `have.key` before returning
+to graphics. It is not a timed print window. Native `InputHaveKeyTest` previously
+tested the separate cycle key flag, which still contained the Enter that submitted
+`talk king`. Consequently the speech vanished as soon as rendering finished.
+The CPU regression reproduces that old behavior with zero wait cycles.
+
+The game adapter now follows CoCo `TestHaveKey`: a nonzero variable 19 satisfies
+the predicate; when the script clears it, the adapter waits for a fresh terminal
+key and stores that key in variable 19. The predicate returns normalized boolean
+true so `NOT have.key` also behaves correctly. The bytecode-only probe retains
+its existing injected-input interface.
+
+The fresh-key wait reuses the existing cold modal loop with a distinct private
+input mode. It releases foreign mappings before waiting, services foreground
+notifications and owned sound, and rebases the game clock on return. It retains
+the text screen and command buffer, and does not dispatch the dismissal key as a
+new parser command or movement/controller event. Invalid helper entries unwind
+without invoking the popup's text-backup restoration path. No new source files,
+private fields, helper metadata, or save-format changes are required.
+
+The focused regression checks the stale submitting key, delayed fresh input,
+graphics restoration, unchanged parser text, an already-pending key, negated
+predicate behavior, and invalid wait-entry cleanup. Room-input fixtures now
+explicitly await a normal game cycle instead of relying on the old nonblocking
+`have.key` behavior; bound arrow keys may legitimately clear variable 19.
+
+The MAME runner's `--king-dialog` fixture retains the original throne picture,
+speech display commands, and messages from logic 53. Its private root bootstrap
+replaces navigation and the speech-trigger conditions, allowing `talk king` to
+exercise the wait deterministically. It checks exact first-line font pixels,
+unchanged speech screenshots 2,000 frames apart, fresh-key dismissal, graphics
+restoration, and exit memory recovery. This is a focused speech regression,
+not a claim to have completed the throne-room sequence or the whole adventure.
+
+The final canonical build is 23,796 / 23,808 bytes for `wbgame` and
+7,013 / 8,192 for `wbstate`; its writable prefix remains 3,080 bytes and private
+allocation remains 24,460 bytes. A fresh interactive image is prepared at
+`/tmp/sierra-play-king-dialog/play.sh`, containing unchanged original game assets.
+
+The old binaries fail the same real-driver fixture at
+`/tmp/sierra-king-dialog-before`: the original speech glyphs are already gone.
+The final build passes at `/tmp/sierra-king-dialog-final`, holding exact speech
+pixels for 2,000 frames and restoring the exact throne-picture region after
+the fresh `p` key. Native audio, all 1,024 dispatch checks, and simultaneous
+Larry/KQ1 terminal play pass; both terminal and audio ownership recover on exit.
+CoCo's main logic remains byte-identical to the baseline.
+
+The full native game suite passes at `/tmp/sierra-king-key-game-final.log`,
+including the fresh-key regression, normal-cycle room controls, room input/sound
+teardown, timed and held dialogs, private-instance input, restart/save validation,
+text/graphics transitions, original castle pixels, and inventory cleanup.

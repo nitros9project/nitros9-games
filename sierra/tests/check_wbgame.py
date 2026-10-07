@@ -194,6 +194,50 @@ def check_positioned_messages(d):
     print('PASS: native print.at/print.at.v positions, word/newline/hard wrapping, default width, clipped edges, safe invalid coordinates and normal-print reset')
 
 
+def check_text_screen_key_wait(d):
+    """King's text-screen loop clears v19 before waiting for a fresh key."""
+    script=bytes([106,103,8,2,1,3,19,0])+bytes.fromhex('ff fd 0d ff 03 00 fe f7 ff')+bytes([107,134,1,0])
+    message=b'When you speak to King Edward,\0';key=b'Avis Durgan'
+    encrypted=bytes(value^key[i%len(key)] for i,value in enumerate(message))
+    logic=len(script).to_bytes(2,'little')+script+bytes([1])+(4+len(message)).to_bytes(2,'little')+bytes([4,0])+encrypted
+    seen={}
+    def submitting_key(cpu,r,syms):
+        cpu.write(syms['vmhavekey'],b'\x01')
+        cpu.write(syms['vmvariables']+19,b'\r')
+        cpu.write(syms['parserline'],b'abc\0');cpu.write(syms['parserlength'],b'\x03')
+    def text_visible(cpu,r,syms):
+        seen['line']=cpu.read(syms['textcharacters']+8*40+2,len(message)-1)
+    def resumed(cpu,r,syms):
+        seen['graphics']=cpu.read(syms['vmgraphics'],1)
+        seen['parser']=cpu.read(syms['parserline'],4)
+    files={'/game/logDir':bytes(3),'/game/vol.0':b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic}
+    error,output,state=exercise(d,files,
+        arguments=b'/game 0\r',module='wbgame',base=0xa000,database=0,window=0x8000,blocks=None,
+        multiple=True,firstblock=0x10,capture=True,keyboard_by_cycle={5:(b'p',0)},
+        breakpoint_hooks={'GameTextScreen':submitting_key,'InputHaveKeyTest':text_visible,'GameQuitCommand':resumed})
+    assert not error,(error,state['cycles'])
+    assert seen['line']==message[:-1],seen
+    assert state['cycles']==5,('stale submitting key dismissed the king text screen',state['cycles'])
+    assert state['vmvariables'][19]==ord('p') and seen['graphics']==b'\x01'
+    assert seen['parser']==b'abc\0','dialog key changed the command line'
+    helper=bytearray((ROOT/'objs/wbstate').read_bytes());entry=int.from_bytes(helper[9:11],'big')
+    helper[entry+16:entry+18]=bytes(2)
+    error,output,state=exercise(d,{**files,'wbstate':bytes(helper)},
+        arguments=b'/game 0\r',module='wbgame',base=0xa000,database=0,window=0x8000,blocks=None,
+        multiple=True,firstblock=0x10,capture=True)
+    assert error==203,'invalid have.key wait entry did not unwind safely'
+    # A pending key satisfies have.key without another read, and is boolean
+    # true rather than its raw ASCII value (NOT must therefore be false).
+    script=bytes([3,19,112,255,253,13,255,3,0,3,200,1,134,1,0])
+    logic=len(script).to_bytes(2,'little')+script
+    error,output,state=exercise(d,{'/game/logDir':bytes(3),'/game/vol.0':b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic},
+        arguments=b'/game 0\r',module='wbgame',base=0xa000,database=0,window=0x8000,blocks=None,
+        multiple=True,firstblock=0x10,capture=True)
+    assert not error and state['cycles']==0 and state['vmvariables'][19]==112
+    assert state['vmvariables'][200]==0,'have.key did not return normalized boolean true'
+    print('PASS: text-screen have.key honors cleared v19, waits for fresh input and resumes graphics without resubmitting parser text')
+
+
 def check_timed_messages(d):
     """Exercise blocking timeouts, public counter wrap and modal exclusions."""
     cases=[
@@ -484,7 +528,8 @@ def check_room_controls(d):
         transition=stop+bytes([90,10,90,30,110])
         transition+=bytes([3,250,1,19,250]) if variable else bytes([18,1])
         root=bytes([255,1,0,0,255])+len(transition).to_bytes(2,'little')+transition+bytes([23,0,0])
-        room=(bytes([131]) if retake else b'')+bytes([255,13,255,6,0,4,200,6,134,1,0,0])
+        # Await a second normal cycle: bound arrows may legitimately clear v19.
+        room=(bytes([131]) if retake else b'')+bytes([1,249,255,1,249,2,255,6,0,4,200,6,134,1,0,0])
         volume=bytearray();entries=[]
         for body in (root,room):
             entries.append(len(volume).to_bytes(3,'big'))
@@ -512,7 +557,7 @@ def check_room_input_sound(d):
         transition=bytes([12,9,98,0,99,0,200])
         transition+=bytes([3,250,1,19,250]) if variable else bytes([18,1])
         root=bytes([255,1,0,0,255])+len(transition).to_bytes(2,'little')+transition+bytes([23,0,0])
-        room=bytes([255,7,200,255,3,0,3,201,1,255,13,255,2,0,134,1,0])
+        room=bytes([255,7,200,255,3,0,3,201,1,255,253,1,19,0,255,2,0,134,1,0])
         volume=bytearray();entries=[]
         def record(payload):return b'\x12\x34\0'+len(payload).to_bytes(2,'little')*2+payload
         for body in (root,room):
@@ -848,6 +893,7 @@ def main():
             d.write(0xffa8, bytes(range(8)))
             check_compatibility_noops(d)
             check_positioned_messages(d)
+            check_text_screen_key_wait(d)
             check_timed_messages(d)
             check_screen_shakes(d)
             check_object_previews(d)

@@ -174,6 +174,14 @@ AuxWaitKey          lda       #0
                     os9       I$Read
                     bcs       AuxWaitRestore
                     ldu       <resourcebase
+                    lda       dialoginputmode,u
+                    cmpa      #3         have.key: key variable only, no parser
+                    bne       AuxWaitInputMode
+                    lda       parsercharacter,u
+                    lbeq      AuxWaitLoop ; no real key, like CoCo TestHaveKey
+                    sta       vmvariables+19,u
+                    bra       AuxWaitKeyDone
+AuxWaitInputMode
                     tst       dialoginputmode,u
                     beq       AuxWaitKeyDone
                     ldy       ,s
@@ -656,6 +664,17 @@ GamePrintPositionReady ldx    textpointer,u
 GamePrintAtBad      ldb       #E$BMode
                     orcc      #1
                     bra       GamePrintRestore
+* CoCo TestHaveKey waits for fresh input when v19 has been cleared. Reuse
+* the cold modal loop, retaining the visible text and private parser state.
+GameHaveKeyWait     lbsr      AssetUnmap
+                    bcs       GameHaveKeyError
+                    lbsr      PictureUnmap
+                    bcs       GameHaveKeyError
+                    ldu       <resourcebase
+                    lda       #3
+                    sta       dialoginputmode,u
+                    bra       GamePrintWait
+GameHaveKeyError    rts
 GamePrintWait       leax      textwaitentry,u
                     ldb       #6
                     leay      GameDialogCallbacks,pcr
@@ -664,8 +683,19 @@ GameDialogCallbacks fdb       GameModalForeground-GameDialogCallbacks
                     fdb       GameLineKey-GameDialogCallbacks
                     fdb       GamePrintRestore-GameDialogCallbacks
                     fdb       GameClockSample-GameDialogCallbacks
+GameHaveKeyRestore  clr       dialoginputmode,u
+                    lda       #1
+                    sta       gameclockreset,u
+                    puls      cc,b
+                    bcs       GameHaveKeyError
+                    ldb       #1
+                    andcc     #$FE
+                    rts
 GamePrintRestore    pshs      cc,b
                     ldu       <resourcebase
+                    lda       dialoginputmode,u
+                    cmpa      #3
+                    beq       GameHaveKeyRestore
                     clr       dialogactive,u
                     leax      resourcecommands,u
                     leay      textcharacters,u

@@ -21,6 +21,7 @@ def main():
     ap.add_argument('--restart',action='store_true',help='Restart original KQ1 through its menu, then issue another command')
     ap.add_argument('--persistence',action='store_true',help='Save original KQ1, walk, restore, and issue another command')
     ap.add_argument('--hall',action='store_true',help='Exercise original KQ1 hall logic after stop.motion/new.room')
+    ap.add_argument('--king-dialog',action='store_true',help="Exercise the original king's text-screen speech and fresh-key wait")
     ap.add_argument('--journey',action='store_true',help='Walk original KQ1 to the lake, look, and return to the castle')
     ap.add_argument('--movement',action='store_true',help='Measure KQ1 movement over 200 emulated frames')
     ap.add_argument('--larry',action='store_true',help='Exercise Larry age quiz, street walking and look response')
@@ -43,6 +44,29 @@ def main():
     for source in a.game.iterdir():
         if source.is_file() and (source.name.startswith('vol.') or source.name in ('logDir','picDir','viewDir','sndDir','words.tok','object')):
             install(source.name,source.read_bytes(),'game/'+source.name)
+    if a.king_dialog:
+        from check_lzw import expand
+        entry=int.from_bytes((a.game/'logDir').read_bytes()[53*3:54*3],'big')
+        source=(a.game/f'vol.{entry>>20}').read_bytes();offset=entry&0xfffff
+        expanded=int.from_bytes(source[offset+3:offset+5],'little')
+        stored=int.from_bytes(source[offset+5:offset+7],'little')
+        original=source[offset+7:offset+7+stored]
+        assert expanded!=stored,'king fixture expects original compressed KQ1 logic'
+        original=expand(original);assert len(original)==expanded
+        end=int.from_bytes(original[:2],'little')+2;code=original[2:end]
+        first=code.index(bytes([106,103,0,4,32]))
+        last=code.index(bytes([103,22,5,54]),first)+4
+        speech=code[first:last]+bytes([3,19,0])+bytes.fromhex('ff fd 0d ff 03 00 fe f7 ff')+bytes([107])
+        setup=bytes([3,250,53,24,250,25,250,26])
+        root=bytes([255,1,250,0,255])+len(setup).to_bytes(2,'little')+setup
+        root+=bytes([255,7,2,255])+len(speech).to_bytes(2,'little')+speech+b'\0'
+        messages=original[end:];pool=3+2*messages[0];key=b'Avis Durgan'
+        messages=messages[:pool]+bytes(v^key[i%11] for i,v in enumerate(messages[pool:]))
+        logic=len(root).to_bytes(2,'little')+root+messages
+        volume=(a.game/'vol.0').read_bytes();offset=len(volume)
+        install('king-vol.0',volume+b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic,'game/vol.0')
+        directory=bytearray((a.game/'logDir').read_bytes());directory[:3]=offset.to_bytes(3,'big')
+        install('king-logDir',bytes(directory),'game/logDir')
     if a.hall:
         # Keep original hall picture, views and logic 55. The private fixture
         # replaces only root logic to reproduce the door's control transition
@@ -104,7 +128,7 @@ def main():
 
     with disk.open('ab') as f:f.truncate(1 << (disk.stat().st_size-1).bit_length())
     if a.prepare_play:
-        if any((a.menu,a.typed_command,a.sustained,a.hall,a.journey,a.movement,a.persistence,a.larry,
+        if any((a.menu,a.typed_command,a.sustained,a.hall,a.king_dialog,a.journey,a.movement,a.persistence,a.larry,
                 a.larry_enter,a.larry_pair,a.restart,a.video_mode,a.audio_trace,a.profile)):
             ap.error('--prepare-play cannot be combined with scripted diagnostic modes')
         lua=out/'play.lua'
@@ -124,7 +148,7 @@ def main():
         print('Scroll Lock toggles MAME UI controls; Ctrl-C exits the game to NitrOS-9.')
         return
     response_frame=4000+max(700,120*len(a.typed_command or ""))
-    if sum(bool(v) for v in (a.menu,a.typed_command,a.sustained,a.hall,a.journey,a.movement,a.persistence,a.larry,a.larry_enter,a.larry_pair,a.restart,a.video_mode))>1:
+    if sum(bool(v) for v in (a.menu,a.typed_command,a.sustained,a.hall,a.king_dialog,a.journey,a.movement,a.persistence,a.larry,a.larry_enter,a.larry_pair,a.restart,a.video_mode))>1:
         ap.error("choose menu, typed-command, sustained, movement, larry larry-enter or larry-pair")
     if a.menu: response_frame=4700
     delay=response_frame+1000-3900 if a.typed_command or a.menu else 0
@@ -229,6 +253,15 @@ def main():
                  ' if frames==5500 then shot("video-mode-alternate") end',
                  ' if frames==7100 then shot("video-mode-standard") end']
         command_events='\n'.join(events)+'\n'
+    if a.king_dialog:
+        delay=10500
+        command_events='''
+ if frames==4000 then post("talk king\\n") end
+ if frames==9000 then shot("king-speech") end
+ if frames==11000 then shot("king-still-visible") end
+ if frames==11500 then post("p") end
+ if frames==13000 then shot("king-dismissed") end
+'''
     if a.hall:
         delay=2000
         command_events='''
@@ -443,7 +476,7 @@ end)
         if not a.audio_trace:
             source='local cpu=manager.machine.devices[":maincpu"]\nmanager.machine.debugger.execution_state="run"\nvideo_stop=emu.add_machine_stop_notifier(function() local log=manager.machine.debugger.consolelog;for index=1,#log do if log[index] then print(log[index]) end end end)\n'+source
         lua.write_text(source)
-    command=[str(a.mame.resolve()),'wbjr2','-bios','turbo','-rompath',str(roms.parent),'-hard',str(disk),'-skip_gameinfo', '-noui_mouse', '-mouseprovider', 'none','-video','none','-sound','none','-nothrottle','-autoboot_script',str(lua),'-seconds_to_run',str(420 if a.larry_pair else (5100+delay+(1200 if a.larry or a.larry_enter else 0))//60+10 if a.typed_command or a.menu or a.sustained or a.hall or a.journey or a.movement or a.persistence or a.restart or a.larry or a.larry_enter or a.video_mode else 100),'-nvram_directory',str(out/'nvram'),'-cfg_directory',str(out/'cfg')]
+    command=[str(a.mame.resolve()),'wbjr2','-bios','turbo','-rompath',str(roms.parent),'-hard',str(disk),'-skip_gameinfo', '-noui_mouse', '-mouseprovider', 'none','-video','none','-sound','none','-nothrottle','-autoboot_script',str(lua),'-seconds_to_run',str(420 if a.larry_pair else (5100+delay+(1200 if a.larry or a.larry_enter else 0))//60+10 if a.typed_command or a.menu or a.sustained or a.hall or a.king_dialog or a.journey or a.movement or a.persistence or a.restart or a.larry or a.larry_enter or a.video_mode else 100),'-nvram_directory',str(out/'nvram'),'-cfg_directory',str(out/'cfg')]
     if a.profile or a.audio_trace or a.restart or a.video_mode or a.hall:command+=['-debug','-debugger','none']
     (out/'command.json').write_text(json.dumps(command,indent=2)+'\n')
     with (out/'mame.log').open('w') as log:subprocess.run(command,cwd=out,stdout=log,stderr=subprocess.STDOUT,check=True,timeout=360 if a.larry_pair else 300 if a.larry or a.larry_enter else 180)
@@ -482,6 +515,25 @@ end)
     before=os9('list',f'{disk},free-before');after=os9('list',f'{disk},free-after')
     (out/'free-before.txt').write_bytes(before);(out/'free-after.txt').write_bytes(after)
     assert before==after,'real game leaked memory'
+    if a.king_dialog:
+        scene=png_rgb(out/'game-before-input.png')
+        speech=png_rgb(out/'king-speech.png');held=png_rgb(out/'king-still-visible.png')
+        dismissed=png_rgb(out/'king-dismissed.png')
+        assert speech==held,'king speech did not remain stable without fresh input'
+        assert speech!=scene and dismissed!=speech,'king speech missing or not dismissed by fresh input'
+        # Compare the first original speech line with the exported font glyphs.
+        font=(VIEWER/'wbfont').read_bytes();w,h,pixels=speech
+        assert (w,h)==(640,480)
+        assert scene[2][18*w*3:350*w*3]==dismissed[2][18*w*3:350*w*3],'king dismissal did not restore the exact throne picture'
+        for column,char in enumerate(b'When you speak to King Edward,',4):
+            for row,bits in enumerate(font[char*8:char*8+8]):
+                for bit in range(8):
+                    x=column*16+bit*2;y=row*2
+                    wanted=bytes([255]*3) if bits&(128>>bit) else bytes(3)
+                    assert pixels[(y*w+x)*3:(y*w+x)*3+3]==wanted,('king speech glyph',column,row,bit)
+        (out/'king-dialog.json').write_text(json.dumps({'held_frames':2000,'fresh_key':'p','memory_recovered':True})+'\n')
+        print('PASS: original king speech/glyphs remain visible for 2000 frames, fresh key restores graphics, and exit recovers memory')
+        return
     if a.hall:
         log=(out/'mame.log').read_text()
         controls=re.findall(r'HALL INPUT ROOM=(\d+) X=(\d+) Y=(\d+) CONTROL=(\d+) KEY=12',log)
