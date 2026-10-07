@@ -706,11 +706,50 @@ commands, walks out of the castle, restores Graham's position and exercises
 another command. Install `wbstate` alongside `wbgame` and `wbfont`; both harnesses
 now do so in their disposable disk images.
 
-Completed runs are recorded in [WILDBITS-ENGINE.md](WILDBITS-ENGINE.md). Audio
-and full-adventure completion remain unverified.
+Completed runs are recorded in [WILDBITS-ENGINE.md](WILDBITS-ENGINE.md).
+Full-adventure completion remains unverified.
 
 To verify native sound with the process-owned version-4 PSG driver installed
 in the test bootfile, add `--audio-trace` to `check_wbgame_mame.py`. The check
 requires AGI command 99 and non-muted PSG store instructions while a process
 owns the device; it writes the captured bytes to `audio-writes.json`. It uses
 the existing disposable disk workflow and leaves the player's emulator alone.
+
+
+## Owned native sound and modal refill acceptance — 2026-10-06
+
+The production engine is 23,788 bytes with 24,460 bytes of declared private
+storage. Its paired `wbstate` helper is 3,550 bytes. Install both from the same
+build: the helper ABI includes the audio workspace and callback layout.
+The version-4, 1,370-byte PSG driver is preserved on local NitrOS-9 branch
+`codex/sierra-owned-psg` at `f99a8196`; its base is the tested Wild Bits terminal
+revision `c45760ab`, rather than the active OS checkout's terminal ABI.
+
+The existing game resources contain converted CoCo single-voice notes.
+The driver translates these to queued PSG tones; the discarded original
+voices and CoCo envelope behavior are not reconstructed. PSG traces verify
+non-muted hardware register writes, not speaker output or musical fidelity.
+
+The final engine passed these private MAME runs with the matched PSG bootfile
+and verified SOL raster counter:
+
+- King's Quest I startup, inventory, save, walking, restored position,
+  subsequent `look room`, interrupt exit and exact memory recovery:
+  `/tmp/sierra-modal-audio-kq1-verified` (59 owned PSG writes).
+- Original Larry and KQ1 together on separate terminals, independent inventory
+  input, restored screens, Larry surviving KQ1 exit and exact memory recovery:
+  `/tmp/sierra-modal-audio-pair` (83 owned PSG writes). This uses the documented
+  emulator-only expanded-memory kernel.
+- Original Larry's door interaction, transition into Lefty's, inside-room look,
+  dismissal and cleanup: `/tmp/sierra-final-larry-leftys` (15 owned PSG writes).
+- KQ1 movement with audio enabled: 32 AGI pixels in 200 frames, or 3.33 emulated
+  seconds; `/tmp/sierra-owned-audio-movement` (427 owned PSG writes). These are
+  emulated time measurements, independent of the host's unthrottled speed.
+
+The native CPU audio test separately holds a Pause dialog open longer than an
+eight-note queue can cover. Fourteen one-tick notes and all end markers finish
+before dismissal, proving that modal waits refill without a next interpreter
+cycle. Missing/incompatible helpers, missing/older drivers, busy-then-available
+retry, reused completion flags, malformed notes, deep logic calls, ownership
+release and immutable private code also pass. The complete gameplay CPU suite
+passes after these changes. Physical hardware remains untested.
