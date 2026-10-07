@@ -923,3 +923,34 @@ updated game also passed simultaneous original Larry/KQ1 play, independent
 input and inventory, terminal restoration, surviving-peer behavior and final
 free-memory restoration in MAME. The build uses 23,739 code bytes and 24,460
 private bytes, leaving 69 bytes in its current code budget.
+
+### Code-space preparation for persistence
+
+`clear.lines` now converts its three command-local arguments into a full-width
+rectangle and uses the same checked cell-clearing loop as `clear.text.rect`.
+The exact-pixel integration suite passed both commands after consolidation.
+This removes 48 code bytes without changing private storage, leaving the
+interactive game at 23,691 code bytes with 117 bytes available.
+
+`tests/check_cold_module_mame.py` provides a separate diagnostic for the next
+code-space decision. It builds an owner padded to the production game's exact
+module size and private allocation, and a small position-independent OS-9
+subroutine. The owner uses public `F$Load`, copies the validated-size module into
+private scratch, unlinks it, and executes the relocated entry. It then allocates,
+maps, writes, unmaps and releases one RAM block at the returned `$8000` window.
+Both sequences run twice. The MAME check requires the success marker and exactly
+identical before/after free-memory reports. It passed with the current
+23,691-byte owner and 24,460-byte private area.
+
+Run the diagnostic with the same `--mame`, `--disk`, and `--firmware` paths as
+the game tests and a fresh `--output` directory. It creates its assembly sources,
+modules, disk and firmware copies inside that output directory; it installs
+nothing in the production game. This proves that a small cold routine can leave
+the normal mapping window available at this footprint. It does not implement
+save/restore, establish a save-file format, or prove that a larger persistence
+module fits the available private workspace. Those must be checked separately
+before adding the loader to the game.
+
+All 56 CoCo interpreter modules rebuilt byte-identically in isolated output
+directories after the shared command-table change and native clearing
+consolidation. Existing game-directory binaries were left untouched.

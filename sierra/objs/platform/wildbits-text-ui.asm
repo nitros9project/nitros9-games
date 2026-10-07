@@ -517,37 +517,16 @@ GameRectCell        pshs      b
                     leas      2,s
                     lbra      GameTextPresent
 
-* clear.lines(start,end,color): inclusive rows; persistent opaque blank cells.
+* clear.lines is a full-width rectangle. Arguments are command-local scratch.
 GameClearLines      ldu       <resourcebase
-                    lda       vmarguments,u
-                    cmpa      #25
-                    lbhs      GameTextInvalid
+                    ldb       vmarguments+2,u
+                    stb       vmarguments+4,u
                     ldb       vmarguments+1,u
-                    cmpb      #25
-                    lbhs      GameTextInvalid
-                    cmpb      vmarguments,u
-                    lblo      GameTextInvalid
-                    subb      vmarguments,u
-                    incb
-                    lda       #40
-                    mul
-                    tfr       d,y
-                    lda       vmarguments,u
-                    ldb       #40
-                    mul
-                    leax      textcharacters,u
-                    leax      d,x
-                    clra
-                    tst       vmarguments+2,u
-                    beq       GameClearCell
-                    lda       #$FF
-GameClearCell       ldb       #32
-                    stb       ,x
-                    sta       1000,x
-                    leax      1,x
-                    leay      -1,y
-                    bne       GameClearCell
-                    lbra      GameTextPresent
+                    stb       vmarguments+2,u
+                    clr       vmarguments+1,u
+                    ldb       #39
+                    stb       vmarguments+3,u
+                    lbra      GameClearTextRect
 
                     else
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_GAME_TEXT_DATA
