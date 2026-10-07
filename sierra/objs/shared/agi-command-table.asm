@@ -153,8 +153,8 @@
                     AGI_COMMAND cmd_reposition_to_v,$360,GameReposition,1 *reposition to v
                     AGI_COMMAND cmd_trace_on,$0000,VmPlatformUnsupported,0 *trace on
                     AGI_COMMAND cmd_trace_info,$300,VmPlatformUnsupported,0 *trace info
-                    AGI_COMMAND cmd_print_at,$400,VmPlatformUnsupported,0 *print at
-                    AGI_COMMAND cmd_print_at_v,$480,VmPlatformUnsupported,0 *print at v
+                    AGI_COMMAND cmd_print_at,$400,GamePrintCommand,1 *print at
+                    AGI_COMMAND cmd_print_at_v,$480,GamePrintCommand,1 *print at v
                     AGI_COMMAND cmd_discard_view_v,$180,VmCommandDiscardViewVariable,0 *discard view v
                     AGI_COMMAND cmd_clear_text_rect,$500,GameClearTextRect,1 *clear text rect
                     AGI_COMMAND cmd_set_upper_left,$200,VmPlatformUnsupported,0 *set upper left

@@ -1,6 +1,7 @@
-* Cold save/restore operations. The game copies and unlinks this module before
-* executing it in its private fill workspace. No formatting or flood-fill
-* decoder may run while this code is active.
+* Native auxiliary module: writable state operations execute in a private
+* copy; immutable text code executes while linked, using only private cells.
+* The audio installer also exports immutable code for a permanent private copy.
+* No formatter or flood-fill runs during the copied state operations.
 AUDIO_USER_COPY     equ 1
 WILDBITS            equ 1
 WILDBITS_LAYOUT_ONLY equ 1
@@ -11,7 +12,7 @@ StateName           fcs /wbstate/
                     fcb 1
 StateEntry          bra StateBegin
                     STATE_ABI
-                    fdb AudioBlobEnd-AudioBlobStart,AudioInstall
+                    fdb AudioBlobEnd-AudioBlobStart,AudioInstall,AuxTextStore
 * A=0 save, 1 validate/stage restore, 2 apply after nested logic unwinds.
 * X=filename, Y=engine callback table, U=the game's private base.
 StateBegin          stu StateBase,pcr
@@ -852,6 +853,8 @@ StateCache          zmb 160
 StateBuffer         zmb 512
 PLATFORM_SECTION    set PLATFORM_WILDBITS_SOUND_CODE
                     use platform/wildbits-audio.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_TEXT_STORE_CODE
+                    use platform/wildbits-text-ui.asm
                     emod
 StateEnd            equ *
                     ifp2

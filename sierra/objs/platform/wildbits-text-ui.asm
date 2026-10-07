@@ -1,3 +1,88 @@
+* Immutable text-store backend executes while wbstate remains linked.
+                    ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_TEXT_STORE_CODE
+AuxTextStore        tst       dialogactive,u
+                    beq       GameTextRead
+                    tst       dialogwordstart,u
+                    beq       GameTextRead
+                    lda       textcolumn,u
+                    cmpa      dialogleft,u
+                    bls       GameTextRead
+                    ldx       textpointer,u
+                    clrb
+GameTextWordLength  lda       b,x
+                    beq       GameTextWordEnd
+                    cmpa      #32
+                    beq       GameTextWordEnd
+                    cmpa      #10
+                    beq       GameTextWordEnd
+                    cmpa      #13
+                    beq       GameTextWordEnd
+                    incb
+                    cmpb      #40
+                    blo       GameTextWordLength
+GameTextWordEnd     addb      textcolumn,u
+                    cmpb      dialogright,u
+                    bls       GameTextRead
+                    lda       dialogleft,u
+                    sta       textcolumn,u
+                    inc       textrow,u
+                    lda       textrow,u
+                    cmpa      #25
+                    lbhs      AuxTextPresent
+GameTextRead        ldx       textpointer,u
+                    lda       ,x+
+                    stx       textpointer,u
+                    tsta
+                    lbeq     AuxTextPresent
+                    cmpa      #10
+                    beq       GameTextNewline
+                    cmpa      #13
+                    beq       GameTextNewline
+                    tst       dialogactive,u
+                    beq       GameTextCharacter
+                    clr       dialogwordstart,u
+                    cmpa      #32
+                    bne       GameTextCharacter
+                    inc       dialogwordstart,u
+                    ldb       textcolumn,u
+                    cmpb      dialogleft,u
+                    lbeq     AuxTextStore
+GameTextCharacter   pshs      a
+                    lda       textrow,u
+                    ldb       #40
+                    mul
+                    addb      textcolumn,u
+                    adca      #0
+                    leax      textcharacters,u
+                    leax      d,x
+                    puls      a
+                    sta       ,x
+* Color cells follow characters at the same fixed offset. Reuse the cell
+* address rather than multiplying its row a second time.
+                    lda       <vmtextforeground
+                    lsla
+                    lsla
+                    lsla
+                    lsla
+                    ora       <vmtextbackground
+                    sta       1000,x
+                    inc       textcolumn,u
+                    lda       textcolumn,u
+                    cmpa      dialogright,u
+                    lblo      AuxTextStore
+GameTextNewline     clr       textcolumn,u
+                    tst       dialogactive,u
+                    beq       GameTextAdvanceRow
+                    lda       dialogleft,u
+                    sta       textcolumn,u
+                    lda       #1
+                    sta       dialogwordstart,u
+GameTextAdvanceRow  inc       textrow,u
+                    lda       textrow,u
+                    cmpa      #25
+                    lblo      AuxTextStore
+AuxTextPresent      jmp       ,y
+                    else
 * wildbits-text-ui feature: code and related private state.
 * Named layout sections preserve existing module and private-data addresses.
 
@@ -32,7 +117,10 @@ GamePrintCommand    ldu       <resourcebase
                     ldb       vmarguments,u
                     lda       <vmopcode
                     cmpa      #102
+                    beq       GamePrintVariable
+                    cmpa      #152
                     bne       GamePrintMessage
+GamePrintVariable   equ       *
                     leax      vmvariables,u
                     clra
                     ldb       d,x
@@ -72,11 +160,37 @@ GamePrintClear      lda       #32
                     lda       #1
                     sta       dialogactive,u
                     sta       dialogwordstart,u
-                    lda       #8
+* print.at takes literal row/column/width; only print.at.v's message is a var.
+                    lda       <vmopcode
+                    cmpa      #151
+                    blo       GamePrintDefaultPosition
+                    cmpa      #152
+                    bhi       GamePrintDefaultPosition
+                    ldd       vmarguments+1,u
+                    cmpa      #25
+                    lbhs      GamePrintAtBad
+                    cmpb      #40
+                    lbhs      GamePrintAtBad
                     sta       textrow,u
-                    lda       #2
-                    sta       textcolumn,u
-                    ldx       textpointer,u
+                    stb       textcolumn,u
+                    stb       dialogleft,u
+                    lda       vmarguments+3,u
+                    bne       GamePrintWidth
+                    lda       #30
+GamePrintWidth      adda      dialogleft,u
+                    bcs       GamePrintClipWidth
+                    cmpa      #40
+                    bls       GamePrintWidthReady
+GamePrintClipWidth  lda       #40
+GamePrintWidthReady sta       dialogright,u
+                    bra       GamePrintPositionReady
+GamePrintDefaultPosition ldd  #$0802
+                    sta       textrow,u
+                    stb       textcolumn,u
+                    stb       dialogleft,u
+                    lda       #40
+                    sta       dialogright,u
+GamePrintPositionReady ldx    textpointer,u
                     lbsr      GameTextValidate
                     bcs       GamePrintRestore
                     ldu       <resourcebase
@@ -95,6 +209,9 @@ GamePrintClear      lda       #32
                     stb       <vmtextbackground
                     clrb
                     rts
+GamePrintAtBad      ldb       #E$BMode
+                    orcc      #1
+                    lbra      GamePrintRestore
 GamePrintWait       lbsr      GameModalForeground
                     bcs       GamePrintRestore
                     lda       #0
@@ -238,7 +355,7 @@ StateLoadModule     pshs      u
                     ldd       M$Exec,u
                     cmpd      #13
                     blo       StateLoadBad
-                    addd      #17       branch, private ABI and CRC must fit
+                    addd      #19       branch, private ABI, three entries and CRC must fit
                     bcs       StateLoadBad
                     cmpd      M$Size,u
                     bhi       StateLoadBad
@@ -430,6 +547,8 @@ GameDisplayArguments lda      ,x
                     cmpa      #40
                     lbhs      GameTextInvalid
                     sta       textcolumn,u
+                    ldd       #$0228
+                    std       dialogleft,u
                     ldb       2,x
                     lbsr      ReadLogicMessage
                     lbcs      GameTextReturn
@@ -439,87 +558,39 @@ GameDisplayArguments lda      ,x
 GameTextValidate    lbsr      GameFormatMessage
                     lbcs      GameTextReturn
                     stx       textpointer,u
-GameTextStore       tst       dialogactive,u
-                    beq       GameTextRead
-                    tst       dialogwordstart,u
-                    beq       GameTextRead
-                    lda       textcolumn,u
-                    cmpa      #2
-                    bls       GameTextRead
-                    ldx       textpointer,u
+* The immutable helper retains a code window; all cells remain process-private.
+GameTextStore       ldx       textstoreentry,u
+                    bne       GameTextColdReady
+                    lbsr      StateLoadModule
+                    lbcs      GameTextReturn
+                    ldd       4,x
+                    cmpd      #13
+                    lblo      SoundLoadBad
+                    ldy       M$Size,u
+                    leay      -3,y       CRC bytes are not executable entry points
+                    pshs      y
+                    cmpd      ,s
+                    leas      2,s
+                    lbhs      SoundLoadBad
+                    leax      d,u
+                    ldy       <resourcebase
+                    stx       textstoreentry,y
+                    stu       textstoremodule,y
+                    tfr       y,u
+GameTextColdReady   leay      GameTextPresent,pcr
+                    jmp       ,x
+GameTextUnlink      ldu       <resourcebase
+                    ldx       textstoremodule,u
+                    beq       GameTextUnlinkDone
+                    tfr       x,u
+                    os9       F$UnLink
+                    ldu       <resourcebase
+                    bcs       GameTextUnlinkDone
+                    clra
                     clrb
-GameTextWordLength  lda       b,x
-                    beq       GameTextWordEnd
-                    cmpa      #32
-                    beq       GameTextWordEnd
-                    cmpa      #10
-                    beq       GameTextWordEnd
-                    cmpa      #13
-                    beq       GameTextWordEnd
-                    incb
-                    cmpb      #38
-                    blo       GameTextWordLength
-GameTextWordEnd     addb      textcolumn,u
-                    cmpb      #40
-                    bls       GameTextRead
-                    lda       #2
-                    sta       textcolumn,u
-                    inc       textrow,u
-                    lda       textrow,u
-                    cmpa      #25
-                    lbhs      GameTextPresent
-GameTextRead        ldx       textpointer,u
-                    lda       ,x+
-                    stx       textpointer,u
-                    tsta
-                    beq      GameTextPresent
-                    cmpa      #10
-                    beq       GameTextNewline
-                    cmpa      #13
-                    beq       GameTextNewline
-                    tst       dialogactive,u
-                    beq       GameTextCharacter
-                    clr       dialogwordstart,u
-                    cmpa      #32
-                    bne       GameTextCharacter
-                    inc       dialogwordstart,u
-                    ldb       textcolumn,u
-                    cmpb      #2
-                    beq      GameTextStore
-GameTextCharacter   pshs      a
-                    lda       textrow,u
-                    ldb       #40
-                    mul
-                    addb      textcolumn,u
-                    adca      #0
-                    leax      textcharacters,u
-                    leax      d,x
-                    puls      a
-                    sta       ,x
-* Color cells follow characters at the same fixed offset. Reuse the cell
-* address rather than multiplying its row a second time.
-                    lda       <vmtextforeground
-                    lsla
-                    lsla
-                    lsla
-                    lsla
-                    ora       <vmtextbackground
-                    sta       1000,x
-                    inc       textcolumn,u
-                    lda       textcolumn,u
-                    cmpa      #40
-                    lblo      GameTextStore
-GameTextNewline     clr       textcolumn,u
-                    tst       dialogactive,u
-                    beq       GameTextAdvanceRow
-                    lda       #2
-                    sta       textcolumn,u
-                    lda       #1
-                    sta       dialogwordstart,u
-GameTextAdvanceRow  inc       textrow,u
-                    lda       textrow,u
-                    cmpa      #25
-                    lblo      GameTextStore
+                    std       textstoremodule,u
+                    std       textstoreentry,u
+GameTextUnlinkDone  rts
 GameTextPresent     lbsr      AssetUnmap
                     bcs       GameTextReturn
                     tst       <bitmapowned
@@ -2672,6 +2743,7 @@ NORMAL_STRING_FOLD  equ       ParserLower
 
                     else
                     error Unknown platform feature section
+                    endc
                     endc
                     endc
                     endc

@@ -50,3 +50,10 @@ owner's inclusion site.
 
 Verification: all 56 CoCo engine modules (four modules for 14 titles) and native
 `wbgame` match the preceding binaries byte for byte. Native probes also build.
+
+The native text-store loop assembles into the existing `wbstate` auxiliary
+module and executes read-only while linked. Its variables and text cells remain
+private to the caller. The frontend caches the validated entry and releases the
+module during cleanup; clearing a text screen preserves that reference. Install
+the matching helper for text output. Source grouping stays in
+`wildbits-text-ui.asm`; no additional platform file is needed.

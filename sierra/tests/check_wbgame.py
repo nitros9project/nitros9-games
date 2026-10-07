@@ -132,6 +132,67 @@ def check_compatibility_noops(d):
     print('PASS: CoCo-compatible zero-operand no-ops continue native scripts and preserve variables/flags')
 
 
+def check_positioned_messages(d):
+    """Check positions and wraps against literal AGI row/column/width inputs."""
+    key=b'Avis Durgan'
+    cases=[
+        ('literal',151,3,7,12,b'alpha beta gamma delta',[(3,7,b'alpha beta '),(4,7,b'gamma delta')]),
+        ('variable message',152,3,7,12,b'alpha beta gamma delta',[(3,7,b'alpha beta '),(4,7,b'gamma delta')]),
+        ('newline',151,4,9,7,b'one\ntwo',[(4,9,b'one'),(5,9,b'two')]),
+        ('long word',151,2,6,4,b'ABCDEFGHIJK',[(2,6,b'ABCD'),(3,6,b'EFGH'),(4,6,b'IJK')]),
+        ('default width',151,3,2,0,b'abcdefghijklmnopqrstuvwxy ABCDEFG',[(3,2,b'abcdefghijklmnopqrstuvwxy '),(4,2,b'ABCDEFG')]),
+        ('right clip',151,4,38,20,b'ABCD',[(4,38,b'AB'),(5,38,b'CD')]),
+        ('overflowing width',151,4,38,255,b'ABCD',[(4,38,b'AB'),(5,38,b'CD')]),
+        ('bottom clip',151,24,38,20,b'ABCD',[(24,38,b'AB')]),
+        ('bad text entry',151,2,2,10,b'bad',None),
+        ('oversized text entry',151,2,2,10,b'bad',None),
+        ('CRC text entry',151,2,2,10,b'bad',None),
+        ('missing helper',151,2,2,10,b'bad',None),
+        ('bad row',151,25,2,10,b'bad',None),
+        ('bad column',151,2,40,10,b'bad',None),
+        ('default after positioned',151,3,7,12,b'alpha beta gamma delta',[(8,2,b'alpha beta gamma delta')]),
+    ]
+    for label,opcode,row,column,width,message,expected in cases:
+        print('Checking positioned message:',label,flush=True)
+        before=bytes([3,6,1])
+        body=bytes([opcode,6 if opcode==152 else 1,row,column,width])
+        if label=='default after positioned':
+            before+=bytes([12,15]);body+=bytes([101,1])
+        script=before+body+bytes([134,1,0])
+        plaintext=message+b'\0'
+        encrypted=bytes(value^key[i%len(key)] for i,value in enumerate(plaintext))
+        logic=len(script).to_bytes(2,'little')+script
+        logic+=bytes([1])+(4+len(plaintext)).to_bytes(2,'little')+bytes([4,0])+encrypted
+        files={'/game/logDir':b'\xff'*3+bytes(3),
+               '/game/vol.0':b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic}
+        if label in ('bad text entry','oversized text entry','CRC text entry'):
+            # Mock F$Load has already accepted the module; exercise our own
+            # executable-entry bounds independently of the kernel CRC check.
+            helper=bytearray((ROOT/'objs/wbstate').read_bytes())
+            entry=int.from_bytes(helper[9:11],'big')
+            offset=0 if label=='bad text entry' else len(helper)-(1 if label=='CRC text entry' else 0)
+            helper[entry+14:entry+16]=offset.to_bytes(2,'big')
+            files['wbstate']=bytes(helper)
+        elif label=='missing helper':files['wbstate']=None
+        captured=[]
+        def capture(debug,registers,syms):
+            captured.append(debug.read(0x1000+syms['textcharacters'],2000))
+        error,output,state=exercise(d,files,module='wbgame',base=0xa000,
+            database=0x1000,window=0x8000,blocks=None,multiple=True,
+            firstblock=0x10,capture=True,keyboard=b'\r',
+            breakpoint_hooks={'GamePrintWait':capture},os_call_limit=20000)
+        if expected is None:
+            wanted_error=216 if label=='missing helper' else 203
+            assert error==wanted_error and not captured,(label,error,captured)
+        else:
+            assert not error and len(captured)==1,(label,error,len(captured))
+            wanted=bytearray(b' '*1000)
+            for r,c,text in expected:wanted[r*40+c:r*40+c+len(text)]=text
+            assert captured[0][:1000]==wanted,(label,[(i,a,b) for i,(a,b) in enumerate(zip(captured[0],wanted)) if a!=b][:12])
+            assert captured[0][1000:]==bytes([15])*1000,(label,'dialog colors')
+    print('PASS: native print.at/print.at.v positions, word/newline/hard wrapping, default width, clipped edges, safe invalid coordinates and normal-print reset')
+
+
 def main():
     game = ROOT / 'kingsquest1'
     commands, volume, offset = resource(game, 1)
@@ -153,6 +214,7 @@ def main():
             d.write(0xff91, b'\x01')
             d.write(0xffa8, bytes(range(8)))
             check_compatibility_noops(d)
+            check_positioned_messages(d)
             check_bounded_said(d)
             check_state_transfers(d)
             check_state_validation(d)

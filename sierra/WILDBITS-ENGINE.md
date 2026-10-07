@@ -1339,3 +1339,65 @@ unchanged; rebuilt King's Quest I `mnln` remains byte-identical. A CPU script
 executes all seven commands, continues with variable copying, and verifies
 preserved variables/flags plus complete cleanup. The relocated dispatch test
 also checks their exact game/probe destinations.
+
+
+### Positioned messages and a cached text backend — 2026-10-07
+
+`print.at` (151) and `print.at.v` (152) now use the native modal text path instead
+of aborting with `E$UnkSvc`. Their arguments are message, row, column and width;
+the variable form resolves only the message number through the variable table.
+This order follows the maintained [ScummVM AGI command implementation](https://github.com/scummvm/scummvm/blob/master/engines/agi/op_cmd.cpp).
+Width zero selects 30 columns, following [its text implementation](https://github.com/scummvm/scummvm/blob/master/engines/agi/text.cpp).
+
+The native text cursor resets to the supplied left column on a newline or wrap.
+Words move to the next row when they do not fit; long words split at the right
+limit. Width is clipped to the available screen columns, including arithmetic
+overflow, and output clips at the bottom row. Row 25 or greater and column 40 or
+greater fail before text is presented. Ordinary `print` and `display` reset their
+existing layout independently of the previous positioned message. These are
+positioned text within the existing native full-screen modal, not a new bordered
+window renderer.
+
+To fit this behavior, the text-storage loop remains in
+`platform/wildbits-text-ui.asm` but assembles into the existing `wbstate` helper.
+It is immutable: all characters, colors, cursors and limits use the caller's
+private U base, and Y supplies the resident presentation callback. The frontend
+validates the helper ABI and entry bounds, caches its module and entry pointers,
+and retains the link until cleanup. No shared module bytes are patched.
+
+An isolated real-MAME probe confirmed that resources still map at `$6000` while
+the helper is linked in the other spare window. The final game uses one service
+mapping at a time. The code shares one physical helper block across games, with
+one additional DAT code window per process. Movement does not load the helper.
+The resident is 23,794 bytes, the helper 3,778 bytes, and declared private memory
+remains 24,460 bytes with the full font and permanent audio workspace intact.
+No platform assembly files or production modules were added.
+
+`wbstate` is now required for native text output. Install it together with
+`wbgame` and `wbfont` from the same build. Private helper ABI version 2 includes
+the cached entry/module pointers and text bounds; the loader checks the extended
+metadata header and both executable entry bounds. The on-disk save schema remains version 1.
+State operations still execute a writable private copy, while linked text code
+and the exported audio template remain read-only. A temporary audio-install or
+state-operation link is released independently of the retained text reference.
+
+Cleanup unlinks the text helper after stopping sound and before releasing game
+resources, retries one failed unlink, and preserves the first exit error.
+Text-screen clearing leaves the cached link intact; clearing it there lost the
+reference during repeated mode switches, which the regression suite caught.
+The sound path is now cleared at process startup, before font loading, so an
+early font error cannot try to close an uninitialized path.
+
+Verification covers literal/variable messages, word/newline/long-word wrapping,
+default width, clipped right/bottom edges, invalid positions, and a normal print
+after a held positioned message. The full gameplay CPU suite and all 1,024
+relocated dispatch cases pass. CPU checks also verify an unchanged shared helper
+image, no link leaks, early font failure with a dirty sound-path byte, queued
+sound, deep logic calls and exact cleanup.
+
+Original KQ1 passes save/restore and subsequent input in real MAME while the
+text helper remains linked (`/tmp/sierra-positioned-kq1`). Original Larry and KQ1
+also pass independent terminal switching, inventory input, exits and exact
+memory recovery (`/tmp/sierra-positioned-pair`, with the documented emulator-only
+expanded-memory kernel). The latter captured 80 owned PSG writes. These remain
+emulator checks rather than physical-hardware or full-adventure acceptance.

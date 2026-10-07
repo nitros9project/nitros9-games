@@ -53,7 +53,7 @@ def start_cpu(bootrom, timeout=300):
 
 def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zero_read=False, seek_error=False, write_error=False, module='wbres', map_failure=0, allocation_error=False, unmap_error=False, window=0x8000, terminal=True, blocks=4, capture=False, multiple=False, firstblock=0x30, frame_capture=False, keyboard=b'', clock=(0,), bitmap_error=False, key_sense=0, cycle_limit=None, os_call_limit=20000, keyboard_by_cycle=None, option_set_error=False, resource_kind=None, module_root=None, breakpoint_hooks=None, psg=None):
     if module == 'wbgame':
-        files = {'wbfont': (ROOT / 'wbfont').read_bytes(), **files}
+        files = {'wbfont': (ROOT / 'wbfont').read_bytes(), 'wbstate': (ROOT / 'wbstate').read_bytes(), **files}
     module_root = Path(module_root) if module_root is not None else ROOT
     syms = symbols(module_root / (module + '.map'))
     calls = {base + int(m[1], 16): int(m[2], 16) for m in re.finditer(
@@ -97,7 +97,8 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
     original_options[syms.get('PD.QUT',0)-syms.get('PD.OPT',0)]=27
     options=original_options[:]
     options_failed=False
-    cold_loaded=False
+    cold_loaded=0
+    cold_ever_loaded=False
     audio_path=None
     audio_claimed=False
     audio_packets=[]
@@ -108,7 +109,7 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
     audio_queues=[[] for _ in range(4)]
     audio_played_ends=[False]*4
     private_calls={}
-    if module=='wbgame' and 'wbstate' in files:
+    if module=='wbgame' and files.get('wbstate'):
         cold_syms=symbols(module_root/'wbstate.map')
         blob_start=cold_syms['AudioBlobStart']; blob_end=cold_syms['AudioBlobEnd']
         private_calls={database+syms['soundcode']+int(m[1],16)-blob_start:int(m[2],16)
@@ -139,6 +140,8 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
         if service == syms['F$Exit']:
             assert not paths, f'leaked file paths: {paths}'
             assert not cold_loaded and not audio_claimed, 'leaked cold module/audio ownership'
+            if cold_ever_loaded:
+                assert d.read(0x7000,len(files['wbstate']))==files['wbstate'], 'shared cold backend modified its module image'
             if private_calls and d.read(database+syms['soundinstalled'],1)==b'\x01':
                 expected=files['wbstate'][blob_start:blob_end]
                 assert d.read(database+syms['soundcode'],len(expected))==expected, 'private audio code overwritten by the game stack or buffers'
@@ -160,19 +163,20 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
                 return r['b'], bytes(frame if frame_capture else output), state
             return r['b'], bytes(frame if frame_capture else output)
         elif service == syms.get('F$Load'):
-            assert not mapped and not cold_loaded
+            assert not mapped
             name=d.read(r['x'],16).split(b'\r')[0].decode()
-            if name not in files:
+            if name not in files or files[name] is None:
                 updates.update(cc=r['cc']|1,b=syms['E$PNNF'])
             else:
-                image=files[name];cold_base=0x9000
-                d.write(cold_base,image)
+                image=files[name];cold_base=0x7000
+                if not cold_loaded:d.write(cold_base,image)
                 entry=int.from_bytes(image[9:11],'big')
                 updates.update(u=cold_base,y=cold_base+entry)
-                cold_loaded=True
+                cold_loaded+=1
+                cold_ever_loaded=True
         elif service == syms.get('F$UnLink'):
-            assert cold_loaded and r['u']==0x9000
-            cold_loaded=False
+            assert cold_loaded and r['u']==0x7000
+            cold_loaded-=1
         elif service == syms['I$GetStt'] and r['b']==0xc5:
             assert psg is not None and r['a']==audio_path and not mapped
             audio_polls+=1
@@ -290,7 +294,7 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
         elif service == syms['I$Open']:
             name = d.read(r['x'], 160).split(b'\r')[0].decode()
             if name=='/fPSG' and psg is not None:
-                assert not cold_loaded, 'private adapter ran before the cold module was unlinked'
+                assert cold_loaded==bool(int.from_bytes(d.read(database+syms['textstoremodule'],2),'big')), 'temporary adapter reference leaked into device I/O'
                 audio_path=nextpath
                 paths[nextpath]=[b'',0];path_names[nextpath]=name
                 updates['a']=nextpath;nextpath+=1

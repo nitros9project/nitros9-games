@@ -93,7 +93,11 @@ vmcallstack         rmb       128
 gamefont            rmb       1024
 soundcalls          rmb       20
 soundcode           rmb       512
-                    rmb       179
+textstoremodule     rmb       2
+textstoreentry      rmb       2
+dialogleft          rmb       1
+dialogright         rmb       1
+                    rmb       173
 size                equ       .
 * Stable save-field order; no paths, mapped pointers or physical handles.
 STATE_SCHEMA        macro
@@ -119,9 +123,9 @@ STATE_HASH_FIELD    macro
                     endm
                     STATE_SCHEMA STATE_HASH_FIELD
 * Immutable field expressions avoid ambiguous forward references to SET symbols.
-StateLayoutHash     equ       (SavedVariablesLayoutHash+SavedStringsLayoutHash+SavedObjectsLayoutHash+SavedInventoryLayoutHash+SavedInventoryControlLayoutHash+SavedKeysLayoutHash+SavedKeyCountLayoutHash+SavedMenusLayoutHash+SavedMenuControlLayoutHash+SavedScreenLayoutHash+SavedPlayerLayoutHash+SavedBlockLayoutHash+SavedRandomLayoutHash+SavedReplayLayoutHash+SavedReplayBufferLayoutHash+SavedTextLayoutHash+resourcebase+assetfirst*3+picturefirst*5+gamebackgroundfirst*7+vmip*11+vmcache*13+textpointer*17+soundcalls*19+soundcode*23+512*29+4*31)&$FFFFFFFF
+StateLayoutHash     equ       (SavedVariablesLayoutHash+SavedStringsLayoutHash+SavedObjectsLayoutHash+SavedInventoryLayoutHash+SavedInventoryControlLayoutHash+SavedKeysLayoutHash+SavedKeyCountLayoutHash+SavedMenusLayoutHash+SavedMenuControlLayoutHash+SavedScreenLayoutHash+SavedPlayerLayoutHash+SavedBlockLayoutHash+SavedRandomLayoutHash+SavedReplayLayoutHash+SavedReplayBufferLayoutHash+SavedTextLayoutHash+resourcebase+assetfirst*3+picturefirst*5+gamebackgroundfirst*7+vmip*11+vmcache*13+textpointer*17+soundcalls*19+soundcode*23+512*29+4*31+textstoremodule*37+textstoreentry*41+dialogleft*43+dialogright*47)&$FFFFFFFF
 STATE_ABI           macro
-                    fdb       1,size,StateLayoutHash>>16,StateLayoutHash&$FFFF
+                    fdb       2,size,StateLayoutHash>>16,StateLayoutHash&$FFFF
                     endm
 * A cold state module reuses this exact private layout without emitting the game.
                     ifeq      WILDBITS_LAYOUT_ONLY

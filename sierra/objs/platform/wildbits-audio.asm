@@ -254,7 +254,11 @@ GameSoundLoad       lbsr StateLoadModule
                     ldd 2,x
                     cmpd #13
                     blo SoundLoadBad
-                    cmpd M$Size,u
+                    ldy M$Size,u
+                    leay -3,y
+                    pshs y
+                    cmpd ,s
+                    leas 2,s
                     bhs SoundLoadBad
                     pshs u
                     leax d,u

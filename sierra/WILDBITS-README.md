@@ -8,7 +8,7 @@ algorithms live in `objs/shared`. See
 [the platform layout](objs/platform/README.md) for the feature map. The older `objs/wildbits_engine.asm` scaffold is not built.
 
 Build with `make -C sierra/objs -f wildbits.mk all` from the games repository. Install
-`wbgame`, `wbfont`, and the optional `wbstate` audio/save/restore helper in the OS-9
+`wbgame`, `wbfont`, and the matching `wbstate` auxiliary helper in the OS-9
 execution directory, with read/execute access.
 Keep the original game resources together in a readable directory, then run:
 
@@ -25,8 +25,10 @@ The game's Save and Restore commands ask for a filename (for example,
 `/s0/my-save`). Save creates a new file; choose a new name for each save rather
 than overwriting an existing file. Restore checks the complete file before
 replacing game resources. Files belong to this native port and must match the
-current game's ID. The `wbstate` helper loads for these commands and to install a private audio
-adapter on the first enabled sound request. It adds no normal movement work. A pictured snapshot needs
+current game's ID. The `wbstate` helper supplies immutable text code as well as these commands
+and the private audio adapter. It is required for text output. Its first text
+request retains a shared code mapping until exit; normal movement does not
+reload it. Always install it from the same build as `wbgame`. A pictured snapshot needs
 five temporary 8 KiB blocks during validation, so available OS-9 memory matters
 when several games are running. A read/validation error leaves the game running;
 a resource reconstruction failure exits through cleanup.

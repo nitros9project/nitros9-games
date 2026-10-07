@@ -59,7 +59,6 @@ GameInitialize      lbsr      ParserInitialize
                     ldd       #$ACE1
                     std       gamerandom,u
                     clr       soundinstalled,u
-                    clr       <soundpath
                     clr       inventoryloaded,u
                     clr       gameblockenabled,u
                     clr       gamequit,u

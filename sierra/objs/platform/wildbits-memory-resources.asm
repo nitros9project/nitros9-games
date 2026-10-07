@@ -628,6 +628,11 @@ start               stu       <resourcebase
                     clr       gameclockmuted,u
                     clr       terminalchanged,u
                     clr       gamebackgroundowned,u
+                    clr       <soundpath
+                    clra
+                    clrb
+                    std       textstoremodule,u
+                    std       textstoreentry,u
                     pshs      x
                     lbsr      GameTextInitialize
                     puls      x
@@ -821,7 +826,13 @@ GameClockExitDone   lbsr      GameSoundStop
                     bne       GameSoundExitRetry
                     stb       ,s
 GameSoundExitRetry  lbsr      GameSoundStop
-GameSoundExitDone   puls      b
+GameSoundExitDone   lbsr      GameTextUnlink
+                    bcc       GameTextExitDone
+                    tst       ,s
+                    bne       GameTextExitRetry
+                    stb       ,s
+GameTextExitRetry   lbsr      GameTextUnlink
+GameTextExitDone    puls      b
                     endc
                     ifne      AGI_ASSET
                     stb       <assetexiterror

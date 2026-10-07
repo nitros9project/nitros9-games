@@ -31,9 +31,18 @@ def main():
         try:
             d.write(0xffdf,b'\0');d.write(0xff90,b'\x4c');d.write(0xff91,b'\x01')
             d.write(0xffa8,bytes(range(8)))
+            # Font failure precedes GameInitialize. A dirty path byte must
+            # already be cleared before exit attempts any sound cleanup.
+            def dirty_audio_path(debug,registers,syms):
+                debug.write(0x1000+syms['soundpath'],b'\xa5')
+            print('Checking native audio: early font failure with dirty sound-path state',flush=True)
+            error,output,state=exercise(d,{'wbfont':b''},module='wbgame',base=0xa000,
+                database=0x1000,window=0x8000,blocks=None,multiple=True,
+                firstblock=0x10,capture=True,breakpoint_hooks={'start':dirty_audio_path})
+            assert error==211,error
             for label,files,driver in (
                 ('converted notes',{**fixture(sound),'wbstate':helper},{}),
-                ('missing helper',fixture(sound),None),
+                ('missing helper',{**fixture(sound),'wbstate':None},None),
                 ('missing driver',{**fixture(sound),'wbstate':helper},None),
                 ('older driver',{**fixture(sound),'wbstate':helper},{'version':3}),
                 ('stale helper',{**fixture(sound),'wbstate':bytes(stale)},{}),

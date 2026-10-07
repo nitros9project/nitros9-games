@@ -25,7 +25,7 @@ GAME = {
     'GameLoadPicture': (24,), 'GameDrawPicture': (25,28),
     'GameShowPicture': (26,), 'GameDiscardPicture': (27,),
     'GameGetInput': (115,118), 'GameWordToString': (116,),
-    'GamePrintCommand': (101,102), 'ParserCommand': (117,),
+    'GamePrintCommand': (101,102,151,152), 'ParserCommand': (117,),
 }
 COMMON = {
     'VmSuccess': (127,163,164,173,176,178,181),

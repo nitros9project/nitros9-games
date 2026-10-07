@@ -753,3 +753,21 @@ cycle. Missing/incompatible helpers, missing/older drivers, busy-then-available
 retry, reused completion flags, malformed notes, deep logic calls, ownership
 release and immutable private code also pass. The complete gameplay CPU suite
 passes after these changes. Physical hardware remains untested.
+
+
+## Cached text backend and positioned messages — 2026-10-07
+
+The current matched pair is `wbgame` 23,794 bytes and `wbstate` 3,778 bytes,
+with 24,460 bytes of declared private data. `wbstate` is required for text output;
+its immutable text code retains one DAT window until exit. Install all three
+production files (`wbgame`, `wbstate`, `wbfont`) from the same build. The helper
+ABI is version 2; the save-file schema remains version 1.
+
+The geometry probe `/tmp/sierra-cold-window-probe` verified resource mapping at
+`$6000` while the helper remained linked. The final engine passed original KQ1
+save/restore and subsequent input at `/tmp/sierra-positioned-kq1`, and two
+original games with independent terminal input, switching and exits at
+`/tmp/sierra-positioned-pair` (80 owned PSG writes). Both recovered memory exactly.
+The latter uses the expanded-memory test kernel. CPU cases additionally verify
+positioned-message wrapping/clipping, immutable helper bytes, link cleanup,
+repeated text/graphics switches and early font errors.
