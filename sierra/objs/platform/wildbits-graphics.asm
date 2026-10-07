@@ -952,8 +952,22 @@ SpriteSourceColumn  leay      spriterow,x
                     ldd       spriterowoffset,x
                     addb      spritecolumn,x
                     adca      #0
+* This pixel consumes D. Reuse the current window without a subroutine or
+* register saves; page changes retain the checked mapping boundary.
+                    std       <pictureoffset
+                    anda      #$E0
+                    tst       <picturemapped
+                    beq       SpritePixelMap
+                    cmpa      <picturepage
+                    bne       SpritePixelMap
+                    ldd       <pictureoffset
+                    anda      #$1F
+                    ldu       <picturemapbase
+                    leau      d,u
+                    bra       SpritePixelReady
+SpritePixelMap      ldd       <pictureoffset
                     lbsr      PicturePointer
-                    tst       <decodeerror
+SpritePixelReady    tst       <decodeerror
                     lbne      SpriteDecodeError
                     lda       ,u
                     lsra
@@ -1229,7 +1243,8 @@ PictureClearWord    std       ,u++
                     blo       PictureClearPage
 PictureClearDone    puls      x,pc
 
-* Export via private staging, never I$Write with a foreign mapping live.
+                    ifeq      GAME_PRESENTATION
+* Diagnostic export via private staging; absent from the interactive game.
 PictureWrite        clr       <pictureoutoffset
                     clr       <pictureoutoffset+1
 PictureWriteChunk   ldd       #26880
@@ -1285,6 +1300,7 @@ PictureWriteInvalid ldb       #E$BMode
 PictureWriteFail    ldb       <decodeerror
                     orcc      #1
                     rts
+                    endc
 DecodeIntercept     cmpb      #S$Abort
                     blo       DecodeSignalRet
                     cmpb      #S$Intrpt

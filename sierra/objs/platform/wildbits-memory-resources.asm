@@ -753,13 +753,14 @@ LoadResource        equ       *
                     ifne      GAME_PRESENTATION
                     clrb
                     lbra      Exit
-                    endc
+                    else
                     ldu       <resourcebase
                     leax      vmvariables,u
                     ldy       #512
                     stx       <resourcepointer
                     sty       <resourceremaining
                     lbra      WriteMore
+                    endc
                     else
                     lbsr      AssetWrite
                     endc
@@ -778,6 +779,7 @@ LoadResource        equ       *
                     endc
                     lbra      Exit
                     endc
+                    ifeq      GAME_PRESENTATION
                     stx       <resourcepointer
                     sty       <resourceremaining
 WriteMore           lda       #1
@@ -798,6 +800,7 @@ WriteMore           lda       #1
                     std       <resourceremaining
                     bne       WriteMore
                     clrb
+                    endc
 Exit                equ       *
                     ifne      GAME_PRESENTATION
                     pshs      b
@@ -870,8 +873,10 @@ GameTerminalExitDone puls     b
                     lbsr      GameTraceError
                     endc
                     os9       F$Exit
+                    ifeq      GAME_PRESENTATION
 WriteBad            ldb       #E$BMode
                     lbra      Exit
+                    endc
 ArgumentsBad        leax      help,pcr
                     ldy       #80
                     lda       #2

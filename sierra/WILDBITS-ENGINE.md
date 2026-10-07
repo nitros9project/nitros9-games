@@ -877,3 +877,25 @@ Sprite composition remains about 116 ms and picture copying about 55 ms.
 Production code is 23,808 bytes, exactly its conservative limit; private
 storage is 24,460 bytes. This requires recovering code space before adding
 more interpreter features. No platform assembly files were added.
+
+### Diagnostic exports and sprite mapping fast path
+
+The interactive build excludes the raw picture and variable-stream exporters.
+They remain in the diagnostic probes, where they are used to compare decoded
+resources with reference output. This removes 199 unreachable code bytes without
+changing the probe binaries or the game's private ownership state.
+
+Sprite composition now addresses an opaque pixel directly when its encoded 8 KB
+page already matches the owned mapping. The logical offset is still recorded for
+priority searches. Page changes use PicturePointer, including its error handling
+and register preservation. The fast path keeps no pointer across an OS call and
+adds 24 bytes, leaving the game at 23,633 of 23,808 code bytes and 24,460 private
+bytes. No platform files were added.
+
+The native CPU test passed all reference picture pixels, sprite clipping,
+mirroring, priority searches, map errors and cleanup. The decoder exporter probe
+also passed. An original Larry MAME run passed its quiz, walking, exact dialog
+glyphs and interrupt cleanup with unchanged free memory. Its 400-frame walking
+distance remained 26.8 AGI pixels; median composition fell from 116.2 to 114.0 ms
+over 56 and 57 samples respectively. This is a small measured rendering saving,
+not an observed increase in that walking-distance measurement.
