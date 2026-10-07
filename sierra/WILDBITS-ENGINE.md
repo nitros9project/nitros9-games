@@ -985,3 +985,34 @@ return before formatting or rendering resumes. The current build requires
 The current resident build passed the original Larry age quiz, opening the
 door, transitioning into Lefty's bar, showing and dismissing the interior
 description, interrupt cleanup and unchanged free memory in MAME.
+
+### Owned text screens and graphics restoration
+
+`text.screen` (106) now uses the existing terminal-owned bitmap as a 40-by-25
+text screen. It fills the persistent character plane with spaces and the color
+plane with the selected background; `display` then draws through the same font
+and cell renderer used by graphics overlays. The 200 text scanlines occupy the
+top of the 240-line bitmap. The remaining 40 scanlines retain the black border.
+The combined game picture remains allocated underneath the text screen.
+
+`graphics` (107) closes any active window, clears the text cells, composes the
+current objects, and restores the picture. Bit 6 of `presentationconfigured`
+requests a full bitmap clear on this transition. The clear consumes that bit
+and marks every picture band dirty; bit 7 still requests a full text repaint.
+This removes text outside the picture without changing terminal ownership or
+writing display registers directly. During text mode, normal game cycles update
+logic and input while painting text instead of composing the picture.
+
+`clear.text.rect` and `clear.lines` share the existing rectangle loop. Graphics
+mode retains the black/white clearing convention; text mode clears to black.
+All of this lives in the existing graphics, text UI and object components; no
+new platform assembly files or helper modules are needed. The resident build
+uses 23,774 code bytes and 24,460 private bytes, leaving 34 code bytes.
+
+The CPU integration suite checks all text cells and glyph pixels with four
+background colors, three-cycle persistence, repeated graphics restoration and
+text-mode rectangle clearing. Its simulated-time allowance is 1,800 seconds
+for the enlarged suite. The real-driver MAME mode test checks every displayed
+pixel on the second terminal, restores the first terminal unchanged, then
+checks independent exit, relaunch and identical free-memory maps. All 56 CoCo
+modules rebuilt byte-identically after the command-table change.

@@ -462,6 +462,38 @@ GameFrameAddress    ldd       ,s
                     andcc     #$FE
 GameFrameReturn     puls      d,x,y,pc
 
+* Text mode uses opaque cells on the owned bitmap; retain the game picture.
+GameTextScreen      lbsr      GameCloseWindow
+                    lbcs      GameTextReturn
+                    clr       <vmgraphics
+                    ldu       <resourcebase
+                    leax      textcharacters,u
+                    ldy       #1000
+GameTextScreenCell  lda       #32
+                    sta       ,x
+                    lda       <vmtextbackground
+                    sta       1000,x
+                    leax      1,x
+                    leay      -1,y
+                    bne       GameTextScreenCell
+                    lbra      GameTextPresent
+
+GameGraphicsMode    lbsr      GameCloseWindow
+                    lbcs      GameTextReturn
+                    lda       #1
+                    sta       <vmgraphics
+                    lbsr      GameTextInitialize
+                    tst       <pictureowned
+                    bne       GameGraphicsReady
+                    lbsr      GameCreateScreen
+                    lbcs      GameTextReturn
+GameGraphicsReady   lbsr      GameComposeScene
+                    lbcs      GameTextReturn
+                    lda       <presentationconfigured
+                    ora       #$C0
+                    sta       <presentationconfigured
+                    lbra      PresentPicture
+
 * clear.text.rect(top,left,bottom,right,color): inclusive cell bounds.
 GameClearTextRect   ldu       <resourcebase
                     leax      vmarguments,u
@@ -492,6 +524,8 @@ GameClearTextRect   ldu       <resourcebase
                     leay      textcharacters,u
                     leay      d,y
                     clra
+                    tst       <vmgraphics
+                    beq       GameRectRow
                     tst       4,x
                     beq       GameRectRow
                     lda       #$FF

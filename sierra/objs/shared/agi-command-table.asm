@@ -108,8 +108,8 @@
                     AGI_COMMAND cmd_display,$300,GameDisplayCommand,1 *display
                     AGI_COMMAND cmd_display_v,$3e0,GameDisplayCommand,1 *display v
                     AGI_COMMAND cmd_clear_lines,$300,GameClearLines,1 *clear lines
-                    AGI_COMMAND cmd_text_screen,$0000,VmPlatformUnsupported,0 *text screen
-                    AGI_COMMAND cmd_graphics,$0000,VmPlatformUnsupported,0 *graphics
+                    AGI_COMMAND cmd_text_screen,$0000,GameTextScreen,1 *text screen
+                    AGI_COMMAND cmd_graphics,$0000,GameGraphicsMode,1 *graphics
                     AGI_COMMAND cmd_set_cursor_char,$100,ScreenCommand,0 *set cursor char
                     AGI_COMMAND cmd_set_text_attribute,$200,ScreenCommand,0 *set text attribute
                     AGI_COMMAND cmd_shake_screen,$100,VmPlatformUnsupported,0 *shake screen

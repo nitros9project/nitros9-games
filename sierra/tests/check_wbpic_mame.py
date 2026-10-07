@@ -69,7 +69,10 @@ def main():
     parser.add_argument('--module-file', type=Path, help='optional diagnostic build of the selected module')
     parser.add_argument('--interpreter', action='store_true', help='exercise wbgame repeated logic cycles and keyboard-controller exit on both terminals')
     parser.add_argument('--picture-number', type=int, default=1)
+    parser.add_argument('--text-modes', action='store_true', help='Switch the second game terminal through text and graphics modes')
     args = parser.parse_args()
+    if args.text_modes and not args.interpreter:
+        parser.error('--text-modes requires --interpreter')
     if args.interpreter and not args.native_game:
         parser.error('--interpreter requires --native-game')
     mame, out = args.mame.resolve(), args.output.resolve()
@@ -124,9 +127,21 @@ def main():
             assert volume != 0, 'diagnostic logic occupies volume zero'
             for directory, number in [('bars-game', 1), ('game', args.picture_number)]:
                 body = bytes([111,0,23,0,3,0,number,24,0,25,0,26])
+                if args.text_modes:
+                    body += bytes([119,121,ord('t'),0,8,121,ord('g'),0,9])
                 script = bytes([121,ord('x'),0,7,255,7,11,255,len(body),0]) + body
+                if args.text_modes:
+                    text_body = bytes([119,109,15,7,106,103,0,0,1])
+                    graphics_body = bytes([109,15,0,107,119])
+                    for controller, part in ((8,text_body),(9,graphics_body)):
+                        script += bytes([255,12,controller,255,len(part),0]) + part
                 script += bytes([255,12,7,255,2,0,134,1,0])
                 payload = len(script).to_bytes(2,'little') + script
+                if args.text_modes:
+                    text = b'Text mode on this terminal.\0'
+                    cipher = b'Avis Durgan'
+                    encrypted = bytes(v ^ cipher[i%len(cipher)] for i,v in enumerate(text))
+                    payload += bytes([1]) + (4+len(text)).to_bytes(2,'little') + bytes([4,0]) + encrypted
                 install(directory + '-logDir', bytes(3), directory + '/logDir')
                 install(directory + '-logic', b'\x12\x34\0' + len(payload).to_bytes(2,'little') * 2 + payload, directory + '/vol.0')
             first_command, second_command = 'wbgame /s0/bars-game 0', 'wbgame /s0/game 0'
@@ -149,6 +164,10 @@ def main():
     shots = {1150: 'bars-initial', 1800: 'picture-initial', 2200: 'bars-restored',
              2500: 'picture-restored', 2850: 'picture-closed', 3200: 'bars-survives', 3750: 'both-closed',
              4200: 'bars-relaunch', 4800: 'picture-relaunch', 5500: 'bars-survives-again'}
+    if args.text_modes:
+        del commands[2600]
+        commands.update({2550:'t',2650:'g',2800:'x\n'})
+        shots.update({2625:'picture-text-mode',2775:'picture-graphics-mode'})
     factor = 2 if args.native_game else 1
     commands = {frame * factor: command for frame, command in commands.items()}
     switches = {frame * factor: direction for frame, direction in switches.items()}
@@ -204,6 +223,20 @@ end)
         expected = b''.join(expected[y * 1920:(y + 1) * 1920] * 2 for y in range(168))
         expected += colors[0] * (640 * (480 - 336))
         assert pixels == expected, f'{name}: real driver output differs from combined buffer'
+    if args.text_modes:
+        assert images['picture-graphics-mode'] == images['picture-initial'], 'graphics did not restore the game picture'
+        width,height,pixels = images['picture-text-mode']
+        wanted = bytearray(colors[7] * (width*400) + colors[0] * (width*(height-400)))
+        font = (VIEWER/'wbfont').read_bytes()
+        for column,char in enumerate(b'Text mode on this terminal.'):
+            for row in range(8):
+                for x in range(8):
+                    color = colors[15] if font[char*8+row] & (128>>x) else colors[7]
+                    for dy in range(2):
+                        for dx in range(2):
+                            offset = ((row*2+dy)*width+column*16+x*2+dx)*3
+                            wanted[offset:offset+3] = color
+        assert pixels == wanted, 'text mode colors/glyphs differ on the second terminal'
     memory = {}
     for name in ('free-before', 'free-after'):
         memory[name] = os9('list', f'{disk},{name}')

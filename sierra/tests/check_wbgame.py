@@ -22,7 +22,7 @@ def main():
         f'/game/vol.{volume}': (game / f'vol.{volume}').read_bytes(),
     }
     with tempfile.TemporaryDirectory(prefix='sierra-game-') as temp:
-        d, emulator = start_cpu(idle_rom(Path(temp) / 'idle.rom'), timeout=900)
+        d, emulator = start_cpu(idle_rom(Path(temp) / 'idle.rom'), timeout=1800)
         try:
             d.write(0xffdf, b'\0')
             d.write(0xff90, b'\x4c')
@@ -250,6 +250,51 @@ def main():
                         start = pixelrow*320 + left*8
                         cleared[start:pixelrow*320+(right+1)*8] = bytes([16 if color else 1]) * ((right-left+1)*8)
                 assert frame == cleared, ('clear.text.rect pixels', (top,left,bottom,right,color))
+            # Text/graphics mode preserves the combined game picture, clears
+            # text beyond the picture area on return, and remains stable over
+            # multiple logic cycles with input disabled.
+            for background in (0,1,7,15):
+                for mode in ('text', 'graphics', 'cycles', 'rectangle'):
+                    print('Checking text/graphics mode:', mode, background, flush=True)
+                    script = bytes([3,0,1,24,0,25,0,26,119,109,14,background])
+                    script += bytes([1,250,106,103,24,0,1])
+                    if mode == 'graphics':
+                        script += bytes([107,106,107])
+                    if mode == 'rectangle':
+                        script += bytes([154,24,0,24,0,15])
+                    if mode == 'cycles':
+                        script += bytes([255,1,250,3,255,2,0,134,1,0])
+                    else:
+                        script += bytes([134,1,0])
+                    logic = len(script).to_bytes(2,'little') + script
+                    logic += bytes([1]) + (4+len(message)).to_bytes(2,'little') + bytes([4,0]) + encrypted
+                    files = {'/game/logDir': b'\xff'*3 + bytes(3),
+                        '/game/vol.0': b'\x12\x34\0' + len(logic).to_bytes(2,'little')*2 + logic,
+                        '/game/picDir': (game/'picDir').read_bytes(),
+                        f'/game/vol.{volume}': (game/f'vol.{volume}').read_bytes()}
+                    error, frame, state = exercise(d, files, module='wbgame',
+                        base=0xa000,database=0x1000,window=0x8000,blocks=None,
+                        multiple=True,firstblock=0x10,frame_capture=True,capture=True)
+                    assert not error, (mode, background, error)
+                    if mode == 'graphics':
+                        wanted = bytearray([1])*76800
+                        for row in range(168):
+                            pixels = bytes(value for pixel in expected[row*160:(row+1)*160]
+                                           for value in [(pixel&15)+1]*2)
+                            wanted[(row+8)*320:(row+9)*320] = pixels
+                    else:
+                        wanted = bytearray([background+1])*64000 + bytearray([1])*12800
+                        for column, character in enumerate(message[:-1]):
+                            for row in range(8):
+                                bits = font[character*8+row]
+                                for pixel in range(8):
+                                    wanted[(24*8+row)*320+column*8+pixel] = (
+                                        15 if bits&(128>>pixel) else background+1)
+                    if mode == 'rectangle':
+                        for row in range(192,200):
+                            wanted[row*320:row*320+8] = bytes([1])*8
+                    assert frame == wanted, ('text/graphics mode pixels', mode, background)
+                    assert state['vmvariables'][250] == (3 if mode == 'cycles' else 1)
             # Inventory locations are private and names come from encrypted object data.
             raw_object = bytes([6,0,2,6,0,255,10,0,1]) + b'key\0coin\0'
             cipher = b'Avis Durgan'

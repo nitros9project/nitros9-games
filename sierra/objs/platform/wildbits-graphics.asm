@@ -1716,6 +1716,7 @@ PresentClearBitmap  equ       *
                     ifne      GAME_PRESENTATION
                     lda       <presentationconfigured
                     ora       #$80
+                    anda      #$BF       consume the graphics-mode clear request
                     sta       <presentationconfigured
                     lbsr      GameDamageAll
                     endc
@@ -1745,7 +1746,10 @@ clearbyte           sta       ,u+
                     cmpa      #10
                     blo       clearblock
                     ifne      GAME_PRESENTATION
-PresentReuseBitmap  clr       <presentoffset
+PresentReuseBitmap  lda       <presentationconfigured
+                    bita      #$40
+                    lbne      PresentClearBitmap
+                    clr       <presentoffset
                     clr       <presentoffset+1
                     clr       <presentband
 PresentBandNext     lda       <presentband

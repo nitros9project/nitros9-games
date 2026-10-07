@@ -128,7 +128,10 @@ GameDrainKeyboard   lbsr      GamePollKeyboard
 GameKeyboardDone    tst       <bitmapowned
                     beq       GameCycleSuccess
                     lbsr      ParserDrawInput
-                    lbsr      GameComposeScene
+                    tst       <vmgraphics
+                    bne       GameCycleGraphics
+                    lbra      GameDrawText
+GameCycleGraphics   lbsr      GameComposeScene
                     lbcs      GameCycleReturn
                     lbsr      PresentPicture
 GameCycleReturn     rts

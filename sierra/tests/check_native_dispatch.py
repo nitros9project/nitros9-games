@@ -19,6 +19,7 @@ GAME = {
     'GameMoveCommand': (81,82), 'GameClearLines': (105,), 'GameClearTextRect': (154,),
     'GameDisplayCommand': (103,104), 'GameQuitCommand': (134,),
     'GamePauseCommand': (136,), 'GameObjectVisibility': (35,36),
+    'GameTextScreen': (106,), 'GameGraphicsMode': (107,),
     'GameLoadPicture': (24,), 'GameDrawPicture': (25,),
     'GameShowPicture': (26,), 'GameDiscardPicture': (27,),
     'GameGetInput': (115,118), 'GameWordToString': (116,),
