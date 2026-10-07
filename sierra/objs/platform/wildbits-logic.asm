@@ -797,13 +797,16 @@ VmArgumentLoop      lda       <vmargindex
                     lbsr      VmFetchByte
                     lbcs      VmReturn
                     ldu       <resourcebase
+                    lda       <vmargindex
+                    cmpa      #42
+                    bhs       VmArgumentConsumed
                     leax      vmarguments,u
                     pshs      b
                     ldb       <vmargindex
                     abx
                     puls      b
                     stb       ,x
-                    inc       <vmargindex
+VmArgumentConsumed  inc       <vmargindex
                     bra       VmArgumentLoop
 VmArgumentsDone     clrb
                     rts

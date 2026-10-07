@@ -87,6 +87,36 @@ def check_state_validation(d):
     print('PASS: cold snapshot validation rejects malformed counts, colors, rows, glyphs and resource recipes without changing staged bytes or leaking its mapping')
 
 
+def check_bounded_said(d):
+    """Long predicates must consume their tail without retaining unreachable IDs."""
+    cases=[([],0,True),([123]*20,20,True),([123]*20+[1],20,False),
+           ([123]*20+[9999],20,True),([9999]+[123]*126,20,True),
+           ([123]*20+[9999]+[123]*106,20,True),([123]*127,20,False)]
+    replay=None
+    for words,parsed,expected in cases:
+        script=bytes([12,2,255,14,len(words)])
+        script+=b''.join(word.to_bytes(2,'little') for word in words)
+        script+=bytes([255,2,0,12,200,134,1,0])
+        payload=len(script).to_bytes(2,'little')+script
+        files={'/game/logDir':bytes(3),'/game/vol.0':b'\x12\x34\0'+len(payload).to_bytes(2,'little')*2+payload}
+        def parsed_words(cpu,regs,syms):
+            cpu.write(0x1000+syms['parsercount'],bytes([parsed]))
+            cpu.write(0x1000+syms['parserids'],b'\0\x7b'*parsed)
+        error,output,state=exercise(d,files,arguments=b'/game 0\r',module='wbgame',
+            base=0xa000,database=0x1000,window=0x8000,blocks=None,multiple=True,
+            firstblock=0x10,capture=True,breakpoint_hooks={'ParserSaid':parsed_words})
+        assert not error and not output,(len(words),error,output)
+        assert bool(state['vmflags'][200])==expected,(len(words),parsed,expected)
+        if replay is None:replay=state['replaybuffer']
+        assert state['replaybuffer']==replay,'said operands overwrote the next private buffer'
+    script=bytes([255,14,127])+b'\x7b\0'*21+bytes([255,0,0,134,1,0])
+    payload=len(script).to_bytes(2,'little')+script
+    files={'/game/logDir':bytes(3),'/game/vol.0':b'\x12\x34\0'+len(payload).to_bytes(2,'little')*2+payload}
+    error,output=exercise(d,files,arguments=b'/game 0\r',module='wbgame',base=0xa000,
+        database=0x1000,window=0x8000,blocks=None,multiple=True,firstblock=0x10)
+    assert error and not output,'truncated discarded predicate tail was accepted'
+    print('PASS: bounded said storage preserves 20 words plus a following wildcard, accepts complete 127-word predicates, rejects truncated tails and preserves the next private buffer')
+
 def main():
     game = ROOT / 'kingsquest1'
     commands, volume, offset = resource(game, 1)
@@ -107,6 +137,7 @@ def main():
             d.write(0xff90, b'\x4c')
             d.write(0xff91, b'\x01')
             d.write(0xffa8, bytes(range(8)))
+            check_bounded_said(d)
             check_state_transfers(d)
             check_state_validation(d)
             error, frame = exercise(d, files, module='wbgame', base=0xa000,

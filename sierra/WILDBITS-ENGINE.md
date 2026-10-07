@@ -1211,3 +1211,14 @@ The native game CPU suite and all 1,024 dispatch cases pass; every one of the
 182 decoded counts also matches the common catalog in game and probe builds.
 The lookup adds a few instructions per command and leaves rendering loops
 unchanged. This space is being recovered for the native audio frontend.
+
+The native operand workspace now retains 42 bytes rather than 255. Command
+operands fit this buffer. `said` still consumes and validates all up to 254
+operand bytes, retaining the first 21 word IDs: the parser has at most 20 input
+words, and matching can inspect one following rest-of-line wildcard before
+returning. Every later ID is unreachable by the matcher. This preserves long
+valid predicates and detects truncated discarded tails. Real-CPU boundary
+tests cover 20 matching words, a 21st ordinary/wildcard word, 127-word
+predicates with an early or following wildcard, and unchanged adjacent replay
+storage. The recovered 213 private bytes are reserved for the audio adapter;
+the total private allocation and the full font remain unchanged.

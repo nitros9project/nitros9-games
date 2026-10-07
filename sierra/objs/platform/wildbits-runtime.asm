@@ -74,7 +74,10 @@ messagebuffer       equ       assetinput
 vmgameid            rmb       8
 vmvariables         rmb       256
 vmflags             rmb       256
-vmarguments         rmb       255
+* At most 20 parsed words and a following rest-of-line wildcard are examined.
+* Larger said predicates still consume every operand; their unreachable tail
+* is not retained. Ordinary command operands fit this same 42-byte workspace.
+vmarguments         rmb       42
 replaybuffer        rmb       510
 menutitles          rmb       32
 menuentries         rmb       192
@@ -86,7 +89,7 @@ vmobjects           rmb       2752
 vmcache             rmb       448
 vmcallstack         rmb       128
 gamefont            rmb       1024
-                    rmb       512
+                    rmb       725
 size                equ       .
 * Stable save-field order; no paths, mapped pointers or physical handles.
 STATE_SCHEMA        macro
