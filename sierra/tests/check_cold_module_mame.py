@@ -121,10 +121,130 @@ message             fdb $1234
 eom                 equ *
 """
 
+
+# File operations execute only after the owner unlinks the copied module.
+# The destination remains untouched until a complete staged read validates.
+FILE_HELPER = r"""
+                    use os9.d
+                    mod eom,name,Sbrtn+Objct,ReEnt+1,start,0
+name                fcs /wbcold/
+start               leas -67,s
+                    leax filename,pcr
+                    os9 I$Delete
+                    bcc create
+                    cmpb #E$PNNF
+                    lbne fail
+create              lda #3
+                    ldb #3
+                    leax filename,pcr
+                    os9 I$Create
+                    lbcs fail
+                    sta ,s
+                    leax 3,s
+                    clrb
+fill                stb ,x+
+                    incb
+                    cmpb #32
+                    bne fill
+                    lda ,s
+                    leax 3,s
+                    ldy #32
+                    os9 I$Write
+                    lbcs closefail
+                    cmpy #32
+                    lbne shortio
+                    lda ,s
+                    os9 I$Close
+                    lbcs fail
+* Change live destination after saving to prove a real restore commit.
+                    leax 3,s
+                    ldb #32
+                    lda #$AA
+clear_live          sta ,x+
+                    decb
+                    bne clear_live
+                    lda #1
+                    leax filename,pcr
+                    os9 I$Open
+                    lbcs fail
+                    sta ,s
+* Read to a separate stage, then check before committing to destination.
+                    leax 35,s
+                    ldy #32
+                    os9 I$Read
+                    lbcs closefail
+                    cmpy #32
+                    lbne shortio
+                    lda ,s
+                    os9 I$Close
+                    lbcs fail
+                    leax 35,s
+                    clrb
+validate            cmpb ,x+
+                    lbne bad
+                    incb
+                    cmpb #32
+                    bne validate
+                    leax 35,s
+                    leay 3,s
+                    ldb #32
+commit              lda ,x+
+                    sta ,y+
+                    decb
+                    bne commit
+* A truncated read must be rejected; it must not change the destination.
+                    leax filename,pcr
+                    lda #1
+                    os9 I$Open
+                    lbcs fail
+                    sta ,s
+                    clrb
+                    ldx #0
+                    ldu #16
+                    os9 I$Seek
+                    lbcs closefail
+                    leax 35,s
+                    ldy #32
+                    lda ,s
+                    os9 I$Read
+                    lbcs closefail
+                    cmpy #16
+                    lbne shortio
+                    lda ,s
+                    os9 I$Close
+                    lbcs fail
+                    leax 3,s
+                    clrb
+unchanged           cmpb ,x+
+                    lbne bad
+                    incb
+                    cmpb #32
+                    bne unchanged
+                    ldd #$1234
+                    leas 67,s
+                    rts
+shortio             ldb #E$BMode
+closefail           stb 1,s
+                    lda ,s
+                    os9 I$Close
+                    ldb 1,s
+                    bra fail
+bad                 ldb #E$BMode
+fail                leas 67,s
+                    orcc #1
+                    rts
+filename            fcc +/s0/cold-state+
+                    fcb 13
+                    emod
+eom                 equ *
+"""
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     for name in ('mame', 'disk', 'firmware', 'output'):
         ap.add_argument('--'+name, type=Path, required=True)
+    ap.add_argument('--file-roundtrip', action='store_true',
+                    help='exercise staged file I/O from the unlinked cold helper')
     ap.add_argument('--lwasm', default='lwasm.orig')
     ap.add_argument('--os9', default='os9')
     a = ap.parse_args()
@@ -135,7 +255,8 @@ def main():
     private = int.from_bytes(production[11:13], 'big')
     assert production[:2] == b'\x87\xcd' and code == int.from_bytes(production[2:4], 'big')
     assert 16384 < code <= 23808 and 16384 < private <= 24576
-    for name, source in [('wbcoldprobe', OWNER), ('wbcold', HELPER)]:
+    owner = OWNER.replace('scratch             rmb 64', 'scratch             rmb 4096').replace('cmpd #64', 'cmpd #4096') if a.file_roundtrip else OWNER
+    for name, source in [('wbcoldprobe', owner), ('wbcold', FILE_HELPER if a.file_roundtrip else HELPER)]:
         asm = out/(name+'.asm')
         asm.write_text(source)
         command = [a.lwasm, '--6809', '--format=os9',
@@ -192,6 +313,11 @@ def main():
     assert result['result'].strip() == 'COLD-COPY-OK', result
     assert result['done'].strip() == 'COLD-DONE', result
     assert result['free-before'] == result['free-after'], result
+    if a.file_roundtrip:
+        saved = out/'cold-state.bin'
+        os9('copy', f'{disk},cold-state', saved)
+        assert saved.read_bytes() == bytes(range(32)), 'cold file payload differs'
+        print('PASS: cold file roundtrip, staged reads, truncated-read rejection and unchanged destination')
     print(f'PASS: {code}-byte owner/{private}-byte private area, two load/copy/unlink/execute cycles, $8000 mapping reuse and unchanged free memory')
 
 

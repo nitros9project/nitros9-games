@@ -1033,3 +1033,22 @@ and the vocabulary/parser suite. The original Larry MAME test passed its quiz,
 opening the door, entering Lefty's bar, displaying and dismissing its interior
 description, interrupt cleanup and unchanged free memory. No additional
 platform files or private buffers were introduced.
+
+### Staged cold-code file I/O
+
+The cold-module diagnostic now accepts `--file-roundtrip`. In this mode the
+private scratch area is 4,096 bytes, matching the game's available cold-code
+workspace. The owner loads a bounded helper, copies it there, unlinks it and
+executes it twice. The helper writes 32 binary bytes through public OS-9 file
+services, changes its live destination, reads into a separate stage, validates
+the entire stage, and then commits the restored bytes. A second read starting
+halfway through the file returns only 16 bytes and is rejected without changing
+the restored destination. The helper closes every opened path.
+
+MAME passed both helper invocations, subsequent `$8000` mapping reuse and
+identical free-memory reports at the 23,484-byte production code footprint and
+24,460-byte private allocation. The harness extracts the resulting file with
+binary `os9 copy`; `os9 list` transforms control bytes and cannot validate a
+binary save. This is an I/O prerequisite, not a game save format or a completed
+implementation of `save.game`/`restore.game`. No new runtime dependency is
+installed by this diagnostic.
