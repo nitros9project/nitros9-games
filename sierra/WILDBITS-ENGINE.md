@@ -1194,3 +1194,11 @@ correct room-transition check now present in `check_wbgame_mame.py --persistence
 The cold helper is 3,045 bytes of its 4,096-byte workspace. The main game is
 23,808 bytes and retains 24,460 bytes of private data. No new platform assembly
 file was added; the platform feature count remains 26.
+
+
+The complete original-game persistence harness now passes directly with its
+room-transition assertion and explicit post-restore modal response check:
+`/tmp/sierra-state-original-kq1-complete`. This confirms the corrected test itself,
+not only a host recheck of earlier screenshots. King's Quest I returns to the
+saved castle position, accepts `look room`, exits on Ctrl-C and recovers the
+initial free-memory map.

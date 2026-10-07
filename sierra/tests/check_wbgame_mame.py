@@ -445,6 +445,8 @@ end)
             centers.append((min(shirt)+max(shirt))/2)
         assert abs(centers[1]-centers[0])>8,('game did not change position before restore',centers)
         assert abs(centers[2]-centers[0])<=4 and abs(centers[3]-centers[0])<=4,('restore did not recover position',centers)
+        response=png_rgb(out/'restore-response.png')[2]
+        assert set(response[i:i+3] for i in range(0,len(response),3))=={bytes(3),bytes([255])*3}, 'look response after restore missing'
         saved=out/'kqsave.bin';os9('copy',f'{disk},kqsave',saved)
         data=saved.read_bytes()
         assert data[:3]==b'WS\x01' and len(data)==18+int.from_bytes(data[4:6],'big')
