@@ -137,16 +137,36 @@ AGI_TEST            macro
 NATIVE_COMMAND_TABLE_MODE set 0
 NATIVE_COUNT_PAIR    set 0
 NATIVE_COUNT_HIGH    set 0
+NATIVE_ROUTE        macro
+                    ifeq NATIVE_COMMAND_TABLE_MODE-3
+NativeRoute\1       set -1
+NativeRouteEmitted\1 set 0
+                    else
+                    ifeq NATIVE_COMMAND_TABLE_MODE-1
+                    ifeq NativeRoute\1+1
+NativeRoute\1       set NATIVE_ROUTE_COUNT
+NATIVE_ROUTE_COUNT  set NATIVE_ROUTE_COUNT+1
+                    endc
+                    fcb NativeRoute\1
+                    else
+                    ifeq NativeRouteEmitted\1
+NativeRouteEmitted\1 set 1
+                    fdb \1-VmPlatformRouteTable
+                    endc
+                    endc
+                    endc
+                    endm
+NATIVE_ROUTE_COUNT  set 0
 AGI_COMMAND         macro
                     ifne NATIVE_COMMAND_TABLE_MODE
                     ifne \4
                     ifne GAME_PRESENTATION
-                    fdb       \3-VmPlatformCommandTable
+                    NATIVE_ROUTE \3
                     else
-                    fdb       VmPlatformUnsupported-VmPlatformCommandTable
+                    NATIVE_ROUTE VmPlatformUnsupported
                     endc
                     else
-                    fdb       \3-VmPlatformCommandTable
+                    NATIVE_ROUTE \3
                     endc
                     else
                     ifeq NATIVE_COUNT_PAIR

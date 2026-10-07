@@ -51,7 +51,7 @@ def start_cpu(bootrom, timeout=300):
     raise RuntimeError('XRoar debugger did not attach after four fresh starts')
 
 
-def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zero_read=False, seek_error=False, write_error=False, module='wbres', map_failure=0, allocation_error=False, unmap_error=False, window=0x8000, terminal=True, blocks=4, capture=False, multiple=False, firstblock=0x30, frame_capture=False, keyboard=b'', clock=(0,), bitmap_error=False, key_sense=0, cycle_limit=None, os_call_limit=20000, keyboard_by_cycle=None, option_set_error=False, resource_kind=None, module_root=None, breakpoint_hooks=None):
+def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zero_read=False, seek_error=False, write_error=False, module='wbres', map_failure=0, allocation_error=False, unmap_error=False, window=0x8000, terminal=True, blocks=4, capture=False, multiple=False, firstblock=0x30, frame_capture=False, keyboard=b'', clock=(0,), bitmap_error=False, key_sense=0, cycle_limit=None, os_call_limit=20000, keyboard_by_cycle=None, option_set_error=False, resource_kind=None, module_root=None, breakpoint_hooks=None, psg=None):
     if module == 'wbgame':
         files = {'wbfont': (ROOT / 'wbfont').read_bytes(), **files}
     module_root = Path(module_root) if module_root is not None else ROOT
@@ -62,11 +62,15 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
     code = (module_root / module).read_bytes()
     assert base+len(code)<=0xfe00, 'CPU fixture code overlaps the CoCo I/O page; relocate its load address'
     d.write(base, code)
-    argv = database + syms['size'] - 160
+    # Kernel parameter/stack space occupies the top of the allocated 8 KB banks.
+    # Keep it above permanent private code rather than assuming a 256-byte pad
+    # inside the module's declared data area.
+    private_end = database + ((syms['size'] + 8191)//8192)*8192
+    argv = private_end - len(arguments) - 16
     d.write(argv, arguments)
     for address in calls:
         d.breakpoint(address)
-    d.regs(pc=base + syms['start'], s=database + syms['size'] - 256,
+    d.regs(pc=base + syms['start'], s=argv - 16,
            dp=database >> 8, u=database, x=argv, cc=0x50)
     hooks = {base+syms[name]:callback for name,callback in (breakpoint_hooks or {}).items()}
     for address in hooks: d.breakpoint(address)
@@ -93,6 +97,24 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
     original_options[syms.get('PD.QUT',0)-syms.get('PD.OPT',0)]=27
     options=original_options[:]
     options_failed=False
+    cold_loaded=False
+    audio_path=None
+    audio_claimed=False
+    audio_packets=[]
+    audio_current_packets=[]
+    audio_mode=0
+    audio_polls=0
+    audio_end_cycle=None
+    private_calls={}
+    if module=='wbgame' and 'wbstate' in files:
+        cold_syms=symbols(module_root/'wbstate.map')
+        blob_start=cold_syms['AudioBlobStart']; blob_end=cold_syms['AudioBlobEnd']
+        private_calls={database+syms['soundcode']+int(m[1],16)-blob_start:int(m[2],16)
+            for m in re.finditer(r'^([0-9A-F]{4}) 103F([0-9A-F]{2}).*os9',
+                (module_root/'wbstate.list').read_text(),re.M)
+            if blob_start<=int(m[1],16)<blob_end}
+        calls.update(private_calls)
+        for address in private_calls:d.breakpoint(address)
 
     for _ in range(os_call_limit):
         d.call('c')
@@ -114,6 +136,10 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
         updates = {'pc': r['pc'] + 3, 'cc': r['cc'] & ~1}
         if service == syms['F$Exit']:
             assert not paths, f'leaked file paths: {paths}'
+            assert not cold_loaded and not audio_claimed, 'leaked cold module/audio ownership'
+            if private_calls and d.read(database+syms['soundinstalled'],1)==b'\x01':
+                expected=files['wbstate'][blob_start:blob_end]
+                assert d.read(database+syms['soundcode'],len(expected))==expected, 'private audio code overwritten by the game stack or buffers'
             assert options==original_options, 'terminal options were not restored'
             assert not mapped and not owned, 'leaked picture allocation/mapping'
             assert d.read(base, len(code)) == code, 'native module modified its code/tables'
@@ -124,11 +150,47 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
                 for name, length in [('replayused',2),('replaybuffer',510)]:
                     if name in syms:
                         state[name]=d.read(database+syms[name],length)
+                state['audio_packets']=audio_packets
+                state['audio_polls']=audio_polls
                 state['map_calls']=maps
                 state['map_sites']=map_sites
                 state['file_reads']=file_reads
                 return r['b'], bytes(frame if frame_capture else output), state
             return r['b'], bytes(frame if frame_capture else output)
+        elif service == syms.get('F$Load'):
+            assert not mapped and not cold_loaded
+            name=d.read(r['x'],16).split(b'\r')[0].decode()
+            if name not in files:
+                updates.update(cc=r['cc']|1,b=syms['E$PNNF'])
+            else:
+                image=files[name];cold_base=0x9000
+                d.write(cold_base,image)
+                entry=int.from_bytes(image[9:11],'big')
+                updates.update(u=cold_base,y=cold_base+entry)
+                cold_loaded=True
+        elif service == syms.get('F$UnLink'):
+            assert cold_loaded and r['u']==0x9000
+            cold_loaded=False
+        elif service == syms['I$GetStt'] and r['b']==0xc5:
+            assert psg is not None and r['a']==audio_path and not mapped
+            audio_polls+=1
+            ended=[any(packet[0]==channel and packet[1:3]==b'\xff\xff'
+                for packet in audio_current_packets) for channel in range(4)]
+            if all(ended) and audio_end_cycle is None:audio_end_cycle=cycles
+            finished=audio_end_cycle is not None and cycles>audio_end_cycle
+            available=sum(1<<channel for channel in range(4) if not ended[channel])
+            updates.update(x=psg.get('version',4),u=(0 if finished else 0x10|available) if r['x']==1 else audio_polls)
+        elif service == syms['I$SetStt'] and r['b']==0xc5:
+            assert psg is not None and r['a']==audio_path and not mapped
+            if r['x']==1:
+                if psg.get('busy') or psg.get('busy_attempts',0)>0:
+                    if psg.get('busy_attempts',0)>0:psg['busy_attempts']-=1
+                    updates.update(cc=r['cc']|1,b=syms['E$DevBsy'])
+                else:audio_claimed=True
+            else:
+                assert audio_claimed and r['x'] in (4,5)
+                audio_mode=r['x']
+                if audio_mode==4:audio_current_packets.clear();audio_end_cycle=None
         elif service == syms.get('F$Time'):
             assert not mapped
             if clock:
@@ -214,7 +276,12 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
                 mapped = False
         elif service == syms['I$Open']:
             name = d.read(r['x'], 160).split(b'\r')[0].decode()
-            if name not in files:
+            if name=='/fPSG' and psg is not None:
+                assert not cold_loaded, 'private adapter ran before the cold module was unlinked'
+                audio_path=nextpath
+                paths[nextpath]=[b'',0];path_names[nextpath]=name
+                updates['a']=nextpath;nextpath+=1
+            elif name not in files:
                 updates.update(cc=r['cc'] | 1, b=syms['E$PNNF'])
             else:
                 paths[nextpath] = [files[name], 0]
@@ -246,8 +313,18 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
                 paths[r['a']][1] += count
                 updates['y'] = count
         elif service == syms['I$Close']:
+            if r['a']==audio_path:
+                audio_claimed=False;audio_path=None
+                audio_end_cycle=None
             del paths[r['a']]
             del path_names[r['a']]
+        elif service == syms['I$Write'] and r['a']==audio_path:
+            assert audio_claimed and audio_mode==5 and not mapped and r['y']==6
+            packet=d.read(r['x'],6)
+            if packet[0]&128 and (packet[1]>=60 or packet[2]>63 or not 0<int.from_bytes(packet[3:5],'big')<65535 or packet[5]):
+                updates.update(cc=r['cc']|1,b=syms['E$IllArg'])
+            else:
+                audio_packets.append(packet);audio_current_packets.append(packet);updates['y']=6
         elif service == syms['I$Write']:
             assert not paths, 'output before complete resource validation/close'
             assert not mapped, 'file write with foreign mapping live'
@@ -260,7 +337,7 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
         else:
             assert service in (syms['I$WritLn'], syms['F$Icpt']), (service, r)  # usage text stays on stderr
         d.regs(**updates)
-    raise AssertionError(f'probe did not exit after {cycles} sleep calls; opcode=' + d.read(database + syms.get('vmopcode', 0), 1).hex())
+    raise AssertionError(f'probe did not exit after {cycles} sleep calls; opcode=' + d.read(database + syms.get('vmopcode', 0), 1).hex() + f'; audio={audio_packets}; polls={audio_polls}; flags=' + d.read(database+syms.get('vmflags',0),256).hex() + '; sound=' + d.read(database+syms.get('soundpath',0),14).hex())
 
 
 def fixture(payload=b'\xf0\x00\xff', number=1, volume=1, offset=32, header=None):

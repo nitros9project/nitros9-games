@@ -142,7 +142,9 @@ GamePrintCopyBack   ldd       ,x++
 * State entry is a phase-local alias: no formatter runs between validated
 * staging and root-stack unwind. Both persistent text planes end before it.
 stateentry          equ       textpointer
-GameStateCommand    ldu       <resourcebase
+GameStateCommand    lbsr      GameSoundStop
+                    lbcs      GameStateReturn
+                    ldu       <resourcebase
                     lda       #1
                     sta       dialoginputmode,u
                     ldd       #$0A02
@@ -156,35 +158,13 @@ GameStateCommand    ldu       <resourcebase
                     ldu       <resourcebase
                     clr       dialoginputmode,u
                     tst       parserlength,u
-                    lbeq      GameStateSuccess
-                    lbsr      AssetUnmap
-                    lbcs      GameStateReturn
+                    beq      GameStateSuccess
                     lbsr      PictureUnmap
                     lbcs      GameStateReturn
                     ldu       <resourcebase
                     pshs      u
-                    leax      StateModule,pcr
-                    lda       #Sbrtn+Objct
-                    os9       F$Load
+                    lbsr      StateLoadModule
                     bcs       StateLoadReturn
-                    ldd       M$Size,u
-                    cmpd      #4096
-                    bhi       StateLoadBad
-                    ldd       M$Exec,u
-                    cmpd      #13
-                    blo       StateLoadBad
-                    addd      #13       branch, private ABI and CRC must fit
-                    bcs       StateLoadBad
-                    cmpd      M$Size,u
-                    bhi       StateLoadBad
-                    leay      2,y
-                    leax      StateSignature,pcr
-                    ldb       #8
-StateCheckABI       lda       ,x+
-                    cmpa      ,y+
-                    bne       StateLoadBad
-                    decb
-                    bne       StateCheckABI
                     ldx       ,s
                     ldd       M$Exec,u
                     addd      #fillstack
@@ -206,10 +186,6 @@ StateLoadReturn     puls      u
                     lda       <vmopcode
                     suba      #125
                     bra       GameStateInvoke
-StateLoadBad        os9       F$UnLink
-                    ldb       #E$BMode
-                    orcc      #1
-                    bra       StateLoadReturn
 GameStateApply      lda       #2
 GameStateInvoke     pshs      a
                     ldu       <resourcebase
@@ -240,6 +216,41 @@ StatePrompt         fcc       /File:/
                     fcb       0
 StateFailure        fcc       /File error./
                     fcb       0
+* Shared, bounded cold-image loader. Success leaves U=module, X=metadata
+* immediately after the eight-byte private ABI. No image is copied here.
+StateLoadModule     pshs      u
+                    lbsr      AssetUnmap
+                    bcs       StateModuleFailure
+                    leax      StateModule,pcr
+                    lda       #Sbrtn+Objct
+                    os9       F$Load
+                    bcs       StateModuleFailure
+                    ldd       M$Size,u
+                    cmpd      #4096
+                    bhi       StateLoadBad
+                    ldd       M$Exec,u
+                    cmpd      #13
+                    blo       StateLoadBad
+                    addd      #17       branch, private ABI and CRC must fit
+                    bcs       StateLoadBad
+                    cmpd      M$Size,u
+                    bhi       StateLoadBad
+                    leay      2,y
+                    leax      StateSignature,pcr
+                    ldb       #8
+StateCheckABI       lda       ,x+
+                    cmpa      ,y+
+                    bne       StateLoadBad
+                    decb
+                    bne       StateCheckABI
+                    tfr       y,x       validated metadata follows the ABI
+                    leas      2,s
+                    clrb
+                    rts
+StateLoadBad        os9       F$UnLink
+                    ldb       #E$BMode
+                    orcc      #1
+StateModuleFailure  puls      u,pc
 StateModule         fcc       /wbstate/
                     fcb       C$CR
 StateSignature      STATE_ABI
@@ -707,7 +718,8 @@ InventoryLoadNames  lbsr      AssetUnmap
                     lbcs      InventoryReturn
                     lbsr      PictureUnmap
                     lbcs      InventoryReturn
-                    ldy       <resourcenameend
+                    ldu       <resourcebase
+                    ldy       resourcenameend,u
                     leax      InventoryFilename,pcr
                     lbsr      ResourceSuffix
                     lbsr      OpenPicturePath
@@ -1026,7 +1038,7 @@ InventoryReadKey    ldu       <resourcebase
                     cmpa      #3
                     lbeq      InventoryCancel
                     cmpa      #13
-                    lbeq      InventoryChoose
+                    beq      InventoryChoose
                     ldd       inventoryvisible,u
                     beq      InventoryWait
                     lda       inventorykey,u
@@ -1829,7 +1841,7 @@ TextFastNextCell    ldd       textindex,x
                     inc       textcolumn,x
                     lda       textcolumn,x
                     cmpa      textlastcolumn,x
-                    lbls      TextFastCell
+                    bls      TextFastCell
                     leay      rowoutput,x
                     sty       textfontpointer,x
                     lda       textrow,x
@@ -2197,7 +2209,7 @@ ParserSaveLine      lda       ,x+
                     clr       vmflags+2,u
                     clr       vmflags+4,u
                     clr       vmvariables+9,u
-                    ldy       <resourcenameend
+                    ldy       resourcenameend,u
                     leax      ParserFilename,pcr
                     lbsr      ResourceSuffix
                     lbsr      OpenPicturePath
@@ -2382,7 +2394,7 @@ ParserSuffixByte
                     lbsr      ParserByte
                     bcs      ParserTruncated
                     lbsr      ParserByte
-                    lbcs      ParserTruncated
+                    bcs      ParserTruncated
                     lda       parserword,u
                     ldb       #2
                     mul
@@ -2390,7 +2402,7 @@ ParserSuffixByte
                     leax      d,x
                     ldd       ,x
                     cmpd      #$FFFF
-                    lbne      DictionaryValidateEntry
+                    bne      DictionaryValidateEntry
                     ldd       parserbestid,u
                     std       ,x
                     lbra      DictionaryValidateEntry

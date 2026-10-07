@@ -58,7 +58,8 @@ GameInitialize      lbsr      ParserInitialize
                     ldu       <resourcebase
                     ldd       #$ACE1
                     std       gamerandom,u
-                    clr       gamesoundwarned,u
+                    clr       soundinstalled,u
+                    clr       <soundpath
                     clr       inventoryloaded,u
                     clr       gameblockenabled,u
                     clr       gamequit,u
@@ -67,7 +68,7 @@ GameInitialize      lbsr      ParserInitialize
                     sta       gameclocklast,u
                     lda       #1
                     sta       vmflags+5,u
-                    clr       vmflags+9,u     no owned multi-terminal audio service yet
+                    sta       vmflags+9,u     owned queued audio; unavailable service disables it
                     sta       vmflags+11,u
                     sta       vmvariables+22,u     three-channel sound model
                     lda       #3
@@ -84,6 +85,8 @@ GameInitialize      lbsr      ParserInitialize
 GameNextCycle       lbsr      AssetUnmap
                     lbcs      GameCycleReturn
                     lbsr      PictureUnmap
+                    lbcs      GameCycleReturn
+                    lbsr      GameSoundTick
                     lbcs      GameCycleReturn
                     ldu       <resourcebase
                     tst       gamequit,u
@@ -353,7 +356,7 @@ gameclockdelta      rmb      1
 gameclockreset      rmb      1
 gamecleanup         rmb      1
 gametime            rmb      6
-gamesoundwarned      rmb      1
+soundinstalled      rmb      1
 gamerandom          rmb      2
 gamekeybudget       rmb      1
 gamekeypending      rmb      1

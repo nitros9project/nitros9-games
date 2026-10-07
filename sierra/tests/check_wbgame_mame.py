@@ -22,6 +22,7 @@ def main():
     ap.add_argument('--larry-pair',type=Path,help="Run Larry and this King's Quest I directory on two terminals")
     ap.add_argument('--expanded-krnp2',type=Path,help='Install an emulator-only expanded-memory Jr2 kernel in the private test image')
     ap.add_argument('--sol-driver',type=Path,help='Install a verified shared raster-clock driver in the private test image')
+    ap.add_argument('--audio-trace',action='store_true',help='Require owned PSG hardware writes during real game startup')
     ap.add_argument('--profile',action='store_true',help='Profile production Larry phase boundaries during its movement window')
     a=ap.parse_args(); out=a.output.resolve(); out.mkdir(parents=True,exist_ok=False)
     if a.profile and (not a.larry or a.module_file):ap.error('--profile requires --larry and the production module/map')
@@ -286,10 +287,34 @@ end)
         source='local cpu=manager.machine.devices[":maincpu"]\nmanager.machine.debugger.execution_state="run"\n'+source
         source=source.replace(' frames=frames+1',' frames=frames+1\n'+'\n'.join(events),1)
         lua.write_text(source)
+    if a.audio_trace:
+        syms=symbols(VIEWER/'wbgame.map');code=(VIEWER/'wbgame').read_bytes()
+        base=(8-(len(code)+8191)//8192)*8192
+        condition=f'w@{base:x} == 87cd && w@{base+2:x} == {len(code):x}'
+        action=f'printf "AUDIO COMMAND %d %d %d",b@{syms["vmopcode"]:x},b@(u+{syms["vmarguments"]:x}),b@(u+{syms["vmarguments"]+1:x}); g'
+        events=[' if frames==950 then',
+            f'  cpu.debug:bpset({base+syms["GameSoundCommand"]},{json.dumps(condition)},{json.dumps(action)})',
+            '  cpu.debug:wpset(cpu.spaces["program"],"w",0x4200,1,"b@1a != 0 && ((b@pc == f7 && w@(pc+1) == 4200) || (b@(pc-3) == f7 && w@(pc-2) == 4200))",\'printf "AUDIO PSG %02X OWNER %02X",wpdata,b@1a; g\')',
+            ' end']
+        for label in ('GameSoundLoad','SoundLoadReturn','SoundOffline','GameSoundSet'):
+            event=f'printf "AUDIO {label} B=%02X CC=%02X FLAG9=%02X PATH=%02X X=%04X",b,cc,b@{syms["vmflags"]+9:x},b@{syms["soundpath"]:x},x; g'
+            events.insert(-1,f'  cpu.debug:bpset({base+syms[label]},{json.dumps(condition)},{json.dumps(event)})')
+        source=lua.read_text()
+        source=source.replace(' frames=frames+1',' frames=frames+1\n'+'\n'.join(events),1)
+        source='local cpu=manager.machine.devices[":maincpu"]\nmanager.machine.debugger.execution_state="run"\naudio_stop=emu.add_machine_stop_notifier(function() local log=manager.machine.debugger.consolelog;for index=1,#log do if log[index] then print(log[index]) end end end)\n'+source
+        lua.write_text(source)
     command=[str(a.mame.resolve()),'wbjr2','-bios','turbo','-rompath',str(roms.parent),'-hard',str(disk),'-skip_gameinfo', '-noui_mouse', '-mouseprovider', 'none','-video','none','-sound','none','-nothrottle','-autoboot_script',str(lua),'-seconds_to_run',str(420 if a.larry_pair else (5100+delay+(1200 if a.larry or a.larry_enter else 0))//60+10 if a.typed_command or a.menu or a.sustained or a.movement or a.persistence or a.larry or a.larry_enter else 100),'-nvram_directory',str(out/'nvram'),'-cfg_directory',str(out/'cfg')]
-    if a.profile:command+=['-debug','-debugger','none']
+    if a.profile or a.audio_trace:command+=['-debug','-debugger','none']
     (out/'command.json').write_text(json.dumps(command,indent=2)+'\n')
     with (out/'mame.log').open('w') as log:subprocess.run(command,cwd=out,stdout=log,stderr=subprocess.STDOUT,check=True,timeout=360 if a.larry_pair else 300 if a.larry or a.larry_enter else 180)
+    if a.audio_trace:
+        log=(out/'mame.log').read_text(errors='replace')
+        writes=[(int(value,16),int(owner,16)) for value,owner in re.findall(r'AUDIO PSG ([0-9A-F]{2}) OWNER ([0-9A-F]{2})',log)]
+        assert writes and all(owner for value,owner in writes), 'no process-owned PSG writes observed'
+        assert any(value&0x90==0x90 and value&15!=15 for value,owner in writes), 'only mute writes observed'
+        assert re.search(r'AUDIO COMMAND 99 ',log), 'no native AGI sound command observed'
+        (out/'audio-writes.json').write_text(json.dumps(writes)+'\n')
+        print('PASS: native AGI sound reaches real process-owned PSG registers; writes',len(writes))
     if a.profile:
         log=(out/'mame.log').read_text()
         rows=[(label,int(cycles)) for label,cycles in re.findall(r'PROFILE (\w+) (\d+)',log)]

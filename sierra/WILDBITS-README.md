@@ -7,8 +7,8 @@ inventory and menus. Its platform code and state are grouped by feature in
 algorithms live in `objs/shared`. See
 [the platform layout](objs/platform/README.md) for the feature map. The older `objs/wildbits_engine.asm` scaffold is not built.
 
-Build with `make -C sierra/objs -f wildbits.mk all` from the games repository. Install both
-`wbgame`, `wbfont`, and the optional `wbstate` save/restore helper in the OS-9
+Build with `make -C sierra/objs -f wildbits.mk all` from the games repository. Install
+`wbgame`, `wbfont`, and the optional `wbstate` audio/save/restore helper in the OS-9
 execution directory, with read/execute access.
 Keep the original game resources together in a readable directory, then run:
 
@@ -25,14 +25,17 @@ The game's Save and Restore commands ask for a filename (for example,
 `/s0/my-save`). Save creates a new file; choose a new name for each save rather
 than overwriting an existing file. Restore checks the complete file before
 replacing game resources. Files belong to this native port and must match the
-current game's ID. The `wbstate` helper loads only for these commands; it adds
-no permanent process data or normal movement work. A pictured snapshot needs
+current game's ID. The `wbstate` helper loads for these commands and to install a private audio
+adapter on the first enabled sound request. It adds no normal movement work. A pictured snapshot needs
 five temporary 8 KiB blocks during validation, so available OS-9 memory matters
 when several games are running. A read/validation error leaves the game running;
 a resource reconstruction failure exits through cleanup.
 
 This is an **interactive early build**, not a complete AGI compatibility claim.
-Audio, some later-game commands and timing optimizations remain.
+Owned queued audio is available with version 4 of `PSGdrv`; the standard
+older driver falls back to silent completion. Install the matching driver and
+`fPSG` descriptor in OS9Boot. Later-game commands, complete sound compatibility
+and further timing improvements remain.
 Do not infer that the entire adventure can be completed from the tested route.
 See [MAME.md](WILDBITS-MAME.md) for exact driver tests and [ENGINE.md](WILDBITS-ENGINE.md) for
 ownership, buffer aliases and shared-source boundaries.
@@ -67,7 +70,7 @@ emulator/driver versions.
 
 ## Build and run
 
-From this directory, with lwasm on PATH:
+From the games repository directory, with lwasm on PATH:
 
 ```sh
 make -C sierra/objs -f wildbits.mk NITROS9DIR=/path/to/nitros9
@@ -657,3 +660,7 @@ comparison. `check_wbsprite_damage.py` verifies moved/erased sprites, page
 boundaries, clipping, offscreen positions and the large-cel fallback.
 The native pixel/motion, modal/editor, credits and real-game room-route tests
 also passed. Save/restore, sound and full adventure completeness remain open.
+
+The current audio implementation and verification are described under
+[Owned, queued native sound](WILDBITS-ENGINE.md#owned-queued-native-sound). Older
+sound-disabled entries below record earlier implementation stages.

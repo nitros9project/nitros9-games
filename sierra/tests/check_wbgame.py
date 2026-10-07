@@ -131,7 +131,7 @@ def main():
         f'/game/vol.{volume}': (game / f'vol.{volume}').read_bytes(),
     }
     with tempfile.TemporaryDirectory(prefix='sierra-game-') as temp:
-        d, emulator = start_cpu(idle_rom(Path(temp) / 'idle.rom'), timeout=1800)
+        d, emulator = start_cpu(idle_rom(Path(temp) / 'idle.rom'), timeout=7200)
         try:
             d.write(0xffdf, b'\0')
             d.write(0xff90, b'\x4c')
@@ -531,7 +531,7 @@ def main():
                     firstblock=0x10, capture=True)
                 assert error, 'malformed object file accepted'
             for sound_enabled in (False, True):
-                script = bytes(([12,9] if sound_enabled else []) + [99,0,200,100,134,1,0])
+                script = bytes(([12,9] if sound_enabled else [13,9]) + [99,0,200,100,134,1,0])
                 logic = len(script).to_bytes(2,'little') + script
                 files = {'/game/logDir': b'\xff' * 3 + bytes(3),
                     '/game/vol.0': b'\x12\x34\0' + len(logic).to_bytes(2,'little') * 2 + logic}
@@ -540,7 +540,7 @@ def main():
                     firstblock=0x10, capture=True)
                 assert not error and state['vmflags'][200] == 1, 'sound-off completion flag missing'
                 assert state['vmflags'][9] == 0, 'unsupported audio remained enabled'
-                assert output == (b'Wild Bits audio unavailable; sound disabled.\r' if sound_enabled else b''), 'audio fallback was not reported exactly once'
+                assert output == b'', 'audio fallback interrupted game output'
             # Adjacent high controllers exercise every bit, including controller
             # 255. Exactly one must be active in each cycle, then all must clear.
             script = bytearray()

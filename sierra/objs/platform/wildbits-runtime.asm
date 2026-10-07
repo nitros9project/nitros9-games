@@ -16,6 +16,8 @@ argdirectory        rmb       2
 argnumber           rmb       2
 argdigit            rmb       1
                     use platform/sections.d
+PLATFORM_SECTION    set PLATFORM_WILDBITS_SOUND_DATA
+                    use platform/wildbits-audio.asm
 PLATFORM_SECTION    set PLATFORM_WILDBITS_ASSET_DATA
                     use platform/wildbits-memory-resources.asm
 PLATFORM_SECTION    set PLATFORM_WILDBITS_LZW_DATA
@@ -89,7 +91,9 @@ vmobjects           rmb       2752
 vmcache             rmb       448
 vmcallstack         rmb       128
 gamefont            rmb       1024
-                    rmb       725
+soundcalls          rmb       24
+soundcode           rmb       432
+                    rmb       255
 size                equ       .
 * Stable save-field order; no paths, mapped pointers or physical handles.
 STATE_SCHEMA        macro
@@ -115,7 +119,7 @@ STATE_HASH_FIELD    macro
                     endm
                     STATE_SCHEMA STATE_HASH_FIELD
 * Immutable field expressions avoid ambiguous forward references to SET symbols.
-StateLayoutHash     equ       (SavedVariablesLayoutHash+SavedStringsLayoutHash+SavedObjectsLayoutHash+SavedInventoryLayoutHash+SavedInventoryControlLayoutHash+SavedKeysLayoutHash+SavedKeyCountLayoutHash+SavedMenusLayoutHash+SavedMenuControlLayoutHash+SavedScreenLayoutHash+SavedPlayerLayoutHash+SavedBlockLayoutHash+SavedRandomLayoutHash+SavedReplayLayoutHash+SavedReplayBufferLayoutHash+SavedTextLayoutHash+resourcebase+assetfirst*3+picturefirst*5+gamebackgroundfirst*7+vmip*11+vmcache*13+textpointer*17)&$FFFFFFFF
+StateLayoutHash     equ       (SavedVariablesLayoutHash+SavedStringsLayoutHash+SavedObjectsLayoutHash+SavedInventoryLayoutHash+SavedInventoryControlLayoutHash+SavedKeysLayoutHash+SavedKeyCountLayoutHash+SavedMenusLayoutHash+SavedMenuControlLayoutHash+SavedScreenLayoutHash+SavedPlayerLayoutHash+SavedBlockLayoutHash+SavedRandomLayoutHash+SavedReplayLayoutHash+SavedReplayBufferLayoutHash+SavedTextLayoutHash+resourcebase+assetfirst*3+picturefirst*5+gamebackgroundfirst*7+vmip*11+vmcache*13+textpointer*17+soundcalls*19+soundcode*23+432*29+4*31)&$FFFFFFFF
 STATE_ABI           macro
                     fdb       1,size,StateLayoutHash>>16,StateLayoutHash&$FFFF
                     endm
@@ -246,3 +250,10 @@ help                fcc       /Usage: wbgame game-directory logic-number/
                     emod
 eom                 equ       *
                     endc      WILDBITS_LAYOUT_ONLY
+                    ifp2
+                    ifeq WILDBITS_LAYOUT_ONLY
+                    ifgt eom-23808
+                    error Native game exceeds the resident code limit
+                    endc
+                    endc
+                    endc

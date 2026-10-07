@@ -815,7 +815,13 @@ GameExitMappingsReady lbsr    GameClockClose
                     bne       GameClockExitRetry
                     stb       ,s
 GameClockExitRetry  lbsr      GameClockClose
-GameClockExitDone   puls      b
+GameClockExitDone   lbsr      GameSoundStop
+                    bcc       GameSoundExitDone
+                    tst       ,s
+                    bne       GameSoundExitRetry
+                    stb       ,s
+GameSoundExitRetry  lbsr      GameSoundStop
+GameSoundExitDone   puls      b
                     endc
                     ifne      AGI_ASSET
                     stb       <assetexiterror
@@ -906,7 +912,7 @@ ResourceLocate      equ       *
 LoadPicture         equ       *
                     endc
                     stu       <resourcebase
-                    sty       <resourcenumber
+                    sty       resourcenumber,u
                     clr       <resourceopen
                     cmpy      #255
                     lbhi      ResourceArgument
@@ -932,7 +938,7 @@ ResourceDirEnd      leax      resourcefilename,u
                     beq       ResourceDirSlash
                     lda       #'/
                     sta       ,y+
-ResourceDirSlash    sty       <resourcenameend
+ResourceDirSlash    sty       resourcenameend,u
                     ifne      AGI_ASSET
                     ldb       <resourcekind
                     cmpb      #3
@@ -947,7 +953,7 @@ ResourceDirSlash    sty       <resourcenameend
                     lbsr      ResourceSuffix
                     lbsr      OpenPicturePath
                     lbcs      ResourceFailed
-                    ldd       <resourcenumber
+                    ldd       resourcenumber,u
                     pshs      d
                     lslb
                     rola
@@ -975,20 +981,20 @@ DecodePictureEntry       lda       ,x
                     lsra
                     lsra
                     lsra
-                    sta       <resourcevolume
-                    clr       <resourceoffset
+                    sta       resourcevolume,u
+                    clr       resourceoffset,u
                     lda       ,x
                     anda      #$0F
-                    sta       <resourceoffset+1
+                    sta       resourceoffset+1,u
                     ldd       1,x
-                    std       <resourceoffset+2
+                    std       resourceoffset+2,u
                     lbsr      ResourceClose
                     lbcs      ResourceFailed
-                    ldy       <resourcenameend
+                    ldy       resourcenameend,u
                     leax      ResourceVol,pcr
                     lbsr      ResourceSuffix     ends at CR after "vol."
                     leay      -1,y
-                    lda       <resourcevolume
+                    lda       resourcevolume,u
                     cmpa      #10
                     blo       ResourceVolumeDigit
                     ldb       #'1
@@ -1000,8 +1006,8 @@ ResourceVolumeDigit adda      #'0
                     sta       ,y
                     lbsr      OpenPicturePath
                     lbcs      ResourceFailed
-                    ldx       <resourceoffset
-                    ldu       <resourceoffset+2
+                    ldx       resourceoffset,u
+                    ldu       resourceoffset+2,u
                     lda       <resourcepath
                     os9       I$Seek
                     bcs      ResourceFailed
@@ -1027,7 +1033,7 @@ ResourceHeaderFlagsOK equ     *
                     bne      ResourceInvalid   plain-resource probe only
                     endc
                     anda      #$0F
-                    cmpa      <resourcevolume
+                    cmpa      resourcevolume,u
                     bne      ResourceInvalid
                     ldb       3,x               decoded size is little endian
                     lda       4,x
@@ -1153,19 +1159,29 @@ resourcebase        rmb       2
 resourcepath        rmb       1
 resourceopen        rmb       1
 resourceerror       rmb       1
+                    ifeq GAME_PRESENTATION
 resourcevolume      rmb       1
 resourcenumber      rmb       2
 resourceoffset      rmb       4
+                    endc
 resourcelength      rmb       2
 resourcepointer     rmb       2
 resourceremaining   rmb       2
+                    ifeq GAME_PRESENTATION
 resourcenameend     rmb       2
+                    endc
                     ifeq      AGI_ASSET
 resourceentry       rmb       3
 resourceheader      rmb       7
                     endc
                     ifgt      .-$100
                     error     Picture resource control fields must fit the private direct page
+                    endc
+                    ifne GAME_PRESENTATION
+resourcevolume      rmb       1
+resourcenumber      rmb       2
+resourceoffset      rmb       4
+resourcenameend     rmb       2
                     endc
 resourcefilename    rmb       160
                     ifne      AGI_ASSET

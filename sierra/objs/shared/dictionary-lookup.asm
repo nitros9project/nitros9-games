@@ -8,6 +8,18 @@
 * The mapped provider expands inline to retain the CoCo instruction schedule.
 DICT_BRANCH         macro
                     ifne DICTIONARY_LONG_BRANCHES
+                    ifne DICTIONARY_SHORT_INNER
+                    \1        \2
+                    else
+                    l\1       \2
+                    endc
+                    else
+                    \1        \2
+                    endc
+                    endm
+* The outer loop spans the complete decoder; native inner branches remain local.
+DICT_OUTER_BRANCH   macro
+                    ifne DICTIONARY_LONG_BRANCHES
                     l\1       \2
                     else
                     \1        \2
@@ -89,7 +101,7 @@ LookupSkipWord      DICTIONARY_CHARACTER_NEXT
                     DICT_BRANCH bpl,LookupSkipWord ; high bit clear = continue skipping
                     DICTIONARY_SKIP_ID
                     cmpa      #$00
-                    DICT_BRANCH bne,LookupWordOuter ; more nodes at same level
+                    DICT_OUTER_BRANCH bne,LookupWordOuter ; more nodes at same level
 LookupWordNotFound  ldu       $02,s     ; restore best partial pointer
                     lbeq      LookupNotAlpha ; if null, strip invalid word
                     lda       ,u        ; check char at partial pointer

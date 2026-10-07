@@ -50,7 +50,19 @@ def main():
     with tempfile.TemporaryDirectory(prefix='sierra-dispatch-') as name:
         tmp = Path(name)
         game, gs = compile_module(ROOT/'objs/sierra.asm', tmp/'wbgame',
-                                  defines=('WILDBITS=1',))
+                                  defines=('WILDBITS=1',),listing=True)
+        # Forced direct-page addressing truncates silently in the assembler.
+        # Audit the emitted native instructions against resolved private offsets.
+        direct=set()
+        for line in (tmp/'wbgame.list').read_text().splitlines():
+            if re.match(r'^[0-9A-F]{4} [0-9A-F]+\s+\(',line):
+                source=re.split(r'\):\d+\s',line,maxsplit=1)[1]
+                tokens=source.split()
+                for operand in tokens[:3]:
+                    if operand.startswith('<'):
+                        direct.update(re.findall(r'^<([A-Za-z_][A-Za-z0-9_]*)',operand))
+        for field in direct:
+            assert field in gs and gs[field]<=255, ('forced direct-page field',field,gs.get(field))
         probe, ps = compile_module(ROOT/'tests/probes/wbexec.asm', tmp/'wbexec')
         counts = [int(value[1:],16)//256 for value in re.findall(
             r'^\s*AGI_COMMAND\s+[^,]+,(\$[0-9A-Fa-f]+),',

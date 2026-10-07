@@ -30,6 +30,7 @@ DECIMAL_OUTPUT_DIVIDE macro
 * Streamed vocabulary: X is a file offset; U is an input cursor.
 * Decoder validation and file/cache ownership remain in the native provider.
 DICTIONARY_LONG_BRANCHES equ 1
+DICTIONARY_SHORT_INNER equ 1
 DICTIONARY_ALPHA_REQUIRED equ 0
 DICTIONARY_FOLD macro
                     endm

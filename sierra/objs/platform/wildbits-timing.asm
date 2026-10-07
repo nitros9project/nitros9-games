@@ -140,7 +140,9 @@ GameClockRebase     bsr      GameClockSample
                     clr       gameclockcredit+1,u
                     rts
 
-GameClockMute       ldu       <resourcebase
+GameClockMute       lbsr      GameSoundStop
+                    lbcs      GameClockReturn
+                    ldu       <resourcebase
                     tst       gameclockmuted,u
                     lbne      GameClockSuccess
                     lda       gameclockpath,u

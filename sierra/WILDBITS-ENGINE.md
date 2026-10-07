@@ -1222,3 +1222,96 @@ tests cover 20 matching words, a 21st ordinary/wildcard word, 127-word
 predicates with an early or following wildcard, and unchanged adjacent replay
 storage. The recovered 213 private bytes are reserved for the audio adapter;
 the total private allocation and the full font remain unchanged.
+
+### Owned, queued native sound
+
+The native owner now supplies AGI sound through `platform/wildbits-audio.asm`
+and the process-owned `PSGdrv` service. It starts with flag 9 enabled. The driver
+must implement version 4 of `SS.PSG` (`$C5`); an absent helper, missing driver,
+or older driver disables sound and completes the requested flag
+without interrupting the game. A busy device completes only the current request
+and leaves sound enabled so a later request can claim the device. Each new
+request clears its completion flag before starting asynchronous playback. The PSG remains exclusive to one process; this
+is safe ownership across terminals, rather than simultaneous mixing.
+
+The adapter uses the existing sound resource cache. These packaged games have
+already been converted to the CoCo stream described in `convutils/cc3snd.c`:
+one-byte tone index (0–59), one-byte DAC amplitude (0–63), and a big-endian
+16-bit duration. A final `$FF` and two-byte elapsed-time word end the stream.
+There is no PC four-track header, and the converted files no longer retain the
+other original voices. The adapter validates the record alignment and footer,
+reads notes through the bounded native bytecode reader, and sends six-byte
+packets with bit 7 of the channel selecting this converted format. The driver
+checks tone, amplitude, duration and the reserved byte, converts the note to
+its existing five-byte queue record, and uses a 60-entry frequency table derived
+from the converter. The converted voice uses channel zero; other channels are
+ended explicitly. End packets use the driver's normal `$FFFF` duration form.
+No resource cache bytes or saved resource lengths are rewritten. Raw five-byte
+AGI packets remain available to other driver clients; this game's adapter is
+for the packaged CoCo resources.
+No mapped resource pointer crosses file/device I/O. At each game cycle, resource
+mappings are cleared before querying queue capacity or submitting notes. Work
+is bounded to eight rounds across four channels. The driver advances queued
+notes at 60 Hz and reports completion; the interpreter sets the game's flag
+when all tracks finish. Disabling sound, issuing `stop.sound`, saving/restoring,
+backgrounding the terminal, and exiting close the owned path. Backgrounding
+terminates the current request rather than resuming it later. Modal waits can
+exhaust the queued notes; continuous playback through every modal is not yet
+an acceptance claim. CoCo continues to use its existing audio implementation.
+
+The resident module has only one byte left below its 23,808-byte ceiling.
+The kernel's `$FD00` common page and the `$FE00`/`$FF00` I/O area remain reserved.
+To fit the adapter, the existing `wbstate` helper exports an immutable audio
+code template and a small installer. The game validates the helper's private
+layout ABI, including the audio workspace, callback layout and driver protocol,
+runs the installer while the helper is linked, then unlinks it
+before opening the sound device. Installation copies 430 bytes into a separate
+432-byte permanent private workspace and resolves twelve engine callbacks into
+a 24-byte private table. It never patches the shared module and never aliases
+the font, formatter, inventory, flood-fill, or presentation buffers. Normal
+movement does not load the helper; only the first enabled sound request does.
+Sound state and pointers are transient and are excluded from saved games.
+
+The argument buffer still retains 42 bytes while validating every operand of
+long `said` predicates. Nine cold resource-locator bytes move out of the direct
+page to leave room for the fourteen sound-control bytes. Inventory and parser
+filename construction use the relocated fields through the private base.
+The declared private data remains 24,460 bytes, within the same three 8 KiB
+banks. Tests place the user stack above the rounded allocation and parameters,
+as OS-9 does, and check that deep logic calls do not overwrite the private code.
+
+Native platform routes now use 182 byte-sized indices and 62 unique relative
+handler offsets, generated from the existing shared command catalog. The
+lookup zero-extends the opcode before indexing; a signed byte index would break
+opcodes 128–181. This saves 50 resident bytes including the decoder. Local
+native dictionary branches and a few nearby native calls use short branches;
+the assembler rejects an out-of-range displacement. CoCo's instruction bytes
+are unchanged.
+
+Verification completed for this integration:
+
+- Native CPU tests delivered exact converted-note/end packets, delayed
+  completion into a later cycle, recovered the active logic resource, handled
+  missing/older/incompatible services, malformed notes and busy-then-available
+  retry, cleared reused completion flags, released ownership, and preserved
+  private audio code at sixteen nested calls with a 127-byte directory.
+- All 1,024 relocated dispatch cases passed for the game/probe, including all
+  256 opcode values, register/stack preservation and immutable shared code.
+- The full native gameplay CPU suite passed its picture, sprite, persistent
+  text, parser, controller, clock, movement, animation, inventory, validation,
+  mapping and cleanup checks.
+- All 56 CoCo modules remained byte-identical to the preceding build.
+- Original Larry and King's Quest I ran together on separate terminals in
+  MAME. Screen restoration, independent inventory input, Larry surviving KQ1
+  exit and exact memory recovery passed; 83 owned PSG writes were captured.
+  This pair uses the emulator-only expanded-memory kernel.
+- Original King's Quest I passed real MAME startup, inventory glyphs, walking,
+  save, restored position, a subsequent `look room`, interrupt exit and exact
+  free-memory recovery with the compatible version-4 PSG driver installed.
+
+The driver lives on NitrOS-9 branch `codex/sierra-owned-psg`, based on the tested
+multi-terminal OS revision, not on the alternate terminal-private ABI. Driver
+CPU/public-SCF tests cover queued timing, contention, wrong-owner close,
+terminal initialization/bell guards, IRQ rollback/teardown and memory recovery.
+Physical hardware, envelope details, continuous modal playback and complete
+adventure compatibility still require further work.

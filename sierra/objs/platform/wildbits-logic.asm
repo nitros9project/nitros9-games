@@ -528,18 +528,25 @@ VmPlatformCommand   ldb       <vmopcode
                     leas      -2,s
                     pshs      d,x
                     clra
+                    leax      VmPlatformCommandTable,pcr
+                    ldb       d,x      unsigned opcode, including 128..181
                     lslb
                     rola
-                    leax      VmPlatformCommandTable,pcr
+                    leax      VmPlatformRouteTable,pcr
                     ldd       d,x
                     leax      d,x
                     stx       4,s
                     puls      d,x,pc
+NATIVE_COMMAND_TABLE_MODE set 3
+                    use shared/agi-command-table.asm
 VmPlatformCommandTable equ *
 NATIVE_COMMAND_TABLE_MODE set 1
                     use shared/agi-command-table.asm
+VmPlatformCommandCount equ *-VmPlatformCommandTable
+VmPlatformRouteTable equ *
+NATIVE_COMMAND_TABLE_MODE set 2
+                    use shared/agi-command-table.asm
 NATIVE_COMMAND_TABLE_MODE set 0
-VmPlatformCommandCount equ (*-VmPlatformCommandTable)/2
 VmCommandGameId     ldu       <resourcebase
                     ldb       vmarguments,u
                     lbsr      ReadLogicMessage
@@ -685,7 +692,7 @@ VmConditionSaid     lbsr      VmFetchByte
                     lslb
                     stb       <vmargcount
                     lbra      VmReadArguments
-VmConditionTest     lbsr      VmConditionOperands
+VmConditionTest     bsr      VmConditionOperands
                     lbcs      VmReturn
                     lbra      VmEvaluateTest
 * Validate grammar while skipping callbacks. Helper return occupies ,S;

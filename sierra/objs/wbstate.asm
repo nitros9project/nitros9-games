@@ -1,6 +1,7 @@
 * Cold save/restore operations. The game copies and unlinks this module before
 * executing it in its private fill workspace. No formatting or flood-fill
 * decoder may run while this code is active.
+AUDIO_USER_COPY     equ 1
 WILDBITS            equ 1
 WILDBITS_LAYOUT_ONLY equ 1
                     use platform/wildbits-runtime.asm
@@ -10,6 +11,7 @@ StateName           fcs /wbstate/
                     fcb 1
 StateEntry          bra StateBegin
                     STATE_ABI
+                    fdb AudioBlobEnd-AudioBlobStart,AudioInstall
 * A=0 save, 1 validate/stage restore, 2 apply after nested logic unwinds.
 * X=filename, Y=engine callback table, U=the game's private base.
 StateBegin          stu StateBase,pcr
@@ -848,8 +850,15 @@ StatePictureOffset  fdb 0
 StateHeader         zmb 18
 StateCache          zmb 160
 StateBuffer         zmb 512
+PLATFORM_SECTION    set PLATFORM_WILDBITS_SOUND_CODE
+                    use platform/wildbits-audio.asm
                     emod
 StateEnd            equ *
+                    ifp2
+                    ifgt AudioBlobEnd-AudioBlobStart-432
+                    error Private audio adapter exceeds its reserved workspace
+                    endc
                     ifgt StateEnd-4096
-                    error Cold state module exceeds the private workspace
+                    error Cold state helper exceeds its private workspace
+                    endc
                     endc

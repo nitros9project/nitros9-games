@@ -372,7 +372,7 @@ GameBackgroundWrite ldd       ,x++
                     addd      <picturechunk
                     std       <pictureoutoffset
                     ldx       <resourcebase
-                    lbra      GameBackgroundChunk
+                    bra      GameBackgroundChunk
 GameBackgroundDone  ldx       <resourcebase
                     lbsr      GameForgetSprites
                     lda       #1

@@ -57,6 +57,7 @@ fixture:
 check: all probes
 	python3 ../tests/check_instances.py --transport-only
 	python3 ../tests/check_native_dispatch.py
+	python3 ../tests/check_native_audio.py
 	python3 ../tests/check_logic_executor.py
 	python3 ../tests/check_random_command.py
 	python3 ../tests/check_math_commands.py

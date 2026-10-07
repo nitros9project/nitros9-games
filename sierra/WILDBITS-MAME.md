@@ -708,3 +708,9 @@ now do so in their disposable disk images.
 
 Completed runs are recorded in [WILDBITS-ENGINE.md](WILDBITS-ENGINE.md). Audio
 and full-adventure completion remain unverified.
+
+To verify native sound with the process-owned version-4 PSG driver installed
+in the test bootfile, add `--audio-trace` to `check_wbgame_mame.py`. The check
+requires AGI command 99 and non-muted PSG store instructions while a process
+owns the device; it writes the captured bytes to `audio-writes.json`. It uses
+the existing disposable disk workflow and leaves the player's emulator alone.
