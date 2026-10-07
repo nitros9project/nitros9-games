@@ -112,7 +112,7 @@
                     AGI_COMMAND cmd_graphics,$0000,GameGraphicsMode,1 *graphics
                     AGI_COMMAND cmd_set_cursor_char,$100,ScreenCommand,0 *set cursor char
                     AGI_COMMAND cmd_set_text_attribute,$200,ScreenCommand,0 *set text attribute
-                    AGI_COMMAND cmd_shake_screen,$100,VmPlatformUnsupported,0 *shake screen
+                    AGI_COMMAND cmd_shake_screen,$100,GameShakeCommand,1 *shake screen
                     AGI_COMMAND cmd_config_screen,$300,ScreenCommand,0 *config screen
                     AGI_COMMAND cmd_status_line_on,$0000,ScreenCommand,0 *status line on
                     AGI_COMMAND cmd_status_line_off,$0000,ScreenCommand,0 *status line off

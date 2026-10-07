@@ -72,7 +72,7 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
         d.breakpoint(address)
     d.regs(pc=base + syms['start'], s=argv - 16,
            dp=database >> 8, u=database, x=argv, cc=0x50)
-    hooks = {base+syms[name]:callback for name,callback in (breakpoint_hooks or {}).items()}
+    hooks = {(name if isinstance(name,int) else base+syms[name]):callback for name,callback in (breakpoint_hooks or {}).items()}
     for address in hooks: d.breakpoint(address)
     kind_entry = base + syms['LoadAsset'] if resource_kind is not None else None
     if kind_entry is not None:

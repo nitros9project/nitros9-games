@@ -105,15 +105,19 @@ restartapi          rmb       2
 restartcall         rmb       2
 screenentry         rmb       2
 showentry           rmb       2
-showapi             rmb       2
+coldapi             rmb       2
 showview            rmb       1
 showcached          rmb       1
 showactive          rmb       1
 showposition        rmb       2
+shakeentry          rmb       2
+shakemap            rmb       2
+shakecycles         rmb       2
+shakeshifted        rmb       1
 gamefont            rmb       1024
 soundcalls          rmb       20
 soundcode           rmb       512
-                    rmb       211
+                    rmb       204
 size                equ       .
 * Stable save-field order; no paths, mapped pointers or physical handles.
 STATE_SCHEMA        macro
@@ -139,7 +143,7 @@ STATE_HASH_FIELD    macro
                     endm
                     STATE_SCHEMA STATE_HASH_FIELD
 * Immutable field expressions avoid ambiguous forward references to SET symbols.
-StateLayoutHash     equ       (SavedVariablesLayoutHash+SavedStringsLayoutHash+SavedObjectsLayoutHash+SavedInventoryLayoutHash+SavedInventoryControlLayoutHash+SavedKeysLayoutHash+SavedKeyCountLayoutHash+SavedMenusLayoutHash+SavedMenuControlLayoutHash+SavedScreenLayoutHash+SavedPlayerLayoutHash+SavedBlockLayoutHash+SavedRandomLayoutHash+SavedReplayLayoutHash+SavedReplayBufferLayoutHash+SavedTextLayoutHash+resourcebase+assetfirst*3+picturefirst*5+gamebackgroundfirst*7+vmip*11+vmcache*13+textpointer*17+soundcalls*19+soundcode*23+512*29+4*31+textstoremodule*37+textstoreentry*41+dialogleft*43+dialogright*47+textwaitentry*53+dialogticks*59+dialogseen*61+dialogtimed*67+dialogepoch*71+textrectentry*73+9*79+screenentry*103+showentry*107+showapi*109+showactive*113+restartentry*83+restartapi*89+restartcall*97+VM_CACHE_ENTRY_BYTES*101)&$FFFFFFFF
+StateLayoutHash     equ       (SavedVariablesLayoutHash+SavedStringsLayoutHash+SavedObjectsLayoutHash+SavedInventoryLayoutHash+SavedInventoryControlLayoutHash+SavedKeysLayoutHash+SavedKeyCountLayoutHash+SavedMenusLayoutHash+SavedMenuControlLayoutHash+SavedScreenLayoutHash+SavedPlayerLayoutHash+SavedBlockLayoutHash+SavedRandomLayoutHash+SavedReplayLayoutHash+SavedReplayBufferLayoutHash+SavedTextLayoutHash+resourcebase+assetfirst*3+picturefirst*5+gamebackgroundfirst*7+vmip*11+vmcache*13+textpointer*17+soundcalls*19+soundcode*23+512*29+4*31+textstoremodule*37+textstoreentry*41+dialogleft*43+dialogright*47+textwaitentry*53+dialogticks*59+dialogseen*61+dialogtimed*67+dialogepoch*71+textrectentry*73+10*79+screenentry*103+showentry*107+coldapi*109+showactive*113+shakeentry*127+shakemap*131+shakecycles*137+restartentry*83+restartapi*89+restartcall*97+VM_CACHE_ENTRY_BYTES*101)&$FFFFFFFF
 STATE_ABI           macro
                     fdb       2,size,StateLayoutHash>>16,StateLayoutHash&$FFFF
                     endm

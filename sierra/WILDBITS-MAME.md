@@ -848,3 +848,17 @@ loop avoids using unbounded script execution as an emulator test clock.
 The passing run is `/tmp/sierra-preview-real-drivers-controlled`. Original KQ1
 save/restore passes at `/tmp/sierra-preview-original-kq1`; independent Larry/KQ1
 terminals pass at `/tmp/sierra-preview-pair` with the expanded emulator kernel.
+
+### Generated screen-shake regression
+
+Run `tests/check_wbgame_previews_mame.py` with its usual emulator, disk and
+firmware arguments plus `--shake`. Supply `--boot-file` with a compatible
+SOL-counter/PSG boot image to exercise public counter timing. The generated
+fixture needs no commercial assets. It checks eight alternating phases, shifted
+and restored sprite pixels, subsequent script execution and free-memory recovery.
+Snapshots use a dedicated snapshot directory, and cold breakpoints follow the
+actual helper load address rather than assuming a bank window.
+
+`/tmp/sierra-shake-final-pixels` passes with the public counter active and a
+0.723-second repeat. CPU tests additionally compare the entire bitmap, including
+the reserved dialog tail, and exercise the sleep fallback.

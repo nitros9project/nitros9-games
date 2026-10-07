@@ -1639,3 +1639,48 @@ A separate interrupted run also restores terminal options and the memory map
 (`/tmp/sierra-preview-interrupt-clean`). The preview test's `--interrupt` option
 reproduces that path, separating modifier/key events and clearing residual
 shell input before collecting the memory report.
+
+### Native screen shake — 2026-10-07
+
+Opcode 110 now runs `GameShakeCommand`, with the effect in the existing grouped
+`wildbits-graphics.asm`. Its cold entry shares the immutable `wbstate` helper
+and private callback mechanism with inventory previews. No additional production
+module, platform fragment, hardware register access, or private memory bank is
+needed. The helper's tenth metadata word identifies this entry; its range and
+private-layout ABI are validated before use. Rebuild and install `wbgame` and
+`wbstate` together.
+
+Each repeat alternates eight phases: shift the 320-by-200 game image eight
+pixels right and four down, then restore it, four times. The phase budget is four
+raster ticks, sampled before copying so copying time counts toward the delay.
+Foreground checks continue and refill queued sound. The public SOL counter
+handles wrap and terminal visibility changes; installations without it use the
+existing sleep fallback. Zero repeats or no owned bitmap perform no mapping.
+
+A backward/forward bulk move replaces slow row staging. Copies within an 8-KiB
+bank use unrolled eight-byte transfers. Bank crossings stage at most 1,288 bytes
+in the idle flood-fill scratch buffer, after the 1,600-byte right-edge backup.
+Only one foreign bank is mapped at a time, and it is unmapped before driver calls
+or sleeps. Restoration includes exposed margins and the lower rows used during
+the displacement. The reserved dialog backup at the end of the bitmap is never
+touched. Failures preserve the original error and use ordinary ownership cleanup.
+
+The resident is 23,788 bytes of its 23,808-byte limit, the helper is 6,135 bytes
+of one 8-KiB bank, and its writable prefix is 3,062 bytes of the 4-KiB reservation.
+Private allocation stays at 24,460 bytes, using three banks.
+
+CPU regressions compare all 81,920 bitmap bytes, test zero/one/two repeats,
+maximum repeat count with interruption, invalid helper entries, nested calls,
+long directory names, active sound, and preservation of dialog flags/timers.
+The complete game and audio regressions pass. Real-driver MAME testing at
+`/tmp/sierra-shake-final-pixels` verifies all eight phases, displacement by
+16-by-8 rendered pixels, restored sprite position, subsequent script execution,
+and full free-memory recovery. One repeat takes 0.723 seconds in emulated time,
+including first-use loading; the earlier row-copy implementation took 1.54
+seconds. This measures the effect, not ordinary movement speed.
+
+With the new helper, original KQ1 save/restore passes at
+`/tmp/sierra-shake-original-kq1`. Simultaneous Larry/KQ1 terminals pass at
+`/tmp/sierra-shake-pair`, including independent inventory input, sound, surviving
+the other game's exit, and restored free-memory maps. The original CoCo main
+logic remains byte-for-byte identical to the baseline.

@@ -86,3 +86,7 @@ Inventory previews use the same immutable helper and grouped text UI source.
 Resident callbacks select/render the view, present text and restore the scene.
 Their temporary record occupies idle private renderer-list storage, while
 cached entries and callback state stay private to each game.
+
+Screen shake lives in the grouped Wild Bits graphics source and uses the existing
+immutable helper, private callbacks and idle fill scratch. It maps one bank at
+a time and releases mappings before clock, sound and foreground calls.

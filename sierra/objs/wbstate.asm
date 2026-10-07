@@ -13,7 +13,7 @@ StateName           fcs /wbstate/
                     fcb 1
 StateEntry          bra StateBegin
                     STATE_ABI
-                    fdb AudioBlobEnd-AudioBlobStart,AudioInstall,AuxTextStore,AuxPrintWait,StateCopyEnd,AuxClearTextRect,AuxRestart,AuxScreenCommand,AuxShowObject
+                    fdb AudioBlobEnd-AudioBlobStart,AudioInstall,AuxTextStore,AuxPrintWait,StateCopyEnd,AuxClearTextRect,AuxRestart,AuxScreenCommand,AuxShowObject,AuxShakeScreen
 * A=0 save, 1 validate/stage restore, 2 apply after nested logic unwinds.
 * X=filename, Y=engine callback table, U=the game's private base.
 StateBegin          stu StateBase,pcr
@@ -867,6 +867,8 @@ PLATFORM_SECTION    set PLATFORM_WILDBITS_SCREEN_COLD_CODE
                     use platform/wildbits-graphics.asm
 PLATFORM_SECTION    set PLATFORM_WILDBITS_SHOW_OBJECT_CODE
                     use platform/wildbits-text-ui.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_SHAKE_CODE
+                    use platform/wildbits-graphics.asm
                     emod
 StateEnd            equ *
                     ifp2

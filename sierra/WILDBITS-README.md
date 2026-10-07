@@ -450,7 +450,7 @@ survive picture refreshes. `display`/`display.v` support colors, wrapping and
 bounded `%v`, `%s`, `%w` and recursive `%m` message expansion. `print`/`print.v`
 show a modal response and restore the scene after dismissal.
 
-`wbgame` currently uses 23,759 code bytes and 24,460 private bytes. Three private
+`wbgame` currently uses 23,788 code bytes and 24,460 private bytes. Three private
 blocks, the kernel block and one mapping window leave a conservative
 23,808-byte code budget.
 Physical memory also holds resource caches, two picture slabs and the terminal
@@ -674,8 +674,8 @@ Pause retain their separate behavior. The optional public SOL counter supplies
 frame timing and rebases after terminal switching; the sleep-count fallback can
 run late under scheduling load. Both text storage and modal waiting execute
 through the matching immutable `wbstate` helper. Install it with `wbgame` from
-the same build. The current resident is 23,759 bytes, the linked helper is 5,071 bytes, and
-its writable state prefix is 3,060 bytes. Private allocation remains 24,460 bytes. See [the engine notes](WILDBITS-ENGINE.md#timed-blocking-messages--2026-10-07)
+the same build. The current resident is 23,788 bytes, the linked helper is 6,135 bytes, and
+its writable state prefix is 3,062 bytes. Private allocation remains 24,460 bytes. See [the engine notes](WILDBITS-ENGINE.md#timed-blocking-messages--2026-10-07)
 for the implementation and acceptance checks.
 
 
@@ -683,3 +683,7 @@ Inventory `show.obj`/`show.obj.v` previews now display the item and its bounded
 description, wait for dismissal, then restore the scene and continue the
 script. Existing cached views remain loaded. Implementation and verification
 are in [the engine notes](WILDBITS-ENGINE.md#inventory-item-previews--2026-10-07).
+
+Native `shake.screen` is supported through the existing graphics backend. It
+restores the original picture, keeps sound serviced, and uses the public raster
+counter when available. See [the implementation and validation notes](WILDBITS-ENGINE.md#native-screen-shake--2026-10-07).

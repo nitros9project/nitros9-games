@@ -251,6 +251,70 @@ def check_timed_messages(d):
     print('PASS: timed blocking messages, keyboard interruption, held/pause exclusions, raster wrap/coarse/max samples, foreground rebase and invalid wait-entry cleanup')
 
 
+def check_screen_shakes(d):
+    """Compare full owned bitmaps, including reserved dialog storage."""
+    helper=symbols(ROOT/'objs/wbstate.map')
+    original=bytes(1+((x*3+y*5)%16) for y in range(200) for x in range(320))+bytes([1])*12800+bytes(1+i%16 for i in range(5120))
+    shifted=bytes([1])*1280+b''.join(bytes([1])*8+original[y*320:y*320+312] for y in range(200))+bytes([1])*(76800-65280)+original[76800:]
+    def bitmap(cpu,syms,data=None):
+        block=int.from_bytes(cpu.read(syms['firstblock'],2),'big');old=cpu.read(0xffac,1);result=bytearray()
+        for page in range(10):
+            cpu.write(0xffac,bytes([block+page]))
+            if data is None:result.extend(cpu.read(0x8000,8192))
+            else:cpu.write(0x8000,data[page*8192:(page+1)*8192])
+        cpu.write(0xffac,old);return bytes(result)
+    def fixture(count,picture=True,depth=0,audio=False):
+        prefix=bytes([3,0,1,24,0,25,0,26]) if picture else b''
+        if audio:prefix+=bytes([98,0,99,0,200])
+        command=bytes([12,15,3,21,2,110,count])
+        body=prefix+(bytes([22,2]) if depth else command)+bytes([3,240,73,134,1,0])
+        def record(data):return b'\x12\x34\0'+len(data).to_bytes(2,'little')*2+data
+        volume=record(len(body).to_bytes(2,'little')+body);picture_offset=len(volume);volume+=record(b'\xff')
+        logs=[b'\xff'*3,bytes(3)]
+        for number in range(2,depth+2):
+            logs.append(len(volume).to_bytes(3,'big'))
+            script=bytes([22,number+1,0]) if number<depth+1 else command+b'\0'
+            volume+=record(len(script).to_bytes(2,'little')+script)
+        sound=len(volume);volume+=record(bytes([28,63,0,240,255,0,240]))
+        return {'/game/vol.0':volume,'/game/logDir':b''.join(logs),
+                '/game/picDir':b'\xff'*3+picture_offset.to_bytes(3,'big'),'/game/sndDir':sound.to_bytes(3,'big')}
+    for label,count,picture,raster,depth,abort in [
+        ('no bitmap',1,False,False,0,False),('zero',0,True,False,0,False),
+        ('one fallback',1,True,False,0,False),('two raster',2,True,True,0,False),
+        ('deep audio and long directory',1,True,True,16,False),
+        ('maximum repeat count interrupted',255,True,True,0,True)]:
+        print('Checking screen shake:',label,flush=True);seen=[]
+        def seed(cpu,r,syms):bitmap(cpu,syms,original)
+        def inspect(cpu,r,syms):
+            assert bitmap(cpu,syms)==shifted,(label,'shifted pixels or reserved storage changed')
+            assert int.from_bytes(cpu.read(syms['shakecycles'],2),'big')==count*8
+            seen.append(True)
+            if abort:cpu.write(syms['aborted'],b'\x01')
+        def restored(cpu,r,syms):assert bitmap(cpu,syms)==original,(label,'bitmap not restored')
+        hooks={'GameShakeCommand':seed,'GameQuitCommand':restored} if picture else {}
+        if count and picture:hooks[0x6000+helper['AuxShakeWait']]=inspect
+        files=fixture(count,picture,depth,bool(depth));arguments=b'/game 1\r'
+        if depth:
+            directory=b'/'+b'x'*126;files={directory.decode()+name[5:]:data for name,data in files.items()};arguments=directory+b' 1\r'
+        error,output,state=exercise(d,files,arguments=arguments,module='wbgame',base=0xa000,
+            database=0,window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,
+            os_call_limit=60000,breakpoint_hooks=hooks,sol={'start':250,'step':1} if raster else None,
+            psg={'version':4} if depth else None)
+        assert error==(228 if abort else 0),(label,error)
+        assert state['vmvariables'][240]==(0 if abort else 73)
+        assert state['gamefont']==(ROOT/'objs/wbfont').read_bytes(),(label,'font overwritten')
+        if not depth:assert state['vmflags'][15]==1 and state['vmvariables'][21]==2
+        if count and picture:assert seen
+    original_helper=(ROOT/'objs/wbstate').read_bytes();entry=int.from_bytes(original_helper[9:11],'big')
+    for offset in (0,len(original_helper),len(original_helper)-1):
+        helper_data=bytearray(original_helper);helper_data[entry+28:entry+30]=offset.to_bytes(2,'big')
+        files=fixture(1);files['wbstate']=bytes(helper_data)
+        error,output,state=exercise(d,files,module='wbgame',base=0xa000,database=0,
+            window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,os_call_limit=60000)
+        assert error==203,(offset,error)
+    print('PASS: exact shifted/restored pixels, reserved dialog bytes, repeats, raster/fallback waits, zero/no-screen cases, deep audio/long-path safety and interrupted/error cleanup')
+
+
 def check_object_previews(d):
     """Check item pixels during dismissal and exact restoration afterwards."""
     default=bytearray([0,0,1,0,0,7,0,1,3,0,4,3,31,0x12,0xf1,0x21,0,0x31,0x43,0,0x51,0])
@@ -479,6 +543,7 @@ def main():
             check_compatibility_noops(d)
             check_positioned_messages(d)
             check_timed_messages(d)
+            check_screen_shakes(d)
             check_object_previews(d)
             check_screen_backend(d)
             check_cold_prefix_bounds(d)
