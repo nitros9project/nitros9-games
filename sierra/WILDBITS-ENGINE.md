@@ -1052,3 +1052,25 @@ binary `os9 copy`; `os9 list` transforms control bytes and cannot validate a
 binary save. This is an I/O prerequisite, not a game save format or a completed
 implementation of `save.game`/`restore.game`. No new runtime dependency is
 installed by this diagnostic.
+
+### Picture and discard replay records
+
+The native replay buffer now distinguishes loading a picture from drawing it.
+`draw.pic` reserves type 4 plus the picture identifier before decoding, matching
+the CoCo restore stream. Successful picture and view discards reserve type 6
+or 7 plus the resource identifier before releasing the cache entry. A redundant
+discard of an absent resource emits nothing. `ReplayPush` preserves the cache
+entry pointer; recording never stores a physical block number or mapped address.
+If the buffer is full, the command returns `E$MemFul` before the destructive
+draw or release begins. Normal interpreter cleanup still releases all owned
+resources. Existing static-sprite records remain type 5.
+
+The view CPU checks cover immediate and variable arguments, redundant discards,
+record order and limits of one, three and four records. Picture checks verify
+exact records across three cycles, drawing twice with too little replay space,
+and discarded pictures that remain visible until a new draw. Replay setup in
+the cycle fixture runs once: `script.size` resets the buffer whenever invoked.
+The original Larry MAME room-transition check passed with the added records.
+These records prepare reconstruction for save/restore; the two commands remain
+unimplemented. The resident build uses 23,506 code bytes and 24,460 private
+bytes, with 302 code bytes available.

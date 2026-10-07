@@ -443,6 +443,11 @@ GameDiscardPicture  ldu       <resourcebase
                     lbra      VmDiscardResource
 GameDrawPicture     bsr      GamePictureArgument
                     bcs       GamePictureReturn
+* Record drawing separately from loading for persistent reconstruction.
+                    lda       #4
+                    ldb       ,x
+                    lbsr      ReplayPush
+                    bcs       GamePictureReturn
                     lbsr      VmRestoreAsset
                     ldd       <resourcelength
                     std       <gamepicturelength

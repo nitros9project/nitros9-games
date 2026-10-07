@@ -88,6 +88,21 @@ def main():
             error, output = exercise(d, files, arguments=b'/game 0\r',
                 module='wbexec', blocks=None, multiple=True)
             assert error and not output
+            # View replay uses resource identifiers, not physical cache handles.
+            # A redundant discard emits no record; overflow precedes release.
+            for limit in (4,1,3):
+                body = bytes([142,limit,30,1,32,1,32,1,
+                              3,249,1,31,249,153,249,0])
+                files = logic_files([body])
+                offset = len(files['/game/vol.0'])
+                files['/game/viewDir'] = b'\xff'*3 + offset.to_bytes(3,'big')
+                files['/game/vol.0'] += b'\x12\x34\0\x04\0\x04\0VIEW'
+                error, output, state = exercise(d,files,arguments=b'/game 0\r',
+                    module='wbexec',blocks=None,multiple=True,capture=True)
+                assert error == (0 if limit == 4 else 207), ('view replay limit',limit,error)
+                replay = bytes([1,1,7,1,1,1,7,1])[:limit*2]
+                assert int.from_bytes(state['replayused'],'big') == len(replay)
+                assert state['replaybuffer'][:len(replay)] == replay
             text = b'KQ1\0'
             encrypted = bytes(value ^ b'Avis Durgan'[n % 11] for n, value in enumerate(text))
             body = bytes([143,1,0])

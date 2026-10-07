@@ -353,6 +353,12 @@ VmDiscardFind       ldb       <vmcacheindex
                     cmpb      <vmrequested
                     bne       VmDiscardNext
                     stx       <vmslot
+* Types 6/7 discard picture/view. Reserve before releasing ownership.
+                    lda       <vmrequestedkind
+                    adda      #5
+                    ldb       <vmrequested
+                    lbsr      ReplayPush
+                    lbcs      VmCacheReturn
                     lbsr      VmRestoreAsset
                     inc       <assetowned
                     lbsr      AssetRelease
