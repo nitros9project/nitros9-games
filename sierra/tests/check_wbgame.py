@@ -100,10 +100,10 @@ def check_bounded_said(d):
         payload=len(script).to_bytes(2,'little')+script
         files={'/game/logDir':bytes(3),'/game/vol.0':b'\x12\x34\0'+len(payload).to_bytes(2,'little')*2+payload}
         def parsed_words(cpu,regs,syms):
-            cpu.write(0x1000+syms['parsercount'],bytes([parsed]))
-            cpu.write(0x1000+syms['parserids'],b'\0\x7b'*parsed)
+            cpu.write(0x0000+syms['parsercount'],bytes([parsed]))
+            cpu.write(0x0000+syms['parserids'],b'\0\x7b'*parsed)
         error,output,state=exercise(d,files,arguments=b'/game 0\r',module='wbgame',
-            base=0xa000,database=0x1000,window=0x8000,blocks=None,multiple=True,
+            base=0xa000,database=0x0000,window=0x8000,blocks=None,multiple=True,
             firstblock=0x10,capture=True,breakpoint_hooks={'ParserSaid':parsed_words})
         assert not error and not output,(len(words),error,output)
         assert bool(state['vmflags'][200])==expected,(len(words),parsed,expected)
@@ -113,7 +113,7 @@ def check_bounded_said(d):
     payload=len(script).to_bytes(2,'little')+script
     files={'/game/logDir':bytes(3),'/game/vol.0':b'\x12\x34\0'+len(payload).to_bytes(2,'little')*2+payload}
     error,output=exercise(d,files,arguments=b'/game 0\r',module='wbgame',base=0xa000,
-        database=0x1000,window=0x8000,blocks=None,multiple=True,firstblock=0x10)
+        database=0x0000,window=0x8000,blocks=None,multiple=True,firstblock=0x10)
     assert error and not output,'truncated discarded predicate tail was accepted'
     print('PASS: bounded said storage preserves 20 words plus a following wildcard, accepts complete 127-word predicates, rejects truncated tails and preserves the next private buffer')
 
@@ -124,7 +124,7 @@ def check_compatibility_noops(d):
     files={'/game/logDir':b'\xff'*3+bytes(3),
            '/game/vol.0':b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic}
     error,output,state=exercise(d,files,module='wbgame',base=0xa000,
-        database=0x1000,window=0x8000,blocks=None,multiple=True,
+        database=0x0000,window=0x8000,blocks=None,multiple=True,
         firstblock=0x10,capture=True)
     assert not error and not output,(error,output)
     assert state['vmvariables'][240:242]==bytes([73,73])
@@ -176,9 +176,9 @@ def check_positioned_messages(d):
         elif label=='missing helper':files['wbstate']=None
         captured=[]
         def capture(debug,registers,syms):
-            captured.append(debug.read(0x1000+syms['textcharacters'],2000))
+            captured.append(debug.read(0x0000+syms['textcharacters'],2000))
         error,output,state=exercise(d,files,module='wbgame',base=0xa000,
-            database=0x1000,window=0x8000,blocks=None,multiple=True,
+            database=0x0000,window=0x8000,blocks=None,multiple=True,
             firstblock=0x10,capture=True,keyboard=b'\r',
             breakpoint_hooks={'GamePrintWait':capture},os_call_limit=20000)
         if expected is None:
@@ -229,10 +229,10 @@ def check_timed_messages(d):
             def resume(debug,registers,syms):
                 # A foreground notification advances the visibility epoch.
                 # The following 200-frame counter jump must be discarded.
-                debug.write(0x1000+syms['gameclockreset'],b'\x01')
+                debug.write(0x0000+syms['gameclockreset'],b'\x01')
             hooks['GameModalForeground']=resume
         error,output,state=exercise(d,files,module='wbgame',base=0xa000,
-            database=0x1000,window=0x8000,blocks=None,multiple=True,
+            database=0x0000,window=0x8000,blocks=None,multiple=True,
             firstblock=0x10,capture=True,keyboard=keyboard,
             keyboard_by_cycle=keys,sol=sol,breakpoint_hooks=hooks,
             os_call_limit=20000)
@@ -245,10 +245,37 @@ def check_timed_messages(d):
         helper[entry+16:entry+18]=offset.to_bytes(2,'big')
         files['wbstate']=bytes(helper)
         error,output,state=exercise(d,files,module='wbgame',base=0xa000,
-            database=0x1000,window=0x8000,blocks=None,multiple=True,
+            database=0x0000,window=0x8000,blocks=None,multiple=True,
             firstblock=0x10,capture=True,keyboard=b'\r',os_call_limit=20000)
         assert error==203,(offset_name,error)
     print('PASS: timed blocking messages, keyboard interruption, held/pause exclusions, raster wrap/coarse/max samples, foreground rebase and invalid wait-entry cleanup')
+
+
+def check_cold_prefix_bounds(d):
+    """Bound writable copies independently of the larger linked code image."""
+    original=(ROOT/'objs/wbstate').read_bytes()
+    entry=int.from_bytes(original[9:11],'big')
+    script=bytes([154,0,0,24,39,0,134,1,0])
+    logic=len(script).to_bytes(2,'little')+script
+    cases=[('valid',None,None),
+           ('short prefix',entry+18,entry+24),
+           ('oversized prefix',entry+18,4097),
+           ('prefix beyond module',2,int.from_bytes(original[entry+18:entry+20],'big')-1),
+           ('oversized module',2,8193),
+           ('zero rectangle entry',entry+20,0),
+           ('oversized rectangle entry',entry+20,len(original)),
+           ('CRC rectangle entry',entry+20,len(original)-1)]
+    for label,offset,value in cases:
+        print('Checking cold prefix:',label,flush=True)
+        helper=bytearray(original)
+        if offset is not None:helper[offset:offset+2]=value.to_bytes(2,'big')
+        files={'wbstate':bytes(helper),'/game/logDir':b'\xff'*3+bytes(3),
+               '/game/vol.0':b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic}
+        error,output,state=exercise(d,files,module='wbgame',base=0xa000,
+            database=0x0000,window=0x8000,blocks=None,multiple=True,
+            firstblock=0x10,capture=True,os_call_limit=20000)
+        assert error==(0 if offset is None else 203),(label,error)
+    print('PASS: writable-prefix bounds, one-window module bounds and cold rectangle entry validation/cleanup')
 
 
 def main():
@@ -274,15 +301,16 @@ def main():
             check_compatibility_noops(d)
             check_positioned_messages(d)
             check_timed_messages(d)
+            check_cold_prefix_bounds(d)
             check_bounded_said(d)
             check_state_transfers(d)
             check_state_validation(d)
             error, frame = exercise(d, files, module='wbgame', base=0xa000,
-                database=0x1000, window=0x8000, blocks=None, multiple=True,
+                database=0x0000, window=0x8000, blocks=None, multiple=True,
                 firstblock=0x10, frame_capture=True)
             assert not error, error
             failed, unused = exercise(d, files, module='wbgame', base=0xa000,
-                database=0x1000, window=0x8000, blocks=None, multiple=True,
+                database=0x0000, window=0x8000, blocks=None, multiple=True,
                 firstblock=0x10, bitmap_error=True)
             assert failed == 32 and not unused, 'bitmap allocation refusal did not clean up'
             expected_frame = bytearray([1]) * 76800
@@ -298,7 +326,7 @@ def main():
                 overflow_files = {**files,
                     '/game/vol.0': b'\x12\x34\0' + len(logic).to_bytes(2,'little')*2 + logic}
                 error, output, state = exercise(d,overflow_files,module='wbgame',
-                    base=0xa000,database=0x1000,window=0x8000,blocks=None,
+                    base=0xa000,database=0x0000,window=0x8000,blocks=None,
                     multiple=True,firstblock=0x10,capture=True)
                 assert error == 207, ('draw replay overflow',limit,error)
                 replay = bytes([2,1,4,1])[:limit*2]
@@ -339,7 +367,7 @@ def main():
                     '/game/picDir': b'\xff' * 3 + offsets[1].to_bytes(3, 'big'),
                     '/game/viewDir': offsets[2].to_bytes(3, 'big')}
                 error, frame, state = exercise(d, files, module='wbgame', base=0xa000,
-                    database=0x1000, window=0x8000, blocks=None, multiple=True,
+                    database=0x0000, window=0x8000, blocks=None, multiple=True,
                     firstblock=0x10, frame_capture=True, capture=True)
                 assert not error, (error, mirrored, xpos, ypos, priority, erase)
                 if reselect:
@@ -393,7 +421,7 @@ def main():
                     '/game/picDir':b'\xff'*3+offsets[1].to_bytes(3,'big')+offsets[2].to_bytes(3,'big'),
                     '/game/viewDir':offsets[3].to_bytes(3,'big')}
                 error,frame,state = exercise(d,files,module='wbgame',base=0xa000,
-                    database=0x1000,window=0x8000,blocks=None,multiple=True,
+                    database=0x0000,window=0x8000,blocks=None,multiple=True,
                     firstblock=0x10,frame_capture=True,capture=True)
                 assert error == (203 if mode == 'malformed' else 0), ('overlay error',mode,error)
                 if mode == 'malformed':
@@ -471,7 +499,7 @@ def main():
                     '/game/picDir': b'\xff' * 3 + offsets[1].to_bytes(3,'big'),
                     '/game/viewDir': offsets[2].to_bytes(3,'big')}
                 error, output, state = exercise(d, files, module='wbgame', base=0xa000,
-                    database=0x1000, window=0x8000, blocks=None, multiple=True,
+                    database=0x0000, window=0x8000, blocks=None, multiple=True,
                     firstblock=0x10, capture=True,
                     keyboard=b'\x09' if mode in ('arrow','arrowtoggle','programarrow') else (b'\x08' if mode == 'backspace' else b''),
                     key_sense=0x40 if mode in ('arrow','arrowtoggle','programarrow') else 0,
@@ -512,7 +540,7 @@ def main():
             files = {'/game/logDir': b'\xff' * 3 + bytes(3),
                 '/game/vol.0': b'\x12\x34\0' + len(logic).to_bytes(2,'little') * 2 + logic}
             error, frame = exercise(d, files, module='wbgame', base=0xa000,
-                database=0x1000, window=0x8000, blocks=None, multiple=True,
+                database=0x0000, window=0x8000, blocks=None, multiple=True,
                 firstblock=0x10, frame_capture=True)
             assert not error, error
             expected_frame = bytearray([1]) * 76800
@@ -533,7 +561,7 @@ def main():
                 files = {'/game/logDir': b'\xff'*3 + bytes(3),
                     '/game/vol.0': b'\x12\x34\0' + len(logic).to_bytes(2,'little')*2 + logic}
                 error, frame = exercise(d, files, module='wbgame', base=0xa000,
-                    database=0x1000, window=0x8000, blocks=None, multiple=True,
+                    database=0x0000, window=0x8000, blocks=None, multiple=True,
                     firstblock=0x10, frame_capture=True)
                 assert not error, error
                 cleared = bytearray(expected_frame)
@@ -555,7 +583,7 @@ def main():
                 files = {'/game/logDir': b'\xff'*3 + bytes(3),
                     '/game/vol.0': b'\x12\x34\0' + len(logic).to_bytes(2,'little')*2 + logic}
                 error, frame = exercise(d, files, module='wbgame', base=0xa000,
-                    database=0x1000, window=0x8000, blocks=None, multiple=True,
+                    database=0x0000, window=0x8000, blocks=None, multiple=True,
                     firstblock=0x10, frame_capture=True)
                 assert error == (187 if invalid else 0), ('clear.text.rect', error)
                 cleared = bytearray(expected_frame)
@@ -589,7 +617,7 @@ def main():
                         '/game/picDir': (game/'picDir').read_bytes(),
                         f'/game/vol.{volume}': (game/f'vol.{volume}').read_bytes()}
                     error, frame, state = exercise(d, files, module='wbgame',
-                        base=0xa000,database=0x1000,window=0x8000,blocks=None,
+                        base=0xa000,database=0x0000,window=0x8000,blocks=None,
                         multiple=True,firstblock=0x10,frame_capture=True,capture=True)
                     assert not error, (mode, background, error)
                     if mode in ('graphics','discard'):
@@ -628,7 +656,7 @@ def main():
                     '/game/vol.0': b'\x12\x34\0' + len(logic).to_bytes(2,'little')*2 + logic,
                     '/game/object': encrypted}
                 error, output, state = exercise(d, files, module='wbgame', base=0xa000,
-                    database=0x1000, window=0x8000, blocks=None, multiple=True,
+                    database=0x0000, window=0x8000, blocks=None, multiple=True,
                     firstblock=0x10, capture=True, frame_capture=True, keyboard=keys)
                 assert not error, ('inventory',error)
                 assert output == bytes([1])*76800, 'inventory left pixels outside the restored picture'
@@ -651,20 +679,20 @@ def main():
                 '/game/vol.0': b'\x12\x34\0' + len(logic).to_bytes(2,'little')*2 + logic,
                 '/game/object': encrypted}
             error, output, state = exercise(d, files, module='wbgame', base=0xa000,
-                database=0x1000, window=0x8000, blocks=None, multiple=True,
+                database=0x0000, window=0x8000, blocks=None, multiple=True,
                 firstblock=0x10, capture=True, frame_capture=True, keyboard=b'\n'*22 + b'\r', os_call_limit=100000)
             assert not error and state['vmvariables'][25] == 22, 'inventory scrolling lost item identity'
             assert output == bytes([1])*76800, 'scrolled inventory left an overlay'
             for bad_font in (b'', bytes(1023), bytes(1025)):
                 failed_files = {**files, 'wbfont': bad_font}
                 error, output, state = exercise(d, failed_files, module='wbgame', base=0xa000,
-                    database=0x1000, window=0x8000, blocks=None, multiple=True,
+                    database=0x0000, window=0x8000, blocks=None, multiple=True,
                     firstblock=0x10, capture=True)
                 assert error, 'malformed font accepted'
             for malformed in (b'bad', encrypted[:10], encrypted + bytes(4096)):
                 files['/game/object'] = malformed
                 error, output, state = exercise(d, files, module='wbgame', base=0xa000,
-                    database=0x1000, window=0x8000, blocks=None, multiple=True,
+                    database=0x0000, window=0x8000, blocks=None, multiple=True,
                     firstblock=0x10, capture=True)
                 assert error, 'malformed object file accepted'
             for sound_enabled in (False, True):
@@ -673,7 +701,7 @@ def main():
                 files = {'/game/logDir': b'\xff' * 3 + bytes(3),
                     '/game/vol.0': b'\x12\x34\0' + len(logic).to_bytes(2,'little') * 2 + logic}
                 error, output, state = exercise(d, files, module='wbgame', base=0xa000,
-                    database=0x1000, window=0x8000, blocks=None, multiple=True,
+                    database=0x0000, window=0x8000, blocks=None, multiple=True,
                     firstblock=0x10, capture=True)
                 assert not error and state['vmflags'][200] == 1, 'sound-off completion flag missing'
                 assert state['vmflags'][9] == 0, 'unsupported audio remained enabled'
@@ -691,7 +719,7 @@ def main():
             files = {'/game/logDir': b'\xff' * 3 + bytes(3),
                 '/game/vol.0': b'\x12\x34\0' + len(logic).to_bytes(2, 'little') * 2 + logic}
             error, output, state = exercise(d, files, module='wbgame', base=0xa000,
-                database=0x1000, window=0x8000, blocks=None, multiple=True,
+                database=0x0000, window=0x8000, blocks=None, multiple=True,
                 firstblock=0x10, capture=True, keyboard=b'abcdefgh')
             assert not error and not output, (error, output)
             assert state['vmvariables'][220:228] == bytes([1]) * 8, 'controller bits aliased or survived their cycle'
@@ -701,7 +729,7 @@ def main():
             files = {'/game/logDir': b'\xff' * 3 + bytes(3),
                 '/game/vol.0': b'\x12\x34\0' + len(logic).to_bytes(2, 'little') * 2 + logic}
             error, output, state = exercise(d, files, module='wbgame', base=0xa000,
-                database=0x1000, window=0x8000, blocks=None, multiple=True,
+                database=0x0000, window=0x8000, blocks=None, multiple=True,
                 firstblock=0x10, capture=True, keyboard=b'q', clock=(59,0))
             assert not error and not output
             assert state['vmvariables'][250] == 2, 'controller did not reach the next logic cycle'

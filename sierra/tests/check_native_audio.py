@@ -34,10 +34,10 @@ def main():
             # Font failure precedes GameInitialize. A dirty path byte must
             # already be cleared before exit attempts any sound cleanup.
             def dirty_audio_path(debug,registers,syms):
-                debug.write(0x1000+syms['soundpath'],b'\xa5')
+                debug.write(0x0000+syms['soundpath'],b'\xa5')
             print('Checking native audio: early font failure with dirty sound-path state',flush=True)
             error,output,state=exercise(d,{'wbfont':b''},module='wbgame',base=0xa000,
-                database=0x1000,window=0x8000,blocks=None,multiple=True,
+                database=0x0000,window=0x8000,blocks=None,multiple=True,
                 firstblock=0x10,capture=True,breakpoint_hooks={'start':dirty_audio_path})
             assert error==211,error
             for label,files,driver in (
@@ -52,7 +52,7 @@ def main():
                 ('truncated note',{**fixture(sound[:-3]),'wbstate':helper},{})):
                 print('Checking native audio:',label,flush=True)
                 error,output,state=exercise(d,files,module='wbgame',base=0xa000,
-                    database=0x1000,window=0x8000,blocks=None,multiple=True,
+                    database=0x0000,window=0x8000,blocks=None,multiple=True,
                     firstblock=0x10,capture=True,psg=driver,os_call_limit=3000)
                 assert not error and not output,(label,error,output)
                 assert state['vmflags'][200]==1,(label,'completion flag')
@@ -71,10 +71,10 @@ def main():
             long_sound=bytes([28,63,0,1])*14+bytes([255,0,1])
             completed=[]
             def modal_restoring(debug,registers,syms):
-                completed.append(debug.read(0x1000+syms['vmflags']+200,1)==b'\x01')
+                completed.append(debug.read(0x0000+syms['vmflags']+200,1)==b'\x01')
             print('Checking native audio: bounded queue refill during a long modal wait',flush=True)
             error,output,state=exercise(d,{**fixture(long_sound,modal=True),'wbstate':helper},
-                module='wbgame',base=0xa000,database=0x1000,window=0x8000,
+                module='wbgame',base=0xa000,database=0x0000,window=0x8000,
                 blocks=None,multiple=True,firstblock=0x10,capture=True,
                 psg={'queue_capacity':8},keyboard_by_cycle={25:(b'\r',0)},
                 breakpoint_hooks={'GamePrintRestore':modal_restoring},os_call_limit=8000)
@@ -99,7 +99,7 @@ def main():
                    'wbstate':helper}
             print('Checking native audio: 16 nested logic calls and 127-byte directory',flush=True)
             error,output,state=exercise(d,files,arguments=directory+b' 1\r',
-                module='wbgame',base=0xa000,database=0x1000,window=0x8000,
+                module='wbgame',base=0xa000,database=0x0000,window=0x8000,
                 blocks=None,multiple=True,firstblock=0x10,capture=True,psg={},
                 os_call_limit=20000)
             assert not error and not output and state['vmflags'][200]==1,(error,output)

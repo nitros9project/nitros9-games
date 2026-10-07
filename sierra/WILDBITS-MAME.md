@@ -804,3 +804,12 @@ input. Exact completion-message glyphs, normal process exit and identical
 before/after free-memory maps also pass (`/tmp/sierra-timed-counter-final`).
 The slight sub-frame difference follows the phase of the existing raster counter.
 The test preserves events, timing, screenshots, command line and disk artifacts.
+
+
+The split-prefix build passes original KQ1 save/restore at
+`/tmp/sierra-cold-rect-kq1` and the independent Larry/KQ1 terminal test at
+`/tmp/sierra-cold-rect-pair`. This verifies state copying after the linked helper
+exceeds 4 KiB, with the writable prefix still bounded below 4 KiB and the
+existing shared code window retained. The pair captures 80 owned PSG writes and
+recovers its one-game and final free-memory maps. The full native CPU suite also
+checks rectangle colors/bounds and helper immutability with aligned test banks.

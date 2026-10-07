@@ -79,7 +79,7 @@ def main():
             for left,right in [(b'LOOK, tree!',b'looktree'),(b'look?',b'look')]:
                 script=bytes([114,0,1,114,11,2,255,15,0,11,255,2,0,1,220,134,1,0])
                 error,output,state=exercise(d,fixture(script,message=[left,right]),
-                    module='wbgame',base=0xa000,database=0x1000,window=0x8000,
+                    module='wbgame',base=0xa000,database=0x0000,window=0x8000,
                     blocks=None,multiple=True,firstblock=0x10,capture=True)
                 assert not error and not output,(error,output)
                 assert state['vmvariables'][220]==int(normalized(left)==normalized(right))

@@ -112,13 +112,14 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
     audio_played_ends=[False]*4
     private_calls={}
     if module=='wbgame' and files.get('wbstate'):
+        assert private_end<=0x6000, 'native private data overlaps the helper code window'
         cold_syms=symbols(module_root/'wbstate.map')
         blob_start=cold_syms['AudioBlobStart']; blob_end=cold_syms['AudioBlobEnd']
         private_calls={database+syms['soundcode']+int(m[1],16)-blob_start:int(m[2],16)
             for m in re.finditer(r'^([0-9A-F]{4}) 103F([0-9A-F]{2}).*os9',
                 (module_root/'wbstate.list').read_text(),re.M)
             if blob_start<=int(m[1],16)<blob_end}
-        cold_calls={0x7000+int(m[1],16):int(m[2],16)
+        cold_calls={0x6000+int(m[1],16):int(m[2],16)
             for m in re.finditer(r'^([0-9A-F]{4}) 103F([0-9A-F]{2}).*os9',
                 (module_root/'wbstate.list').read_text(),re.M)
             if cold_syms['AuxPrintWait']<=int(m[1],16)<cold_syms['StateEnd']}
@@ -149,7 +150,7 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
             assert not paths, f'leaked file paths: {paths}'
             assert not cold_loaded and not audio_claimed, 'leaked cold module/audio ownership'
             if cold_ever_loaded:
-                assert d.read(0x7000,len(files['wbstate']))==files['wbstate'], 'shared cold backend modified its module image'
+                assert d.read(0x6000,len(files['wbstate']))==files['wbstate'], 'shared cold backend modified its module image'
             if private_calls and d.read(database+syms['soundinstalled'],1)==b'\x01':
                 expected=files['wbstate'][blob_start:blob_end]
                 assert d.read(database+syms['soundcode'],len(expected))==expected, 'private audio code overwritten by the game stack or buffers'
@@ -177,14 +178,14 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
             if name not in files or files[name] is None:
                 updates.update(cc=r['cc']|1,b=syms['E$PNNF'])
             else:
-                image=files[name];cold_base=0x7000
+                image=files[name];cold_base=0x6000
                 if not cold_loaded:d.write(cold_base,image)
                 entry=int.from_bytes(image[9:11],'big')
                 updates.update(u=cold_base,y=cold_base+entry)
                 cold_loaded+=1
                 cold_ever_loaded=True
         elif service == syms.get('F$UnLink'):
-            assert cold_loaded and r['u']==0x7000
+            assert cold_loaded and r['u']==0x6000
             cold_loaded-=1
         elif service == syms['I$GetStt'] and r['b']==0xc3:
             assert sol is not None and r['a']==sol_path and not mapped

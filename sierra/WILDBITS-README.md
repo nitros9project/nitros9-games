@@ -674,6 +674,6 @@ Pause retain their separate behavior. The optional public SOL counter supplies
 frame timing and rebases after terminal switching; the sleep-count fallback can
 run late under scheduling load. Both text storage and modal waiting execute
 through the matching immutable `wbstate` helper. Install it with `wbgame` from
-the same build. The current resident is 23,807 bytes, the helper 4,048 bytes, and
-private allocation remains 24,460 bytes. See [the engine notes](WILDBITS-ENGINE.md#timed-blocking-messages--2026-10-07)
+the same build. The current resident is 23,741 bytes, the linked helper is 4,172 bytes, and
+its writable state prefix is 3,054 bytes. Private allocation remains 24,460 bytes. See [the engine notes](WILDBITS-ENGINE.md#timed-blocking-messages--2026-10-07)
 for the implementation and acceptance checks.

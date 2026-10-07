@@ -64,3 +64,9 @@ its own timer and cached entry. Both cold entry points share one validated,
 retained helper link. Timed blocking prints use variable 21 in half-seconds;
 SOL counter sampling handles frame wrap and foreground rebasing, with a
 sleep-count fallback when the counter service is unavailable.
+
+The helper's linked code image and writable state copy have separate limits:
+8 KiB for linked code, 4 KiB for the prefix ending at `StateCopyEnd`. The loader
+returns that validated prefix length for save/restore copying. Rectangle
+clearing also executes read-only in the existing helper; sprite/glyph rendering
+remains resident. Metadata and private cache pointers are ABI-checked together.

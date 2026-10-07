@@ -1457,3 +1457,53 @@ one-second message 0.995 seconds. The untimed completion message waited for a
 key, its glyphs matched the font exactly, and exit recovered the original
 free-memory map. The reusable test is `tests/check_wbgame_timers_mame.py`;
 its final artifacts are `/tmp/sierra-timed-counter-final`.
+
+
+### Separate writable state copies from linked cold code — 2026-10-07
+
+The helper's two uses now have separate bounds. Its linked image can occupy the
+existing 8 KiB code window. Save/restore copies only the prefix ending at
+`StateCopyEnd`, including the state routines and their private working data;
+the immutable audio template, text storage, modal wait and text-rectangle code
+remain outside that copy. The loader validates that the prefix contains the
+metadata header, is no larger than 4,096 bytes, and ends within the module.
+The whole module must fit within 8,192 bytes. ABI validation still precedes
+entry selection, and each cold entry stays outside the CRC footer.
+
+The prefix length is the fifth metadata word; the sixth holds the immutable
+rectangle entry. `StateLoadModule` returns the validated length in Y, so the
+copy loop uses that count rather than the module's full size. The layout hash
+includes the added cache field and metadata shape. The on-disk save schema and
+24,460-byte private allocation remain unchanged. Install matching `wbgame`
+and `wbstate` binaries.
+
+`clear.text.rect` now executes through the same retained helper link, with the
+resident presentation routine supplied as a callback. `clear.lines` still
+normalizes its arguments and uses that rectangle path. Inclusive bounds,
+color selection and invalid-coordinate errors are unchanged. The normal
+sprite and glyph rendering loops remain resident. The code stays grouped in
+`wildbits-text-ui.asm`; no production module or platform file was added.
+
+The resident is 23,741 bytes, recovering 66 bytes from the timed-message build
+and leaving 67 below its 23,808-byte ceiling. The linked helper is 4,172 bytes,
+but the writable prefix is only 3,054 bytes. It fits the same existing physical
+8 KiB block; its copied prefix fits the existing 4 KiB state workspace.
+
+CPU fixtures now place native private banks at `$0000`–`$5FFF`, the helper
+window at `$6000`, the resource service window at `$8000`, and resident code
+at `$A000`. The preceding artificial `$7000` helper address left only 4 KiB
+before the resource window. A harness assertion now rejects overlap between
+private banks and linked helper code. This corrects test geometry without
+changing target addresses or allocating additional target banks.
+
+The full native gameplay suite verifies rectangle colors/bounds in all text
+and graphics modes, timed messages, input, sprite composition and cleanup.
+Separate fixtures reject short/oversized prefixes, prefixes beyond the module,
+modules beyond the code window, and rectangle entries at zero, the module end
+or CRC bytes. Owned-audio regression passes. Original KQ1 save/restore and
+subsequent input pass in real MAME (`/tmp/sierra-cold-rect-kq1`).
+
+The simultaneous Larry/KQ1 MAME run also passes with the larger linked helper
+(`/tmp/sierra-cold-rect-pair`, using the documented expanded emulator kernel):
+independent inventory input, terminal restoration, Larry continuing after KQ1
+exits, 80 owned PSG writes, and recovery of both one-game and final memory maps.

@@ -27,7 +27,7 @@ def main():
                                 24, 0, 25, 0, 26, 26, 134, 1, 0])
                 error, frame = exercise(d, fixture(script, b'\xff',
                     message=[b'Designed and written by', b'A']), module='wbgame',
-                    base=0xa000, database=0x1000, window=0x8000,
+                    base=0xa000, database=0x0000, window=0x8000,
                     blocks=None, multiple=True, firstblock=0x10,
                     frame_capture=True)
                 assert not error, (top, error)

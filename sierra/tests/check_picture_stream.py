@@ -21,7 +21,7 @@ def main():
             def run(picture,**options):
                 body=bytes([3,0,1,24,0,25,0,26,12,200,134,1,0])
                 return exercise(d,fixture(body,picture),module='wbgame',module_root=a.module_root,base=0xa000,
-                    database=0x1000,window=0x8000,blocks=None,multiple=True,firstblock=0x10,frame_capture=True,capture=True,**options)
+                    database=0x0000,window=0x8000,blocks=None,multiple=True,firstblock=0x10,frame_capture=True,capture=True,**options)
             count=0
             for offset in (0,8189,8190,8191,8192,16381,16382,16383,16384,65527):
                 # Commands and coordinate operands cross both sides of page boundaries.
@@ -67,7 +67,7 @@ def main():
                     files['/game/picDir']=b'\xff'*3+address.to_bytes(3,'big')
                     files['/game/vol.0']+=b'\x12\x34'+bytes([header[2]&128])+header[3:7]+data
                     error,frame,state=exercise(d,files,module='wbgame',module_root=a.module_root,base=0xa000,
-                        database=0x1000,window=0x8000,blocks=None,multiple=True,firstblock=0x10,frame_capture=True,capture=True)
+                        database=0x0000,window=0x8000,blocks=None,multiple=True,firstblock=0x10,frame_capture=True,capture=True)
                     assert not error and state['vmflags'][200]==1,(game.name,number,error)
                     expected=bytearray([1])*76800
                     for y in range(168):

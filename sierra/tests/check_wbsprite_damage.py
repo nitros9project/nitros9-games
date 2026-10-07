@@ -30,13 +30,13 @@ def main():
                     37,0,20,100,35,0,26,36,0,26,134,1,0])
                 spans=[]
                 def presentation(cpu,regs,syms):
-                    left=cpu.read(0x1000+syms['gamepresentleft'],1)[0]
-                    right=cpu.read(0x1000+syms['gamepresentright'],1)[0]
+                    left=cpu.read(0x0000+syms['gamepresentleft'],1)[0]
+                    right=cpu.read(0x0000+syms['gamepresentright'],1)[0]
                     if left<right:
                         spans.append((left,right))
                     return False
                 error,frame=exercise(d,fixture(script,b'\xff',view(width,height)),
-                    module='wbgame',base=0xa000,database=0x1000,window=0x8000,
+                    module='wbgame',base=0xa000,database=0x0000,window=0x8000,
                     blocks=None,multiple=True,firstblock=0x10,frame_capture=True,
                     map_failure=presentation)
                 expected=bytearray([1])*76800
@@ -58,7 +58,7 @@ def main():
                 script=bytes([3,0,1,24,0,25,0,33,0,41,0,0,
                     37,0,30,167,54,0,priority,35,0,26,134,1,0])
                 error,frame=exercise(d,fixture(script,bytes(picture),view(4,128)),
-                    module='wbgame',base=0xa000,database=0x1000,window=0x8000,
+                    module='wbgame',base=0xa000,database=0x0000,window=0x8000,
                     blocks=None,multiple=True,firstblock=0x10,frame_capture=True)
                 expected=bytearray([1])*76800
                 expected[8*320:176*320]=bytes([16])*(168*320)
@@ -89,7 +89,7 @@ def main():
                         failed[0]=True;return True
                     return False
                 error,_=exercise(d,fixture(script,b'\xff',view(4,3)),
-                    module='wbgame',base=0xa000,database=0x1000,window=0x8000,
+                    module='wbgame',base=0xa000,database=0x0000,window=0x8000,
                     blocks=None,multiple=True,firstblock=0x10,map_failure=fail,
                     breakpoint_hooks={'SpriteEraseStage':arm})
                 assert failed[0] and error==207,('erase span error',direction,error)

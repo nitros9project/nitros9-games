@@ -26,19 +26,19 @@ def main():
                     offset=len(files['/game/vol.0'])
                     files['/game/logDir']+=offset.to_bytes(3,'big')
                     files['/game/vol.0']+=b'\x12\x34\0'+len(expanded).to_bytes(2,'little')+len(data).to_bytes(2,'little')+data
-                return exercise(d,files,module='wbgame',module_root=root,base=0xa000,database=0x1000,
+                return exercise(d,files,module='wbgame',module_root=root,base=0xa000,database=0x0000,
                     window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,frame_capture=True,keyboard=keys,**options)
             error,baseline,_=run(prefix+bytes([134,1,0]));assert not error
-            plane=d.read(0x1000+syms['textcharacters'],2000)
+            plane=d.read(0x0000+syms['textcharacters'],2000)
             for middle,keys,extra in [(b'',b'',False),(bytes([20,2]),b'',True),
                                       (bytes([101,3]),b'\r',False),
                                       (bytes([105,0,24,1]),b'',False)]:
                 body=prefix+bytes([12,15,101,2,12,200])+middle+bytes([169,169,134,1,0])
                 error,frame,state=run(body,keys,extra)
                 assert not error and state['vmflags'][200]==1 and state['vmflags'][15]==0,(error,state['vmflags'][15])
-                assert frame==baseline,('persistent window failed to restore the original frame',middle,[(i%320,i//320,x,y) for i,(x,y) in enumerate(zip(frame,baseline)) if x!=y][:10],d.read(0x1000+syms['textcharacters'],2000)==plane)
-                assert d.read(0x1000+syms['textcharacters'],2000)==plane,'original character/color snapshot lost'
-                assert d.read(0x1000+syms['dialogactive'],1)==b'\0'
+                assert frame==baseline,('persistent window failed to restore the original frame',middle,[(i%320,i//320,x,y) for i,(x,y) in enumerate(zip(frame,baseline)) if x!=y][:10],d.read(0x0000+syms['textcharacters'],2000)==plane)
+                assert d.read(0x0000+syms['textcharacters'],2000)==plane,'original character/color snapshot lost'
+                assert d.read(0x0000+syms['dialogactive'],1)==b'\0'
             # Faults are armed at real handler boundaries, so allocation and
             # earlier rendering still succeed and cleanup of the dialog is tested.
             for boundary,option in [('GameHoldDialog','map_failure'),('GameWindowCloseReady','map_failure'),

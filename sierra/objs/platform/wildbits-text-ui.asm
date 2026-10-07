@@ -190,6 +190,65 @@ AuxWaitSample       ldy       2,s
                     leax      d,y
                     jmp       ,x
                     else
+                    ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_TEXT_RECT_CODE
+AuxClearTextRect    pshs      y
+                    ldu       <resourcebase
+                    leax      vmarguments,u
+                    lda       ,x
+                    ldb       2,x
+                    cmpb      #25
+                    lbhs      AuxRectInvalid
+                    cmpa      2,x
+                    lbhi      AuxRectInvalid
+                    lda       1,x
+                    ldb       3,x
+                    cmpb      #40
+                    lbhs      AuxRectInvalid
+                    cmpa      3,x
+                    lbhi      AuxRectInvalid
+                    subb      1,x
+                    incb
+                    pshs      b
+                    lda       2,x
+                    suba      ,x
+                    inca
+                    pshs      a
+                    lda       ,x
+                    ldb       #40
+                    mul
+                    addb      1,x
+                    adca      #0
+                    leay      textcharacters,u
+                    leay      d,y
+                    clra
+                    tst       <vmgraphics
+                    beq       GameRectRow
+                    tst       4,x
+                    beq       GameRectRow
+                    lda       #$FF
+GameRectRow         ldb       1,s
+GameRectCell        pshs      b
+                    ldb       #32
+                    stb       ,y
+                    sta       1000,y
+                    leay      1,y
+                    puls      b
+                    decb
+                    bne       GameRectCell
+                    ldb       #40
+                    subb      1,s
+                    leay      b,y
+                    dec       ,s
+                    bne       GameRectRow
+                    leas      2,s
+                    puls      y
+                    jmp       ,y
+
+AuxRectInvalid      puls      y
+                    ldb       #E$IllArg
+                    orcc      #1
+                    rts
+                    else
 * wildbits-text-ui feature: code and related private state.
 * Named layout sections preserve existing module and private-data addresses.
 
@@ -385,7 +444,6 @@ GameStateCommand    lbsr      GameSoundStop
                     std       stateentry,x
                     pshs      u
                     tfr       u,x
-                    ldy       M$Size,u
                     ldu       2,s
                     leau      fillstack,u
 StateCopy           lda       ,x+
@@ -430,7 +488,8 @@ StatePrompt         fcc       /File:/
 StateFailure        fcc       /File error./
                     fcb       0
 * Shared, bounded cold-image loader. Success leaves U=module, X=metadata
-* immediately after the eight-byte private ABI. No image is copied here.
+* after the eight-byte private ABI, Y=bounded writable-prefix length.
+* No image is copied here.
 StateLoadModule     pshs      u
                     lbsr      AssetUnmap
                     bcs       StateModuleFailure
@@ -439,12 +498,12 @@ StateLoadModule     pshs      u
                     os9       F$Load
                     bcs       StateModuleFailure
                     ldd       M$Size,u
-                    cmpd      #4096
+                    cmpd      #8192
                     bhi       StateLoadBad
                     ldd       M$Exec,u
                     cmpd      #13
                     blo       StateLoadBad
-                    addd      #21       branch, private ABI, four metadata words and CRC must fit
+                    addd      #25       branch, private ABI, six metadata words and CRC must fit
                     bcs       StateLoadBad
                     cmpd      M$Size,u
                     bhi       StateLoadBad
@@ -457,6 +516,16 @@ StateCheckABI       lda       ,x+
                     decb
                     bne       StateCheckABI
                     tfr       y,x       validated metadata follows the ABI
+* Only the writable state prefix is copied; linked cold code stays shared.
+                    ldd       M$Exec,u
+                    addd      #25
+                    cmpd      8,x
+                    bhi       StateLoadBad
+                    ldy       8,x
+                    cmpy      #4096
+                    bhi       StateLoadBad
+                    cmpy      M$Size,u
+                    bhi       StateLoadBad
                     leas      2,s
                     clrb
                     rts
@@ -706,6 +775,7 @@ GameTextUnlink      ldu       <resourcebase
                     std       textstoremodule,u
                     std       textstoreentry,u
                     std       textwaitentry,u
+                    std       textrectentry,u
 GameTextUnlinkDone  rts
 GameTextPresent     lbsr      AssetUnmap
                     bcs       GameTextReturn
@@ -815,55 +885,10 @@ GameGraphicsReady   lbsr      GameComposeScene
 
 * clear.text.rect(top,left,bottom,right,color): inclusive cell bounds.
 GameClearTextRect   ldu       <resourcebase
-                    leax      vmarguments,u
-                    lda       ,x
-                    ldb       2,x
-                    cmpb      #25
-                    lbhs      GameTextInvalid
-                    cmpa      2,x
-                    lbhi      GameTextInvalid
-                    lda       1,x
-                    ldb       3,x
-                    cmpb      #40
-                    lbhs      GameTextInvalid
-                    cmpa      3,x
-                    lbhi      GameTextInvalid
-                    subb      1,x
-                    incb
-                    pshs      b
-                    lda       2,x
-                    suba      ,x
-                    inca
-                    pshs      a
-                    lda       ,x
-                    ldb       #40
-                    mul
-                    addb      1,x
-                    adca      #0
-                    leay      textcharacters,u
-                    leay      d,y
-                    clra
-                    tst       <vmgraphics
-                    beq       GameRectRow
-                    tst       4,x
-                    beq       GameRectRow
-                    lda       #$FF
-GameRectRow         ldb       1,s
-GameRectCell        pshs      b
-                    ldb       #32
-                    stb       ,y
-                    sta       1000,y
-                    leay      1,y
-                    puls      b
-                    decb
-                    bne       GameRectCell
-                    ldb       #40
-                    subb      1,s
-                    leay      b,y
-                    dec       ,s
-                    bne       GameRectRow
-                    leas      2,s
-                    lbra      GameTextPresent
+                    leax      textrectentry,u
+                    ldb       #10
+                    leay      GameTextPresent,pcr
+                    lbra      GameColdInvoke
 
 * clear.lines is a full-width rectangle. Arguments are command-local scratch.
 GameClearLines      ldu       <resourcebase
@@ -2859,6 +2884,7 @@ NORMAL_STRING_FOLD  equ       ParserLower
 
                     else
                     error Unknown platform feature section
+                    endc
                     endc
                     endc
                     endc

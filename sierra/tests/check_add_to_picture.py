@@ -43,7 +43,7 @@ def main():
                         view=bytes([0,0,2,0,0,9,0,9,0,1,3,0,4,3,0x1f,0x12,0xf1,0x21,0,0x31,0x43,0,0x51,0])
                         files=assets(script,view)
                         error,frame,state=exercise(d,files,module='wbgame',module_root=args.module_root,base=0xa000,
-                            database=0x1000,window=0x8000,blocks=None,multiple=True,firstblock=0x10,frame_capture=True,capture=True)
+                            database=0x0000,window=0x8000,blocks=None,multiple=True,firstblock=0x10,frame_capture=True,capture=True)
                         assert not error,(variable,priority,x,y,error)
                         assert state['vmflags'][1]==1,'static decoration overwrote ego-hidden flag'
                         expected=bytearray([1])*76800
@@ -65,7 +65,7 @@ def main():
                                     if py in (cy-height+1,cy) or px in (cx,cx+3):
                                         at=py*160+px
                                         combined[at]=control*16+(combined[at]&15)
-                        first=int.from_bytes(d.read(0x1000+syms['picturefirst'],2),'big')
+                        first=int.from_bytes(d.read(0x0000+syms['picturefirst'],2),'big')
                         actual=bytearray()
                         for page in range(4):
                             d.write(0xffac,bytes([first+page]))
@@ -77,12 +77,12 @@ def main():
                              [0,0,0,20,30,15,16],[0,2,0,20,30,15,4],[0,0,1,20,30,15,4]):
                 script=bytes([3,0,1,24,0,25,0,122]+list(operands)+[134,1,0])
                 error,_=exercise(d,assets(script,view),module='wbgame',module_root=args.module_root,base=0xa000,
-                    database=0x1000,window=0x8000,blocks=None,multiple=True,firstblock=0x10)
+                    database=0x0000,window=0x8000,blocks=None,multiple=True,firstblock=0x10)
                 assert error,(operands,error)
             # A bounded replay log must report overflow before painting.
             script=bytes([3,0,1,24,0,25,0,142,1,122,0,0,0,20,30,15,4,134,1,0])
             error,_=exercise(d,assets(script,view),module='wbgame',module_root=args.module_root,base=0xa000,
-                database=0x1000,window=0x8000,blocks=None,multiple=True,firstblock=0x10)
+                database=0x0000,window=0x8000,blocks=None,multiple=True,firstblock=0x10)
             assert error==207,error
             print(f'PASS: {count} immediate/variable static cel draws, default/hidden/fixed priority, clipping, persistent background and preserved ego flag')
         finally:

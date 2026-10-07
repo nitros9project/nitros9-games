@@ -1,6 +1,7 @@
 * Native auxiliary module: writable state operations execute in a private
 * copy; immutable text/dialog code executes linked, using private cells.
 * The audio installer also exports immutable code for a permanent private copy.
+* Only the bounded state prefix is copied, excluding the immutable linked tail.
 * No formatter or flood-fill runs during the copied state operations.
 AUDIO_USER_COPY     equ 1
 WILDBITS            equ 1
@@ -12,7 +13,7 @@ StateName           fcs /wbstate/
                     fcb 1
 StateEntry          bra StateBegin
                     STATE_ABI
-                    fdb AudioBlobEnd-AudioBlobStart,AudioInstall,AuxTextStore,AuxPrintWait
+                    fdb AudioBlobEnd-AudioBlobStart,AudioInstall,AuxTextStore,AuxPrintWait,StateCopyEnd,AuxClearTextRect
 * A=0 save, 1 validate/stage restore, 2 apply after nested logic unwinds.
 * X=filename, Y=engine callback table, U=the game's private base.
 StateBegin          stu StateBase,pcr
@@ -851,11 +852,14 @@ StatePictureOffset  fdb 0
 StateHeader         zmb 18
 StateCache          zmb 160
 StateBuffer         zmb 512
+StateCopyEnd        equ *
 PLATFORM_SECTION    set PLATFORM_WILDBITS_SOUND_CODE
                     use platform/wildbits-audio.asm
 PLATFORM_SECTION    set PLATFORM_WILDBITS_TEXT_STORE_CODE
                     use platform/wildbits-text-ui.asm
 PLATFORM_SECTION    set PLATFORM_WILDBITS_DIALOG_WAIT_CODE
+                    use platform/wildbits-text-ui.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_TEXT_RECT_CODE
                     use platform/wildbits-text-ui.asm
                     emod
 StateEnd            equ *
@@ -863,7 +867,10 @@ StateEnd            equ *
                     ifgt AudioBlobEnd-AudioBlobStart-512
                     error Private audio adapter exceeds its reserved workspace
                     endc
-                    ifgt StateEnd-4096
-                    error Cold state helper exceeds its private workspace
+                    ifgt StateEnd-8192
+                    error Cold helper exceeds its code window
+                    endc
+                    ifgt StateCopyEnd-4096
+                    error Writable state prefix exceeds its private workspace
                     endc
                     endc

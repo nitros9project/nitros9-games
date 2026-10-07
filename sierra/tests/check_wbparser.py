@@ -62,7 +62,7 @@ def main():
                     '/game/vol.0': b'\x12\x34\0' + len(logic).to_bytes(2,'little')*2 + logic,
                     '/game/words.tok': vocabulary}
                 error, output, state = exercise(d,files,module='wbgame',base=0xa000,
-                    database=0x1000,window=0x8000,blocks=None,multiple=True,
+                    database=0x0000,window=0x8000,blocks=None,multiple=True,
                     firstblock=0x10,capture=True,keyboard=keys)
                 assert not error and not output, (keys,error,output)
                 if vocabulary is large:
@@ -78,7 +78,7 @@ def main():
                 files={'/game/logDir':b'\xff'*3+bytes(3),
                        '/game/vol.0':b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic,
                        '/game/words.tok':malformed}
-                error,_=exercise(d,files,module='wbgame',base=0xa000,database=0x1000,
+                error,_=exercise(d,files,module='wbgame',base=0xa000,database=0x0000,
                     window=0x8000,blocks=None,multiple=True,firstblock=0x10,keyboard=b'look\r')
                 assert error, ('malformed vocabulary accepted',malformed[:60])
             print('PASS: typed commands, case folding, one validation scan per line, prefix-compressed phrases across stream refills, ignored words, backspace, unknown indexes, said wildcards and single acceptance; closed paths and freed slabs')
