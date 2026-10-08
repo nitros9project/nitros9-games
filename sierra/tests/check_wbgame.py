@@ -238,6 +238,56 @@ def check_text_screen_key_wait(d):
     print('PASS: text-screen have.key honors cleared v19, waits for fresh input and resumes graphics without resubmitting parser text')
 
 
+def check_original_help(d):
+    """Run original KQ1 logic 92, including its inline fresh-key wait."""
+    game=ROOT/'kingsquest1'
+    files={'/game/'+path.name:path.read_bytes() for path in game.iterdir()
+           if path.is_file() and (path.name.startswith('vol.') or path.name in
+                                  ('logDir','picDir','viewDir','sndDir','words.tok','object'))}
+    root=bytes([22,92,134,1,0]);logic=len(root).to_bytes(2,'little')+root
+    volume=files['/game/vol.0'];offset=len(volume)
+    files['/game/vol.0']=volume+b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic
+    directory=bytearray(files['/game/logDir']);directory[:3]=offset.to_bytes(3,'big')
+    files['/game/logDir']=bytes(directory);observed={}
+    def visible(cpu,r,syms):
+        observed['title']=cpu.read(syms['textcharacters']+2*40+12,12)
+        observed['input']=cpu.read(syms['vminputenabled'],1)
+    def resumed(cpu,r,syms):
+        observed['graphics']=cpu.read(syms['vmgraphics'],1)
+    error,output,state=exercise(d,files,arguments=b'/game 0\r',module='wbgame',
+        base=0xa000,database=0,window=0x8000,blocks=None,multiple=True,firstblock=0x10,
+        capture=True,keyboard_by_cycle={5:(b'x',0)},
+        breakpoint_hooks={'GameHaveKeyWait':visible,'GameQuitCommand':resumed})
+    assert not error,(error,state['cycles'])
+    assert observed=={'title':b"KING'S QUEST",'input':b'\0','graphics':b'\x01'},observed
+    assert state['cycles']==5 and state['vmvariables'][19]==ord('x')
+    assert state['vminputenabled']==b'\x01' and state['vmflags'][4]==1
+    print('PASS: original KQ1 help logic, nested caller resume, fresh-key wait, restored input/graphics and cleanup')
+
+
+def check_original_death_messages(d):
+    """Run original death-support logic 100 at three score thresholds."""
+    game=ROOT/'kingsquest1'
+    original={'/game/'+path.name:path.read_bytes() for path in game.iterdir()
+              if path.is_file() and (path.name.startswith('vol.') or path.name in
+                                     ('logDir','picDir','viewDir','sndDir','words.tok','object'))}
+    for score,phrase in ((0,b'very sorry'),(50,b'pleased'),(100,b'delighted')):
+        # Original death callers arm v97=2; logic 100 decrements it to one.
+        root=bytes([3,3,score,3,97,2,22,100,134,1,0]);logic=len(root).to_bytes(2,'little')+root
+        volume=original['/game/vol.0'];offset=len(volume);files=dict(original)
+        files['/game/vol.0']=volume+b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic
+        directory=bytearray(files['/game/logDir']);directory[:3]=offset.to_bytes(3,'big')
+        files['/game/logDir']=bytes(directory);observed=[]
+        def message(cpu,r,syms):observed.append(cpu.read(r['x'],512).split(b'\0')[0])
+        error,output,state=exercise(d,files,arguments=b'/game 0\r',module='wbgame',
+            base=0xa000,database=0,window=0x8000,blocks=None,multiple=True,firstblock=0x10,
+            capture=True,keyboard=b'\r',breakpoint_hooks={'GamePrintText':message})
+        assert not error,(score,error)
+        assert len(observed)==1 and phrase in observed[0],(score,observed)
+        assert state['vmvariables'][97]==0 and state['vmvariables'][3]==score
+    print('PASS: original KQ1 death-support score branches, message dismissal, nested caller resume and resource cleanup')
+
+
 def check_timed_messages(d):
     """Exercise blocking timeouts, public counter wrap and modal exclusions."""
     cases=[
@@ -894,6 +944,8 @@ def main():
             check_compatibility_noops(d)
             check_positioned_messages(d)
             check_text_screen_key_wait(d)
+            check_original_help(d)
+            check_original_death_messages(d)
             check_timed_messages(d)
             check_screen_shakes(d)
             check_object_previews(d)

@@ -2019,3 +2019,66 @@ The full native game suite passes at `/tmp/sierra-king-key-game-final.log`,
 including the fresh-key regression, normal-cycle room controls, room input/sound
 teardown, timed and held dialogs, private-instance input, restart/save validation,
 text/graphics transitions, original castle pixels, and inventory cleanup.
+
+### Automated adventure coverage — 2026-10-08
+
+`tests/audit_game_scripts.py` decodes the installed game resources and traverses
+script control flow from each logic's entry. It follows both conditional arms,
+checks instruction bounds and overlapping branch targets, decodes variable-length
+`said` operands, and reports command support using the native dispatch contract.
+Reports contain opcode locations and call/room destinations, rather than copied
+game assets. Variable destinations remain unresolved; the direct root graph is
+a conservative graph, not proof that every listed script is reachable during
+ordinary play. Saved scan starts and actual puzzle states need runtime coverage.
+
+Run it from `sierra`:
+
+```sh
+python3 tests/audit_game_scripts.py --self-test
+python3 tests/audit_game_scripts.py --game kingsquest1 --output /tmp/kq1-audit.json
+python3 tests/audit_game_scripts.py --game leisuresuitlarry --output /tmp/larry-audit.json
+```
+
+KQ1's audit covers 90 logics and 11,413 instructions. It finds seven unsupported
+command sites, all in logic 99 (the debug script): opcodes 29, 133, 135, and 144.
+Larry covers 52 logics and 12,128 instructions, with four unsupported sites in
+debug logic 52: opcodes 29, 133, and 135. No native no-op routes are used by these
+two audited games. Support here means a command has a dispatch destination;
+it does not establish that its behavior matches CoCo.
+
+Other local games reveal different command gaps. For example, KQ3 uses unsupported
+opcode 155 in 87 logic resources. The initial Manhunter 1 scan rejects an
+overlapping instruction target and needs a format/version investigation before
+its results can be used. Neither finding is a completed gameplay test, and the
+other titles do not inherit KQ1/Larry's runtime validation.
+
+`check_original_help` in the native game suite now executes unchanged KQ1 logic
+92 through a private root bootstrap. It verifies original title cells, disabled
+input while help is visible, five scheduler waits before fresh input, restored
+input/graphics and help flag, nested caller resume, and full ownership cleanup.
+The focused run passes at `/tmp/sierra-original-help-check.log`; production
+binaries remain unchanged from `50f5875`.
+
+`check_original_death_messages` executes unchanged KQ1 logic 100 with the original
+caller's armed countdown (`v97=2`) at scores 0, 50, and 100. It checks the sorry,
+pleased, and delighted message branches, dismissal, consumed countdown, preserved
+score, nested caller resume, and cleanup. All three pass at
+`/tmp/sierra-original-death-check.log`. This verifies the death-support routine,
+not an actual encounter that kills Graham or the subsequent allowed-action loop.
+
+The coverage ledger is deliberately explicit:
+
+| Behavior | Evidence | Remaining gap |
+| --- | --- | --- |
+| Startup, movement, room changes | Original KQ1 castle/lake round trip and hall entry in MAME | Other room boundaries and entry directions |
+| Popup and full-screen dialog | CPU regressions, original king speech in MAME, original help logic | Other conversation states and cancellations |
+| Save, restore, restart | Existing original-game MAME and malformed-state CPU tests | States reached after later puzzles |
+| Two terminals | Simultaneous original KQ1/Larry input, audio, restoration and exit tests | Later modal/puzzle combinations |
+| Treasure puzzles | Command-level inventory/motion coverage | Original puzzle preconditions, actions and resulting state |
+| Death and escape | Original death-support message branches; cleanup and restart primitives | Actual death/captivity encounters and allowed-action loops |
+| Hazards and winning | Static script traversal | Original encounters, quest completion and final sequence |
+
+A successful audit and these scenario checks do not establish that the entire
+adventure is completable. The remaining original-game scenarios must exercise
+real logic and state changes; controlled bootstraps must be paired with navigation
+tests so that bypassing earlier rooms does not hide transition bugs.
