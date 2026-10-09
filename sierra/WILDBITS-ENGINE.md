@@ -2074,7 +2074,7 @@ The coverage ledger is deliberately explicit:
 | Popup and full-screen dialog | CPU regressions, original king speech in MAME, original help logic | Other conversation states and cancellations |
 | Save, restore, restart | Existing original-game MAME and malformed-state CPU tests | States reached after later puzzles |
 | Two terminals | Simultaneous original KQ1/Larry input, audio, restoration and exit tests | Later modal/puzzle combinations |
-| Treasure puzzles | Command-level inventory/motion coverage | Original puzzle preconditions, actions and resulting state |
+| Treasure puzzles | Original clover/mirror/shield/chest pickup scenarios in CPU tests and MAME; third-treasure state carry | Earlier encounters, travel between puzzles, and the final sequence |
 | Death and escape | Original death-support message branches; cleanup and restart primitives | Actual death/captivity encounters and allowed-action loops |
 | Hazards and winning | Static script traversal | Original encounters, quest completion and final sequence |
 
@@ -2082,3 +2082,45 @@ A successful audit and these scenario checks do not establish that the entire
 adventure is completable. The remaining original-game scenarios must exercise
 real logic and state changes; controlled bootstraps must be paired with navigation
 tests so that bypassing earlier rooms does not hide transition bugs.
+
+### Original quest-treasure pickup scenarios — 2026-10-09
+
+`check_original_pickup_puzzles` executes unchanged KQ1 room scripts 24 (clover),
+51 (magic mirror), 77 (magic shield), and 58 (magic chest), using original
+vocabulary, pictures, views, inventory data, and resource decoding. A private
+root bootstrap supplies initial encounter states and positions and submits
+`get clover`, `get mirror`, `get shield`, or `get chest` through AGI `parse`.
+Pickup decisions and state changes are made by the original scripts.
+
+The 15 CPU cases cover nearby acquisition, refusal from too far away, repeated
+attempts, the dragon guarding the mirror, the giant guarding the chest, and
+third-treasure acquisition while already owning the other two. They check actual
+inventory locations, puzzle flags, score, quest progress, caller resume and
+resource cleanup. The clover awards two points; each quest treasure awards eight.
+Repeat attempts cannot award additional points. The third-treasure case starts
+with progress two and score 16, finishes with progress three and score 24, and
+retains both earlier treasures.
+
+The successful mirror setup has the dragon already gone and its cave discovery
+point already awarded. The shield setup has the leprechaun king and followers
+already gone. The chest setup has the giant already dead. Guarded cases restore
+the relevant live-guard state. These controlled preconditions isolate pickup
+behavior; they do not test defeating the dragon/giant, making the leprechauns
+leave, or navigating to and between these rooms.
+
+The real-driver runner provides `--pickup clover`, `--pickup mirror`,
+`--pickup shield`, and `--pickup chest`. Each private bootstrap retains its
+original room logic, accepts the pickup through actual terminal keyboard input,
+dismisses the message, repeats the command, and reports final inventory, score,
+and quest progress through a guarded debugger checkpoint. It also checks dialog
+presentation/restoration and complete memory recovery. All four pass at
+`/tmp/sierra-pickup-<item>-mame`; the matching CPU run is recorded at
+`/tmp/sierra-original-pickups-complete.log`.
+
+The full native interpreter regression also passes at
+`/tmp/sierra-pickup-full-game.log`. That run includes the first 14 pickup cases;
+the focused 15-case run additionally verifies third-treasure state carry.
+
+No interpreter code or gameplay assets are changed by these tests. The playable
+image remains `/tmp/sierra-play-king-dialog/play.sh`. Full adventure completion
+and the winning sequence remain unverified.

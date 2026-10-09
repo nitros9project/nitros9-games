@@ -288,6 +288,50 @@ def check_original_death_messages(d):
     print('PASS: original KQ1 death-support score branches, message dismissal, nested caller resume and resource cleanup')
 
 
+def check_original_pickup_puzzles(d):
+    """Original pickup scripts decide proximity, acquisition and repeat scoring."""
+    game=ROOT/'kingsquest1'
+    original={'/game/'+path.name:path.read_bytes() for path in game.iterdir()
+              if path.is_file() and (path.name.startswith('vol.') or path.name in
+                                     ('logDir','picDir','viewDir','sndDir','words.tok','object'))}
+    puzzles=[('clover',24,'get clover',8,(50,134),(100,160),(86,87),2,b''),
+             ('mirror',51,'get mirror',19,(40,115),(100,150),(100,165),8,bytes([3,75,2,12,167])),
+             ('shield',77,'get shield',21,(130,128),(50,160),(188,102),8,bytes([12,186,12,187])),
+             ('chest',58,'get chest',2,(75,115),(10,160),(104,169),8,bytes([3,86,4]))]
+    for name,room,command,item,near,far,flags,points,preconditions in puzzles:
+        cases=[('near',near,False),('far',far,False),('repeat',near,True)]
+        if name in ('mirror','chest'):cases.append(('guarded',near,False))
+        if name=='chest':cases.append(('third treasure',near,False))
+        for label,(x,y),repeated in cases:
+            setup=preconditions+(bytes([3,75 if name=='mirror' else 86,0]) if label=='guarded' else b'')
+            if label=='third treasure':
+                setup+=bytes([3,74,2,3,3,16,12,100,12,165,12,188,12,102,92,19,92,21])
+            body=setup+bytes([3,0,room,12,5,33,0,30,0,41,0,0,37,0,x,y,114,0,1,117,0,22,room])
+            if repeated:body+=bytes([13,5,117,0,22,room])
+            body+=bytes([3,240,item,97,240,200])
+            if label=='third treasure':body+=bytes([3,240,19,97,240,201,3,240,21,97,240,202])
+            body+=bytes([134,1,0])
+            text=command.encode()+b'\0';key=b'Avis Durgan'
+            messages=bytes([1])+(4+len(text)).to_bytes(2,'little')+bytes([4,0])+bytes(v^key[i%11] for i,v in enumerate(text))
+            logic=len(body).to_bytes(2,'little')+body+messages
+            files=dict(original);volume=files['/game/vol.0'];offset=len(volume)
+            files['/game/vol.0']=volume+b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic
+            directory=bytearray(files['/game/logDir']);directory[:3]=offset.to_bytes(3,'big')
+            files['/game/logDir']=bytes(directory)
+            error,output,state=exercise(d,files,arguments=b'/game 0\r',module='wbgame',base=0xa000,
+                database=0,window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,
+                keyboard=b'\r\r',os_call_limit=100000)
+            assert not error,(name,label,error)
+            acquired=label in ('near','repeat','third treasure')
+            assert state['vmvariables'][200]==(255 if acquired else 0),(name,label,'inventory',state['vmvariables'][200])
+            expected_score=(16 if label=='third treasure' else 0)+(points if acquired else 0)
+            assert state['vmvariables'][3]==expected_score,(name,label,'score',state['vmvariables'][3])
+            assert all(state['vmflags'][flag]==int(acquired) for flag in flags),(name,label,'puzzle flags')
+            if name!='clover':assert state['vmvariables'][74]==(2 if label=='third treasure' else 0)+int(acquired),(name,label,'quest progress')
+            if label=='third treasure':assert state['vmvariables'][201:203]==b'\xff\xff','earlier treasures were lost'
+    print('PASS: original clover/mirror/shield/chest pickups, real vocabulary parsing, near/far and guarded acquisition, inventory/quest flags and no repeat score')
+
+
 def check_timed_messages(d):
     """Exercise blocking timeouts, public counter wrap and modal exclusions."""
     cases=[
@@ -946,6 +990,7 @@ def main():
             check_text_screen_key_wait(d)
             check_original_help(d)
             check_original_death_messages(d)
+            check_original_pickup_puzzles(d)
             check_timed_messages(d)
             check_screen_shakes(d)
             check_object_previews(d)

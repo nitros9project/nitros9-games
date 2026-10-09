@@ -22,6 +22,7 @@ def main():
     ap.add_argument('--persistence',action='store_true',help='Save original KQ1, walk, restore, and issue another command')
     ap.add_argument('--hall',action='store_true',help='Exercise original KQ1 hall logic after stop.motion/new.room')
     ap.add_argument('--king-dialog',action='store_true',help="Exercise the original king's text-screen speech and fresh-key wait")
+    ap.add_argument('--pickup',choices=('clover','mirror','shield','chest'),help='Type a pickup command twice in an original puzzle room with controlled encounter preconditions')
     ap.add_argument('--journey',action='store_true',help='Walk original KQ1 to the lake, look, and return to the castle')
     ap.add_argument('--movement',action='store_true',help='Measure KQ1 movement over 200 emulated frames')
     ap.add_argument('--larry',action='store_true',help='Exercise Larry age quiz, street walking and look response')
@@ -44,6 +45,21 @@ def main():
     for source in a.game.iterdir():
         if source.is_file() and (source.name.startswith('vol.') or source.name in ('logDir','picDir','viewDir','sndDir','words.tok','object')):
             install(source.name,source.read_bytes(),'game/'+source.name)
+    if a.pickup:
+        room,item,x,y,preconditions={
+            'clover':(24,8,50,134,b''),
+            'mirror':(51,19,40,115,bytes([3,75,2,12,167])),
+            'shield':(77,21,130,128,bytes([12,186,12,187])),
+            'chest':(58,2,75,115,bytes([3,86,4])),
+        }[a.pickup]
+        setup=preconditions+bytes([3,250,1,3,0,room,33,0,30,0,41,0,0,37,0,x,y,121,113,0,1])
+        root=bytes([255,1,250,0,255])+len(setup).to_bytes(2,'little')+setup
+        root+=bytes([255,12,1,255,2,0,134,1,23,0,3,240,item,97,240,200,0])
+        logic=len(root).to_bytes(2,'little')+root
+        volume=(a.game/'vol.0').read_bytes();offset=len(volume)
+        install('pickup-vol.0',volume+b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic,'game/vol.0')
+        directory=bytearray((a.game/'logDir').read_bytes());directory[:3]=offset.to_bytes(3,'big')
+        install('pickup-logDir',bytes(directory),'game/logDir')
     if a.king_dialog:
         from check_lzw import expand
         entry=int.from_bytes((a.game/'logDir').read_bytes()[53*3:54*3],'big')
@@ -128,7 +144,7 @@ def main():
 
     with disk.open('ab') as f:f.truncate(1 << (disk.stat().st_size-1).bit_length())
     if a.prepare_play:
-        if any((a.menu,a.typed_command,a.sustained,a.hall,a.king_dialog,a.journey,a.movement,a.persistence,a.larry,
+        if any((a.menu,a.typed_command,a.sustained,a.hall,a.king_dialog,a.pickup,a.journey,a.movement,a.persistence,a.larry,
                 a.larry_enter,a.larry_pair,a.restart,a.video_mode,a.audio_trace,a.profile)):
             ap.error('--prepare-play cannot be combined with scripted diagnostic modes')
         lua=out/'play.lua'
@@ -148,7 +164,7 @@ def main():
         print('Scroll Lock toggles MAME UI controls; Ctrl-C exits the game to NitrOS-9.')
         return
     response_frame=4000+max(700,120*len(a.typed_command or ""))
-    if sum(bool(v) for v in (a.menu,a.typed_command,a.sustained,a.hall,a.king_dialog,a.journey,a.movement,a.persistence,a.larry,a.larry_enter,a.larry_pair,a.restart,a.video_mode))>1:
+    if sum(bool(v) for v in (a.menu,a.typed_command,a.sustained,a.hall,a.king_dialog,a.pickup,a.journey,a.movement,a.persistence,a.larry,a.larry_enter,a.larry_pair,a.restart,a.video_mode))>1:
         ap.error("choose menu, typed-command, sustained, movement, larry larry-enter or larry-pair")
     if a.menu: response_frame=4700
     delay=response_frame+1000-3900 if a.typed_command or a.menu else 0
@@ -253,6 +269,15 @@ def main():
                  ' if frames==5500 then shot("video-mode-alternate") end',
                  ' if frames==7100 then shot("video-mode-standard") end']
         command_events='\n'.join(events)+'\n'
+    if a.pickup:
+        delay=7500
+        command_events=f'''
+ if frames==4000 or frames==7500 then post("get {a.pickup}\\r") end
+ if frames==6500 then shot("pickup-message") end
+ if frames==6600 or frames==9000 then post(" ") end
+ if frames==7200 then shot("pickup-scene") end
+ if frames==10000 then post("q") end
+'''
     if a.king_dialog:
         delay=10500
         command_events='''
@@ -402,6 +427,15 @@ end)
             source+=f' if frames=={frame+30} then keys["Ctrl"]:clear_value() end\n'
         source+=' if frames==24200 then manager.machine:exit() end\nend)\n'
         lua.write_text(source)
+    if a.pickup:
+        module=a.module_file or (VIEWER/'wbgame');syms=symbols(module.with_suffix('.map'))
+        code=module.read_bytes();base=(8-(len(code)+8191)//8192)*8192
+        guard=f'w@{base:x} == 87cd && w@{base+2:x} == {len(code):x}'
+        action=f'printf "PICKUP SCORE=%d ITEMROOM=%d QUEST=%d",b@(u+{syms["vmvariables"]+3:x}),b@(u+{syms["vmvariables"]+200:x}),b@(u+{syms["vmvariables"]+74:x}); g'
+        event=f' if frames==950 then cpu.debug:bpset({base+syms["GameQuitCommand"]},{json.dumps(guard)},{json.dumps(action)}) end'
+        source=lua.read_text().replace(' frames=frames+1',' frames=frames+1\n'+event,1)
+        source='local cpu=manager.machine.devices[":maincpu"]\nmanager.machine.debugger.execution_state="run"\npickup_stop=emu.add_machine_stop_notifier(function() local log=manager.machine.debugger.consolelog;for index=1,#log do if log[index] then print(log[index]) end end end)\n'+source
+        lua.write_text(source)
     if a.hall:
         module=a.module_file or (VIEWER/'wbgame')
         syms=symbols(module.with_suffix('.map'));code=module.read_bytes()
@@ -476,8 +510,8 @@ end)
         if not a.audio_trace:
             source='local cpu=manager.machine.devices[":maincpu"]\nmanager.machine.debugger.execution_state="run"\nvideo_stop=emu.add_machine_stop_notifier(function() local log=manager.machine.debugger.consolelog;for index=1,#log do if log[index] then print(log[index]) end end end)\n'+source
         lua.write_text(source)
-    command=[str(a.mame.resolve()),'wbjr2','-bios','turbo','-rompath',str(roms.parent),'-hard',str(disk),'-skip_gameinfo', '-noui_mouse', '-mouseprovider', 'none','-video','none','-sound','none','-nothrottle','-autoboot_script',str(lua),'-seconds_to_run',str(420 if a.larry_pair else (5100+delay+(1200 if a.larry or a.larry_enter else 0))//60+10 if a.typed_command or a.menu or a.sustained or a.hall or a.king_dialog or a.journey or a.movement or a.persistence or a.restart or a.larry or a.larry_enter or a.video_mode else 100),'-nvram_directory',str(out/'nvram'),'-cfg_directory',str(out/'cfg')]
-    if a.profile or a.audio_trace or a.restart or a.video_mode or a.hall:command+=['-debug','-debugger','none']
+    command=[str(a.mame.resolve()),'wbjr2','-bios','turbo','-rompath',str(roms.parent),'-hard',str(disk),'-skip_gameinfo', '-noui_mouse', '-mouseprovider', 'none','-video','none','-sound','none','-nothrottle','-autoboot_script',str(lua),'-seconds_to_run',str(420 if a.larry_pair else (5100+delay+(1200 if a.larry or a.larry_enter else 0))//60+10 if a.typed_command or a.menu or a.sustained or a.hall or a.king_dialog or a.pickup or a.journey or a.movement or a.persistence or a.restart or a.larry or a.larry_enter or a.video_mode else 100),'-nvram_directory',str(out/'nvram'),'-cfg_directory',str(out/'cfg')]
+    if a.profile or a.audio_trace or a.restart or a.video_mode or a.hall or a.pickup:command+=['-debug','-debugger','none']
     (out/'command.json').write_text(json.dumps(command,indent=2)+'\n')
     with (out/'mame.log').open('w') as log:subprocess.run(command,cwd=out,stdout=log,stderr=subprocess.STDOUT,check=True,timeout=360 if a.larry_pair else 300 if a.larry or a.larry_enter else 180)
     if a.audio_trace:
@@ -515,6 +549,17 @@ end)
     before=os9('list',f'{disk},free-before');after=os9('list',f'{disk},free-after')
     (out/'free-before.txt').write_bytes(before);(out/'free-after.txt').write_bytes(after)
     assert before==after,'real game leaked memory'
+    if a.pickup:
+        states=re.findall(r'PICKUP SCORE=(\d+) ITEMROOM=(\d+) QUEST=(\d+)',(out/'mame.log').read_text())
+        expected=(2,255,0) if a.pickup=='clover' else (8,255,1)
+        assert states==[tuple(map(str,expected))],('pickup/repeat state',a.pickup,states)
+        message=png_rgb(out/'pickup-message.png')
+        assert set(message[2][i:i+3] for i in range(0,len(message[2]),3))=={bytes(3),bytes([255])*3},'pickup dialog absent'
+        scene=png_rgb(out/'pickup-scene.png')
+        assert len(set(scene[2][i:i+3] for i in range(0,len(scene[2]),3)))>=12,'pickup dialog did not restore scene'
+        (out/'pickup.json').write_text(json.dumps({'item':a.pickup,'score':expected[0],'item_room':255,'quest_progress':expected[2]})+'\n')
+        print('PASS: original',a.pickup,'pickup through terminal parsing, repeat scoring, inventory/quest progress and unchanged exit memory')
+        return
     if a.king_dialog:
         scene=png_rgb(out/'game-before-input.png')
         speech=png_rgb(out/'king-speech.png');held=png_rgb(out/'king-still-visible.png')
