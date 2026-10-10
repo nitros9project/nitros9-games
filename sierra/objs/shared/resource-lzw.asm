@@ -45,3 +45,35 @@ RESOURCE_LZW_WALK macro
                     LZW_CHAIN_RETAIN
                     bra       \1
                     endm
+
+* Create the next three-byte dictionary entry and advance its index.
+* D=next index on entry; owner checks dictionary capacity before expansion.
+* Parameters: cursor register, next-index word, previous-code word, first-byte
+* field, optional retained-index scratch (0 means use next-index directly),
+* suffix-first store order (1=legacy CoCo, 0=native). Base addressing uses the
+* existing dictionary provider. Compile-time choices preserve owner bytes.
+RESOURCE_LZW_INSERT macro
+                    ifne      \5
+                    std       <\5
+                    addd      <\5
+                    addd      <\5
+                    else
+                    addd      <\2
+                    addd      <\2
+                    endc
+                    LZW_CHAIN_BASE
+                    lea\1     d,\1
+                    ifne      \6
+                    ldb       <\4
+                    stb       $02,\1
+                    endc
+                    ldd       <\3
+                    std       ,\1
+                    ifeq      \6
+                    ldb       <\4
+                    stb       $02,\1
+                    endc
+                    ldd       <\2
+                    addd      #$0001
+                    std       <\2
+                    endm

@@ -2574,3 +2574,29 @@ Native memory/resource bindings now gate their animation aliases on
 `AGI_VM`; a codec-only consumer can use those bindings without declaring VM
 state. The normal game and logic probe still expand the same animation
 aliases and instructions.
+
+
+### Shared LZW dictionary insertion — 2026-10-10
+
+`RESOURCE_LZW_INSERT` in the existing `shared/resource-lzw.asm` now creates
+dictionary entries for both CoCo `PicRenderSetup` and native `DecodeLzw`.
+D supplies the next dictionary index; the common body computes its three-byte
+entry offset, selects the owner's dictionary base, writes the previous-code
+prefix and current string's first byte, then increments the next index.
+
+The six assembly-time arguments identify the cursor, next-index word, previous
+code, first-byte field, optional retained-index scratch and store order. CoCo
+uses its directly mapped dictionary and writes the suffix before the prefix;
+native uses its private workspace, retained-index scratch and prefix-first
+order. These choices preserve the original instructions. Native still checks
+capacity before insertion; each owner retains code-width growth and its
+existing malformed-input policy. No callback, allocation or runtime dispatch
+was added.
+
+Fresh isolated baseline and changed builds of all 56 CoCo modules and seven
+native owners compare byte for byte, including module headers and CRCs. The
+comparison artifacts are `/tmp/sierra-lzw-insert-baseline-v2` and
+`/tmp/sierra-lzw-insert-after`. Consequently the complete native regression
+and MAME quest/save/restore evidence for `c3b41c0` applies to this identical
+executable. This removes another duplicated codec operation without adding
+a platform source file; it does not finish the broader owner consolidation.

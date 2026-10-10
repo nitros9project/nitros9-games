@@ -4270,17 +4270,7 @@ PicWriteLoop        puls      b         pop color byte from stack
                     bne       PicWriteLoop loop until all pixels written
                     sta       <$00B6    reset run count to zero
                     ldd       <$00A9    load current base color
-                    addd      <$00A9    multiply by 3 for table index
-                    addd      <$00A9    (×3 total)
-                    ldu       #$6400    point to color table base
-                    leau      d,u       index to this color's entry
-                    ldb       <$00AD    load current color byte D
-                    stb       $02,u     store back in table
-                    ldd       <$00B4    load saved color pair
-                    std       ,u        store back in table
-                    ldd       <$00A9    load base color index
-                    addd      #$0001    advance to next color index
-                    std       <$00A9    store new base color
+                    RESOURCE_LZW_INSERT u,$00A9,$00B4,$00AD,0,1
                     ldu       <$00AB    load run-color tracker
                     stu       <$00B4    save as next saved color
                     cmpd      <$00B1    compare index to max range

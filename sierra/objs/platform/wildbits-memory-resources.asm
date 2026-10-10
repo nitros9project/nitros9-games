@@ -468,18 +468,7 @@ LzwPop              ldd       <lzwtop
                     ldd       <lzwnext
                     cmpd      #2048
                     bhs       LzwRemember
-                    std       <lzwchain
-                    addd      <lzwchain
-                    addd      <lzwchain
-                    ldx       <lzwwork
-                    leax      d,x
-                    ldd       <lzwprevious
-                    std       ,x
-                    ldb       <lzwfirst
-                    stb       2,x
-                    ldd       <lzwnext
-                    addd      #1
-                    std       <lzwnext
+                    RESOURCE_LZW_INSERT x,lzwnext,lzwprevious,lzwfirst,lzwchain,0
                     cmpd      <lzwthreshold
                     blo       LzwRemember
                     lda       <lzwwidth
