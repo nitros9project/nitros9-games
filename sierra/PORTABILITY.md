@@ -13,6 +13,28 @@ acquisition, rendering and remaining presentation/formatter behavior still need
 consolidation. Historical sections below describe their stage when written;
 the latest sections record the ongoing shared-engine work.
 
+## Retained owner policies in the consolidation audit
+
+A shared component owns the algorithm; its binding supplies operands, storage
+and service results. The bindings are assembly-time macros, so the engine does
+not test its platform inside these shared rules. The following larger owner
+bodies were reviewed separately because matching purpose does not imply matching
+execution or storage policy.
+
+| Boundary | Shared behavior | Retained owner behavior and reason |
+| --- | --- | --- |
+| Root cycle and room transition | Executor, clock rollover, transient flags, old/new room publication, object reset and edge placement | CoCo dispatches direction before logic and updates animation/movement after it; native updates objects at its next-cycle boundary. Timing, input polling, foreground gating, resource release and re-entry keep their working order. |
+| Resource and view acquisition | Directory volume/header byte order, LZW reset/extraction/traversal/insertion, selected-cel clipping and view queries | CoCo uses a linked banked heap and suffix rewinds; native uses bounded typed slots and independently owned slabs. Disk retry, mapping, validation and errors belong to those storage systems. |
+| Graphics | Picture command catalog, colors, coordinates, line/pen algorithms, object bounds, clipping, visibility and terrain/collision rules | CoCo uses packed pixels and linked background/blit records; native stages mapped resources and composes private byte buffers with damage presentation. CoCo transforms packed RLE for mirroring; native changes plot direction. Fixed-priority sorting keys and custom priority-table support differ. |
+| Formatting and text | Scan/directive routing, recursive call/result rules, copying, decimal conversion and string-slot resolution | Recursion frames, source acquisition, window wrapping, modal waits, menus and terminal writes retain their storage/driver ABI. Native formatter providers do not yet implement every CoCo substitution; that is feature parity work, not a second implementation of the shared scanner. |
+| Input and controllers | Tokenization, dictionary and said matching, normalized comparison and joystick axis classification | CoCo translates scan/modifier codes into its event protocol and inserts empty key slots; native retains ASCII/scan pairs and replaces matching definitions. Queueing, terminal key protocol, button ownership and line editing stay with the input backend. |
+| Sound, persistence and diagnostics | Command catalogs and state/flag operations used by their handlers | CoCo DAC playback and native queued PSG playback have different timing and ownership. CoCo saves banked interpreter state; native serializes its validated resource/state schema. Their I/O, replay, cleanup, error UI and debugger services retain explicit owner implementations. |
+
+These differences are not removed by placing both bodies behind callbacks.
+Changing a retained semantic policy requires a separate behavioral change and
+its own compatibility evidence. Common algorithm bodies continue to reside in
+`objs/shared`; platform feature files place them and supply the interfaces.
+
 ## CoCo portability groundwork status
 
 The source-separation phase is complete: assembly-time CoCo backends now own
