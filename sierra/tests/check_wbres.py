@@ -336,6 +336,11 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
                 d.write(0xFFA8 + window // 8192, bytes([window // 8192]))
                 mapped = False
         elif service == syms['I$Open']:
+            # Path IDs are bytes. Long original-game scenarios must reuse
+            # closed IDs instead of overflowing the mocked A register.
+            if nextpath>255 or nextpath in paths:
+                nextpath=next((value for value in range(3,256) if value not in paths),None)
+                assert nextpath is not None,'fixture exhausted all simultaneously owned path IDs'
             name = d.read(r['x'], 160).split(b'\r')[0].decode()
             if name=='/fPSG':
                 audio_ever_installed=d.read(database+syms['soundinstalled'],1)==b'\x01'

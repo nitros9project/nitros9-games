@@ -37,6 +37,7 @@ def main():
     ap.add_argument('--persistence',action='store_true',help='Save original KQ1, walk, restore, and issue another command')
     ap.add_argument('--hall',action='store_true',help='Exercise original KQ1 hall logic after stop.motion/new.room')
     ap.add_argument('--king-dialog',action='store_true',help="Exercise the original king's text-screen speech and fresh-key wait")
+    ap.add_argument('--quest-chain',choices=('basic','acquisitions','quest-items'),nargs='?',const='basic',help='Run original root/rooms through controlled encounters, pickups, transfers and ending')
     ap.add_argument('--encounter',choices=('fiddle','dragon','giant'),help='Type an original encounter command and verify its outcome')
     ap.add_argument('--coronation',action='store_true',help='Exercise the original three-treasure throne-room ending')
     ap.add_argument('--pickup',choices=('clover','mirror','shield','chest'),help='Type a pickup command twice in an original puzzle room with controlled encounter preconditions')
@@ -62,9 +63,14 @@ def main():
     for source in a.game.iterdir():
         if source.is_file() and (source.name.startswith('vol.') or source.name in ('logDir','picDir','viewDir','sndDir','words.tok','object')):
             install(source.name,source.read_bytes(),'game/'+source.name)
+    if a.quest_chain:
+        from check_wbgame import original_quest_chain_files
+        fixture=original_quest_chain_files(a.quest_chain!='basic',a.quest_chain=='quest-items')
+        for name in ('vol.0','logDir'):
+            install('quest-chain-'+name,fixture['/game/'+name],'game/'+name)
     if a.encounter:
         if a.encounter=='fiddle':
-            setup=bytes([3,250,1,3,0,76,3,1,77,12,5,12,87,12,171,92,8,92,17,
+            setup=bytes([3,250,1,3,0,76,3,1,77,12,5,12,87,12,171,92,8,92,22,
                          33,0,30,0,41,0,0,37,0,73,150,121,113,0,1])
         elif a.encounter=='dragon':
             setup=bytes([3,250,1,3,0,51,12,5,12,88,12,167,92,26,
@@ -188,7 +194,7 @@ def main():
 
     with disk.open('ab') as f:f.truncate(1 << (disk.stat().st_size-1).bit_length())
     if a.prepare_play:
-        if any((a.menu,a.typed_command,a.sustained,a.hall,a.king_dialog,a.encounter,a.coronation,a.pickup,a.journey,a.movement,a.persistence,a.larry,
+        if any((a.menu,a.typed_command,a.sustained,a.hall,a.king_dialog,a.quest_chain,a.encounter,a.coronation,a.pickup,a.journey,a.movement,a.persistence,a.larry,
                 a.larry_enter,a.larry_pair,a.restart,a.video_mode,a.audio_trace,a.profile)):
             ap.error('--prepare-play cannot be combined with scripted diagnostic modes')
         lua=out/'play.lua'
@@ -208,7 +214,7 @@ def main():
         print('Scroll Lock toggles MAME UI controls; Ctrl-C exits the game to NitrOS-9.')
         return
     response_frame=4000+max(700,120*len(a.typed_command or ""))
-    if sum(bool(v) for v in (a.menu,a.typed_command,a.sustained,a.hall,a.king_dialog,a.encounter,a.coronation,a.pickup,a.journey,a.movement,a.persistence,a.larry,a.larry_enter,a.larry_pair,a.restart,a.video_mode))>1:
+    if sum(bool(v) for v in (a.menu,a.typed_command,a.sustained,a.hall,a.king_dialog,a.quest_chain,a.encounter,a.coronation,a.pickup,a.journey,a.movement,a.persistence,a.larry,a.larry_enter,a.larry_pair,a.restart,a.video_mode))>1:
         ap.error("choose menu, typed-command, sustained, movement, larry larry-enter or larry-pair")
     if a.menu: response_frame=4700
     delay=response_frame+1000-3900 if a.typed_command or a.menu else 0
@@ -313,6 +319,12 @@ def main():
                  ' if frames==5500 then shot("video-mode-alternate") end',
                  ' if frames==7100 then shot("video-mode-standard") end']
         command_events='\n'.join(events)+'\n'
+    if a.quest_chain:
+        delay=18000
+        command_events='''
+ if frames>=1800 and frames<19500 and frames%120==0 then post(" ") end
+ if frames%3000==0 then shot("quest-chain-"..frames) end
+'''
     if a.encounter:
         delay=15000
         text={'fiddle':'play fiddle','dragon':'throw water','giant':'use sling'}[a.encounter]
@@ -485,6 +497,18 @@ end)
             source+=f' if frames=={frame+30} then keys["Ctrl"]:clear_value() end\n'
         source+=' if frames==24200 then manager.machine:exit() end\nend)\n'
         lua.write_text(source)
+    if a.quest_chain:
+        module=a.module_file or (VIEWER/'wbgame');syms=symbols(module.with_suffix('.map'))
+        code=module.read_bytes();base=(8-(len(code)+8191)//8192)*8192
+        guard=f'w@{base:x} == 87cd && w@{base+2:x} == {len(code):x}'
+        action=f'printf "QUESTCHAIN SCORE=%d QUEST=%d END=%d ITEMS=%d,%d,%d",b@(u+{syms["vmvariables"]+3:x}),b@(u+{syms["vmvariables"]+74:x}),b@(u+{syms["vmflags"]+195:x}),b@(u+{syms["vmvariables"]+200:x}),b@(u+{syms["vmvariables"]+201:x}),b@(u+{syms["vmvariables"]+202:x}); g'
+        action=action[:-3]+f'; printf "QUESTCHAIN REMAINING=%d,%d,%d,%d",b@(u+{syms["vmvariables"]+203:x}),b@(u+{syms["vmvariables"]+204:x}),b@(u+{syms["vmvariables"]+205:x}),b@(u+{syms["vmvariables"]+206:x}); g'
+        event=f' if frames==950 then cpu.debug:bpset({base+syms["GameQuitCommand"]},{json.dumps(guard)},{json.dumps(action)}) end'
+        source=lua.read_text().replace(' frames=frames+1',' frames=frames+1\n'+event,1)
+        source='local cpu=manager.machine.devices[":maincpu"]\nmanager.machine.debugger.execution_state="run"\n'+source
+        if not a.audio_trace:
+            source='quest_stop=emu.add_machine_stop_notifier(function() local log=manager.machine.debugger.consolelog;for index=1,#log do if log[index] then print(log[index]) end end end)\n'+source
+        lua.write_text(source)
     if a.encounter:
         module=a.module_file or (VIEWER/'wbgame');syms=symbols(module.with_suffix('.map'))
         code=module.read_bytes();base=(8-(len(code)+8191)//8192)*8192
@@ -494,7 +518,9 @@ end)
         action=f'printf "ENCOUNTER SCORE=%d FLAG=%d STATE=%d INPUT=%d",b@(u+{syms["vmvariables"]+3:x}),b@(u+{syms["vmflags"]+flag:x}),b@(u+{syms["vmvariables"]+variable:x}),b@(u+{syms["vminputenabled"]:x}); g'
         event=f' if frames==950 then cpu.debug:bpset({base+syms["GameQuitCommand"]},{json.dumps(guard)},{json.dumps(action)}) end'
         source=lua.read_text().replace(' frames=frames+1',' frames=frames+1\n'+event,1)
-        source='local cpu=manager.machine.devices[":maincpu"]\nmanager.machine.debugger.execution_state="run"\nencounter_stop=emu.add_machine_stop_notifier(function() local log=manager.machine.debugger.consolelog;for index=1,#log do if log[index] then print(log[index]) end end end)\n'+source
+        source='local cpu=manager.machine.devices[":maincpu"]\nmanager.machine.debugger.execution_state="run"\n'+source
+        if not a.audio_trace:
+            source='encounter_stop=emu.add_machine_stop_notifier(function() local log=manager.machine.debugger.consolelog;for index=1,#log do if log[index] then print(log[index]) end end end)\n'+source
         lua.write_text(source)
     if a.coronation:
         module=a.module_file or (VIEWER/'wbgame');syms=symbols(module.with_suffix('.map'))
@@ -503,7 +529,9 @@ end)
         action=f'printf "CORONATION END=%d QUEST=%d ACTIVE=%d",b@(u+{syms["vmflags"]+195:x}),b@(u+{syms["vmvariables"]+74:x}),b@(u+{syms["vmflags"]+95:x}); g'
         event=f' if frames==950 then cpu.debug:bpset({base+syms["GameQuitCommand"]},{json.dumps(guard)},{json.dumps(action)}) end'
         source=lua.read_text().replace(' frames=frames+1',' frames=frames+1\n'+event,1)
-        source='local cpu=manager.machine.devices[":maincpu"]\nmanager.machine.debugger.execution_state="run"\ncoronation_stop=emu.add_machine_stop_notifier(function() local log=manager.machine.debugger.consolelog;for index=1,#log do if log[index] then print(log[index]) end end end)\n'+source
+        source='local cpu=manager.machine.devices[":maincpu"]\nmanager.machine.debugger.execution_state="run"\n'+source
+        if not a.audio_trace:
+            source='coronation_stop=emu.add_machine_stop_notifier(function() local log=manager.machine.debugger.consolelog;for index=1,#log do if log[index] then print(log[index]) end end end)\n'+source
         lua.write_text(source)
     if a.pickup:
         module=a.module_file or (VIEWER/'wbgame');syms=symbols(module.with_suffix('.map'))
@@ -512,7 +540,9 @@ end)
         action=f'printf "PICKUP SCORE=%d ITEMROOM=%d QUEST=%d",b@(u+{syms["vmvariables"]+3:x}),b@(u+{syms["vmvariables"]+200:x}),b@(u+{syms["vmvariables"]+74:x}); g'
         event=f' if frames==950 then cpu.debug:bpset({base+syms["GameQuitCommand"]},{json.dumps(guard)},{json.dumps(action)}) end'
         source=lua.read_text().replace(' frames=frames+1',' frames=frames+1\n'+event,1)
-        source='local cpu=manager.machine.devices[":maincpu"]\nmanager.machine.debugger.execution_state="run"\npickup_stop=emu.add_machine_stop_notifier(function() local log=manager.machine.debugger.consolelog;for index=1,#log do if log[index] then print(log[index]) end end end)\n'+source
+        source='local cpu=manager.machine.devices[":maincpu"]\nmanager.machine.debugger.execution_state="run"\n'+source
+        if not a.audio_trace:
+            source='pickup_stop=emu.add_machine_stop_notifier(function() local log=manager.machine.debugger.consolelog;for index=1,#log do if log[index] then print(log[index]) end end end)\n'+source
         lua.write_text(source)
     if a.hall:
         module=a.module_file or (VIEWER/'wbgame')
@@ -588,8 +618,8 @@ end)
         if not a.audio_trace:
             source='local cpu=manager.machine.devices[":maincpu"]\nmanager.machine.debugger.execution_state="run"\nvideo_stop=emu.add_machine_stop_notifier(function() local log=manager.machine.debugger.consolelog;for index=1,#log do if log[index] then print(log[index]) end end end)\n'+source
         lua.write_text(source)
-    command=[str(a.mame.resolve()),'wbjr2','-bios','turbo','-rompath',str(roms.parent),'-hard',str(disk),'-skip_gameinfo', '-noui_mouse', '-mouseprovider', 'none','-video','none','-sound','none','-nothrottle','-autoboot_script',str(lua),'-seconds_to_run',str(420 if a.larry_pair else (5100+delay+(1200 if a.larry or a.larry_enter else 0))//60+10 if a.typed_command or a.menu or a.sustained or a.hall or a.king_dialog or a.encounter or a.coronation or a.pickup or a.journey or a.movement or a.persistence or a.restart or a.larry or a.larry_enter or a.video_mode else 100),'-nvram_directory',str(out/'nvram'),'-cfg_directory',str(out/'cfg')]
-    if a.profile or a.audio_trace or a.restart or a.video_mode or a.hall or a.encounter or a.coronation or a.pickup:command+=['-debug','-debugger','none']
+    command=[str(a.mame.resolve()),'wbjr2','-bios','turbo','-rompath',str(roms.parent),'-hard',str(disk),'-skip_gameinfo', '-noui_mouse', '-mouseprovider', 'none','-keyboardprovider','none','-video','none','-sound','none','-nothrottle','-autoboot_script',str(lua),'-seconds_to_run',str(420 if a.larry_pair else (5100+delay+(1200 if a.larry or a.larry_enter else 0))//60+10 if a.typed_command or a.menu or a.sustained or a.hall or a.king_dialog or a.quest_chain or a.encounter or a.coronation or a.pickup or a.journey or a.movement or a.persistence or a.restart or a.larry or a.larry_enter or a.video_mode else 100),'-nvram_directory',str(out/'nvram'),'-cfg_directory',str(out/'cfg')]
+    if a.profile or a.audio_trace or a.restart or a.video_mode or a.hall or a.quest_chain or a.encounter or a.coronation or a.pickup:command+=['-debug','-debugger','none']
     (out/'command.json').write_text(json.dumps(command,indent=2)+'\n')
     with (out/'mame.log').open('w') as log:subprocess.run(command,cwd=out,stdout=log,stderr=subprocess.STDOUT,check=True,timeout=360 if a.larry_pair else 300 if a.larry or a.larry_enter else 180)
     if a.audio_trace:
@@ -627,6 +657,14 @@ end)
     before=os9('list',f'{disk},free-before');after=os9('list',f'{disk},free-after')
     (out/'free-before.txt').write_bytes(before);(out/'free-after.txt').write_bytes(after)
     assert before==after,'real game leaked memory'
+    if a.quest_chain:
+        states=re.findall(r'QUESTCHAIN SCORE=(\d+) QUEST=(\d+) END=(\d+) ITEMS=(\d+),(\d+),(\d+)',(out/'mame.log').read_text())
+        score={'basic':'34','acquisitions':'39','quest-items':'61'}[a.quest_chain]
+        assert states==[(score,'3','1','255','255','255')],('combined quest outcome',states)
+        remaining=re.findall(r'QUESTCHAIN REMAINING=(\d+),(\d+),(\d+),(\d+)',(out/'mame.log').read_text())
+        assert remaining==[('0','255','255','0')],('remaining prerequisites',remaining)
+        print('PASS: original-root combined quest, carried inventory/score, room transfers, ending and unchanged exit memory')
+        return
     if a.encounter:
         states=re.findall(r'ENCOUNTER SCORE=(\d+) FLAG=(\d+) STATE=(\d+) INPUT=(\d+)',(out/'mame.log').read_text())
         expected={'fiddle':('3','1','0','1'),'dragon':('5','0','2','1'),'giant':('2','0','4','1')}[a.encounter]

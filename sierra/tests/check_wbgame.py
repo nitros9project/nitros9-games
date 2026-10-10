@@ -368,7 +368,7 @@ def check_original_fiddle_encounter(d):
                                   ('logDir','picDir','viewDir','sndDir','words.tok','object'))}
     # The clover and fiddle are pre-owned. Flags 87/171 are the original root's
     # possession summaries, not encounter completion flags.
-    setup=bytes([3,250,1,3,0,76,3,1,77,12,5,12,87,12,171,92,8,92,17,
+    setup=bytes([3,250,1,3,0,76,3,1,77,12,5,12,87,12,171,92,8,92,22,
                  33,0,30,0,41,0,0,37,0,73,150])
     body=bytes([255,1,250,0,255])+len(setup).to_bytes(2,'little')+setup
     # Initialize the room before submitting the command on the second cycle.
@@ -415,9 +415,9 @@ def check_original_dragon_encounter(d):
     assert not error,('dragon encounter',error)
     assert state['vmvariables'][75]==2,'water did not subdue the original dragon'
     assert state['vmflags'][88]==0,'filled bucket possession summary remained set'
-    assert state['vmvariables'][200]==0,'filled bucket was not consumed'
+    assert state['vmvariables'][200]==0,'water was not consumed'
     assert state['vmvariables'][3]==5,'nonlethal dragon score differs'
-    print('PASS: original parsed water command, live dragon defeat, consumed bucket, score and cleanup')
+    print('PASS: original parsed water command, live dragon defeat, consumed water, score and cleanup')
 
 
 def check_original_giant_encounter(d):
@@ -426,14 +426,15 @@ def check_original_giant_encounter(d):
     files={'/game/'+path.name:path.read_bytes() for path in game.iterdir()
            if path.is_file() and (path.name.startswith('vol.') or path.name in
                                   ('logDir','picDir','viewDir','sndDir','words.tok','object'))}
-    # Sling and pebbles are pre-owned. These possession flags are set by the
+    # Pebbles and sling are pre-owned. These possession flags are set by the
     # original acquisition scripts in rooms 34 and 62, respectively.
     setup=bytes([3,250,1,3,0,58,3,1,57,12,5,12,93,12,97,92,13,92,14,
                  33,0,30,0,41,0,0,37,0,50,120])
     body=bytes([255,1,250,0,255])+len(setup).to_bytes(2,'little')+setup
     parse=bytes([114,0,1,117,0])
     body+=bytes([255,1,250,2,255])+len(parse).to_bytes(2,'little')+parse
-    body+=bytes([22,58,13,5,1,250,255,1,86,4,255,2,0,134,1,0])
+    finish=bytes([3,240,13,97,240,200,3,240,14,97,240,201,134,1])
+    body+=bytes([22,58,13,5,1,250,255,1,86,4,255])+len(finish).to_bytes(2,'little')+finish+b'\0'
     text=b'use sling\0';key=b'Avis Durgan'
     messages=bytes([1])+(4+len(text)).to_bytes(2,'little')+bytes([4,0])+bytes(v^key[i%11] for i,v in enumerate(text))
     logic=len(body).to_bytes(2,'little')+body+messages
@@ -446,9 +447,141 @@ def check_original_giant_encounter(d):
         keyboard_by_cycle={cycle:(b'\r',0) for cycle in range(5,2000,5)},os_call_limit=100000)
     assert not error,('giant encounter',error)
     assert state['vmvariables'][86]==4,'original giant did not die after sling animation'
-    assert state['vmflags'][93]==0,'sling possession summary remained set'
+    assert state['vmflags'][93]==0,'pebble possession summary remained set'
+    assert state['vmvariables'][200:202]==b'\0\xff','pebbles were not consumed or sling was lost'
     assert state['vmvariables'][3]==2,'sling encounter net score differs'
     print('PASS: original parsed sling command, completed shot animation, giant death, net score and cleanup')
+
+
+def original_quest_chain_files(prerequisites=False,all_acquisitions=False):
+    """Carry actual puzzle results through room changes to the original ending."""
+    game=ROOT/'kingsquest1'
+    files={'/game/'+path.name:path.read_bytes() for path in game.iterdir()
+           if path.is_file() and (path.name.startswith('vol.') or path.name in
+                                  ('logDir','picDir','viewDir','sndDir','words.tok','object'))}
+    if all_acquisitions:prerequisites=True
+    from check_lzw import expand
+    entry=int.from_bytes(files['/game/logDir'][:3],'big')
+    volume=files[f'/game/vol.{entry>>20}'];offset=entry&0xfffff
+    header=volume[offset:offset+7];payload=volume[offset+7:offset+7+int.from_bytes(header[5:7],'little')]
+    compressed=header[3:5]!=header[5:7]
+    if compressed:payload=expand(payload)
+    original_messages=payload[2+int.from_bytes(payload[:2],'little'):]
+    message_base=original_messages[0]
+    assert message_base+17<=255
+    def when(condition,body):return b'\xff'+bytes(condition)+b'\xff'+len(body).to_bytes(2,'little')+body
+    def parse(message,x=None,y=None):
+        return (bytes([37,0,x,y]) if x is not None else b'')+bytes([114,0,message_base+message,117,0])
+    def transfer(stage,room):return bytes([3,250,stage,3,251,0,18,room])
+    setup=bytes([3,250,1,3,251,0,3,0,76,3,1,77,3,7,158,12,5,12,87,12,171,
+                 12,88,12,167,12,93,12,97,92,8,92,22,92,26,92,13,92,14,
+                 33,0,30,0,41,0,0,37,0,73,150,112])
+    if prerequisites:
+        setup=bytes([3,250,6,3,251,0,3,0,24,3,1,23,3,7,158,12,5,12,171,
+                     12,88,92,22,92,26,33,0,30,0,41,0,0,37,0,50,134,112])
+    if all_acquisitions:
+        setup=bytes([3,250,9,3,251,0,3,0,3,3,1,0,3,7,158,12,5,
+                     33,0,30,0,41,0,0,37,0,122,120,112])
+    body=when([1,250,0],setup)
+    first=[253,7,5,1,251,0]
+    if all_acquisitions:
+        stage=when(first,parse(10,122,120)+bytes([3,251,1]))
+        stage+=when([1,251,2],parse(11,122,120)+bytes([3,251,3]))+bytes([22,105])
+        stage+=when([7,62,1,251,1],bytes([3,251,2]))
+        stage+=when([7,67],transfer(10,12))
+        body+=when([1,250,9],stage)
+        stage=when(first,parse(12,40,130)+bytes([3,251,1]))+bytes([22,105])
+        stage+=when([7,81],transfer(6,24))
+        body+=when([1,250,10],stage)
+        stage=when(first,parse(14,126,138)+bytes([3,251,1]))
+        stage+=when([1,251,2],parse(15)+bytes([3,251,3]))+bytes([22,105])
+        stage+=when([7,89,1,251,1],bytes([3,251,2]))
+        stage+=when([7,89,1,89,1],transfer(12,79))
+        body+=when([1,250,11],stage)
+        stage=when(first,parse(16)+bytes([3,251,1]))
+        stage+=when([1,251,2],parse(17,130,150)+bytes([3,251,3]))+bytes([22,105])
+        stage+=when([7,185,1,251,1],bytes([3,251,2]))
+        stage+=when([7,171],transfer(1,76))
+        body+=when([1,250,12],stage)
+    if prerequisites:
+        for stage_number,room,message,x,y,flag,next_stage,next_room in (
+                (6,24,7,50,134,86,7,34),
+                (7,34,8,80,100,93,8,62),
+                (8,62,9,130,110,97,1,76)):
+            stage=when(first,parse(message,x,y)+bytes([3,251,1]))
+            if all_acquisitions and stage_number==7:
+                stage+=when([1,251,2],parse(13,130,100)+bytes([3,251,3]))
+            stage+=bytes([22,105])
+            if all_acquisitions and stage_number==7:
+                stage+=when([7,93,1,251,1],bytes([3,251,2]))
+                stage+=when([7,flag,7,88],transfer(next_stage,next_room))
+            elif all_acquisitions and stage_number==8:
+                stage+=when([7,flag],transfer(11,31))
+            else:stage+=when([7,flag],transfer(next_stage,next_room))
+            body+=when([1,250,stage_number],stage)
+    stage=when(first,parse(1)+bytes([3,251,1]))+bytes([22,105])
+    stage+=when([7,186,1,30,0],transfer(2,77))
+    body+=when([1,250,1],stage)
+    stage=when(first+[7,187],parse(3,130,128)+bytes([3,251,1]))+bytes([22,105])
+    stage+=when([7,188],transfer(3,51))
+    body+=when([1,250,2],stage)
+    stage=when(first,parse(2,80,140)+bytes([3,251,1]))
+    stage+=when([1,251,2],parse(4,40,115)+bytes([3,251,3]))+bytes([22,105])
+    stage+=when([1,75,2,1,251,1],bytes([3,251,2]))
+    stage+=when([7,100],transfer(4,58))
+    body+=when([1,250,3],stage)
+    stage=when(first,parse(5,50,120)+bytes([3,251,1]))
+    stage+=when([1,251,2],bytes([39,2,241,242,38,0,241,242])+parse(6)+bytes([3,251,3]))+bytes([22,105])
+    stage+=when([1,86,4,1,251,1],bytes([3,251,2]))
+    stage+=when([7,104],transfer(5,53))
+    body+=when([1,250,4],stage)
+    finish=b''.join(bytes([3,240,item,97,240,variable]) for item,variable in
+                    ((19,200),(21,201),(2,202),(13,203),(14,204),(22,205),(26,206),(8,207),(11,208),(1,209),(9,210)))+bytes([134,1])
+    body+=when([1,250,5],bytes([22,105])+when([7,195],finish))+b'\0'
+    strings=b''.join(command+b'\0' for command in
+                     (b'play fiddle',b'throw water',b'get shield',b'get mirror',b'use sling',b'get chest',
+                      b'get clover',b'get pebbles',b'get sling',b'push rock',b'get dagger',
+                      b'cut rope',b'get water',b'get bowl',b'fill',b'give bowl',b'get fiddle'))
+    # Keep all original global-message IDs: room scripts may reference %gN.
+    old_end=int.from_bytes(original_messages[1:3],'little')+1
+    old_strings=original_messages[3+2*message_base:old_end]
+    key=b'Avis Durgan'
+    if not compressed:old_strings=bytes(value^key[i%11] for i,value in enumerate(old_strings))
+    offsets=[int.from_bytes(original_messages[3+i*2:5+i*2],'little') for i in range(message_base)]
+    offsets=[value+34 if value else 0 for value in offsets]
+    offset=2+2*(message_base+17)+len(old_strings)
+    for text in strings.split(b'\0')[:-1]:offsets.append(offset);offset+=len(text)+1
+    strings=old_strings+strings
+    messages=bytes([message_base+17])+(2+2*(message_base+17)+len(strings)).to_bytes(2,'little')
+    messages+=b''.join(value.to_bytes(2,'little') for value in offsets)
+    messages+=bytes(value^key[i%11] for i,value in enumerate(strings))
+    logic=len(body).to_bytes(2,'little')+body+messages
+    volume=files['/game/vol.0'];offset=len(volume)
+    files['/game/vol.0']=volume+b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic
+    directory=bytearray(files['/game/logDir'])
+    assert len(directory)==105*3
+    directory.extend(directory[:3])  # Unchanged original root is additionally reachable as logic 105.
+    directory[:3]=offset.to_bytes(3,'big');files['/game/logDir']=bytes(directory)
+    return files
+
+
+def check_original_quest_chain(d,prerequisites=False,all_acquisitions=False):
+    """Carry actual puzzle results through room changes to the original ending."""
+    files=original_quest_chain_files(prerequisites,all_acquisitions)
+    error,output,state=exercise(d,files,arguments=b'/game 0\r',module='wbgame',base=0xa000,
+        database=0,window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,
+        keyboard_by_cycle={cycle:(b'\r',0) for cycle in range(5,5000,5)},cycle_limit=1500,os_call_limit=300000)
+    assert not error,('quest chain',error,state['vmcurrent'],state['vmopcode'],state['vmip'].hex(),list(state['vmvariables'][250:252]),state['asseterror'],state['vmerror'],state['messagebuffer'][:80])
+    assert state['vmflags'][195]==1,'combined quest did not reach original ending'
+    assert state['vmvariables'][74]==3,'combined quest lost treasure progress'
+    assert state['vmvariables'][200:203]==b'\xff'*3,'combined quest lost a treasure'
+    assert state['vmvariables'][203:207]==b'\0\xff\xff\0','combined quest consumed/retained prerequisites incorrectly'
+    assert state['vmvariables'][207]==255,'clover was lost'
+    assert state['vmvariables'][208:210]==(b'\xff\xff' if all_acquisitions else b'\0\0'),'bucket/dagger ownership differs'
+    assert state['vmvariables'][210]==0,'given bowl remained in inventory'
+    expected_score=61 if all_acquisitions else 39 if prerequisites else 34
+    assert state['vmvariables'][3]==expected_score,('combined quest score',state['vmvariables'][3])
+    print('PASS: original quest chain, prerequisite acquisitions='+str(prerequisites)+', all acquisitions='+str(all_acquisitions)+', real root/room changes, carried inventory, score '+str(expected_score)+' and ending/cleanup')
 
 
 def check_timed_messages(d):
@@ -1156,6 +1289,9 @@ def main():
             check_original_fiddle_encounter(d)
             check_original_dragon_encounter(d)
             check_original_giant_encounter(d)
+            check_original_quest_chain(d)
+            check_original_quest_chain(d,prerequisites=True)
+            check_original_quest_chain(d,all_acquisitions=True)
             check_timed_messages(d)
             check_screen_shakes(d)
             check_object_previews(d)

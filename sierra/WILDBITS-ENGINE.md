@@ -137,11 +137,11 @@ CoCo workspace is linked into the native executable.
 Normal/follow/wander/move-to motion, animation, parser input, dialogs, menus
 and inventory have native implementations and regression coverage. Their
 remaining owner-specific orchestration still needs reconciliation. Native
-sound currently completes requests with sound disabled and warns once if a
-script enables it; there is no owned audio driver. Replay/checkpoint support
-does not establish full CoCo save/restore compatibility. Full adventure
-completion and sprite-heavy concurrent gameplay are not yet established by
-the emulator acceptance tests.
+sound uses the process-owned PSG driver. Native WSv1 save/restore is covered,
+but does not establish compatibility with CoCo save files. Controlled original
+quest sequences now reach the ending, including one starting with empty
+inventory. A continuous geographic playthrough remains unverified. Concurrent
+original KQ1 and Larry sessions have emulator coverage.
 
 The one-window resource/picture/frame mapping discipline remains necessary.
 Private interpreter buffers stay resident while picture, background, assets
@@ -2199,7 +2199,7 @@ pass at `/tmp/sierra-status-check_native_dispatch.log`.
 
 The original giant room (58) is also covered with a pre-owned sling and pebbles,
 using the possession flags set by original acquisition rooms 34 and 62. Parsed
-`use sling` completes the shot animation, kills the giant, consumes the sling,
+`use sling` completes the shot animation, kills the giant, consumes the pebbles while retaining the sling,
 and awards a net two points. CPU and real terminal-input MAME checks pass at
 `/tmp/sierra-giant-check.log` and `/tmp/sierra-giant-mame`. This covers the giant
 encounter from controlled inventory/position, not acquiring those prerequisites.
@@ -2208,3 +2208,43 @@ The complete native regression for this runtime passes at
 `/tmp/sierra-status-full-game.log`, including status pixels and old-helper
 rejection, the original fiddle/dragon encounters and ending. The giant case
 was added afterward and passed its focused CPU and MAME runs.
+
+
+### Original quest progression through the ending
+
+The combined quest fixture keeps original root logic available as logic 105,
+preserves its global message IDs, and runs unchanged original room scripts.
+A small test root schedules commands through native `parse` and uses real
+`new.room` transitions. It controls room selection and ego position; it does
+not establish a continuous geographic playthrough or test typing every command
+through the terminal. Separate encounter tests cover terminal command input.
+
+| Fixture | Starting prerequisites | Final score |
+| --- | --- | --- |
+| `--quest-chain basic` | Clover, fiddle, water, pebbles and sling | 34 |
+| `--quest-chain acquisitions` | Fiddle and water | 39 |
+| `--quest-chain quest-items` | Empty inventory, no puzzle completion flags | 61 |
+
+The empty-inventory sequence pushes the rock, takes the dagger, cuts the well
+rope for the bucket, collects clover and pebbles, fills the bucket, takes the
+sling, takes and magically fills the bowl, feeds the woodcutter, and takes the
+fiddle. It then completes the fiddle, dragon and giant encounters, acquires
+shield, mirror and chest, and runs the original coronation and credits.
+Assertions check all three treasures, quest count, ending flag, exact score,
+consumed pebbles and water, retained sling and fiddle, and the earned bucket
+and dagger. Controlled transfers bypass the cave approach discovery bonus.
+
+All three CPU fixtures pass. MAME runs also pass with original room resources,
+process-owned audio and identical shell free-memory reports before and after
+exit. Artifacts are in `/tmp/sierra-quest-chain-mame-final`,
+`/tmp/sierra-quest-acquisitions-mame`, and
+`/tmp/sierra-quest-all-items-mame-final`; they record 199, 191 and 197 PSG writes
+respectively. The complete native regression passes at
+`/tmp/sierra-quest-chain-full-game.log`; the two extended acquisition fixtures
+were subsequently verified separately.
+
+Long CPU fixtures now reuse closed mock path IDs when the byte-sized OS-9
+path namespace wraps. Scripted MAME runs disable host keyboard input while
+retaining Lua input, and use one debugger log sink when tracing audio. This
+avoids host keystrokes corrupting shell setup or duplicate trace assertions.
+Interactive launchers retain normal keyboard input.
