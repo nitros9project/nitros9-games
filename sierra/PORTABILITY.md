@@ -3,15 +3,19 @@
 
 ## Current consolidation status
 
-Both production runtimes now assemble common logic execution, dictionary lookup,
-direction-vector stepping, screen/horizon clamping, terrain classification and
-constraints, complete object collision scanning, and candidate-position
-transactions. Platform bindings retain
-storage, mapping and intentionally different legacy policies. The broader
-migration is unfinished: per-cycle orchestration, resource/view
-acquisition, rendering and remaining presentation/formatter behavior still need
-consolidation. Historical sections below describe their stage when written;
-the latest sections record the ongoing shared-engine work.
+The shared-behavior consolidation is complete for the current CoCo and Wild
+Bits engines. Both production runtimes now assemble common execution,
+conditions, command/state rules, parsing, formatting, motion/animation,
+geometry, terrain/collision, resource codecs, picture rules and cycle-state
+components. Assembly-time interfaces supply storage, mapping, services and
+explicit legacy policies without runtime platform dispatch in the shared
+algorithms.
+
+The retained owner policies are recorded below. Fixed CoCo ABI conversion and
+native feature parity remain separate portability tasks; they are not hidden
+behind a claim that differently ordered storage/presentation backends are the
+same algorithm. Historical sections describe their stage when written. The
+final section records completed validation and its scope.
 
 ## Retained owner policies in the consolidation audit
 
@@ -2957,3 +2961,56 @@ backend and refresh-error behavior.
 All 316 calls pass at both code addresses with history/prefix preservation,
 38-byte limits, complete private-state and stack guards, and immutable code.
 No engine code or timeout was changed to make this fixture pass.
+
+
+### Consolidation completion and final validation — 2026-10-10
+
+The common-rule migration and retained-policy audit are complete. Common
+algorithms live in `objs/shared`, with operands and service/storage interfaces
+in the grouped platform features and binding files. The audit covered all
+four CoCo owners and every CoCo/Wild Bits platform feature, including cycle
+ordering, resource/view ownership, rendering/fill, formatting, input, audio
+and persistence. Remaining backend implementations and feature gaps are
+explicitly recorded in the boundary table near the start of this document.
+The shared components contain no direct CoCo/Wild Bits platform-selection
+tests. Mechanical instruction-window scans supplemented the manual review;
+they are not treated as an exhaustive proof of semantic equivalence.
+
+Validation results were collected in resumed standard-check segments and
+focused reruns after the documented fixture/build-recipe repairs. All **54
+standard check commands** now have passing results. The final viewer repair
+adds `--map=wbpic.map` to its build recipe, providing the map required by its
+regression test on a fresh build. No engine workaround or longer timeout was
+introduced for those fixture failures.
+
+- All 63 engine owners assemble: four CoCo modules for each of 14 titles and
+  seven native execution/diagnostic owners. The standalone viewer probe also
+  builds and passes its pixel, ownership, mapping and error-cleanup tests.
+- Against the `ce9d6f4` comparison build, all 49 non-mainline owners remain
+  byte-identical. Each CoCo mainline is four bytes larger overall, accounting
+  for shared room placement and the byte-width joystick classifier. Native
+  images remain identical, including module headers and CRCs.
+- Native budgets remain 23,807/23,808 resident bytes, 7,282/8,192 helper bytes,
+  a 3,080/4,096 writable helper prefix and 24,460 private bytes. Existing
+  helper ABI and save representation are unchanged.
+- Latest CoCo modules pass direct CPU/MMU instance isolation and a real OS
+  boot through interpreter entry, screen setup and the main cycle. All four
+  module images extracted from the successful private disk match the final
+  all-owner build byte for byte.
+- Native gameplay checks pass original parsed quest/acquisition chains
+  through the ending, lethal-rock death and restart, modal/timed messages,
+  movement/animation, joystick isolation, screen/status, persistence and
+  cleanup. These controlled-room scenarios are not a continuous traversal
+  of every geographic route.
+- All 443 packed pictures match CoCo and an independent nibble oracle. Large
+  streamed pictures, 8/16-KiB boundaries and 65,535-byte length cases pass.
+  LZW resources and code windows, malformed inputs, actual F0–FA reference
+  pixels, and all 54 shared conditional scopes pass.
+- Focused current-source checks also pass 2,048 cycle-flag boundaries, 9,184
+  resource-format decisions and 9,136 flood-fill selections, with relocation,
+  private-state/register/stack guards and immutable code.
+
+The private boot image is `/tmp/sierra-consolidation-coco-boot/latest.dsk`.
+The coverage manifest is `/tmp/sierra-consolidation-check-coverage.json`; its
+54 command names are covered with no pending checks. Original user disks,
+untracked assets and running emulator sessions were preserved.
