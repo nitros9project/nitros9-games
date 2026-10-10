@@ -2789,7 +2789,7 @@ with the rebuilt modules, as recorded above.
 
 An additional private-disk OS boot attempt did not reach the interpreter
 before the emulator deadline. The unchanged original disk fails at the same
-stage; diagnostics reach the OS kernel with a sleeping startup process.
+stage; diagnostics reach the OS kernel with a sleeping shell process.
 Neither early attempt counts as an OS boot pass. These tests modified only
 private copies under `/tmp/sierra-consolidation-coco-boot`; the user's disk and
 running session were untouched. The later boot-fixture and harness correction
@@ -2940,3 +2940,20 @@ standard `check_fill_selection.py` executes 9,136 real-owner decisions at two
 addresses, covering every mask, all colors for the supported planes, no-op
 fills, target/register results, guarded state and immutable code. All 54 shared
 components also pass conditional-scope validation.
+
+
+### Prompt redraw service-contract fixture repair — 2026-10-10
+
+`check_cancel_line.py` now models `ParserDrawInput`'s current screen-refresh
+interface before asserting row snapshot/damage results. Its old direct call
+seeded an invalid cached screen-helper address and assumed no refresh call,
+so the test could not reach the input-row checks. The test hooks only the
+platform `ScreenCommand` boundary; actual cancel/echo, prompt editing, row
+snapshot and damage detection code still execute. It verifies the internal
+opcode reset, successful refresh and error propagation, including disabled
+input. The full native gameplay suite independently exercises the real screen
+backend and refresh-error behavior.
+
+All 316 calls pass at both code addresses with history/prefix preservation,
+38-byte limits, complete private-state and stack guards, and immutable code.
+No engine code or timeout was changed to make this fixture pass.
