@@ -9,7 +9,7 @@ all: wbgame wbstate budget
 probes: wbpic wbres wbdecode wbrun wbasset wbexec probe-budget
 # Each owner retains its entry point as the first prerequisite ($<).
 wbpic: ../tests/probes/wbpic.asm
-	$(LWASM) $(AFLAGS) --list=wbpic.list --symbols -o $@ $<
+	$(LWASM) $(AFLAGS) --list=wbpic.list --map=wbpic.map --symbols -o $@ $<
 wbres: ../tests/probes/wbres.asm
 	$(LWASM) $(AFLAGS) --list=wbres.list --map=wbres.map --symbols -o $@ $<
 wbdecode: ../tests/probes/wbdecode.asm
