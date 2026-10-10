@@ -2644,3 +2644,20 @@ matches/mismatches on both target axes, with record and register guards. Its
 9,280 direction calls also pass. All 63 rebuilt owner binaries compare
 byte-for-byte with the preceding room-entry commit, including headers and
 CRCs. Existing runtime acceptance therefore continues to apply.
+
+
+### Shared LZW initialization/reset — 2026-10-10
+
+`RESOURCE_LZW_RESET` now establishes the shared AGI dictionary defaults at
+CoCo decoder startup, CoCo clear-code handling and native `LzwReset`: next
+index 258, growth threshold 512 and width 9. Assembly-time arguments retain
+CoCo's word-sized width/state write and original store order. Native retains
+its separate previous-code-valid flag reset. Stream counters and acquisition
+remain owner responsibilities.
+
+All 63 rebuilt owner binaries are byte-identical to the preceding commit.
+`tests/check_lzw.py` also passes against an independent byte-string oracle:
+228 original compressed KQ1 logic/view/sound resources through both actual
+decoders, repeated clear codes, the self-reference case, native malformed
+stream rejection, relocation and 528 direct reads covering all supported
+widths/bit alignments. No new platform file or runtime call is introduced.

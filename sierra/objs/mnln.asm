@@ -4209,12 +4209,7 @@ PicRenderSetup      lda       $02,s     load picture file descriptor
                     ldd       $06,s     load remaining byte count
                     std       <$00A2    store bytes remaining in stream
                     lbsr      MapShdwPage map shadow page into MMU
-                    ldd       #$0009    initial bit depth / state = 9
-                    std       <$00A4    initialize pic decode state
-                    ldd       #$0102    initial base color pair
-                    std       <$00A9    store base color
-                    ldd       #$0200    initial max color range
-                    std       <$00B1    store max range
+                    RESOURCE_LZW_RESET $00A9,$00B1,$00A4,1,1
                     ldd       #$0000    clear to zero
                     std       <$00A6    clear current color accumulator
                     std       <$00B4    clear saved color accumulator
@@ -4234,12 +4229,7 @@ PicDecodeLoop       lbsr      ReadPicPixel read next encoded pixel value
                     lbeq      PicRenderDone branch if end-of-picture
                     cmpd      #$0100    check for color-reset code
                     bne       PicDataProcess branch if normal pixel data
-                    ldd       #$0009    reset bit depth to 9
-                    std       <$00A4    reset decode state
-                    ldd       #$0102    reset base color pair
-                    std       <$00A9    reset base color
-                    ldd       #$0200    reset max range
-                    std       <$00B1    reset color range
+                    RESOURCE_LZW_RESET $00A9,$00B1,$00A4,1,1
                     lbsr      ReadPicPixel read reset color value
                     tst       <$009F    check for stream end
                     lbne      PicRenderDone branch if stream ended

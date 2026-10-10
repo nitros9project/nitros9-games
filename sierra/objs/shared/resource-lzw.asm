@@ -77,3 +77,30 @@ RESOURCE_LZW_INSERT macro
                     addd      #$0001
                     std       <\2
                     endm
+
+
+* Restore the AGI dictionary's initial index, width and growth threshold.
+* Parameters: next-index word, threshold word, width field, word-sized width,
+* width-first order. Width-first and word-sized flags preserve CoCo's original
+* adjacent state-byte reset; native retains its independent previous-code flag.
+RESOURCE_LZW_WIDTH_RESET macro
+                    ifne      \2
+                    ldd       #9
+                    std       <\1
+                    else
+                    lda       #9
+                    sta       <\1
+                    endc
+                    endm
+RESOURCE_LZW_RESET macro
+                    ifne      \5
+                    RESOURCE_LZW_WIDTH_RESET \3,\4
+                    endc
+                    ldd       #258
+                    std       <\1
+                    ldd       #512
+                    std       <\2
+                    ifeq      \5
+                    RESOURCE_LZW_WIDTH_RESET \3,\4
+                    endc
+                    endm

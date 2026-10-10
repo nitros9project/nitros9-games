@@ -492,12 +492,7 @@ LzwEnd              ldd       <lzwproduced
                     andcc     #$FE
 LzwReturn           ldu       <lzwbase
                     rts
-LzwReset            ldd       #258
-                    std       <lzwnext
-                    ldd       #512
-                    std       <lzwthreshold
-                    lda       #9
-                    sta       <lzwwidth
+LzwReset            RESOURCE_LZW_RESET lzwnext,lzwthreshold,lzwwidth,0,0
                     clr       <lzwhasprevious
                     rts
 LzwPush             pshs      x,b
