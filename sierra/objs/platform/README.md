@@ -38,10 +38,11 @@ dispatch. This preserves the existing data offsets and module code order.
 Sections use conditional chains so nested feature includes cannot select a
 second section after changing `PLATFORM_SECTION`.
 
-Condition traversal, picture decoding, formatting, math, logic execution,
-object commands, parsing and string commands now reside in their feature
-files. Their local macro definitions live in the corresponding binding files,
-loaded once before the body is emitted. Timing keeps its small clock interface
+Common condition traversal, picture command/line/pen algorithms, formatting,
+math, logic execution, object rules, parsing and string commands reside in
+`../shared`. Feature files place those bodies and implement their storage,
+service and presentation interfaces. Operand macros live in the corresponding
+binding files, loaded once before the body is emitted. Timing keeps its small clock interface
 in `coco-timing.asm` or `wildbits-timing.asm` alongside the feature boundary.
 
 The old per-operation selector files have been removed. Their compile-time

@@ -101,10 +101,11 @@ existing CoCo plot implementation uses contiguous storage; the Wild Bits
 implementation uses bounded OS-managed mapping windows. Selection takes place
 in `platform/sections.d` and emits no dispatch instructions.
 
-This is the first actual shared-source migration. The native logic interpreter
-(`platform/wildbits-logic.asm`) and CoCo `mnln.asm` still have different state layouts and command implementations;
-that reconciliation is unfinished. Moving a native-only file here would not,
-by itself, make it shared with CoCo.
+The native owner (`platform/wildbits-logic.asm`) and CoCo `mnln.asm` retain
+different storage layouts. Their common executor and command rules expand
+from this directory through explicit operand and service bindings. Native-only
+storage or presentation implementations remain in `platform`; moving those
+bodies here alone would not make them shared.
 
 `logic-executor.asm` now owns the complete opcode loop for both engines:
 return, relative jump, condition traversal, command dispatch, and cleanup.
@@ -122,17 +123,16 @@ and flags across the packed CoCo and byte-per-flag native layouts. It verifies
 forward/backward branches, mixed conditions, stack guards and immutable code
 after CoCo table initialization. The CoCo module remains byte-identical.
 
-The formatter now also shares `formatter.asm` (character traversal),
-`formatter.asm` (substitution selection), `formatter.asm`
-(string-slot resolution), `decimal-index.asm` and `unsigned-decimal.asm`.
+The formatter shares character traversal, substitution selection, string-slot
+resolution and recursive call/return rules in `formatter.asm`, plus numeric
+parsing and output in `decimal-index.asm` and `unsigned-decimal.asm`.
 Their platform operands preserve each owner's storage, bounds and errors.
 `nul-string-copy.asm` is used by CoCo `StrCopy` and native formatter source
 frames/string/numeric emission; checked emitters stop before copying NUL,
-while direct copies include it. Full formatting recursion and several
-substitution providers remain owner-specific.
+while direct copies include it. Recursion-frame storage and substitution providers remain owner-specific.
 
-`formatter.asm` binds recursive formatting arguments/call/release;
-`formatter.asm` shares substitution result application, checked error
+`formatter.asm` binds recursive formatting arguments/call/release and shares
+substitution result application, checked error
 return and outer-scan continuation. CoCo generic/global substitutions and
 native message expansion use these pieces with their original argument ABI.
 The actual recursion frame layout and message readers remain owner-specific.
@@ -144,7 +144,7 @@ bounds and object validation stay in their storage providers.
 
 `object-commands.asm` shares allowed/crossing control-bit updates and
 stopped-direction/ego handling. `object-commands.asm` shares bulk animated/
-visible-bit clearing over owned records. `platform/*-sections.d`
+visible-bit clearing over owned records. `platform/*-objects-bindings.asm`
 binds ego state and record iteration. `object-step-deltas.asm` supplies the
 nine signed X/Y deltas used by both motion implementations. Vector arithmetic, clamping, terrain rules and collision scanning are described
 below; per-cycle orchestration still remains in owner components.
