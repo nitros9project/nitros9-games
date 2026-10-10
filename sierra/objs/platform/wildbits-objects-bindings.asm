@@ -470,3 +470,32 @@ ROOM_ENTRY_READ_SIDE macro
 ROOM_ENTRY_CLEAR_SIDE macro
                     clr       2,x
                     endm
+
+
+* Motion scheduler interface: native owns cel advancement and step countdown.
+SCHEDULE_SKIP_INACTIVE macro
+                    lbne      MotionNextObject
+                    endm
+SCHEDULE_STEP_READY macro
+                    lbsr      MotionAdvanceCel
+                    lbcs      MotionReturn
+                    ldx       <resourcebase
+                    ldu       motionobject,x
+                    lda       1,u
+                    cmpa      #1
+                    bls       MotionStepReady
+                    dec       1,u
+                    lbra      MotionNextObject
+MotionStepReady     lda       ,u
+                    sta       1,u
+                    endm
+SCHEDULE_FOLLOW_CONTEXT macro
+                    ldx       <resourcebase
+                    ldu       motionobject,x
+                    endm
+SCHEDULE_UNKNOWN macro
+                    lbne      MotionUnsupported
+                    endm
+SCHEDULE_TARGET_DIRECTION macro
+                    lbsr      MotionMoveDirection
+                    endm

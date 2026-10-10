@@ -2738,3 +2738,21 @@ sources through 255 bytes, destination returned in X, advanced U, preserved Y,
 source/destination/stack guards, plus its existing cross-owner bounded-copy and
 decimal cases at two addresses. Incorrect legacy source/destination comments
 were corrected to match the verified return behavior.
+
+
+### Motion scheduler platform interface cleanup — 2026-10-10
+
+CoCo `mnln` and the native object owner repeated the same platform-selecting
+scheduler bindings. Each existing object binding file now supplies its own
+eligibility continuation, countdown policy, follow-context restoration,
+unknown-mode handling and target-direction entry. The shared scheduler body
+is unchanged. Native still advances cels and maintains its countdown; CoCo
+still uses the countdown maintained by its separate motion pass.
+
+All 63 owner binaries compare byte for byte with the preceding commit. This
+removes 94 lines of repeated owner-side binding definitions without adding
+a platform file or changing instructions, state, timing or error paths.
+A mechanical source scan finds no remaining identical eight-instruction
+windows between the native platform bodies and CoCo mainline/screen/shadow
+sources. That is an audit aid, not proof that semantic consolidation is done;
+remaining orchestration and backend policy need review on their own terms.

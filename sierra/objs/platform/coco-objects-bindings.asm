@@ -430,3 +430,22 @@ ROOM_ENTRY_READ_SIDE macro
 ROOM_ENTRY_CLEAR_SIDE macro
                     clr       >$0433
                     endm
+
+
+* Motion scheduler interface: countdown is maintained by CoCo's motion pass.
+SCHEDULE_SKIP_INACTIVE macro
+                    bne       NextMotionObj
+                    endm
+SCHEDULE_STEP_READY macro
+                    lda       1,u
+                    cmpa      #1
+                    bne       NextMotionObj
+                    endm
+SCHEDULE_FOLLOW_CONTEXT macro
+                    endm
+SCHEDULE_UNKNOWN macro
+                    bhi       MotionScheduleReady
+                    endm
+SCHEDULE_TARGET_DIRECTION macro
+                    lbsr      SetObjMotion
+                    endm
