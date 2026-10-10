@@ -81,3 +81,12 @@ ExecScriptExecCmdImpl lsla                ; multiply cmd by 2
 RANDOM_VARIABLE_TABLE macro
                     ldx       #$0431
                     endm
+
+
+* Static cycle flags use the same packed, MSB-first AGI flag representation.
+* Parameters: literal flag index, label on its storage instruction.
+CYCLE_STATIC_CLEAR macro
+                    lda       >($01AE+(\1/8))
+                    anda      #(255-($80>>(\1&7)))
+\2                  sta       >($01AE+(\1/8))
+                    endm

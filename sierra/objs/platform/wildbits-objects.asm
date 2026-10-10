@@ -92,6 +92,7 @@ GameInitialFlags    equ       *
 
 * A completed logic cycle: clear transient state, wait without mappings,
 * poll stdin without blocking, then resume root logic at its scan start.
+                    use shared/game-cycle.asm
 GameNextCycle       lbsr      AssetUnmap
                     lbcs      GameCycleReturn
                     lbsr      PictureUnmap
@@ -104,10 +105,8 @@ GameNextCycle       lbsr      AssetUnmap
                     lbsr      foreground
                     lbcs     GameCycleReturn
                     ldu       <resourcebase
-                    clr       vmflags+2,u
-                    clr       vmflags+4,u
-                    clr       vmflags+5,u
-                    clr       vmflags+6,u
+GameCycleInputReset AGI_CYCLE_INPUT_RESET
+GameCycleRoomReset  AGI_CYCLE_ROOM_RESET
                     clr       vmflags+11,u
                     clr       vmflags+12,u
                     clr       vmvariables+9,u
@@ -188,7 +187,6 @@ PLATFORM_SECTION    set PLATFORM_COCO_GAME_CLOCK_BINDINGS
                     use platform/coco-timing.asm
                     endc
                     endc
-                    use       shared/game-clock-tick.asm
                     AGI_CLOCK_TICK GameClockTick
                     bra       GameClockTick
 GameClockStoreCurrent ldb     gametime+5,u

@@ -366,6 +366,11 @@ QuitMsg             fcc       /Press ENTER to quit./
 *   Module entry point and the top-level AGI interpreter cycle: poll joystick, run scripts, update objects, refresh screen.
 *======================================================================
 *
+                    ifndef PLATFORM_COCO_LOGIC_BINDINGS
+                    use platform/coco-logic-bindings.asm
+                    endc
+                    use shared/game-cycle.asm
+
 ModuleEntry         leas      -6,s      make room on the stack
                     lbsr      PatchCmdTable modifies table values at 1B0
                     lbsr      FixupEvalTbl modifies table values at D09
@@ -386,12 +391,8 @@ TimerReady          bcc       ResetGameState branch if timer has advanced enough
 ResetGameState      ldd       #$0000    zero out timer
                     std       <$003E    reset cycle timer
                     lbsr      ClearInputBuffer self contained call to clear 50 bytes 05BA
-ClearCycleFlags     lda       >$01AE    load game state flags
-                    anda      #$DF      clear cycle-active bit
-StoreStateFlag      sta       >$01AE    save updated flags
-                    lda       >$01AE    reload flags
-                    anda      #$F7      clear another state bit
-                    sta       >$01AE    save flags again
+ClearCycleFlags     AGI_CYCLE_INPUT_RESET
+StoreStateFlag      equ CycleInputFlag2Store
                     lbsr      EventLoop process pending game events
                     ldx       <$0030    load ego object pointer
                     lda       >$0250    check joystick control flag
@@ -434,12 +435,7 @@ UpdateScreenState   lbsr      StatusLineWrite
 CycleEndCleanup     clra                clear A for flag clearing
                     sta       >$0436    clear display update flag
                     sta       >$0435    clear cycle flag
-                    lda       >$01AE    load game flags
-                    anda      #$FB      clear said-input bit
-                    sta       >$01AE    save flags
-                    lda       >$01AE    reload flags
-                    anda      #$FD      clear another input flag
-                    sta       >$01AE    save flags
+CycleRoomReset      AGI_CYCLE_ROOM_RESET
                     lda       >$01AF    load audio/display flags
                     anda      #$F7      clear a display flag
                     sta       >$01AF    save audio/display flags

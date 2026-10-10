@@ -9,11 +9,12 @@ labels, branches and instruction order are preserved without runtime calls.
 
 | Shared component | Contents | Platform interface |
 | --- | --- | --- |
+| `game-cycle.asm` | Logical clock rollover and transient input/room/restart flag resets | Timing address and static flag-storage bindings |
 | `object-commands.asm` | Position, room-entry placement, animation, cycle/rate/motion state, flags, blocking and field queries | CoCo/Wild Bits `objects-bindings.asm` |
 | `formatter.asm` | Character scan, directive selection, string slots, recursive calls and expansion | CoCo/Wild Bits `text-ui-bindings.asm` |
 | `object-motion.asm` | Scheduling, coordinate steps, clamping, position commits and target motion | CoCo/Wild Bits `objects-bindings.asm` |
-| `object-animation.asm` | Animation update, all cel-cycle modes and direction tables | CoCo/Wild Bits `objects-bindings.asm` |
-| `resource-lzw.asm` | LZW code-window alignment, masks, dictionary traversal and insertion | Owner fields, bounded acquisition, dictionary cursor and stack bindings |
+| `object-animation.asm` | Animation update, all cel-cycle modes and direction tables | CoCo/Wild Bits `memory-resources-bindings.asm` |
+| `resource-lzw.asm` | LZW initialization/reset, code-window alignment, masks, dictionary traversal and insertion | Owner fields, bounded acquisition, dictionary cursor and stack bindings |
 
 For example, `FORMAT_EMIT_SCAN` expands the scan body in `formatter.asm`;
 `MOTION_EMIT_CLAMP` expands the clamp body in `object-motion.asm`. Algorithms

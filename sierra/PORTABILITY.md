@@ -1554,7 +1554,7 @@ they do not prove the remaining engine migration complete.
 
 ### Shared game-clock rollover
 
-`objs/shared/game-clock-tick.asm` advances four consecutive byte fields:
+`objs/shared/game-cycle.asm` advances four consecutive byte fields:
 seconds, minutes, hours, and days. Both ports use the same increment and
 60/60/24 rollover rules, including the original byte wrapping at 255. The
 common macro takes the owner's continuation label; it does not read an OS
@@ -2773,3 +2773,28 @@ copies under `/tmp/sierra-consolidation-coco-boot`; the user's disk and running
 session were untouched. Resolving this startup/harness issue remains a separate
 validation task; the before/after binary and direct behavior evidence remains
 explicitly distinguished from it.
+
+
+### Shared transient cycle-state rules — 2026-10-10
+
+The logical-clock component is now `shared/game-cycle.asm`, grouping clock
+rollover with transient input and room/restart flag lifetimes. It replaces
+the old clock-only file, so the shared source-file count remains unchanged.
+`AGI_CYCLE_INPUT_RESET` clears flags 2 and 4; `AGI_CYCLE_ROOM_RESET` clears
+flags 5 and 6. Both production owners expand those same rule definitions.
+
+`CYCLE_STATIC_CLEAR` in each existing logic binding file supplies storage:
+CoCo's packed MSB-first flags use an assembly-computed byte/mask, while native
+flags use private bytes. No runtime flag-index calculation, call or dispatch
+was added. Existing scheduling boundaries remain explicit: CoCo resets the
+room/restart flags at cycle end, native at the next-cycle boundary. Native
+first-cycle/display flags and per-platform input/event work retain their
+current ordering. This consolidates shared state rules without claiming that
+the entire cycle orchestrators are interchangeable.
+
+All 63 rebuilt owners remain byte-identical to the scheduler-interface commit.
+The expanded `check_game_clock.py --cycle-only` executes 2,048 actual CoCo/
+native boundaries, covering every initial packed/private byte value, unrelated
+flag preservation, register/stack/neighbor guards, two code addresses and
+immutable code. Normal clock regression now includes these checks; existing
+clock rollover and raster-gate tests remain available.

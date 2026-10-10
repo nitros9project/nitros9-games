@@ -752,7 +752,7 @@ PLATFORM_SECTION    set PLATFORM_COCO_GAME_CLOCK_BINDINGS
                     use platform/coco-timing.asm
                     endc
                     endc
-                    use       shared/game-clock-tick.asm
+                    use       shared/game-cycle.asm
                     AGI_CLOCK_TICK TimerRet
 TimerRet            rts                 return from timer handler
 

@@ -178,3 +178,9 @@ NATIVE_COUNT_PAIR    set 0
                     endc
                     endc
                     endm
+
+
+* Static cycle flags are private bytes; U remains the process-state base.
+CYCLE_STATIC_CLEAR macro
+\2                  clr       vmflags+\1,u
+                    endm

@@ -169,13 +169,49 @@ def check_frame_gate(d, code, syms, listing, base=0xa000):
     print(f'PASS: {count} actual frame-clock cases; safe capability fallback, full-delay fallback, elapsed credit/wrap/cap, tick waits/yield, owned cleanup, muted foreground restoration, abort and RTI guards')
 
 
+def check_cycle_flags(d, coco, cs, native, ns):
+    calls=0
+    for owner,code,syms in [('CoCo',coco,cs),('native',native,ns)]:
+        private=0x1000
+        flagbase=0x01ae if owner=='CoCo' else private+syms['vmflags']
+        length=32 if owner=='CoCo' else 256
+        for base in (0x8000,0x9000):
+            d.write(base,code)
+            for phase,flags in [('Input',(2,4)),('Room',(5,6))]:
+                entry=base+syms[('ClearCycleFlags' if phase=='Input' else 'CycleRoomReset')
+                                if owner=='CoCo' else 'GameCycle'+phase+'Reset']
+                stop=base+syms['Cycle'+phase+'ResetDone']
+                d.breakpoint(stop)
+                for value in range(256):
+                    before=bytearray([value]*length);wanted=bytearray(before)
+                    for flag in flags:
+                        if owner=='CoCo':wanted[flag>>3]&=255-(128>>(flag&7))
+                        else:wanted[flag]=0
+                    d.write(flagbase-1,b'G'+before+b'H')
+                    d.write(0x7ef0,b'STACK')
+                    u=0x7000 if owner=='CoCo' else private
+                    d.regs(pc=entry,s=0x7ef0,u=u,x=0x3456,y=0x7654,b=0x93,dp=0,cc=0x50)
+                    d.call('c');result=d.regs()
+                    assert result['pc']==stop,(owner,phase,value,result)
+                    assert d.read(flagbase-1,length+2)==b'G'+wanted+b'H',(owner,phase,value)
+                    assert d.read(0x7ef0,5)==b'STACK'
+                    for reg,expected in [('s',0x7ef0),('u',u),('x',0x3456),('y',0x7654),('b',0x93)]:
+                        assert result[reg]==expected,(owner,phase,reg,result)
+                    calls+=1
+                d.breakpoint(stop,False)
+            assert d.read(base,len(code))==code
+    print(f'PASS: {calls} actual CoCo/native cycle-flag boundaries; every packed-byte/private-byte value, input and room/restart flags, unrelated flags, guards/registers/stack, two code addresses and immutable code',flush=True)
+
+
 def main():
     ap=argparse.ArgumentParser();ap.add_argument('--gate-only',action='store_true')
+    ap.add_argument('--cycle-only',action='store_true')
     args=ap.parse_args()
     with tempfile.TemporaryDirectory(prefix='sierra-clock-') as name:
         tmp = Path(name)
         coco, cs = compile_module(ROOT/'objs/sierra.asm', tmp/'sierra')
         native, ns = compile_module(ROOT/'objs/sierra.asm', tmp/'wbgame', defines=('WILDBITS=1',),listing=True)
+        mainline, ms = compile_module(ROOT/'objs/mnln.asm',tmp/'mnln') if not args.gate_only else (None,None)
         vectors = []
         for field in range(4):
             for value in range(256):
@@ -191,6 +227,8 @@ def main():
             if args.gate_only:
                 check_frame_gate(d,native,ns,tmp/'wbgame.list')
                 return
+            check_cycle_flags(d,mainline,ms,native,ns)
+            if args.cycle_only:return
             for owner, code, syms, bases in [('CoCo', coco, cs, (0x8000, 0x9000)),
                                             ('native', native, ns, (0x9000, 0xa000))]:
                 private = 0x1000
