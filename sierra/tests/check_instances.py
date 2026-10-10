@@ -405,13 +405,14 @@ def main():
     emulator = subprocess.Popen(command, stdout=subprocess.DEVNULL,
         stderr=subprocess.PIPE)
     try:
-        time.sleep(0.5)  # let machine initialization finish before stopping its CPU
-        for attempt in range(50):
+        if not args.boot:
+            time.sleep(0.5)  # idle-ROM CPU checks retain their existing startup delay
+        for attempt in range(1000 if args.boot else 50):
             try:
                 d = Debugger(args.port)
                 break
             except ConnectionRefusedError:
-                time.sleep(0.1)
+                time.sleep(0.001 if args.boot else 0.1)
         else:
             raise RuntimeError('XRoar debugger did not start: ' + (emulator.stderr.read().decode() if emulator.poll() is not None else 'still running'))
         if args.boot:
@@ -421,7 +422,7 @@ def main():
             setup_header = args.setup_module.read_bytes()[:13]
             engine_header = (ROOT / 'sierra/kingsquest1/mnln').read_bytes()[:13]
             target = 0x8000 + mn['MainCycleLoop']
-            starts = [0xE000 + off + si['InitEntry'] for off in range(-0x2000, 0x1A00, 0x100)]
+            starts = [off + si['InitEntry'] for off in range(0, 0xFF00, 0x100)]
             for address in starts:
                 d.breakpoint(address)
             base = None

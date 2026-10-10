@@ -2790,11 +2790,11 @@ with the rebuilt modules, as recorded above.
 An additional private-disk OS boot attempt did not reach the interpreter
 before the emulator deadline. The unchanged original disk fails at the same
 stage; diagnostics reach the OS kernel with a sleeping startup process.
-Neither attempt counts as an OS boot pass. These tests modified only private
-copies under `/tmp/sierra-consolidation-coco-boot`; the user's disk and running
-session were untouched. Resolving this startup/harness issue remains a separate
-validation task; the before/after binary and direct behavior evidence remains
-explicitly distinguished from it.
+Neither early attempt counts as an OS boot pass. These tests modified only
+private copies under `/tmp/sierra-consolidation-coco-boot`; the user's disk and
+running session were untouched. The later boot-fixture and harness correction
+below supersedes this unresolved result; direct CPU checks and OS boot results
+remain distinguished.
 
 
 ### Shared transient cycle-state rules — 2026-10-10
@@ -2883,3 +2883,26 @@ two addresses, covering every directory byte and every low/high size byte
 with zero/255 companions, endian order, guarded source buffers, preserved
 register context and immutable code. It is included in the standard check
 target. Shared conditional-scope validation passes for all 54 components.
+
+
+### CoCo OS boot validation and fixture correction — 2026-10-10
+
+The latest rebuilt CoCo modules now pass the actual OS boot check: interpreter
+entry, private engine copies, screen initialization and the main game cycle
+are observed under XRoar. The production `check_instances.py --boot` harness
+passes with a private KQ1 disk, explicit CoCo ROM path and `--unthrottled`.
+No game, driver or OS code was changed to force startup.
+
+The earlier replacement fixture lost executable attributes when `os9 copy`
+imported host-generated files. Restoring owner/public execute permissions on
+`CMDS/AutoEx`, `mnln`, `scrn` and `shdw` repaired that fixture. The diagnostic
+waiting process was Shell. Those failed fixture runs were not evidence of a
+new engine startup failure. The harness now attaches promptly for boot runs
+and searches all page-aligned logical module bases, instead of assuming only
+C000–F900. Idle-ROM CPU checks retain their previous startup delay and retry
+timing. Debugger packet/transport tests still pass.
+
+The successful disk is `/tmp/sierra-consolidation-coco-boot/latest.dsk`; it
+contains the latest tested module bytes. The original disk and user emulator
+sessions were untouched. This proves initialization and entry into the game
+cycle, rather than a complete CoCo playthrough or a two-game OS boot test.
