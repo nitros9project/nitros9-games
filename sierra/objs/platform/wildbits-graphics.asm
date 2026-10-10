@@ -49,6 +49,9 @@ decodevalue         rmb       1
                     else
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_DECODER_FILL
 * ===== wildbits-decoder-fill =====
+                    ifndef SHARED_PICTURE_COLORS_DEFINED
+                    use shared/picture-colors.asm
+                    endc
 * F8 scanline flood fill. Bounded 2048-seed private work stack, not the CPU S.
 * Match color white when color is enabled; otherwise priority 4 when only
 * priority is enabled. Both enabled still match color, as in CoCo SbuffPicFill.
@@ -60,23 +63,8 @@ PicFill             lbsr      ReadXyPos
 FillCommandRet      rts
 SbuffPicFill        pshs      x
                     lda       <DrawMask
-                    lbeq      FillDone
-                    cmpa      #$F0
-                    bne       FillColor
-                    lda       <DrawColor
-                    anda      #$F0
-                    cmpa      #$40
-                    lbeq      FillDone
-                    lda       #$F0
-                    ldb       #$40
-                    bra       FillBegin
-FillColor           lda       <DrawColor
-                    anda      #$0F
-                    cmpa      #$0F
-                    lbeq      FillDone
-                    lda       #$0F
-                    ldb       #$0F
-FillBegin           sta       <fillmask
+                    PICTURE_FILL_SELECT a,FillDone,FillColor,FillBegin,1,0
+                    sta       <fillmask
                     stb       <filltarget
                     clr       <filltop
                     clr       <filltop+1
@@ -199,7 +187,10 @@ FillNotMatch        andcc     #$FB
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_DECODER_LINES
 * ===== wildbits-decoder-lines =====
 * Picture command algorithms are assembled by both CoCo and Wild Bits.
-                    use       shared/picture-colors.asm
+                    ifndef SHARED_PICTURE_COLORS_DEFINED
+                    use shared/picture-colors.asm
+                    endc
+                    PICTURE_COLOR_CODE
                     use       shared/picture-commands.asm
                     use       shared/picture-coordinates.asm
                     use       shared/picture-line.asm

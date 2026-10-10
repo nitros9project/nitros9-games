@@ -107,6 +107,7 @@ check: all probes
 	python3 ../tests/check_lzw.py
 	python3 ../tests/test_picture_resource.py
 	python3 ../tests/check_wbres.py
+	python3 ../tests/check_fill_selection.py
 	python3 ../tests/check_wbdecode.py
 	python3 ../tests/check_wbpic.py
 

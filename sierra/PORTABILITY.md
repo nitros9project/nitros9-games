@@ -2916,3 +2916,27 @@ its exercise explicitly starts at 0000. The hook now uses the actual fixture
 base. Engine code is unchanged. The test passes moved/erased sprite frames,
 split rows, screen clips, offscreen positions, exact-8K staging, large-cel
 fallback and both source/destination span failures with complete cleanup.
+
+
+### Shared flood-fill plane and eligibility rules — 2026-10-10
+
+`picture-colors.asm` now defines `PICTURE_COLOR_CODE` for its existing F0–F3
+command bodies and `PICTURE_FILL_SELECT` for the common fill decision. Only
+mask F0 selects priority; other enabled masks select color. A fill is skipped
+when the selected draw value is the existing white-color/default-priority
+background. Register, reload and negative-mask branch traits preserve the
+original CoCo and native instruction layouts. Each owner emits command bodies
+at their original location and expands the same selection rule before its
+fill traversal.
+
+The traversal is a storage policy boundary: CoCo uses its temporary CPU stack
+and contiguous packed pixels; native uses a bounded private seed stack and
+mapped pixels with explicit overflow/error handling. Those distinct traversal
+bodies remain backend implementations. The shared decision introduces no
+runtime calls, state or additional source files.
+
+All 63 owners are byte-identical to the resource-codec extraction. The new
+standard `check_fill_selection.py` executes 9,136 real-owner decisions at two
+addresses, covering every mask, all colors for the supported planes, no-op
+fills, target/register results, guarded state and immutable code. All 54 shared
+components also pass conditional-scope validation.

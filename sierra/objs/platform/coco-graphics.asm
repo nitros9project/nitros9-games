@@ -333,23 +333,9 @@ SbuffPicFill        pshs      x         save x
 *                           next 2 lines must have been a if (sbuff_drawmask > 0)
 *                           not in the nagi source
 
-                    lbeq      SbuffPicFillRet if sbuff_drawmask = 0 we're done
-                    bpl       TestColorNibble if not negative branch to test color
+                    PICTURE_FILL_SELECT b,SbuffPicFillRet,TestColorNibble,SaveMaskDl,0,1
 
-                    cmpa      #cmd_start comp $F0 with sbuff_drawmask
-                    bne       TestColorNibble not = go test color for $0F
-                    andb      #$f0      and color with $F0
-                    cmpb      #$40      compare that to $40 (input was $4x)
-                    lbeq      SbuffPicFillRet if so were done
-                    lda       #$f0      set up value for mask_dl
-                    bra       SaveMaskDl go save it
-
-TestColorNibble     andb      #$0f      and color with $0F
-                    cmpb      #$0f      was it already $0F
-                    lbeq      SbuffPicFillRet if so we're done
-                    lda       #$0f      set up value for mask_dl
-
-SaveMaskDl          sta       MaskDl    stow as mask_dl
+                    sta       MaskDl    stow as mask_dl
                     anda      #colorbl  and that with $4F
                     sta       FillColorBl stow that as color_bl
                     lda       ,u        get byte at screen buffer

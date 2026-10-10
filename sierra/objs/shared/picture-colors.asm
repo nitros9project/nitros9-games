@@ -1,3 +1,6 @@
+* Shared picture color and flood-fill plane rules. Definitions emit no code.
+SHARED_PICTURE_COLORS_DEFINED equ 1
+PICTURE_COLOR_CODE macro
 * Shared F0-F3 color/mask commands; bounded reads selected at assembly time.
 EnablePicDraw       ldd       <DrawColor pulls in color and sbuff_drawmask
                     anda      #$f0      and color with $F0
@@ -98,3 +101,42 @@ DisablePriDraw      ldd       <DrawColor pulls in color and sbuff_drawmask
                     endc
                     rts                 return to pic_cmd_loop
 
+                    endm
+
+* A=draw mask; the owner either preloads color in B or reads it in A.
+* Select priority only for mask F0, otherwise color. No-op fills return to
+* the owner without traversing pixels. Register and reload/fast-branch traits
+* retain each existing instruction layout. Parameters: color register, skip,
+* color label, selected label, reload color/target, negative-mask fast path.
+PICTURE_FILL_SELECT macro
+FillSelectBegin     lbeq      \2
+                    ifne      \6
+                    bpl       \3
+                    endc
+                    cmpa      #$F0
+                    bne       \3
+                    ifne      \5
+                    lda       <DrawColor
+                    endc
+                    and\1     #$F0
+                    cmp\1     #$40
+                    lbeq      \2
+                    lda       #$F0
+                    ifne      \5
+                    ldb       #$40
+                    endc
+                    bra       \4
+\3                  equ *
+                    ifne      \5
+                    lda       <DrawColor
+                    endc
+                    and\1     #$0F
+                    cmp\1     #$0F
+                    lbeq      \2
+                    lda       #$0F
+                    ifne      \5
+                    ldb       #$0F
+                    endc
+\4                  equ *
+FillSelectDone      equ *
+                    endm

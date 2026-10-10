@@ -82,8 +82,10 @@ owners. They allocate no state and contain no OS-9 module header.
   state addressing at assembly time.
 - `picture-command-table.asm`: a single F0-FA handler catalog, expanded as
   CoCo load-relative or native immutable table-relative entries.
-- `picture-colors.asm`: F0-F3 draw-color and priority-mask control, with
-  assembly-time bounded/contiguous reads.
+- `picture-colors.asm`: F0-F3 draw-color and priority-mask control, plus
+  flood-fill plane selection and no-op rejection. `PICTURE_COLOR_CODE`
+  places command bodies; `PICTURE_FILL_SELECT` binds register/load traits.
+  Byte acquisition remains bounded or contiguous through owner interfaces.
 - `picture-commands.asm`: F4-F7 corners and absolute/relative segment commands,
   using the same plotting and coordinate interfaces on both owners.
 - `picture-coordinates.asm`: common coordinate clamping and command-byte

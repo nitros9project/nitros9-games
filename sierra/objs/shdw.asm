@@ -269,6 +269,7 @@ PicCmdLoopRet       puls      y         done then fetch the y back
 *  returns the next pic_byte in a
 
                     use       shared/picture-colors.asm
+                    PICTURE_COLOR_CODE
 
 * ====== PlotWithPen / PlotWithPen2 ($FA): Splatter and Solid Pen Plotting ======
 * Command $FA plot with pen
