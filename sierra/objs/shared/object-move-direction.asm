@@ -49,16 +49,16 @@ CalcAxisDirPos      lda       #$01      direction = 1 (positive)
 CalcAxisDirRet      rts
                     endm
 
-* Classify device axes into a 3x3 direction table. Reads supply unsigned D;
+* Classify device axes into a 3x3 direction table. Reads supply unsigned B/D;
 * low..high is the inclusive center band. Table orientation belongs to the
 * device interface. X/Y/U are preserved until the final table address in X.
-* Parameters: low, high, X-read macro, Y-read macro, table label.
+* Parameters: low, high, X-read macro, Y-read macro, table label, CMPB/CMPD.
 JOYSTICK_DIRECTION macro
 JoystickDirection   \3
-                    cmpd      #\1
+                    \6        #\1
                     blo       JoystickLeft
                     ifne      \2-\1
-                    cmpd      #\2
+                    \6        #\2
                     endc
                     bhi       JoystickRight
                     ldb       #1
@@ -68,10 +68,10 @@ JoystickLeft        clrb
 JoystickRight       ldb       #2
 JoystickColumn      pshs      b
                     \4
-                    cmpd      #\1
+                    \6        #\1
                     blo       JoystickUp
                     ifne      \2-\1
-                    cmpd      #\2
+                    \6        #\2
                     endc
                     bhi       JoystickDown
                     ldb       #1

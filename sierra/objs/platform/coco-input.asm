@@ -2,11 +2,9 @@
 COCO_JOYSTICK_BINDINGS equ 1
 * Axis reads for the common direction classifier. CoCo Y increases upward.
 COCO_JOYSTICK_X macro
-                    clra
                     ldb       1,x
                     endm
 COCO_JOYSTICK_Y macro
-                    clra
                     ldb       2,x
                     endm
                     endc

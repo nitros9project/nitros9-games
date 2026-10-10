@@ -165,7 +165,7 @@ WILDBITS_JOYSTICK_X macro
 WILDBITS_JOYSTICK_Y macro
                     tfr       y,d
                     endm
-                    JOYSTICK_DIRECTION 128,128,WILDBITS_JOYSTICK_X,WILDBITS_JOYSTICK_Y,GameJoystickDirections
+                    JOYSTICK_DIRECTION 128,128,WILDBITS_JOYSTICK_X,WILDBITS_JOYSTICK_Y,GameJoystickDirections,cmpd
 GameJoystickLeft equ JoystickLeft
 GameJoystickRight equ JoystickRight
 GameJoystickColumn equ JoystickColumn

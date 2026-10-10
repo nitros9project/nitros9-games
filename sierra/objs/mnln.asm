@@ -3215,7 +3215,7 @@ PollJoyButtonRet    rts
                     use shared/object-move-direction.asm
 CheckJoyDirection   ldb       1,x
                     pshs      b,x
-                    JOYSTICK_DIRECTION $16,$25,COCO_JOYSTICK_X,COCO_JOYSTICK_Y,JoystickDirections
+                    JOYSTICK_DIRECTION $16,$25,COCO_JOYSTICK_X,COCO_JOYSTICK_Y,JoystickDirections,cmpb
                     puls      b,x
 JoyDirRet           rts
 JoystickDirections  JOYSTICK_DIRECTION_TABLE 1

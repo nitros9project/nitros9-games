@@ -2824,3 +2824,20 @@ owner exports 12-byte slots. The test now obtains `VM_CACHE_ENTRY_BYTES` from
 the assembled owner and derives the 32-slot extent from it. Engine code is
 unchanged. All 18 actual discard calls pass, covering typed lookup, absent
 resources, release failure and retry, ownership, relocation and guards.
+
+
+### Device-width joystick comparisons — 2026-10-10
+
+The shared classifier now accepts the comparison instruction as part of the
+axis interface. CoCo supplies byte reads and `CMPB`; Wild Bits supplies word
+reads and `CMPD`. The CoCo path no longer clears A to widen each byte or uses
+16-bit immediate comparisons. Center limits, table orientation, preserved
+registers and button/direction ownership are unchanged.
+
+All 63 owners build. Each of the 14 CoCo mainline modules shrinks ten bytes;
+the other 49 owners, including all native modules, remain byte-identical.
+`check_move_direction.py` passes 9,280 target-direction calls plus destination
+completion and joystick checks at two addresses, including all byte-axis
+values with center/edge samples and native word extremes. This reduces the
+earlier CoCo classifier overhead; it does not claim the table-based classifier
+has the original hand-branched polling cost.
