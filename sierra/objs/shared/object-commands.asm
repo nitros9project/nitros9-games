@@ -311,3 +311,35 @@ OBJECT_CEL_CLIP macro
                     stb       $04,\1
 \3                  equ *
                     endm
+
+* ===== room-entry-position =====
+* Place ego on the opposite edge after a room transition. Side 0 or unknown
+* values retain its coordinates. Width subtraction intentionally wraps as a
+* byte, matching the legacy CoCo contract. No resources are acquired here.
+* Parameters: ego record offset and owner base register. Side storage is bound
+* by ROOM_ENTRY_READ_SIDE / ROOM_ENTRY_CLEAR_SIDE. A/flags are scratch;
+* B/X/Y/U and all unrelated object fields are preserved.
+OBJECT_ROOM_ENTRY macro
+RoomEntryStart      ROOM_ENTRY_READ_SIDE
+                    cmpa      #1
+                    beq       RoomEntryTop
+                    cmpa      #2
+                    beq       RoomEntryRight
+                    cmpa      #3
+                    beq       RoomEntryBottom
+                    cmpa      #4
+                    bne       RoomEntryDone
+                    lda       #160
+                    suba      \1+$1C,\2
+                    sta       \1+3,\2
+                    bra       RoomEntryDone
+RoomEntryTop        lda       #167
+                    sta       \1+4,\2
+                    bra       RoomEntryDone
+RoomEntryRight      clr       \1+3,\2
+                    bra       RoomEntryDone
+RoomEntryBottom     lda       #37
+                    sta       \1+4,\2
+RoomEntryDone       ROOM_ENTRY_CLEAR_SIDE
+RoomEntryFinished   equ *
+                    endm

@@ -12,7 +12,7 @@ for retry. Sprite visibility now uses the same shared per-cel rule for both
 owners; native publishes AGI flag 1 only for ego. Selected-cel positioning is also shared, including right-edge and
 height/horizon adjustment. Native platform commands now use an immutable relative dispatch table
 from the shared AGI catalog. Both decoders also expand the shared LZW
-window-alignment/mask and dictionary-walk core. The game is 23,725 bytes, with 83 resident code bytes free;
+window-alignment/mask and dictionary-walk core. The game is 23,807 bytes, with one resident code byte free;
 process data is 24,460 bytes (116 bytes below its three-page limit).
 The per-cel visibility byte reuses the sort key after collection completes.
 

@@ -2600,3 +2600,29 @@ comparison artifacts are `/tmp/sierra-lzw-insert-baseline-v2` and
 and MAME quest/save/restore evidence for `c3b41c0` applies to this identical
 executable. This removes another duplicated codec operation without adding
 a platform source file; it does not finish the broader owner consolidation.
+
+
+### Shared room-entry placement — 2026-10-10
+
+`OBJECT_ROOM_ENTRY` in `shared/object-commands.asm` now places ego after a
+room transition in both production owners. Entry sides 1, 2, 3 and 4 set
+Y to 167, X to 0, Y to 37 and X to `160 - cel width`, respectively.
+Other side values preserve both coordinates. The side is then cleared.
+Width subtraction retains the legacy byte wrap behavior.
+
+The existing object binding files supply only side-variable access. CoCo
+passes its ego record in U; Wild Bits passes the private-state base and the
+ego record offset. The common body preserves B/X/Y/U, unrelated object fields
+and neighboring variables. It performs no resource acquisition or mapping,
+and adds no runtime dispatch or platform file.
+
+`tests/check_room_entry.py` executes both actual production owners at two
+code bases, testing all 256 side values, every byte width, coordinate extremes,
+register preservation, neighboring record/state guards and immutable code.
+The common executor regression also passes. All 63 owners assemble: all
+seven native owners and the 42 CoCo setup/screen/shadow modules remain
+byte-identical to the preceding commit. Each of the 14 CoCo mainline modules
+is four bytes smaller; placement behavior is verified rather than claiming
+byte identity for those changed modules. The unchanged native executable
+retains the prior complete CPU regression and MAME quest/save/restore evidence.
+The broader migration remains active.

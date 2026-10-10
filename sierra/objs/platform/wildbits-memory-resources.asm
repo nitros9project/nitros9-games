@@ -1259,27 +1259,10 @@ RoomResetObject     OBJECT_ROOM_RESET x,1
                     lda       vmobjects+5,u
                     sta       16,x
 * Place ego on the opposite edge of the room, retaining its view width.
-                    lda       2,x
-                    cmpa      #1
-                    beq       RoomEnterTop
-                    cmpa      #2
-                    beq       RoomEnterRight
-                    cmpa      #3
-                    beq       RoomEnterBottom
-                    cmpa      #4
-                    bne       RoomEntryDone
-                    lda       #160
-                    suba      vmobjects+$1C,u
-                    sta       vmobjects+3,u
-                    bra       RoomEntryDone
-RoomEnterTop        lda       #167
-                    sta       vmobjects+4,u
-                    bra       RoomEntryDone
-RoomEnterRight      clr       vmobjects+3,u
-                    bra       RoomEntryDone
-RoomEnterBottom     lda       #37
-                    sta       vmobjects+4,u
-RoomEntryDone       clr       2,x
+                    OBJECT_ROOM_ENTRY vmobjects,u
+RoomEnterTop        equ RoomEntryTop
+RoomEnterRight      equ RoomEntryRight
+RoomEnterBottom     equ RoomEntryBottom
                     lda       #1
 * Like CoCo NewRoomSetup, release program/stop-motion control on entry.
 * The destination logic may explicitly take control again afterwards.

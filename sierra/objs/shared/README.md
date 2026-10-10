@@ -9,7 +9,7 @@ labels, branches and instruction order are preserved without runtime calls.
 
 | Shared component | Contents | Platform interface |
 | --- | --- | --- |
-| `object-commands.asm` | Position, animation, cycle/rate/motion state, flags, blocking and field queries | CoCo/Wild Bits `objects-bindings.asm` |
+| `object-commands.asm` | Position, room-entry placement, animation, cycle/rate/motion state, flags, blocking and field queries | CoCo/Wild Bits `objects-bindings.asm` |
 | `formatter.asm` | Character scan, directive selection, string slots, recursive calls and expansion | CoCo/Wild Bits `text-ui-bindings.asm` |
 | `object-motion.asm` | Scheduling, coordinate steps, clamping, position commits and target motion | CoCo/Wild Bits `objects-bindings.asm` |
 | `object-animation.asm` | Animation update, all cel-cycle modes and direction tables | CoCo/Wild Bits `objects-bindings.asm` |

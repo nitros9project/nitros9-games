@@ -422,3 +422,11 @@ CEL_CLIP_CHECK_CARRY equ 0
 CEL_CLIP_HORIZON macro
                     \1       >$01D6
                     endm
+
+* Room-entry side storage; object placement is shared.
+ROOM_ENTRY_READ_SIDE macro
+                    lda       >$0433
+                    endm
+ROOM_ENTRY_CLEAR_SIDE macro
+                    clr       >$0433
+                    endm

@@ -4718,29 +4718,8 @@ NewRoomObjsDone     lbsr      ResetGameTables reset all game tables
 NewRoomLoadView     ldu       <$0030    load ego object pointer
                     lda       $05,u     load ego's loop number
                     sta       >$0441    store for view setup
-                    lda       >$0433    load ego entry-side (from boundary)
-                    beq       NewRoomFlagSetup branch if entry side = 0 (top)
-                    cmpa      #$01      check entry from top
-                    bne       NewRoomEgoDir2 branch if not from top
-                    lda       #$A7      bottom of screen = $A7
-                    sta       $04,u     place ego at bottom
-                    bra       NewRoomEgoDirDone done positioning
-NewRoomEgoDir2      cmpa      #$02      check entry from right
-                    bne       NewRoomEgoDir3 branch if not from right
-                    lda       #$00      left edge = 0
-                    sta       $03,u     place ego at left
-                    bra       NewRoomEgoDirDone done positioning
-NewRoomEgoDir3      cmpa      #$03      check entry from bottom
-                    bne       NewRoomEgoDir4 branch if not from bottom
-                    lda       #$25      top of walking area
-                    sta       $04,u     place ego near top
-                    bra       NewRoomEgoDirDone done positioning
-NewRoomEgoDir4      cmpa      #$04      check entry from left
-                    bne       NewRoomEgoDirDone branch if unknown direction
-                    lda       #$A0      right edge = $A0
-                    suba      <$1C,u    subtract ego width
-                    sta       $03,u     place ego at right edge
-NewRoomEgoDirDone   clr       >$0433    clear boundary direction variable
+                    OBJECT_ROOM_ENTRY 0,u
+NewRoomEgoDirDone   equ RoomEntryDone
 NewRoomFlagSetup    lda       >$01AE    load initialized-flag byte
                     ora       #$04      set room-initialized bit
                     sta       >$01AE    store updated flags
