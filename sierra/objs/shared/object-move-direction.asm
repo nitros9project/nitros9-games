@@ -1,3 +1,6 @@
+                    ifndef SHARED_MOVE_DIRECTION_DEFINED
+SHARED_MOVE_DIRECTION_DEFINED equ 1
+MOVE_DIRECTION_CODE macro
 * Common target-direction classifier for both owners. Stack arguments are
 * current X/Y, target X/Y, then a word-sized threshold. Native per-cycle
 * stepping supplies threshold one for exact sign classification; move setup
@@ -44,3 +47,50 @@ CalcAxisDirNeg      ldd       $02,s     load delta again
                     bra       CalcAxisDirRet return negative direction
 CalcAxisDirPos      lda       #$01      direction = 1 (positive)
 CalcAxisDirRet      rts
+                    endm
+
+* Classify device axes into a 3x3 direction table. Reads supply unsigned D;
+* low..high is the inclusive center band. Table orientation belongs to the
+* device interface. X/Y/U are preserved until the final table address in X.
+* Parameters: low, high, X-read macro, Y-read macro, table label.
+JOYSTICK_DIRECTION macro
+JoystickDirection   \3
+                    cmpd      #\1
+                    blo       JoystickLeft
+                    ifne      \2-\1
+                    cmpd      #\2
+                    endc
+                    bhi       JoystickRight
+                    ldb       #1
+                    bra       JoystickColumn
+JoystickLeft        clrb
+                    bra       JoystickColumn
+JoystickRight       ldb       #2
+JoystickColumn      pshs      b
+                    \4
+                    cmpd      #\1
+                    blo       JoystickUp
+                    ifne      \2-\1
+                    cmpd      #\2
+                    endc
+                    bhi       JoystickDown
+                    ldb       #1
+                    bra       JoystickRow
+JoystickUp          clrb
+                    bra       JoystickRow
+JoystickDown        ldb       #2
+JoystickRow         lda       #3
+                    mul
+                    addb      ,s+
+                    leax      \5,pcr
+                    lda       b,x
+JoystickDirectionDone equ *
+                    endm
+JOYSTICK_DIRECTION_TABLE macro
+                    ifne      \1
+                    fcb       6,5,4,7,0,3,8,1,2
+                    else
+                    fcb       8,1,2,7,0,3,6,5,4
+                    endc
+                    endm
+                    endc

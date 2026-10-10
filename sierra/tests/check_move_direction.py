@@ -87,13 +87,42 @@ def main():
                             assert regs['u']==0x7000 and regs['x']==(private or 0x4567) and regs['y']==0x7777
                             assert d.read(0x6fff,45)==b'G'+record+b'H'
                     d.breakpoint(arrival,False); d.breakpoint(continuation,False)
+                    # Device normalization differs, classification is shared.
+                    low,high=(128,128) if private else (22,37)
+                    axis_cases={(value,fixed) for value in range(256)
+                                for fixed in (0,low,high,high+1,255)}
+                    axis_cases |= {(y,x) for x,y in axis_cases}
+                    if private:
+                        edges=(0,127,128,129,255,256,32767,65535)
+                        axis_cases |= {(x,y) for x in edges for y in edges}
+                    joystick_stop=base+syms['JoystickDirectionDone'] if private else 0x7e00
+                    if private: d.breakpoint(joystick_stop)
+                    for jx,jy in sorted(axis_cases):
+                        if not private: d.write(0x6000,b'G'+bytes([jx,jy])+b'H')
+                        d.write(0x7ef0,b'\x7e\x00STACK')
+                        d.regs(pc=base+syms['JoystickDirection' if private else 'CheckJoyDirection'],
+                               s=0x7ef0,u=0x7000,x=jx if private else 0x6000,
+                               y=jy if private else 0x7777,dp=private>>8,cc=0x50)
+                        d.call('c'); regs=d.regs()
+                        dx=-1 if jx<low else 1 if jx>high else 0
+                        dy=-1 if jy<low else 1 if jy>high else 0
+                        if not private: dy=-dy
+                        expected=direction(1,1,1+dx,1+dy)
+                        assert regs['pc']==joystick_stop and regs['a']==expected,(owner,jx,jy,regs,expected)
+                        assert regs['s']==0x7ef0+(0 if private else 2) and regs['u']==0x7000
+                        assert regs['y']==(jy if private else 0x7777)
+                        if not private:
+                            assert regs['x']==0x6000 and regs['b']==jx
+                            assert d.read(0x6000,4)==b'G'+bytes([jx,jy])+b'H'
+                        assert d.read(0x7ef2,5)==b'STACK'
+                    if private: d.breakpoint(joystick_stop,False)
                     if private:
                         assert d.read(private,syms['size'])==state
                         assert d.read(private+syms['size'],5)==b'GUARD'
                     assert d.read(base,len(code))==code
             print(f'PASS: {calls} actual CoCo/native direction calls at two addresses; '
                   'all coordinate bytes, signed-boundary edges, every direction, '
-                  'native context/records, all destination motion modes and coordinate-match cases, private state, stack guards and immutable code')
+                  'native context/records, all destination motion modes and coordinate-match cases, joystick dead zones/orientation/word edges, private state, stack guards and immutable code')
         finally:
             d.s.close(); emulator.terminate()
             try: emulator.wait(timeout=5)

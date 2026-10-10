@@ -158,30 +158,20 @@ GameJoystickPrime   stb       joystickbuttons,u
                     clr       joystickpressed,u
 GameJoystickMotion  tst       <vmplayercontrol
                     beq       GameJoystickNoMotion
+                    use shared/object-move-direction.asm
+WILDBITS_JOYSTICK_X macro
                     tfr       x,d
-                    cmpd      #128
-                    blo       GameJoystickLeft
-                    bhi       GameJoystickRight
-                    ldb       #1
-                    bra       GameJoystickColumn
-GameJoystickLeft    clrb
-                    bra       GameJoystickColumn
-GameJoystickRight   ldb       #2
-GameJoystickColumn  pshs      b
+                    endm
+WILDBITS_JOYSTICK_Y macro
                     tfr       y,d
-                    cmpd      #128
-                    blo       GameJoystickUp
-                    bhi       GameJoystickDown
-                    ldb       #1
-                    bra       GameJoystickRow
-GameJoystickUp      clrb
-                    bra       GameJoystickRow
-GameJoystickDown    ldb       #2
-GameJoystickRow     lda       #3
-                    mul
-                    addb      ,s+
-                    leax      GameJoystickDirections,pcr
-                    lda       b,x
+                    endm
+                    JOYSTICK_DIRECTION 128,128,WILDBITS_JOYSTICK_X,WILDBITS_JOYSTICK_Y,GameJoystickDirections
+GameJoystickLeft equ JoystickLeft
+GameJoystickRight equ JoystickRight
+GameJoystickColumn equ JoystickColumn
+GameJoystickUp equ JoystickUp
+GameJoystickDown equ JoystickDown
+GameJoystickRow equ JoystickRow
                     beq       GameJoystickRelease
                     sta       joysticklast,u
                     sta       vmvariables+6,u
@@ -207,7 +197,7 @@ GameJoystickKey     stb       <vmkeybyte
                     lbra      GameKeyBinding
 GameJoystickDisable clr       joystickenabled,u
                     lbra      GameJoystickStop
-GameJoystickDirections fcb    8,1,2,7,0,3,6,5,4
+GameJoystickDirections JOYSTICK_DIRECTION_TABLE 0
                     endc
 
                     else

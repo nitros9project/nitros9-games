@@ -3287,36 +3287,13 @@ JoyBtnUp            lda       >$0541    load button state
                     ldb       #$01      event type = key event
                     lbsr      EventPush push button-release event
 PollJoyButtonRet    rts
-CheckJoyDirection   lda       $02,x     load Y-axis (vertical) value
-                    ldb       $01,x     load X-axis (horizontal) value
-                    cmpa      #$25      check if Y > center+threshold
-                    bls       JoyDirLow branch if not pointing up
-                    lda       #$08      assume up-left (direction 8)
-                    cmpb      #$16      check if X < left threshold
-                    bcs       JoyDirRet return up-left if X is left
-                    lda       #$02      assume up-right (direction 2)
-                    cmpb      #$25      check if X > right threshold
-                    bhi       JoyDirRet return up-right if X is right
-                    lda       #$01      up (direction 1, center X)
-                    bra       JoyDirRet return up direction
-JoyDirLow           cmpa      #$16      check if Y < center-threshold
-                    bcc       JoyDirHigh branch if Y in center band
-                    lda       #$06      assume down-left (direction 6)
-                    cmpb      #$16      check if X < left threshold
-                    bcs       JoyDirRet return down-left if X is left
-                    lda       #$04      assume down-right (direction 4)
-                    cmpb      #$25      check if X > right threshold
-                    bhi       JoyDirRet return down-right if X is right
-                    lda       #$05      down (direction 5, center X)
-                    bra       JoyDirRet return down direction
-JoyDirHigh          lda       #$07      assume left (direction 7)
-                    cmpb      #$16      check if X < left threshold
-                    bcs       JoyDirRet return left
-                    lda       #$03      assume right (direction 3)
-                    cmpb      #$25      check if X > right threshold
-                    bhi       JoyDirRet return right
-                    lda       #$00      center (no direction)
+                    use shared/object-move-direction.asm
+CheckJoyDirection   ldb       1,x
+                    pshs      b,x
+                    JOYSTICK_DIRECTION $16,$25,COCO_JOYSTICK_X,COCO_JOYSTICK_Y,JoystickDirections
+                    puls      b,x
 JoyDirRet           rts
+JoystickDirections  JOYSTICK_DIRECTION_TABLE 1
 JoyKeyMapPrimary    fcb       $1c,$01
                     fcb       $10,$02
                     fcb       $19,$03
@@ -4654,7 +4631,7 @@ SetObjMotionRet     equ TargetDirectionReturn
 ObjMoveReached      equ TargetReached
 ObjMoveReachedRet   equ TargetReachedReturn
                     MOTION_EMIT_TARGET
-                    use       shared/object-move-direction.asm
+                    MOVE_DIRECTION_CODE
 *
 *======================================================================
 * NEW ROOM COMMAND

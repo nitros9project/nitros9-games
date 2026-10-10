@@ -350,3 +350,10 @@ Bounded picture callbacks own their cursor representation. Shared coordinate
 and relative-line helpers use the returned/retained byte rather than rereading
 `X-1`; native game input can therefore refill an 8-KiB private staging window
 from a larger owned resource. CoCo keeps its contiguous input path.
+
+
+`object-move-direction.asm` defines both the target-direction code emitter
+and the common joystick classifier. Device bindings supply axis reads,
+center limits and Y orientation; input backends retain sampling, button and
+direction-ownership policy. Target code is emitted at its original owner
+location with `MOVE_DIRECTION_CODE`.

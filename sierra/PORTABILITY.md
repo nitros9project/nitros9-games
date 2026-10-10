@@ -2661,3 +2661,33 @@ All 63 rebuilt owner binaries are byte-identical to the preceding commit.
 decoders, repeated clear codes, the self-reference case, native malformed
 stream rejection, relocation and 528 direct reads covering all supported
 widths/bit alignments. No new platform file or runtime call is introduced.
+
+
+### Shared joystick direction classification — 2026-10-10
+
+The existing `shared/object-move-direction.asm` component now provides
+`JOYSTICK_DIRECTION` as well as target direction calculation. Both production
+input paths classify each unsigned axis as low, centered or high, combine
+the two classifications and select the AGI eight-way direction. The input
+interfaces supply axis reads, inclusive center limits and table orientation.
+CoCo retains its 22..37 dead zone and upward-increasing Y; Wild Bits retains
+its 128 center and downward-increasing Y, including word-sized driver values.
+Button edges, direction ownership, keyboard arbitration and polling cadence
+remain with the respective input backend.
+
+Target direction code is now explicitly expanded with `MOVE_DIRECTION_CODE`
+at its original location. Wild Bits emits the exact previous instruction
+sequence for both joystick and target direction. CoCo uses the shared table
+classifier and restores its original X pointer and raw-X result in B. Its
+mainline grows by 18 bytes; this path adds bounded classification work per
+joystick poll, so the change does not claim identical CoCo instruction timing.
+There is no runtime platform dispatch or new platform file.
+
+All 63 owners assemble. All seven native owners and the 42 CoCo setup/screen/
+shadow owners remain byte-identical. The expanded direction regression passes
+at two code addresses for both actual owners: every byte on either axis with
+center/edge samples on the other, threshold boundaries, orientation, all nine
+directions, native word extremes, CoCo register preservation, guarded input,
+and immutable code. The existing 9,280 target-direction calls and all-mode
+destination checks also pass. The room-entry regression is now part of the
+normal `wildbits.mk check` target.

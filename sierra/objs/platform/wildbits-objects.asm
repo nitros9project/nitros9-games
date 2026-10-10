@@ -764,7 +764,7 @@ GameFollowSetFlag   pshs      a,x
                     puls      a,x,pc
 FOLLOW_PRIVATE_STATE equ     1
                     use       shared/object-follow.asm
-                    use       shared/object-move-direction.asm
+                    MOVE_DIRECTION_CODE
 MoveTableData       fcb       8,1,2,7,0,3,6,5,4
 
                     else
