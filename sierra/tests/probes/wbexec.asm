@@ -1,3 +1,4 @@
+                    use shared/game-cycle.asm
 * Native logic execution probe; not yet the game main loop.
                     nam       wbexec
 WILDBITS            equ       1

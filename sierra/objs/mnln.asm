@@ -4596,10 +4596,7 @@ NewRoomObjsDone     lbsr      ResetGameTables reset all game tables
                     sta       >$0250    show ego
                     lda       #$24      default priority base = 36
                     sta       >$01D6    set priority-override
-                    lda       >$0431    load previous room number
-                    sta       >$0432    save as last-room variable
-                    ldb       ,s        load new room number
-                    stb       >$0431    store as current-room variable
+                    AGI_ROOM_VARIABLES
                     lbsr      LoadLogicNum load the new room's logic
                     ldb       <$006A    load init-logic flag
                     beq       NewRoomLoadView branch if no init logic

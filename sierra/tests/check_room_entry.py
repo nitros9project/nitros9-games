@@ -52,8 +52,32 @@ def main():
                         for reg, value in [('s',0x7ef0),('u',u),('x',variables),('y',0x7654),('b',0x93)]:
                             assert result[reg] == value, (owner, reg, result)
                     d.breakpoint(stop, False)
+                    # Room publication retains the old room before writing
+                    # the request, independently of owner resource teardown.
+                    stop = base+syms['RoomVariablesDone']; d.breakpoint(stop)
+                    room_cases={(value,255-value) for value in range(256)}
+                    edges=(0,1,127,128,254,255)
+                    room_cases |= {(old,new) for old in edges for new in edges}
+                    for old,new in sorted(room_cases):
+                        before=bytearray((i*19+7)&255 for i in range(256))
+                        before[0]=old; wanted=bytearray(before); wanted[0]=new; wanted[1]=old
+                        d.write(variables-1,b'G'+before+b'H')
+                        d.write(0x7ef0,bytes([new])+b'STACK')
+                        u=0x7000 if owner=='CoCo' else private
+                        x=0x3456 if owner=='CoCo' else variables
+                        if owner!='CoCo':d.write(private+syms['vmnewroom'],bytes([new]))
+                        d.regs(pc=base+syms['RoomVariablesBegin'],s=0x7ef0,u=u,x=x,y=0x7654,
+                               dp=0 if owner=='CoCo' else private>>8,cc=0x50)
+                        d.call('c'); result=d.regs()
+                        assert result['pc']==stop and result['a']==old and result['b']==new,(owner,old,new,result)
+                        assert d.read(variables-1,258)==b'G'+wanted+b'H'
+                        assert d.read(0x7ef0,6)==bytes([new])+b'STACK'
+                        for reg,value in [('s',0x7ef0),('u',u),('x',x),('y',0x7654)]:
+                            assert result[reg]==value,(owner,reg,result)
+                        if owner!='CoCo':assert d.read(private+syms['vmnewroom'],1)==bytes([new])
+                    d.breakpoint(stop,False)
                     assert d.read(base, len(code)) == code, owner
-            print('PASS: both production owners at two code bases; all 256 entry values, all byte widths, coordinate extremes, neighboring state/record guards, preserved registers and immutable code')
+            print('PASS: both production owners at two code bases; all 256 entry values, all byte widths, coordinate extremes, old/new room bytes and request preservation, neighboring state/record guards, preserved registers and immutable code')
         finally:
             d.s.close(); emulator.terminate()
             try: emulator.wait(timeout=5)

@@ -90,3 +90,15 @@ CYCLE_STATIC_CLEAR macro
                     anda      #(255-($80>>(\1&7)))
 \2                  sta       >($01AE+(\1/8))
                     endm
+
+
+* CoCo new-room request is stack-local; room variables retain their fixed ABI.
+ROOM_CURRENT_VARIABLE macro
+                    \1       >$0431
+                    endm
+ROOM_PREVIOUS_VARIABLE macro
+                    \1       >$0432
+                    endm
+ROOM_REQUEST_READ macro
+                    \1       ,s
+                    endm

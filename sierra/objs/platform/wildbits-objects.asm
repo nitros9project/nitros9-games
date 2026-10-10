@@ -92,7 +92,6 @@ GameInitialFlags    equ       *
 
 * A completed logic cycle: clear transient state, wait without mappings,
 * poll stdin without blocking, then resume root logic at its scan start.
-                    use shared/game-cycle.asm
 GameNextCycle       lbsr      AssetUnmap
                     lbcs      GameCycleReturn
                     lbsr      PictureUnmap

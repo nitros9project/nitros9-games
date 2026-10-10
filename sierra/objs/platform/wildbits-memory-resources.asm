@@ -1243,10 +1243,7 @@ RoomResetObject     OBJECT_ROOM_RESET x,1
                     leay      -1,y
                     bne       RoomResetObject
                     leax      vmvariables,u
-                    lda       ,x
-                    sta       1,x
-                    ldb       <vmnewroom
-                    stb       ,x
+                    AGI_ROOM_VARIABLES
                     clr       4,x
                     clr       5,x
                     lda       #36

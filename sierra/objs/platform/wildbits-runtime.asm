@@ -1,3 +1,4 @@
+                    use shared/game-cycle.asm
 * Native game owner: shared AGI logic with Wild Bits platform components.
                     nam       wbgame
                     use       platform/wildbits-defsfile

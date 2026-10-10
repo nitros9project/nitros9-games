@@ -184,3 +184,15 @@ NATIVE_COUNT_PAIR    set 0
 CYCLE_STATIC_CLEAR macro
 \2                  clr       vmflags+\1,u
                     endm
+
+
+* Native X addresses the variables; the pending room is in private DP state.
+ROOM_CURRENT_VARIABLE macro
+                    \1       ,x
+                    endm
+ROOM_PREVIOUS_VARIABLE macro
+                    \1       1,x
+                    endm
+ROOM_REQUEST_READ macro
+                    \1       <vmnewroom
+                    endm

@@ -2798,3 +2798,19 @@ native boundaries, covering every initial packed/private byte value, unrelated
 flag preservation, register/stack/neighbor guards, two code addresses and
 immutable code. Normal clock regression now includes these checks; existing
 clock rollover and raster-gate tests remain available.
+
+
+### Shared room-number publication — 2026-10-10
+
+`AGI_ROOM_VARIABLES` in `shared/game-cycle.asm` now owns the room-change
+assignment rule: preserve old variable 0 in variable 1 before publishing the
+requested room in variable 0. Existing logic bindings supply CoCo fixed
+addresses and its saved stack byte, or native private variables and request
+state. Resource teardown, acquisition and transition ordering remain owner
+policies. The component is imported before either owner emits room code; the
+standalone executor probe explicitly imports it too.
+
+All 63 owners rebuild byte-identically to the cycle-state extraction. The
+room-entry execution test now checks old/new room values and boundary
+combinations in both actual owners at two code addresses, with request,
+neighboring variable, stack, register and immutable-code guards.

@@ -39,3 +39,16 @@ AGI_CLOCK_TICK      macro
                     sta       ,x+
                     inc       ,x
                     endm
+
+
+* Publish a room change without losing the old room: v1=old v0, v0=request.
+* The owner binds variable addressing and the saved request location. A/B are
+* scratch; no resource is acquired and the surrounding transition order stays
+* with the owner. U/X/Y/S and every other AGI variable are preserved.
+AGI_ROOM_VARIABLES macro
+RoomVariablesBegin  ROOM_CURRENT_VARIABLE lda
+                    ROOM_PREVIOUS_VARIABLE sta
+                    ROOM_REQUEST_READ ldb
+                    ROOM_CURRENT_VARIABLE stb
+RoomVariablesDone   equ *
+                    endm
