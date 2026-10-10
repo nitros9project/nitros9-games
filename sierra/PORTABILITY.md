@@ -2841,3 +2841,23 @@ completion and joystick checks at two addresses, including all byte-axis
 values with center/edge samples and native word extremes. This reduces the
 earlier CoCo classifier overhead; it does not claim the table-based classifier
 has the original hand-branched polling cost.
+
+
+### Shared resource-format decoding — 2026-10-10
+
+`shared/resource-lzw.asm` is now `shared/resource-codecs.asm`. The same grouped
+component retains its LZW rules and adds directory volume-nibble extraction
+and little-endian header-word decoding. Both actual loaders expand those
+format rules against their own header buffers: CoCo's stack-local header and
+native private resource data. Disk swapping, paths, seek representation, header
+validation, allocation and read/error policies stay with the loaders. Native
+codec-only and plain-resource probes import the component through guarded
+feature inclusions, so all composition paths remain supported. No source-file
+count increase or runtime callback was introduced.
+
+All 63 owners rebuild byte-identically to the axis-width commit. The new
+`check_resource_format.py` executes 9,184 production-owner decoding calls at
+two addresses, covering every directory byte and every low/high size byte
+with zero/255 companions, endian order, guarded source buffers, preserved
+register context and immutable code. It is included in the standard check
+target. Shared conditional-scope validation passes for all 54 components.

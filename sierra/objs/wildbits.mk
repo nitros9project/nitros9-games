@@ -77,6 +77,7 @@ check: all probes
 	python3 ../tests/check_object_bounds.py
 	python3 ../tests/check_object_collision_filter.py
 	python3 ../tests/check_resource_lifetime.py
+	python3 ../tests/check_resource_format.py
 	python3 ../tests/check_motion_setup.py
 	python3 ../tests/check_cel_clipping.py
 	python3 ../tests/check_cel_advance.py

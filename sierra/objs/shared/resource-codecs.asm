@@ -1,5 +1,5 @@
-* AGI resource LZW primitives. Included once; emits no code until expanded.
-SHARED_RESOURCE_LZW_DEFINED equ 1
+* AGI resource-format and LZW primitives. Included once; emits no code.
+SHARED_RESOURCE_CODECS_DEFINED equ 1
 
 * Extract a code from a three-byte little-endian window. B=bit alignment
 * (0..7). Parameters: high byte, low word, width byte, mask table, shift
@@ -103,4 +103,23 @@ RESOURCE_LZW_RESET macro
                     ifeq      \5
                     RESOURCE_LZW_WIDTH_RESET \3,\4
                     endc
+                    endm
+
+* Directory entries combine volume in the high nibble and offset in the low.
+* The caller retains seek/error policy; returns the unsigned volume in A.
+RESOURCE_DIRECTORY_VOLUME macro
+ResourceVolumeBegin  lda       ,\1
+                    lsra
+                    lsra
+                    lsra
+                    lsra
+ResourceVolumeDone   equ *
+                    endm
+
+* Resource header sizes are little-endian words. Offset and register bind
+* the owner's header buffer; prefix names the executable test boundary.
+RESOURCE_HEADER_WORD macro
+\3Begin            ldb       \1,\2
+                    lda       \1+1,\2
+\3Done             equ *
                     endm

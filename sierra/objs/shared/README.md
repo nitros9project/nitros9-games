@@ -14,7 +14,7 @@ labels, branches and instruction order are preserved without runtime calls.
 | `formatter.asm` | Character scan, directive selection, string slots, recursive calls and expansion | CoCo/Wild Bits `text-ui-bindings.asm` |
 | `object-motion.asm` | Scheduling, coordinate steps, clamping, position commits and target motion | CoCo/Wild Bits `objects-bindings.asm` |
 | `object-animation.asm` | Animation update, all cel-cycle modes and direction tables | CoCo/Wild Bits `memory-resources-bindings.asm` |
-| `resource-lzw.asm` | LZW initialization/reset, code-window alignment, masks, dictionary traversal and insertion | Owner fields, bounded acquisition, dictionary cursor and stack bindings |
+| `resource-codecs.asm` | Directory/header decoding and LZW initialization, code-window alignment, dictionary traversal/insertion | Owner fields, bounded acquisition, dictionary cursor and stack bindings |
 
 For example, `FORMAT_EMIT_SCAN` expands the scan body in `formatter.asm`;
 `MOTION_EMIT_CLAMP` expands the clamp body in `object-motion.asm`. Algorithms
@@ -327,7 +327,7 @@ same rows. A probe redirects game-only rows to the explicit unsupported error
 handler. The production table replaces the native comparison chain and saves
 115 code bytes; it allocates no state and needs no initialization patching.
 
-`resource-lzw.asm` shares the actual three-byte window alignment and code
+`resource-codecs.asm` shares the actual three-byte window alignment and code
 masking used by CoCo `ReadPicPixel` and native `LzwReadCode`. The native reader
 now supplies that window from a raw pending byte and just enough bounded
 source bytes, rather than accumulating a code one bit at a time. CoCo retains

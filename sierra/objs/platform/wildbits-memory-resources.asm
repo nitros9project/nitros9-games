@@ -412,8 +412,8 @@ AssetWriteFail    ldb       <asseterror
                     ifndef PLATFORM_WILDBITS_MEMORY_RESOURCES_BINDINGS
                     use platform/wildbits-memory-resources-bindings.asm
                     endc
-                    ifndef SHARED_RESOURCE_LZW_DEFINED
-                    use shared/resource-lzw.asm
+                    ifndef SHARED_RESOURCE_CODECS_DEFINED
+                    use shared/resource-codecs.asm
                     endc
 DecodeLzw           stu       <lzwbase
                     stx       <lzwwork
@@ -896,6 +896,9 @@ SkipSpaces          lda       ,x+
                     else
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_RESOURCE_CODE
 * ===== wildbits-resource-code =====
+                    ifndef SHARED_RESOURCE_CODECS_DEFINED
+                    use shared/resource-codecs.asm
+                    endc
 * Native plain AGI picture-resource boundary, shared by probe/future decoder.
 * LoadPicture: X = CR/space-terminated game directory; Y = picture 0..255;
 * U = private resource-data base; DP = high byte of that base.
@@ -974,11 +977,7 @@ ResourceDirSlash    sty       resourcenameend,u
                     ldd       1,x
                     cmpd      #$FFFF
                     lbeq      ResourceInvalid
-DecodePictureEntry       lda       ,x
-                    lsra
-                    lsra
-                    lsra
-                    lsra
+DecodePictureEntry  RESOURCE_DIRECTORY_VOLUME x
                     sta       resourcevolume,u
                     clr       resourceoffset,u
                     lda       ,x
@@ -1033,13 +1032,11 @@ ResourceHeaderFlagsOK equ     *
                     anda      #$0F
                     cmpa      resourcevolume,u
                     bne      ResourceInvalid
-                    ldb       3,x               decoded size is little endian
-                    lda       4,x
+                    RESOURCE_HEADER_WORD 3,x,ResourceDecodedLength
                     std       <resourcelength
                     beq      ResourceInvalid
                     ifne      AGI_ASSET
-                    ldb       5,x
-                    lda       6,x
+                    RESOURCE_HEADER_WORD 5,x,ResourceStoredLength
                     std       <resourcestored
                     beq      ResourceInvalid
                     ldu       <resourcebase
@@ -1048,8 +1045,7 @@ ResourceHeaderFlagsOK equ     *
                     else
                     cmpd      #8192
                     bhi      ResourceInvalid
-                    ldb       5,x               stored size is little endian
-                    lda       6,x
+                    RESOURCE_HEADER_WORD 5,x,ResourceStoredLength
                     cmpd      <resourcelength    reject LZW, do not misdecode it
                     bne      ResourceInvalid
                     leax      resourcecommands,u

@@ -4063,8 +4063,8 @@ CalcMenuItemGeometry leas      -$01,s    allocate one byte for item count
                     stb       >MenuItemHeight,pcr store dropdown pixel height
                     leas      $01,s     release one-byte local frame
                     rts
-                    ifndef SHARED_RESOURCE_LZW_DEFINED
-                    use shared/resource-lzw.asm
+                    ifndef SHARED_RESOURCE_CODECS_DEFINED
+                    use shared/resource-codecs.asm
                     endc
 JoySpeedTable       RESOURCE_LZW_MASKS
 
@@ -7135,11 +7135,7 @@ FindVol             leas      <-$12,s   ; allocate 18-byte local frame
                     lbsr      ShowInsertDiskMsg ; prompt user to insert disk 1
 FindVolLoadDisk     lbsr      ReadDiskVol ; open volume file from disk
 FindVolGotHandle    ldu       $02,s     ; reload resource index pointer
-                    lda       ,u        ; load resource type byte
-                    lsra                ; extract volume number from upper nibble
-                    lsra                ; shift right (bit 2)
-                    lsra                ; shift right (bit 3)
-                    lsra                ; upper nibble now in low nibble
+                    RESOURCE_DIRECTORY_VOLUME u
                     sta       $08,s     ; save target volume number
                     ldx       #$0531    ; point to volume handle table
                     ldb       a,x       ; load handle for target volume
@@ -7211,11 +7207,9 @@ FindVolWrongSide    lbsr      VolumesClose ; close wrong volume
                     jsr       >$0701    ; call MMU twiddle exit
 FindVolRetryDisk    lbsr      ReadDiskVol ; reload disk volume after user swap
                     lbra      FindVolFail
-FindVolGoodHdr      ldb       $0C,s     ; load resource size low word
-                    lda       $0D,s     ; (resource size high byte)
+FindVolGoodHdr      RESOURCE_HEADER_WORD $0C,s,ResourceDecodedLength
                     std       <$0066    ; store resource size
-                    ldb       $0E,s     ; load compressed size low word
-                    lda       $0F,s
+                    RESOURCE_HEADER_WORD $0E,s,ResourceStoredLength
                     std       <$12,s    ; store compressed size
                     ldu       $04,s     ; load allocated buffer pointer
                     bne       FindVolReadData ; already have buffer
