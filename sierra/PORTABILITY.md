@@ -2756,3 +2756,20 @@ A mechanical source scan finds no remaining identical eight-instruction
 windows between the native platform bodies and CoCo mainline/screen/shadow
 sources. That is an audit aid, not proof that semantic consolidation is done;
 remaining orchestration and backend policy need review on their own terms.
+
+
+### Isolated CoCo boot-check options and limit — 2026-10-10
+
+`check_instances.py` now accepts `--rompath` for a checkout outside the shelf
+and optional `--unthrottled` headless execution; defaults are unchanged. CLI
+parsing and debugger transport checks pass. Direct CoCo CPU/MMU checks pass
+with the rebuilt modules, as recorded above.
+
+An additional private-disk OS boot attempt did not reach the interpreter
+before the emulator deadline. The unchanged original disk fails at the same
+stage; diagnostics reach the OS kernel with a sleeping startup process.
+Neither attempt counts as an OS boot pass. These tests modified only private
+copies under `/tmp/sierra-consolidation-coco-boot`; the user's disk and running
+session were untouched. Resolving this startup/harness issue remains a separate
+validation task; the before/after binary and direct behavior evidence remains
+explicitly distinguished from it.

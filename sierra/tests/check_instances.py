@@ -378,6 +378,9 @@ def main():
                         help='check debugger packet handling without an emulator')
     parser.add_argument('--boot', action='store_true', help='boot King\'s Quest I and reach the interpreter cycle')
     parser.add_argument('--disk', type=Path)
+    parser.add_argument('--rompath', type=Path, default=SHELF / 'toolshed/cocoroms',
+                        help='CoCo ROM directory for OS boot checks')
+    parser.add_argument('--unthrottled', action='store_true', help='run headless CPU/boot checks at full speed')
     parser.add_argument('--instances', type=int, default=1)
     parser.add_argument('--setup-module', type=Path, default=ROOT / 'sierra/kingsquest1/sierra')
     parser.add_argument('--setup-map', type=Path, default=ROOT / 'sierra/kingsquest1/sierra.map')
@@ -391,8 +394,10 @@ def main():
             args.port = reservation.getsockname()[1]
     command = ['xroar', '-machine', 'coco3', '-ui', 'null', '-ao', 'null', '-ram', '2048',
         '-gdb', '-gdb-port', str(args.port), '-timeout', '300']
+    if args.unthrottled:
+        command.append('-no-ratelimit')
     if args.boot:
-        command += ['-rompath', str(SHELF / 'toolshed/cocoroms'), '-cart', 'rsdos',
+        command += ['-rompath', str(args.rompath), '-cart', 'rsdos',
             '-cart-rom', 'disk11.rom', '-load-fd0', str(args.disk or ROOT / 'sierra/kingsquest1/KingsQuestI.dsk'),
             '-no-disk-write-back', '-type', 'DOS\r']
     else:
