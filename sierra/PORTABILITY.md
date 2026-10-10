@@ -2691,3 +2691,20 @@ directions, native word extremes, CoCo register preservation, guarded input,
 and immutable code. The existing 9,280 target-direction calls and all-mode
 destination checks also pass. The room-entry regression is now part of the
 normal `wildbits.mk check` target.
+
+
+### Animation platform interface cleanup — 2026-10-10
+
+The two owners previously repeated the same platform-selecting animation
+binding block. View acquisition, result/context restoration, loop preparation,
+and the call-versus-tail-call cel-advance ABI now live in their existing
+memory/resource binding files. The common animation component uses the explicit
+`ANIMATION_STRICT_LOOP_COUNTS` trait for its loop-count policy and no longer
+names either platform. All shared assembly components are now free of direct
+`WILDBITS`/`COCO` selection checks.
+
+All 63 owner binaries remain byte-identical. The actual CoCo/native cel-advance
+regression passes at two addresses: all four modes, first/middle/last and
+single-cel loops, one-tick suppression, completion flags 0/255, callback/context
+preservation and errors, 255-cel wrapping, native invalid modes, stack/state
+guards and immutable code. No files, instructions or state were added.

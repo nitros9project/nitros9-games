@@ -6,14 +6,12 @@ ANIMATION_EMIT_UPDATE macro
 * Per-object direction-driven loop selection and cycle countdown.
 * U is the object record. Platform policy is selected at assembly time;
 * metadata acquisition and return/iteration conventions remain owner bindings.
-                    ifeq WILDBITS
-                    ldb       #4
-                    endc
+                    ANIMATION_PREPARE
 AnimationUpdate     lda       <$25,u
                     bita      #$20
                     bne       AnimationCycleTick
                     lda       $0B,u
-                    ifne WILDBITS
+                    ifne ANIMATION_STRICT_LOOP_COUNTS
                     cmpa      #2
                     blo       AnimationCycleTick
                     cmpa      #4
@@ -58,14 +56,10 @@ AnimationCycleTick  lda       <$26,u
                     beq       AnimationCycleDone
                     dec       <$20,u
                     bne       AnimationCycleDone
-                    ifeq WILDBITS
-                    lbsr      AdvanceCelFrame
-                    endc
+                    ANIMATION_ADVANCE_BEFORE_RESET
                     lda       <$1F,u
                     sta       <$20,u
-                    ifne WILDBITS
-                    lbra      AdvanceCelFrame
-                    endc
+                    ANIMATION_ADVANCE_AFTER_RESET
 AnimationCycleDone equ *
                     ANIMATION_FINISH
                     endm

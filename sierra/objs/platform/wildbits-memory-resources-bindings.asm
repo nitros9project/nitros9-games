@@ -53,3 +53,26 @@ LZW_CHAIN_PUSH macro
                     endm
 LZW_CHAIN_RETAIN macro
                     endm
+
+
+* Animation-stage interface. Native validates 2..4 direction-driven loops,
+* restores resource context after view acquisition and tail-calls cel advance.
+ANIMATION_STRICT_LOOP_COUNTS equ 1
+ANIMATION_PREPARE macro
+                    endm
+ANIMATION_SELECT_LOOP macro
+                    lda       #43
+                    lbsr      MotionSelectView
+                    lbcs      MotionReturn
+                    ldx       <resourcebase
+                    ldu       motionobject,x
+                    endm
+ANIMATION_FINISH macro
+                    clrb
+                    rts
+                    endm
+ANIMATION_ADVANCE_BEFORE_RESET macro
+                    endm
+ANIMATION_ADVANCE_AFTER_RESET macro
+                    lbra      AdvanceCelFrame
+                    endm
