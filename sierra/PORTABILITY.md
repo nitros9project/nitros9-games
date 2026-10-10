@@ -2726,3 +2726,15 @@ code and malformed/unsupported-input bounds checks. Freshly rebuilt KQ1
 production modules also pass the CoCo instance CPU/MMU regression, including
 private mappings, descriptor lookup, timer registration, screen ownership and
 failure rollback. This is CPU/MMU coverage, not a new two-game OS boot claim.
+
+
+### Shared append traversal — 2026-10-10
+
+CoCo `StrAppend` now expands the same `NUL_STRING_COPY` traversal used by
+native recursive-format frames and CoCo `StrCopy`. Destination-end scanning
+and the append return ABI stay in the owner. All 63 binaries remain identical.
+The expanded text-helper regression verifies empty and nonempty prefixes and
+sources through 255 bytes, destination returned in X, advanced U, preserved Y,
+source/destination/stack guards, plus its existing cross-owner bounded-copy and
+decimal cases at two addresses. Incorrect legacy source/destination comments
+were corrected to match the verified return behavior.

@@ -1757,14 +1757,12 @@ MemCopyNull         leas      -$04,s    allocate 4-byte local frame on stack
                     ldx       $02,s     reload original destination pointer into X
                     leas      $04,s     release local stack frame
                     rts
-StrAppend           pshs      u         save source pointer (return dest in X)
+StrAppend           pshs      u         save destination pointer (return dest in X)
 StrAppendFind       lda       ,u+       scan forward in destination for null
                     bne       StrAppendFind loop until null terminator found
                     leau      -$01,u    back up to point at null byte
-StrAppendCopy       lda       ,x+       load source byte, advance X
-                    sta       ,u+       store to destination (overwrites null), advance U
-                    bne       StrAppendCopy loop until null terminator copied
-                    puls      x         restore start-of-source as X (return value)
+                    NUL_STRING_COPY x,StrAppendCopy,1,NUL_COCO_WRITE,NUL_COPY_NOOP,NUL_COPY_NOOP
+                    puls      x         restore start-of-destination as X (return value)
                     rts
 StrCompare          pshs      u,x       save register state
 StrCompareLoop      lda       ,x        load byte from first string (no advance yet)

@@ -48,6 +48,25 @@ def main():
                             else:
                                 assert r['x']==0x2000+copied+(length<limit)
                                 assert r['y']==destination_end and r['u']==0x1234 and r['b']==0
+                    if owner=='CoCo':
+                        # StrAppend's final traversal is the same shared NUL
+                        # copier used by native recursive-format frames.
+                        for prefix_length in (0,1,39,255):
+                            for source_length in (0,1,39,255):
+                                prefix=bytes((i%255)+1 for i in range(prefix_length))
+                                source=bytes(255-(i%255) for i in range(source_length))+b'\0'
+                                capacity=len(prefix)+len(source)
+                                d.write(0x1fff,b'S'+source+b'T')
+                                d.write(0x3fff,b'G'+prefix+b'\0'+b'?'*(len(source)-1)+b'H')
+                                d.write(0x7ef0,b'\x7e\x00STACK')
+                                d.regs(pc=base+syms['StrAppend'],x=0x2000,u=0x4000,y=0x4321,
+                                       s=0x7ef0,dp=0,cc=0x50)
+                                d.call('c'); r=d.regs()
+                                assert r['pc']==0x7e00 and r['s']==0x7ef2
+                                assert r['x']==0x4000 and r['u']==0x4000+capacity and r['y']==0x4321
+                                assert d.read(0x3fff,capacity+2)==b'G'+prefix+source+b'H'
+                                assert d.read(0x1fff,len(source)+2)==b'S'+source+b'T'
+                                assert d.read(0x7ef2,5)==b'STACK'
                     cases=[str(value).encode() for value in range(256)]
                     cases += [b'',b' ',b'   ',b'000',b'256',b'511',b'999',b'1234567890',
                               b'9'*39,b'  255x',b'12 34',b'-1',b'+2',b'x99',b'\xff123']
@@ -68,7 +87,7 @@ def main():
                         assert d.read(0x1fff,len(source)+2)==b'S'+source+b'T'
                     assert d.read(base,len(code))==code
                     d.breakpoint(0x7e00,False)
-            print('PASS: real CoCo/native bounded-copy and decimal routines at two code bases; copy termination/truncation, all nonzero byte values, 8/16-bit count edges, guards/register conventions, every byte value 0–255, decimal overflow/leading spaces/invalid prefixes, all nondigit byte classes, source cursors, stack balance and immutable code')
+            print('PASS: real CoCo/native bounded-copy and decimal routines at two code bases; copy termination/truncation, append empty/nonempty prefixes and sources, all nonzero byte values, 8/16-bit count edges, guards/register conventions, every byte value 0–255, decimal overflow/leading spaces/invalid prefixes, all nondigit byte classes, source cursors, stack balance and immutable code')
         finally:
             d.s.close();emulator.terminate()
             try:emulator.wait(timeout=5)
