@@ -3111,7 +3111,10 @@ ParserSubmit        lbsr      ParserParse
                     clrb
                     rts
 * Rebuild the input row before ordinary presentation, never in modal screens.
-ParserDrawInput     ldu       <resourcebase
+ParserDrawInput     clr       <vmopcode    internal screen refresh, not an AGI opcode
+                    lbsr      ScreenCommand
+                    lbcs      GameCycleReturn
+                    ldu       <resourcebase
                     tst       <vminputenabled
                     lbeq      GameCycleSuccess
                     tst       vmstrings,u

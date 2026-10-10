@@ -1945,8 +1945,9 @@ unchanged.
 This audit does not establish complete interpreter parity. In particular,
 native `ScreenStatusOn`, `ScreenStatusOff`, and `ScreenConfigure` currently only
 store status-line settings; no native renderer consumes those settings. CoCo
-renders and refreshes the score/sound line. That is a confirmed implementation
-gap, separate from the fixed room-transition bugs. Remaining audit targets
+renders and refreshes the score/sound line. That was a confirmed implementation
+gap, separate from the fixed room-transition bugs; the 2026-10-09 status-line
+change below resolves it. Remaining audit targets
 include destination animation/motion initialization, modal input restoration,
 and game-state restoration across scripts. Those are risks to investigate,
 not additional confirmed failures.
@@ -2074,9 +2075,9 @@ The coverage ledger is deliberately explicit:
 | Popup and full-screen dialog | CPU regressions, original king speech in MAME, original help logic | Other conversation states and cancellations |
 | Save, restore, restart | Existing original-game MAME and malformed-state CPU tests | States reached after later puzzles |
 | Two terminals | Simultaneous original KQ1/Larry input, audio, restoration and exit tests | Later modal/puzzle combinations |
-| Treasure puzzles | Original clover/mirror/shield/chest pickup scenarios in CPU tests and MAME; third-treasure state carry | Earlier encounters, travel between puzzles, and the final sequence |
+| Treasure puzzles | Original clover/mirror/shield/chest pickup scenarios in CPU tests and MAME; third-treasure state carry | Other encounters and travel between puzzles |
 | Death and escape | Original death-support message branches; cleanup and restart primitives | Actual death/captivity encounters and allowed-action loops |
-| Hazards and winning | Static script traversal | Original encounters, quest completion and final sequence |
+| Hazards and winning | Original live-dragon and fiddle encounters; original throne-room ending in CPU tests and MAME | Giant and other hazards; a continuous full-adventure route |
 
 A successful audit and these scenario checks do not establish that the entire
 adventure is completable. The remaining original-game scenarios must exercise
@@ -2124,3 +2125,86 @@ the focused 15-case run additionally verifies third-treasure state carry.
 No interpreter code or gameplay assets are changed by these tests. The playable
 image remains `/tmp/sierra-play-king-dialog/play.sh`. Full adventure completion
 and the winning sequence remain unverified.
+
+### Original encounters and ending — 2026-10-09
+
+The original throne-room script (logic 53) now runs through its complete ending
+in CPU tests and MAME. A private root supplies the three-treasure return state,
+score 24, and the actual inventory items. The unchanged room performs its own
+countdowns, object movement, king's final dialogue, succession, and closing
+credits. No completion flag is injected. The CPU check requires the original
+closing-credits message, completion flag 195, cleared succession flag 95, retained
+quest progress, and ownership cleanup. MAME's `--coronation` uses real terminal
+keys to dismiss messages, observes those final flags, and recovers all memory.
+Evidence: `/tmp/sierra-coronation-check.log` and `/tmp/sierra-coronation-mame`.
+
+Two earlier encounters also execute original scripts rather than replacements:
+
+- `check_original_fiddle_encounter` starts in room 76 with the clover and fiddle
+  already owned and their normal root possession summaries. It submits
+  `play fiddle` through the original vocabulary, waits for the departure
+  choreography to finish, and checks three points, flag 186, cleared animation
+  flags, restored input and cleanup. MAME `--encounter fiddle` types the command
+  through the terminal and confirms the same score, departure and input state.
+- `check_original_dragon_encounter` starts room 51 with a filled bucket and a
+  live dragon. The original `throw water` command subdues the dragon, consumes
+  the bucket, clears its possession summary and awards five points. MAME
+  `--encounter dragon` verifies the command through real terminal input, the
+  outcome, restored input and complete memory recovery.
+
+Evidence is at `/tmp/sierra-fiddle-check.log`, `/tmp/sierra-dragon-check.log`,
+`/tmp/sierra-fiddle-mame`, and `/tmp/sierra-dragon-mame`. The full interpreter
+regression with these cases passes at `/tmp/sierra-encounters-full-game.log`.
+These runs use the runtime from `50f5875`; the subsequent status-line fix needs
+its own validation.
+
+These checks establish that the original ending executes from a controlled
+return state. They do not establish a continuous, completable adventure: travel,
+acquisition of the prerequisite bucket/fiddle, the giant and other hazards, and
+state carried through the full route still need coverage.
+
+### Score/sound status-line rendering — 2026-10-09
+
+Wild Bits now renders the enabled status row, including current score (`v3`),
+maximum score (`v7`) and sound flag 9. Previously the screen commands stored
+settings but no renderer consumed them. The existing immutable screen backend
+formats the row into existing private scratch and publishes changed text cells.
+The regular game cycle requests refresh even when command input is disabled;
+unchanged cells request no bitmap writes. Enabling/disabling an existing screen
+updates its row immediately. Text-screen dialogue is left to the text-screen
+renderer, preserving full-screen speech and ending credits.
+
+No new platform file, private field, allocation, or save-format change is needed.
+The helper ABI is now version 3 because the screen entry additionally accepts an
+internal refresh operation. An older helper is rejected before use. The WSv1
+save format remains unchanged. The main module is 23,807 / 23,808 bytes (one byte
+spare), the linked helper 7,282 / 8,192 with the same 3,080-byte writable prefix,
+and private allocation remains 24,460 bytes. Further resident changes require
+moving code or recovering space; the budget is enforced by the assembler.
+
+The status CPU checks compare every row pixel against the exported font for
+scores 0, 9, 10, 99, 100 and 255, sound on/off, row 24, disabling the line, and a
+score/sound update between cycles. They pass at `/tmp/sierra-status-check.log`.
+An independent MAME font check verifies `Score:0 of 158` and `Sound: on`; it
+rejects the earlier missing-line build. The original castle/lake round trip
+passes at `/tmp/sierra-status-journey-final`, and simultaneous Larry/KQ1 games
+pass at `/tmp/sierra-status-pair`, including 15 process-owned PSG writes and
+exact final memory recovery. A separate journey run with required ambient audio
+fails because no conditional bird sound occurs; its navigation screenshots
+show the lake, but that run is not counted as a passing audio test.
+
+The audio adversarial regression passes at
+`/tmp/sierra-status-check_native_audio.log`, and all 1,024 native dispatch checks
+pass at `/tmp/sierra-status-check_native_dispatch.log`.
+
+The original giant room (58) is also covered with a pre-owned sling and pebbles,
+using the possession flags set by original acquisition rooms 34 and 62. Parsed
+`use sling` completes the shot animation, kills the giant, consumes the sling,
+and awards a net two points. CPU and real terminal-input MAME checks pass at
+`/tmp/sierra-giant-check.log` and `/tmp/sierra-giant-mame`. This covers the giant
+encounter from controlled inventory/position, not acquiring those prerequisites.
+
+The complete native regression for this runtime passes at
+`/tmp/sierra-status-full-game.log`, including status pixels and old-helper
+rejection, the original fiddle/dragon encounters and ending. The giant case
+was added afterward and passed its focused CPU and MAME runs.

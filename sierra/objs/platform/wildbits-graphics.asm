@@ -2222,7 +2222,7 @@ ScreenCommand       ldu       <resourcebase
                     ldb       #14
                     leay      ScreenCallbacks,pcr
                     lbra      GameColdInvoke
-ScreenCallbacks     fdb       ReadLogicMessage-ScreenCallbacks,GamePaletteRefresh-ScreenCallbacks
+ScreenCallbacks     fdb       ReadLogicMessage-ScreenCallbacks,GamePaletteRefresh-ScreenCallbacks,GameDrawText-ScreenCallbacks
                     else
 PLATFORM_SECTION    set PLATFORM_WILDBITS_SCREEN_COLD_CODE
                     use platform/wildbits-graphics.asm
@@ -2607,6 +2607,9 @@ AuxScreenCommand    ldu       <resourcebase
                     lbeq      ScreenMonitor
                     endc
                     ldb       <vmopcode
+                    ifne      GAME_PRESENTATION
+                    lbeq      AuxStatusRefresh
+                    endc
                     cmpb      #108
                     beq       ScreenCursor
                     cmpb      #109
@@ -2669,9 +2672,17 @@ ScreenConfigure     lda       vmarguments,u
                     bra       ScreenDone
 ScreenStatusOn      lda       #1
                     sta       <vmstatusenabled
+                    ifne      GAME_PRESENTATION
+                    lbra      AuxStatusRefresh
+                    else
                     bra       ScreenDone
+                    endc
 ScreenStatusOff     clr       <vmstatusenabled
+                    ifne      GAME_PRESENTATION
+                    lbra      AuxStatusClear
+                    else
                     bra       ScreenDone
+                    endc
 ScreenInputOff      clr       <vminputenabled
                     bra       ScreenDone
 ScreenInputOn       lda       #1
@@ -2681,6 +2692,121 @@ ScreenReturn        rts
 ScreenInvalid       ldb       #E$IllArg
                     orcc      #1
                     rts
+
+                    ifne      GAME_PRESENTATION
+* Compose only the status row, in private scratch. Publishing changed cells
+* requests a text redraw; an unchanged score/sound line costs no bitmap I/O.
+AuxStatusRefresh    tst       <vmstatusenabled
+                    lbeq      ScreenDone
+                    tst       <vmgraphics
+                    lbeq      ScreenDone
+                    leax      rowoutput,u
+                    ldb       #40
+                    lda       #32
+AuxStatusBlank      sta       ,x+
+                    decb
+                    bne       AuxStatusBlank
+                    leax      rowoutput+1,u
+                    leay      AuxStatusScore,pcr
+                    lbsr      AuxStatusCopy
+                    lda       vmvariables+3,u
+                    lbsr      AuxStatusDecimal
+                    leay      AuxStatusOf,pcr
+                    lbsr      AuxStatusCopy
+                    lda       vmvariables+7,u
+                    lbsr      AuxStatusDecimal
+                    leax      rowoutput+30,u
+                    leay      AuxStatusSound,pcr
+                    lbsr      AuxStatusCopy
+                    leay      AuxStatusOff,pcr
+                    tst       vmflags+9,u
+                    beq       AuxStatusSoundValue
+                    leay      AuxStatusOn,pcr
+AuxStatusSoundValue lbsr      AuxStatusCopy
+                    lda       #$0F      black text on white
+                    bra       AuxStatusPublish
+AuxStatusClear      leax      rowoutput,u
+                    ldb       #40
+                    lda       #32
+AuxStatusClearLoop  sta       ,x+
+                    decb
+                    bne       AuxStatusClearLoop
+                    lda       #$F0      white text on black
+AuxStatusPublish    pshs      a
+                    lda       <vmstatusrow
+                    ldb       #40
+                    mul
+                    leax      textcharacters,u
+                    leax      d,x
+                    leay      rowoutput,u
+                    ldb       #40
+AuxStatusCell       lda       ,y+
+                    cmpa      ,x
+                    bne       AuxStatusChanged
+                    lda       ,s
+                    cmpa      1000,x
+                    beq       AuxStatusNext
+AuxStatusChanged    lda       -1,y
+                    sta       ,x
+                    lda       ,s
+                    sta       1000,x
+                    lda       <presentationconfigured
+                    ora       #$80
+                    sta       <presentationconfigured
+AuxStatusNext       leax      1,x
+                    decb
+                    bne       AuxStatusCell
+                    leas      1,s
+                    tst       <vmopcode
+                    beq       AuxStatusDone
+                    tst       <bitmapowned
+                    beq       AuxStatusDone
+                    UI_CALL   4
+                    rts
+AuxStatusDone       clrb
+                    rts
+AuxStatusCopy       lda       ,y+
+                    beq       AuxStatusCopyDone
+                    sta       ,x+
+                    bra       AuxStatusCopy
+AuxStatusCopyDone   rts
+* Unsigned AGI byte -> one to three decimal digits, without leading zeros.
+AuxStatusDecimal    pshs      x
+                    ldb       #'0
+AuxStatusHundreds   cmpa      #100
+                    blo       AuxStatusHundredsDone
+                    suba      #100
+                    incb
+                    bra       AuxStatusHundreds
+AuxStatusHundredsDone cmpb     #'0
+                    beq       AuxStatusTensStart
+                    stb       ,x+
+AuxStatusTensStart  ldb       #'0
+AuxStatusTens       cmpa      #10
+                    blo       AuxStatusTensDone
+                    suba      #10
+                    incb
+                    bra       AuxStatusTens
+AuxStatusTensDone   cmpb      #'0
+                    bne       AuxStatusTensStore
+                    cmpx      ,s
+                    beq       AuxStatusUnits
+AuxStatusTensStore  stb       ,x+
+AuxStatusUnits      adda      #'0
+                    sta       ,x+
+                    leas      2,s
+                    rts
+AuxStatusScore      fcc       /Score:/
+                    fcb       0
+AuxStatusOf         fcc       / of /
+                    fcb       0
+AuxStatusSound      fcc       /Sound: /
+                    fcb       0
+AuxStatusOn         fcc       /on/
+                    fcb       0
+AuxStatusOff        fcc       /off/
+                    fcb       0
+                    endc
 
                     else
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_SCREEN_DATA

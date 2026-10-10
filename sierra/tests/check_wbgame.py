@@ -332,6 +332,125 @@ def check_original_pickup_puzzles(d):
     print('PASS: original clover/mirror/shield/chest pickups, real vocabulary parsing, near/far and guarded acquisition, inventory/quest flags and no repeat score')
 
 
+def check_original_coronation(d):
+    """Run original throne-room endgame from the three-treasure return state."""
+    game=ROOT/'kingsquest1'
+    files={'/game/'+path.name:path.read_bytes() for path in game.iterdir()
+           if path.is_file() and (path.name.startswith('vol.') or path.name in
+                                  ('logDir','picDir','viewDir','sndDir','words.tok','object'))}
+    # Only the bootstrap is synthetic. The original room owns the countdown,
+    # choreography, text, and endgame flag; no completion flags are injected.
+    setup=bytes([3,250,1,3,0,53,3,1,54,3,74,3,3,3,24,12,5,
+                 33,0,30,0,41,0,0,37,0,50,110,92,19,92,21,92,2])
+    body=bytes([255,1,250,0,255])+len(setup).to_bytes(2,'little')+setup
+    body+=bytes([22,53,13,5,255,7,195,255,2,0,134,1,0])
+    logic=len(body).to_bytes(2,'little')+body
+    volume=files['/game/vol.0'];offset=len(volume)
+    files['/game/vol.0']=volume+b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic
+    directory=bytearray(files['/game/logDir']);directory[:3]=offset.to_bytes(3,'big')
+    files['/game/logDir']=bytes(directory)
+    error,output,state=exercise(d,files,arguments=b'/game 0\r',module='wbgame',base=0xa000,
+        database=0,window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,
+        keyboard_by_cycle={cycle:(b'\r',0) for cycle in range(5,2000,5)},os_call_limit=300000)
+    assert not error,('coronation',error)
+    assert state['vmflags'][195]==1,'original coronation did not complete'
+    assert state['vmvariables'][74]==3,'coronation lost quest progress'
+    assert state['vmflags'][95]==0,'king succession sequence remained active'
+    assert b'Thank you for playing' in state['messagebuffer'],'original closing credits were not shown'
+    print('PASS: original three-treasure throne-room coronation choreography, messages and cleanup')
+
+
+def check_original_fiddle_encounter(d):
+    """Original leprechaun room reacts to a parsed fiddle command and finishes."""
+    game=ROOT/'kingsquest1'
+    files={'/game/'+path.name:path.read_bytes() for path in game.iterdir()
+           if path.is_file() and (path.name.startswith('vol.') or path.name in
+                                  ('logDir','picDir','viewDir','sndDir','words.tok','object'))}
+    # The clover and fiddle are pre-owned. Flags 87/171 are the original root's
+    # possession summaries, not encounter completion flags.
+    setup=bytes([3,250,1,3,0,76,3,1,77,12,5,12,87,12,171,92,8,92,17,
+                 33,0,30,0,41,0,0,37,0,73,150])
+    body=bytes([255,1,250,0,255])+len(setup).to_bytes(2,'little')+setup
+    # Initialize the room before submitting the command on the second cycle.
+    parse=bytes([114,0,1,117,0])
+    body+=bytes([255,1,250,2,255])+len(parse).to_bytes(2,'little')+parse
+    body+=bytes([22,76,13,5,1,250,255,7,186,1,30,0,255,2,0,134,1,0])
+    text=b'play fiddle\0';key=b'Avis Durgan'
+    messages=bytes([1])+(4+len(text)).to_bytes(2,'little')+bytes([4,0])+bytes(v^key[i%11] for i,v in enumerate(text))
+    logic=len(body).to_bytes(2,'little')+body+messages
+    volume=files['/game/vol.0'];offset=len(volume)
+    files['/game/vol.0']=volume+b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic
+    directory=bytearray(files['/game/logDir']);directory[:3]=offset.to_bytes(3,'big')
+    files['/game/logDir']=bytes(directory)
+    error,output,state=exercise(d,files,arguments=b'/game 0\r',module='wbgame',base=0xa000,
+        database=0,window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,
+        keyboard_by_cycle={cycle:(b'\r',0) for cycle in range(5,2000,5)},os_call_limit=300000)
+    assert not error,('fiddle encounter',error)
+    assert state['vmflags'][186]==1,'leprechauns did not leave'
+    assert state['vmvariables'][3]==3,'fiddle encounter score differs'
+    assert state['vmflags'][21:23]==b'\0\0','fiddle choreography remained active'
+    assert state['vminputenabled']==b'\1','fiddle encounter did not restore input'
+    print('PASS: original parsed fiddle encounter, leprechaun departure, score, restored input and cleanup')
+
+
+def check_original_dragon_encounter(d):
+    """Use actual parsed water command against the original live dragon."""
+    game=ROOT/'kingsquest1'
+    files={'/game/'+path.name:path.read_bytes() for path in game.iterdir()
+           if path.is_file() and (path.name.startswith('vol.') or path.name in
+                                  ('logDir','picDir','viewDir','sndDir','words.tok','object'))}
+    # Original root possession summary: flag 88 means the filled bucket.
+    body=bytes([3,0,51,12,5,12,88,12,167,92,26,33,0,30,0,41,0,0,37,0,80,140,
+                22,51,13,5,114,0,1,117,0,22,51,3,240,26,97,240,200,134,1,0])
+    text=b'throw water\0';key=b'Avis Durgan'
+    messages=bytes([1])+(4+len(text)).to_bytes(2,'little')+bytes([4,0])+bytes(v^key[i%11] for i,v in enumerate(text))
+    logic=len(body).to_bytes(2,'little')+body+messages
+    volume=files['/game/vol.0'];offset=len(volume)
+    files['/game/vol.0']=volume+b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic
+    directory=bytearray(files['/game/logDir']);directory[:3]=offset.to_bytes(3,'big')
+    files['/game/logDir']=bytes(directory)
+    error,output,state=exercise(d,files,arguments=b'/game 0\r',module='wbgame',base=0xa000,
+        database=0,window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,
+        keyboard=b'\r\r',os_call_limit=100000)
+    assert not error,('dragon encounter',error)
+    assert state['vmvariables'][75]==2,'water did not subdue the original dragon'
+    assert state['vmflags'][88]==0,'filled bucket possession summary remained set'
+    assert state['vmvariables'][200]==0,'filled bucket was not consumed'
+    assert state['vmvariables'][3]==5,'nonlethal dragon score differs'
+    print('PASS: original parsed water command, live dragon defeat, consumed bucket, score and cleanup')
+
+
+def check_original_giant_encounter(d):
+    """The original sling shot must finish its animation and kill the giant."""
+    game=ROOT/'kingsquest1'
+    files={'/game/'+path.name:path.read_bytes() for path in game.iterdir()
+           if path.is_file() and (path.name.startswith('vol.') or path.name in
+                                  ('logDir','picDir','viewDir','sndDir','words.tok','object'))}
+    # Sling and pebbles are pre-owned. These possession flags are set by the
+    # original acquisition scripts in rooms 34 and 62, respectively.
+    setup=bytes([3,250,1,3,0,58,3,1,57,12,5,12,93,12,97,92,13,92,14,
+                 33,0,30,0,41,0,0,37,0,50,120])
+    body=bytes([255,1,250,0,255])+len(setup).to_bytes(2,'little')+setup
+    parse=bytes([114,0,1,117,0])
+    body+=bytes([255,1,250,2,255])+len(parse).to_bytes(2,'little')+parse
+    body+=bytes([22,58,13,5,1,250,255,1,86,4,255,2,0,134,1,0])
+    text=b'use sling\0';key=b'Avis Durgan'
+    messages=bytes([1])+(4+len(text)).to_bytes(2,'little')+bytes([4,0])+bytes(v^key[i%11] for i,v in enumerate(text))
+    logic=len(body).to_bytes(2,'little')+body+messages
+    volume=files['/game/vol.0'];offset=len(volume)
+    files['/game/vol.0']=volume+b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic
+    directory=bytearray(files['/game/logDir']);directory[:3]=offset.to_bytes(3,'big')
+    files['/game/logDir']=bytes(directory)
+    error,output,state=exercise(d,files,arguments=b'/game 0\r',module='wbgame',base=0xa000,
+        database=0,window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,
+        keyboard_by_cycle={cycle:(b'\r',0) for cycle in range(5,2000,5)},os_call_limit=100000)
+    assert not error,('giant encounter',error)
+    assert state['vmvariables'][86]==4,'original giant did not die after sling animation'
+    assert state['vmflags'][93]==0,'sling possession summary remained set'
+    assert state['vmvariables'][3]==2,'sling encounter net score differs'
+    print('PASS: original parsed sling command, completed shot animation, giant death, net score and cleanup')
+
+
 def check_timed_messages(d):
     """Exercise blocking timeouts, public counter wrap and modal exclusions."""
     cases=[
@@ -876,6 +995,47 @@ def check_screen_backend(d):
     print('PASS: immutable screen configuration, cursor message callback, bounds and invalid-entry cleanup')
 
 
+def check_status_line(d):
+    """Check actual status cells and every output pixel against the font."""
+    font=(ROOT/'objs/wbfont').read_bytes()
+    cases=[(score,255,True,0,False,False) for score in (0,9,10,99,100,255)]
+    cases += [(24,158,False,24,False,False),(24,158,True,0,True,False),
+              (24,158,True,0,False,True)]
+    for score,maximum,sound,row,off,updated in cases:
+        print('Checking status line:',score,maximum,sound,row,off,updated,flush=True)
+        setup=bytes([3,240,0,24,240,25,240,26,3,3,score,3,7,maximum,
+                     12 if sound else 13,9,111,1,23,row,112])
+        if updated:
+            body=bytes([255,1,250,0,255])+len(setup).to_bytes(2,'little')+setup
+            change=bytes([3,3,7,13,9])
+            body+=bytes([1,250,255,1,250,2,255])+len(change).to_bytes(2,'little')+change
+            body+=bytes([255,1,250,3,255,2,0,134,1,0])
+            score,sound=7,False
+        else:body=setup+(bytes([113]) if off else b'')+bytes([134,1,0])
+        logic=len(body).to_bytes(2,'little')+body
+        def record(payload):return b'\x12\x34\0'+len(payload).to_bytes(2,'little')*2+payload
+        volume=record(logic);offset=len(volume);volume+=record(b'\xff')
+        files={'/game/logDir':b'\xff'*3+bytes(3),'/game/picDir':offset.to_bytes(3,'big'),'/game/vol.0':volume}
+        cells=[]
+        def capture(cpu,registers,syms):
+            cells.append(cpu.read(syms['textcharacters']+row*40,40))
+        error,frame,state=exercise(d,files,module='wbgame',base=0xa000,database=0,
+            window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,
+            frame_capture=True,psg={'version':4},breakpoint_hooks={'GameQuitCommand':capture})
+        assert not error,('status line',error)
+        expected=bytearray(b' '*40)
+        if not off:
+            label=f'Score:{score} of {maximum}'.encode();expected[1:1+len(label)]=label
+            label=b'Sound: '+(b'on' if sound else b'off');expected[30:30+len(label)]=label
+        assert cells==[bytes(expected)],('status cells',cells,expected)
+        for y in range(8):
+            wanted=bytes(1 if off or font[character*8+y]&(0x80>>bit) else 16
+                         for character in expected for bit in range(8))
+            start=(row*8+y)*320
+            assert frame[start:start+320]==wanted,('status pixels',row,y)
+    print('PASS: score/sound status pixels, decimal boundaries, selected row, disable and live cycle updates')
+
+
 def check_cold_prefix_bounds(d):
     """Bound writable copies independently of the larger linked code image."""
     original=(ROOT/'objs/wbstate').read_bytes()
@@ -883,6 +1043,7 @@ def check_cold_prefix_bounds(d):
     script=bytes([154,0,0,24,39,0,134,1,0])
     logic=len(script).to_bytes(2,'little')+script
     cases=[('valid',None,None),
+           ('old screen ABI',entry+2,2),
            ('short prefix',entry+18,entry+24),
            ('incomplete current metadata',entry+18,entry+34),
            ('oversized prefix',entry+18,4097),
@@ -991,6 +1152,10 @@ def main():
             check_original_help(d)
             check_original_death_messages(d)
             check_original_pickup_puzzles(d)
+            check_original_coronation(d)
+            check_original_fiddle_encounter(d)
+            check_original_dragon_encounter(d)
+            check_original_giant_encounter(d)
             check_timed_messages(d)
             check_screen_shakes(d)
             check_object_previews(d)
@@ -1003,6 +1168,7 @@ def main():
             check_monitor_profiles(d)
             check_monitor_instances(d)
             check_screen_backend(d)
+            check_status_line(d)
             check_cold_prefix_bounds(d)
             check_restarts(d)
             check_bounded_said(d)

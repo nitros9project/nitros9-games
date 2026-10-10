@@ -6,6 +6,21 @@ from check_wbpic_mame import VIEWER,png_rgb
 from check_instances import symbols
 import statistics
 
+def check_status_pixels(image,font,score,maximum,sound):
+    """Independent font oracle for the original KQ1 status row in MAME."""
+    w,h,pixels=image
+    assert (w,h)==(640,480)
+    cells=bytearray(b' '*40)
+    label=f'Score:{score} of {maximum}'.encode();cells[1:1+len(label)]=label
+    label=b'Sound: '+(b'on' if sound else b'off');cells[30:30+len(label)]=label
+    for column,char in enumerate(cells):
+        for row,bits in enumerate(font[char*8:char*8+8]):
+            for bit in range(8):
+                wanted=bytes(3) if bits&(128>>bit) else bytes([255])*3
+                x=column*16+bit*2;y=row*2
+                assert pixels[(y*w+x)*3:(y*w+x)*3+3]==wanted,('status glyph',column,row,bit)
+
+
 def main():
     ap=argparse.ArgumentParser(description=__doc__)
     for name in ('mame','disk','firmware','game','output'):
@@ -22,6 +37,8 @@ def main():
     ap.add_argument('--persistence',action='store_true',help='Save original KQ1, walk, restore, and issue another command')
     ap.add_argument('--hall',action='store_true',help='Exercise original KQ1 hall logic after stop.motion/new.room')
     ap.add_argument('--king-dialog',action='store_true',help="Exercise the original king's text-screen speech and fresh-key wait")
+    ap.add_argument('--encounter',choices=('fiddle','dragon','giant'),help='Type an original encounter command and verify its outcome')
+    ap.add_argument('--coronation',action='store_true',help='Exercise the original three-treasure throne-room ending')
     ap.add_argument('--pickup',choices=('clover','mirror','shield','chest'),help='Type a pickup command twice in an original puzzle room with controlled encounter preconditions')
     ap.add_argument('--journey',action='store_true',help='Walk original KQ1 to the lake, look, and return to the castle')
     ap.add_argument('--movement',action='store_true',help='Measure KQ1 movement over 200 emulated frames')
@@ -45,6 +62,33 @@ def main():
     for source in a.game.iterdir():
         if source.is_file() and (source.name.startswith('vol.') or source.name in ('logDir','picDir','viewDir','sndDir','words.tok','object')):
             install(source.name,source.read_bytes(),'game/'+source.name)
+    if a.encounter:
+        if a.encounter=='fiddle':
+            setup=bytes([3,250,1,3,0,76,3,1,77,12,5,12,87,12,171,92,8,92,17,
+                         33,0,30,0,41,0,0,37,0,73,150,121,113,0,1])
+        elif a.encounter=='dragon':
+            setup=bytes([3,250,1,3,0,51,12,5,12,88,12,167,92,26,
+                         33,0,30,0,41,0,0,37,0,80,140,121,113,0,1])
+        else:
+            setup=bytes([3,250,1,3,0,58,3,1,57,12,5,12,93,12,97,92,13,92,14,
+                         33,0,30,0,41,0,0,37,0,50,120,121,113,0,1])
+        root=bytes([255,1,250,0,255])+len(setup).to_bytes(2,'little')+setup
+        root+=bytes([255,12,1,255,2,0,134,1,23,0,13,5,0])
+        logic=len(root).to_bytes(2,'little')+root
+        volume=(a.game/'vol.0').read_bytes();offset=len(volume)
+        install('encounter-vol.0',volume+b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic,'game/vol.0')
+        directory=bytearray((a.game/'logDir').read_bytes());directory[:3]=offset.to_bytes(3,'big')
+        install('encounter-logDir',bytes(directory),'game/logDir')
+    if a.coronation:
+        setup=bytes([3,250,1,3,0,53,3,1,54,3,74,3,3,3,24,12,5,
+                     33,0,30,0,41,0,0,37,0,50,110,92,19,92,21,92,2])
+        root=bytes([255,1,250,0,255])+len(setup).to_bytes(2,'little')+setup
+        root+=bytes([22,53,13,5,255,7,195,255,2,0,134,1,0])
+        logic=len(root).to_bytes(2,'little')+root
+        volume=(a.game/'vol.0').read_bytes();offset=len(volume)
+        install('coronation-vol.0',volume+b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic,'game/vol.0')
+        directory=bytearray((a.game/'logDir').read_bytes());directory[:3]=offset.to_bytes(3,'big')
+        install('coronation-logDir',bytes(directory),'game/logDir')
     if a.pickup:
         room,item,x,y,preconditions={
             'clover':(24,8,50,134,b''),
@@ -144,7 +188,7 @@ def main():
 
     with disk.open('ab') as f:f.truncate(1 << (disk.stat().st_size-1).bit_length())
     if a.prepare_play:
-        if any((a.menu,a.typed_command,a.sustained,a.hall,a.king_dialog,a.pickup,a.journey,a.movement,a.persistence,a.larry,
+        if any((a.menu,a.typed_command,a.sustained,a.hall,a.king_dialog,a.encounter,a.coronation,a.pickup,a.journey,a.movement,a.persistence,a.larry,
                 a.larry_enter,a.larry_pair,a.restart,a.video_mode,a.audio_trace,a.profile)):
             ap.error('--prepare-play cannot be combined with scripted diagnostic modes')
         lua=out/'play.lua'
@@ -164,7 +208,7 @@ def main():
         print('Scroll Lock toggles MAME UI controls; Ctrl-C exits the game to NitrOS-9.')
         return
     response_frame=4000+max(700,120*len(a.typed_command or ""))
-    if sum(bool(v) for v in (a.menu,a.typed_command,a.sustained,a.hall,a.king_dialog,a.pickup,a.journey,a.movement,a.persistence,a.larry,a.larry_enter,a.larry_pair,a.restart,a.video_mode))>1:
+    if sum(bool(v) for v in (a.menu,a.typed_command,a.sustained,a.hall,a.king_dialog,a.encounter,a.coronation,a.pickup,a.journey,a.movement,a.persistence,a.larry,a.larry_enter,a.larry_pair,a.restart,a.video_mode))>1:
         ap.error("choose menu, typed-command, sustained, movement, larry larry-enter or larry-pair")
     if a.menu: response_frame=4700
     delay=response_frame+1000-3900 if a.typed_command or a.menu else 0
@@ -269,6 +313,20 @@ def main():
                  ' if frames==5500 then shot("video-mode-alternate") end',
                  ' if frames==7100 then shot("video-mode-standard") end']
         command_events='\n'.join(events)+'\n'
+    if a.encounter:
+        delay=15000
+        text={'fiddle':'play fiddle','dragon':'throw water','giant':'use sling'}[a.encounter]
+        command_events=f'''
+ if frames==4000 then post("{text}\\r") end
+ if frames==6000 then shot("encounter-message") end
+ if frames>=6100 and frames<17000 and frames%300==100 then post(" ") end
+ if frames==17000 then shot("encounter-finished");post("q") end
+'''
+    if a.coronation:
+        delay=24000
+        command_events='''
+ if frames>=4000 and frames<28000 and frames%300==0 then post(" ") end
+'''
     if a.pickup:
         delay=7500
         command_events=f'''
@@ -427,6 +485,26 @@ end)
             source+=f' if frames=={frame+30} then keys["Ctrl"]:clear_value() end\n'
         source+=' if frames==24200 then manager.machine:exit() end\nend)\n'
         lua.write_text(source)
+    if a.encounter:
+        module=a.module_file or (VIEWER/'wbgame');syms=symbols(module.with_suffix('.map'))
+        code=module.read_bytes();base=(8-(len(code)+8191)//8192)*8192
+        guard=f'w@{base:x} == 87cd && w@{base+2:x} == {len(code):x}'
+        flag={'fiddle':186,'dragon':88,'giant':93}[a.encounter]
+        variable=86 if a.encounter=='giant' else 75
+        action=f'printf "ENCOUNTER SCORE=%d FLAG=%d STATE=%d INPUT=%d",b@(u+{syms["vmvariables"]+3:x}),b@(u+{syms["vmflags"]+flag:x}),b@(u+{syms["vmvariables"]+variable:x}),b@(u+{syms["vminputenabled"]:x}); g'
+        event=f' if frames==950 then cpu.debug:bpset({base+syms["GameQuitCommand"]},{json.dumps(guard)},{json.dumps(action)}) end'
+        source=lua.read_text().replace(' frames=frames+1',' frames=frames+1\n'+event,1)
+        source='local cpu=manager.machine.devices[":maincpu"]\nmanager.machine.debugger.execution_state="run"\nencounter_stop=emu.add_machine_stop_notifier(function() local log=manager.machine.debugger.consolelog;for index=1,#log do if log[index] then print(log[index]) end end end)\n'+source
+        lua.write_text(source)
+    if a.coronation:
+        module=a.module_file or (VIEWER/'wbgame');syms=symbols(module.with_suffix('.map'))
+        code=module.read_bytes();base=(8-(len(code)+8191)//8192)*8192
+        guard=f'w@{base:x} == 87cd && w@{base+2:x} == {len(code):x}'
+        action=f'printf "CORONATION END=%d QUEST=%d ACTIVE=%d",b@(u+{syms["vmflags"]+195:x}),b@(u+{syms["vmvariables"]+74:x}),b@(u+{syms["vmflags"]+95:x}); g'
+        event=f' if frames==950 then cpu.debug:bpset({base+syms["GameQuitCommand"]},{json.dumps(guard)},{json.dumps(action)}) end'
+        source=lua.read_text().replace(' frames=frames+1',' frames=frames+1\n'+event,1)
+        source='local cpu=manager.machine.devices[":maincpu"]\nmanager.machine.debugger.execution_state="run"\ncoronation_stop=emu.add_machine_stop_notifier(function() local log=manager.machine.debugger.consolelog;for index=1,#log do if log[index] then print(log[index]) end end end)\n'+source
+        lua.write_text(source)
     if a.pickup:
         module=a.module_file or (VIEWER/'wbgame');syms=symbols(module.with_suffix('.map'))
         code=module.read_bytes();base=(8-(len(code)+8191)//8192)*8192
@@ -510,8 +588,8 @@ end)
         if not a.audio_trace:
             source='local cpu=manager.machine.devices[":maincpu"]\nmanager.machine.debugger.execution_state="run"\nvideo_stop=emu.add_machine_stop_notifier(function() local log=manager.machine.debugger.consolelog;for index=1,#log do if log[index] then print(log[index]) end end end)\n'+source
         lua.write_text(source)
-    command=[str(a.mame.resolve()),'wbjr2','-bios','turbo','-rompath',str(roms.parent),'-hard',str(disk),'-skip_gameinfo', '-noui_mouse', '-mouseprovider', 'none','-video','none','-sound','none','-nothrottle','-autoboot_script',str(lua),'-seconds_to_run',str(420 if a.larry_pair else (5100+delay+(1200 if a.larry or a.larry_enter else 0))//60+10 if a.typed_command or a.menu or a.sustained or a.hall or a.king_dialog or a.pickup or a.journey or a.movement or a.persistence or a.restart or a.larry or a.larry_enter or a.video_mode else 100),'-nvram_directory',str(out/'nvram'),'-cfg_directory',str(out/'cfg')]
-    if a.profile or a.audio_trace or a.restart or a.video_mode or a.hall or a.pickup:command+=['-debug','-debugger','none']
+    command=[str(a.mame.resolve()),'wbjr2','-bios','turbo','-rompath',str(roms.parent),'-hard',str(disk),'-skip_gameinfo', '-noui_mouse', '-mouseprovider', 'none','-video','none','-sound','none','-nothrottle','-autoboot_script',str(lua),'-seconds_to_run',str(420 if a.larry_pair else (5100+delay+(1200 if a.larry or a.larry_enter else 0))//60+10 if a.typed_command or a.menu or a.sustained or a.hall or a.king_dialog or a.encounter or a.coronation or a.pickup or a.journey or a.movement or a.persistence or a.restart or a.larry or a.larry_enter or a.video_mode else 100),'-nvram_directory',str(out/'nvram'),'-cfg_directory',str(out/'cfg')]
+    if a.profile or a.audio_trace or a.restart or a.video_mode or a.hall or a.encounter or a.coronation or a.pickup:command+=['-debug','-debugger','none']
     (out/'command.json').write_text(json.dumps(command,indent=2)+'\n')
     with (out/'mame.log').open('w') as log:subprocess.run(command,cwd=out,stdout=log,stderr=subprocess.STDOUT,check=True,timeout=360 if a.larry_pair else 300 if a.larry or a.larry_enter else 180)
     if a.audio_trace:
@@ -549,6 +627,17 @@ end)
     before=os9('list',f'{disk},free-before');after=os9('list',f'{disk},free-after')
     (out/'free-before.txt').write_bytes(before);(out/'free-after.txt').write_bytes(after)
     assert before==after,'real game leaked memory'
+    if a.encounter:
+        states=re.findall(r'ENCOUNTER SCORE=(\d+) FLAG=(\d+) STATE=(\d+) INPUT=(\d+)',(out/'mame.log').read_text())
+        expected={'fiddle':('3','1','0','1'),'dragon':('5','0','2','1'),'giant':('2','0','4','1')}[a.encounter]
+        assert states==[expected],('original encounter outcome',a.encounter,states)
+        print('PASS: original',a.encounter,'encounter through terminal parsing, restored input and unchanged exit memory')
+        return
+    if a.coronation:
+        states=re.findall(r'CORONATION END=(\d+) QUEST=(\d+) ACTIVE=(\d+)',(out/'mame.log').read_text())
+        assert states==[('1','3','0')],('original ending did not complete',states)
+        print('PASS: original throne-room succession and closing credits, quest progress and unchanged exit memory')
+        return
     if a.pickup:
         states=re.findall(r'PICKUP SCORE=(\d+) ITEMROOM=(\d+) QUEST=(\d+)',(out/'mame.log').read_text())
         expected=(2,255,0) if a.pickup=='clover' else (8,255,1)
@@ -598,6 +687,7 @@ end)
         return
     if a.journey:
         castle=png_rgb(out/'game-before-input.png')
+        check_status_pixels(castle,(VIEWER/'wbfont').read_bytes(),0,158,True)
         lake=png_rgb(out/'journey-lake.png')
         returned=png_rgb(out/'journey-return.png')
         assert all(image[:2]==(640,480) for image in (castle,lake,returned))
