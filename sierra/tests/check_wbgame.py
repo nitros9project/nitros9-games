@@ -593,7 +593,7 @@ def check_original_quest_chain(d,prerequisites=False,all_acquisitions=False):
     print('PASS: original quest chain, prerequisite acquisitions='+str(prerequisites)+', all acquisitions='+str(all_acquisitions)+', real root/room changes, carried inventory, score '+str(expected_score)+' and ending/cleanup')
 
 
-def check_original_rock_death(d):
+def check_original_rock_death(d,restart=False):
     """Let an original lethal encounter enter the original death-action loop."""
     files=original_quest_chain_files(all_acquisitions=True)
     entry=int.from_bytes(files['/game/logDir'][:3],'big')
@@ -604,24 +604,34 @@ def check_original_rock_death(d):
     def when(condition,body):return b'\xff'+bytes(condition)+b'\xff'+len(body).to_bytes(2,'little')+body
     setup=bytes([3,250,1,3,0,3,3,1,0,3,7,158,12,5,
                  33,0,30,0,41,0,0,37,0,122,140,112,143,5])
-    body=when([1,250,0],setup)
+    body=(when([7,6],bytes([134,1])) if restart else b'')+when([1,250,0],setup)
     body+=when([253,7,5,1,250,1],bytes([114,0,message_base+10,117,0,3,250,2]))
-    body+=bytes([22,105])+when([7,197,1,97,0],bytes([134,1]))+b'\0'
+    body+=bytes([22,105])+when([7,197,1,97,0],bytes([128] if restart else [134,1]))+b'\0'
     logic=len(body).to_bytes(2,'little')+body+messages
     offset=len(volume);files['/game/vol.0']=volume+b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic
     directory=bytearray(files['/game/logDir']);directory[:3]=offset.to_bytes(3,'big')
-    files['/game/logDir']=bytes(directory);controls=[]
+    files['/game/logDir']=bytes(directory);controls=[];deaths=[]
     def quitting(cpu,r,syms):controls.append(cpu.read(syms['vmplayercontrol'],1)[0])
+    def restarting(cpu,r,syms):
+        deaths.append((cpu.read(syms['vmflags']+63,1)[0],cpu.read(syms['vmflags']+197,1)[0],
+                       cpu.read(syms['vmvariables']+97,1)[0],cpu.read(syms['vmplayercontrol'],1)[0]))
+    hooks={'GameQuitCommand':quitting}
+    if restart:hooks['GameRestartCommand']=restarting
     error,output,state=exercise(d,files,arguments=b'/game 0\r',module='wbgame',base=0xa000,
         database=0,window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,
         keyboard_by_cycle={cycle:(b'\r',0) for cycle in range(5,2000,5)},
-        cycle_limit=500,os_call_limit=100000,breakpoint_hooks={'GameQuitCommand':quitting})
+        cycle_limit=500,os_call_limit=100000,breakpoint_hooks=hooks)
     assert not error,('rock death',error,state['vmopcode'],state['vmvariables'][97])
-    assert state['vmflags'][63]==1 and state['vmflags'][197]==1,'lethal rock did not enter original death handling'
+    if restart:
+        assert deaths==[(1,1,0,0)],('restart did not follow completed death handling',deaths)
+        assert state['vmflags'][6]==1 and state['vmflags'][63]==0 and state['vmflags'][197]==0,'restart retained death state'
+        assert controls==[1],'restart did not restore player control'
+    else:
+        assert state['vmflags'][63]==1 and state['vmflags'][197]==1,'lethal rock did not enter original death handling'
+        assert controls==[0],'death handling restored player movement'
+        assert b'very sorry' in state['messagebuffer'],state['messagebuffer'][:160]
     assert state['vmvariables'][97]==0 and state['vmvariables'][3]==0,'death countdown or score differs'
-    assert controls==[0],'death handling restored player movement'
-    assert b'very sorry' in state['messagebuffer'],state['messagebuffer'][:160]
-    print('PASS: original lethal rock encounter, death countdown/message, restricted player control, root resume and cleanup')
+    print('PASS: original lethal rock encounter, death countdown/message, player-control ownership, restart='+str(restart)+' and cleanup')
 
 
 
@@ -1169,6 +1179,27 @@ def check_screen_backend(d):
     print('PASS: immutable screen configuration, cursor message callback, bounds and invalid-entry cleanup')
 
 
+def check_cycle_input_error(d):
+    """A status/input refresh failure must reach the interpreter's cleanup."""
+    setup=bytes([3,240,0,24,240,25,240,26])
+    body=b'\xff'+bytes([1,250,0])+b'\xff'+len(setup).to_bytes(2,'little')+setup
+    body+=bytes([1,250,255,1,250,3,255,2,0,134,1,0])
+    logic=len(body).to_bytes(2,'little')+body
+    def record(payload):return b'\x12\x34\0'+len(payload).to_bytes(2,'little')*2+payload
+    volume=record(logic);offset=len(volume);volume+=record(b'\xff')
+    files={'/game/logDir':b'\xff'*3+bytes(3),'/game/picDir':offset.to_bytes(3,'big'),'/game/vol.0':volume}
+    injected=[]
+    def fail_refresh(cpu,r,syms):
+        injected.append(True)
+        cpu.regs(pc=int.from_bytes(cpu.read(r['s'],2),'big'),s=r['s']+2,b=187,cc=r['cc']|1)
+    error,output,state=exercise(d,files,module='wbgame',base=0xa000,database=0,
+        window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,
+        breakpoint_hooks={'ParserDrawInput':fail_refresh})
+    assert injected==[True] and error==187,('input refresh error was masked',injected,error)
+    print('PASS: cycle status/input refresh errors propagate with complete cleanup')
+
+
+
 def check_status_line(d):
     """Check actual status cells and every output pixel against the font."""
     font=(ROOT/'objs/wbfont').read_bytes()
@@ -1314,7 +1345,7 @@ def main():
         f'/game/vol.{volume}': (game / f'vol.{volume}').read_bytes(),
     }
     with tempfile.TemporaryDirectory(prefix='sierra-game-') as temp:
-        d, emulator = start_cpu(idle_rom(Path(temp) / 'idle.rom'), timeout=7200)
+        d, emulator = start_cpu(idle_rom(Path(temp) / 'idle.rom'), timeout=14400)
         try:
             d.write(0xffdf, b'\0')
             d.write(0xff90, b'\x4c')
@@ -1334,6 +1365,7 @@ def main():
             check_original_quest_chain(d,prerequisites=True)
             check_original_quest_chain(d,all_acquisitions=True)
             check_original_rock_death(d)
+            check_original_rock_death(d,restart=True)
             check_timed_messages(d)
             check_screen_shakes(d)
             check_object_previews(d)
@@ -1347,6 +1379,7 @@ def main():
             check_monitor_instances(d)
             check_screen_backend(d)
             check_status_line(d)
+            check_cycle_input_error(d)
             check_cold_prefix_bounds(d)
             check_restarts(d)
             check_bounded_said(d)

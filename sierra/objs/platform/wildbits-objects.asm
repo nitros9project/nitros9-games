@@ -127,7 +127,7 @@ GameResetControllers clr     ,x+
                     lbsr      GamePollJoystick
                     bcs       GameCycleReturn
                     lbsr      GameUpdateObjects
-                    lbcs     GameCycleReturn
+                    bcs       GameCycleReturn
                     ldu       <resourcebase
                     lda       #40
                     sta       gamekeybudget,u
@@ -143,6 +143,7 @@ GameDrainKeyboard   lbsr      GamePollKeyboard
 GameKeyboardDone    tst       <bitmapowned
                     beq       GameCycleSuccess
                     lbsr      ParserDrawInput
+                    bcs       GameCycleReturn
                     tst       <vmgraphics
                     bne       GameCycleGraphics
                     lbra      GameDrawText

@@ -2283,3 +2283,44 @@ with full resource cleanup. It passes at
 encounter and entry into restricted death control, rather than only invoking
 the death-support message routine. Restore/restart from that death state and
 other captivity or hazard encounters remain separate scenarios.
+
+
+The lethal-rock fixture also runs `restart.game` after the original death
+countdown completes. A restart-entry check confirms both death flags are set,
+the countdown is zero and player movement is disabled. After restart, the
+restart flag is set, both death flags are clear, score is zero and player control
+is restored. This focused CPU case passes at
+`/tmp/sierra-original-rock-restart.log`. It exercises the native restart command
+from original death state; it does not type that command through the parser.
+
+
+### Cycle refresh failure propagation
+
+The cycle loop previously ignored carry from `ParserDrawInput`, including a
+failed cold status refresh, then entered text or picture presentation. That
+could mask the original error. The new `check_cycle_input_error` supplies a
+refresh failure at the routine boundary: the earlier build incorrectly exits
+with success, while the corrected build returns error 187 and releases all
+owned resources. Evidence is in `/tmp/sierra-cycle-input-error-before.log` and
+`/tmp/sierra-cycle-input-error-built.log`.
+
+`GameNextCycle` now checks carry immediately after the refresh. Shortening an
+existing in-range error branch recovers the two bytes needed for that check.
+Main code remains 23,807 bytes, private allocation 24,460 bytes, helper ABI 3
+and WSv1 format unchanged. There is no additional work inside pixel or sprite
+loops. The updated original empty-inventory save/restore quest passes in MAME
+at `/tmp/sierra-refresh-quest-save-mame`, with exact ending/inventory/score,
+200 owned PSG writes and identical exit memory. A fresh interactive image is
+prepared at `/tmp/sierra-play-refresh-fix/play.sh`.
+
+Adding the two longer acquisition sequences exhausted the former full-suite
+emulated-time allowance during later restart checks. The suite allowance is
+now 14,400 emulated seconds; each scenario retains its own bounded exit, cycle
+or OS-call checks. The timed-out run is not counted as a full-suite pass.
+
+
+The complete rebuilt native suite passes at
+`/tmp/sierra-refresh-final-native-regression.log`, including all three combined
+quests, original lethal-rock death and restart, status pixels, injected refresh
+failure, old-helper rejection, room controls, modal behavior, motion, parser,
+inventory, snapshot validation, deep callers and complete ownership cleanup.

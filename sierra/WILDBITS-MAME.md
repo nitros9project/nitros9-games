@@ -32,6 +32,36 @@ and press the same arrow again to stop,
 Escape for the game menu, and Ctrl-C to return to NitrOS-9. Scroll Lock toggles
 MAME UI controls. The disk retains saved games between launches.
 
+## Automated original quest regression
+
+The acceptance runner can exercise original KQ1 puzzle scripts through the ending
+without requiring a manual playthrough:
+
+```sh
+python3 sierra/tests/check_wbgame_mame.py \
+  --mame /path/to/mamed --disk /path/to/wildbits.dsk \
+  --firmware /path/to/nitros9/recipes/wildbits/feu \
+  --sol-driver /path/to/verified/SOL \
+  --game sierra/kingsquest1 --quest-chain quest-save --audio-trace \
+  --output /tmp/sierra-quest-save
+```
+
+Use a new output directory and the matching owned PSG driver in the source boot
+image. `quest-save` starts with empty inventory, earns the prerequisites and
+shield through original scripts, saves, deliberately changes the score and
+removes the shield, restores, then acquires mirror and chest and runs the
+original ending. It verifies the saved checkpoint, final score and inventory,
+audio ownership and unchanged exit memory. Other modes are `basic`,
+`acquisitions` and `quest-items`; see [the engine explanation](WILDBITS-ENGINE.md)
+for their exact starting states and expected scores.
+
+These fixtures control room transfers and ego positions and submit puzzle
+commands through native AGI parsing. They verify original puzzle/state behavior,
+not a continuous geographic route or every command's terminal editing path.
+Standalone `--encounter fiddle`, `dragon` or `giant` tests type their commands
+through the actual terminal. Scripted runs disable host keyboard input while
+retaining Lua input; interactive launchers retain normal keyboard input.
+
 ## Build dependencies
 
 Build the emulator using the porting guide's command:
