@@ -12,6 +12,7 @@ def main():
         tmp=Path(name)
         coco,cs=compile_module(ROOT/'objs/mnln.asm',tmp/'mnln')
         native,ns=compile_module(ROOT/'objs/sierra.asm',tmp/'native',defines=('WILDBITS=1',))
+        slot_bytes=ns['VM_CACHE_ENTRY_BYTES']; cache_bytes=32*slot_bytes
         d,emulator=start_cpu(idle_rom(tmp/'idle.rom'),timeout=900)
         calls=0
         try:
@@ -76,9 +77,9 @@ def main():
                     state[ns['resourcebase']:ns['resourcebase']+2]=private.to_bytes(2,'big')
                     state[ns['vmcurrent']]=0
                     for index,(kind,number) in enumerate([(0,10),(2,11),(2,12),(2,13),(3,12)]):
-                        offset=ns['vmcache']+14*index
+                        offset=ns['vmcache']+slot_bytes*index
                         state[offset:offset+10]=bytes([number,1,0,0x30+index,2,kind,0,50,0,50])
-                    cache=bytes(state[ns['vmcache']:ns['vmcache']+448])
+                    cache=bytes(state[ns['vmcache']:ns['vmcache']+cache_bytes])
                     d.write(private,state+b'GUARD')
                     d.write(0x7ef0,b'\x7e\x00STACK')
                     d.regs(pc=base+ns['VmDiscardResource'],s=0x7ef0,a=2,b=target,dp=private>>8,cc=0x50)
@@ -96,8 +97,8 @@ def main():
                         return_to_caller(regs,**updates)
                     else:raise AssertionError('native discard did not return')
                     expected=bytearray(cache)
-                    if target!=99 and not fail:expected[14*(target-10)+1]=0
-                    assert d.read(private+ns['vmcache'],448)==expected
+                    if target!=99 and not fail:expected[slot_bytes*(target-10)+1]=0
+                    assert d.read(private+ns['vmcache'],cache_bytes)==expected
                     assert released==([] if target==99 else [0x30+target-10])
                     assert bool(regs['cc']&1)==fail,(base,target,fail,regs)
                     assert regs['b']==(0xd3 if fail else 0)
@@ -123,9 +124,9 @@ def main():
                                 d.write(private+ns['assetowned'],b'\0')
                             return_to_caller(regs,cc=regs['cc']&~1,b=0)
                         else:raise AssertionError('discard retry did not return')
-                        expected[14*(target-10)+1]=0
+                        expected[slot_bytes*(target-10)+1]=0
                         assert retry_releases==[0x30+target-10]
-                        assert d.read(private+ns['vmcache'],448)==expected
+                        assert d.read(private+ns['vmcache'],cache_bytes)==expected
                         assert not regs['cc']&1 and regs['b']==0
                         assert d.read(private+ns['assetfirst'],2)==b'\0\x30'
                         assert d.read(private+ns['assetowned'],1)==b'\0'

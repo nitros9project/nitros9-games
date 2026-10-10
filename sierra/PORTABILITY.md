@@ -2814,3 +2814,13 @@ All 63 owners rebuild byte-identically to the cycle-state extraction. The
 room-entry execution test now checks old/new room values and boundary
 combinations in both actual owners at two code addresses, with request,
 neighboring variable, stack, register and immutable-code guards.
+
+
+### Cache-discard regression fixture repair — 2026-10-10
+
+The standard suite exposed a stale fixture in `check_resource_lifetime.py`: it
+constructed 14-byte slots and checked 448 cache bytes, although the native
+owner exports 12-byte slots. The test now obtains `VM_CACHE_ENTRY_BYTES` from
+the assembled owner and derives the 32-slot extent from it. Engine code is
+unchanged. All 18 actual discard calls pass, covering typed lookup, absent
+resources, release failure and retry, ownership, relocation and guards.
