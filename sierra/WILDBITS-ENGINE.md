@@ -2067,7 +2067,7 @@ score, nested caller resume, and cleanup. All three pass at
 `/tmp/sierra-original-death-check.log`. This verifies the death-support routine,
 not an actual encounter that kills Graham or the subsequent allowed-action loop.
 
-The coverage ledger is deliberately explicit:
+The coverage ledger at this stage (before the combined quest tests below) is deliberately explicit:
 
 | Behavior | Evidence | Remaining gap |
 | --- | --- | --- |
@@ -2248,3 +2248,38 @@ path namespace wraps. Scripted MAME runs disable host keyboard input while
 retaining Lua input, and use one debugger log sink when tracing audio. This
 avoids host keystrokes corrupting shell setup or duplicate trace assertions.
 Interactive launchers retain normal keyboard input.
+
+
+### Save/restore after earned quest progress
+
+`--quest-chain quest-save` extends the empty-inventory scenario with a save
+after the original shield acquisition. The fixture supplies KQ1's original
+game ID, normally initialized in room 0, and stores its checkpoint phase before
+calling native `save.game`. It then changes the score to 200, clears treasure
+progress and the shield-acquisition flag, removes the shield from inventory,
+and calls `restore.game`. Only the restored checkpoint phase can advance to
+the dragon and giant puzzles. A failed restore stalls the fixture.
+
+The MAME automation detects each filename prompt from the guarded task's
+private state and submits the same path once per operation. It checks both
+prompts, the WSv1 snapshot header and length, saved score 38 and one earned
+shield, the saved checkpoint phase, all final treasure/prerequisite
+assertions, the original ending, exact score 61 and unchanged exit memory.
+This passes at `/tmp/sierra-quest-save-mame-identity`, including 200 owned PSG
+writes. It verifies restoring earned puzzle state and continuing across room
+changes through the ending; it does not establish CoCo save-file compatibility.
+
+
+### Original lethal encounter and death control
+
+`check_original_rock_death` starts an empty-inventory fixture in room 3 on the
+dangerous side of the rock and submits `push rock` through native parsing.
+Unchanged room logic rolls the rock onto Graham and sets the death state; the
+unchanged original root arms its countdown and calls original death logic 100.
+The test waits for completion, checks the original “very sorry” message, zero
+score, both death/initialization flags, and disabled player movement, then exits
+with full resource cleanup. It passes at
+`/tmp/sierra-original-rock-death-message.log`. This covers an actual lethal
+encounter and entry into restricted death control, rather than only invoking
+the death-support message routine. Restore/restart from that death state and
+other captivity or hazard encounters remain separate scenarios.

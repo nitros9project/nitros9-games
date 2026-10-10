@@ -453,12 +453,13 @@ def check_original_giant_encounter(d):
     print('PASS: original parsed sling command, completed shot animation, giant death, net score and cleanup')
 
 
-def original_quest_chain_files(prerequisites=False,all_acquisitions=False):
+def original_quest_chain_files(prerequisites=False,all_acquisitions=False,snapshot=False):
     """Carry actual puzzle results through room changes to the original ending."""
     game=ROOT/'kingsquest1'
     files={'/game/'+path.name:path.read_bytes() for path in game.iterdir()
            if path.is_file() and (path.name.startswith('vol.') or path.name in
                                   ('logDir','picDir','viewDir','sndDir','words.tok','object'))}
+    if snapshot:all_acquisitions=True
     if all_acquisitions:prerequisites=True
     from check_lzw import expand
     entry=int.from_bytes(files['/game/logDir'][:3],'big')
@@ -482,6 +483,7 @@ def original_quest_chain_files(prerequisites=False,all_acquisitions=False):
     if all_acquisitions:
         setup=bytes([3,250,9,3,251,0,3,0,3,3,1,0,3,7,158,12,5,
                      33,0,30,0,41,0,0,37,0,122,120,112])
+    if snapshot:setup+=bytes([143,5])  # Original root normally sets its game ID in room 0.
     body=when([1,250,0],setup)
     first=[253,7,5,1,251,0]
     if all_acquisitions:
@@ -523,8 +525,15 @@ def original_quest_chain_files(prerequisites=False,all_acquisitions=False):
     stage+=when([7,186,1,30,0],transfer(2,77))
     body+=when([1,250,1],stage)
     stage=when(first+[7,187],parse(3,130,128)+bytes([3,251,1]))+bytes([22,105])
-    stage+=when([7,188],transfer(3,51))
+    if snapshot:
+        # Save phase 1, then corrupt earned progress. A successful deferred
+        # restore returns to phase 1; a failed restore remains in phase 2.
+        stage+=when([7,188],bytes([3,250,13,3,251,0]))
+    else:stage+=when([7,188],transfer(3,51))
     body+=when([1,250,2],stage)
+    if snapshot:
+        checkpoint=bytes([3,251,1,125,3,3,200,3,74,0,13,188,93,21,3,251,2,126])
+        body+=when([1,250,13],when([1,251,0],checkpoint)+when([1,251,1],transfer(3,51)))
     stage=when(first,parse(2,80,140)+bytes([3,251,1]))
     stage+=when([1,251,2],parse(4,40,115)+bytes([3,251,3]))+bytes([22,105])
     stage+=when([1,75,2,1,251,1],bytes([3,251,2]))
@@ -582,6 +591,38 @@ def check_original_quest_chain(d,prerequisites=False,all_acquisitions=False):
     expected_score=61 if all_acquisitions else 39 if prerequisites else 34
     assert state['vmvariables'][3]==expected_score,('combined quest score',state['vmvariables'][3])
     print('PASS: original quest chain, prerequisite acquisitions='+str(prerequisites)+', all acquisitions='+str(all_acquisitions)+', real root/room changes, carried inventory, score '+str(expected_score)+' and ending/cleanup')
+
+
+def check_original_rock_death(d):
+    """Let an original lethal encounter enter the original death-action loop."""
+    files=original_quest_chain_files(all_acquisitions=True)
+    entry=int.from_bytes(files['/game/logDir'][:3],'big')
+    volume=files['/game/vol.0'];offset=entry&0xfffff
+    payload=volume[offset+7:offset+7+int.from_bytes(volume[offset+5:offset+7],'little')]
+    messages=payload[2+int.from_bytes(payload[:2],'little'):]
+    message_base=messages[0]-17
+    def when(condition,body):return b'\xff'+bytes(condition)+b'\xff'+len(body).to_bytes(2,'little')+body
+    setup=bytes([3,250,1,3,0,3,3,1,0,3,7,158,12,5,
+                 33,0,30,0,41,0,0,37,0,122,140,112,143,5])
+    body=when([1,250,0],setup)
+    body+=when([253,7,5,1,250,1],bytes([114,0,message_base+10,117,0,3,250,2]))
+    body+=bytes([22,105])+when([7,197,1,97,0],bytes([134,1]))+b'\0'
+    logic=len(body).to_bytes(2,'little')+body+messages
+    offset=len(volume);files['/game/vol.0']=volume+b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic
+    directory=bytearray(files['/game/logDir']);directory[:3]=offset.to_bytes(3,'big')
+    files['/game/logDir']=bytes(directory);controls=[]
+    def quitting(cpu,r,syms):controls.append(cpu.read(syms['vmplayercontrol'],1)[0])
+    error,output,state=exercise(d,files,arguments=b'/game 0\r',module='wbgame',base=0xa000,
+        database=0,window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,
+        keyboard_by_cycle={cycle:(b'\r',0) for cycle in range(5,2000,5)},
+        cycle_limit=500,os_call_limit=100000,breakpoint_hooks={'GameQuitCommand':quitting})
+    assert not error,('rock death',error,state['vmopcode'],state['vmvariables'][97])
+    assert state['vmflags'][63]==1 and state['vmflags'][197]==1,'lethal rock did not enter original death handling'
+    assert state['vmvariables'][97]==0 and state['vmvariables'][3]==0,'death countdown or score differs'
+    assert controls==[0],'death handling restored player movement'
+    assert b'very sorry' in state['messagebuffer'],state['messagebuffer'][:160]
+    print('PASS: original lethal rock encounter, death countdown/message, restricted player control, root resume and cleanup')
+
 
 
 def check_timed_messages(d):
@@ -1292,6 +1333,7 @@ def main():
             check_original_quest_chain(d)
             check_original_quest_chain(d,prerequisites=True)
             check_original_quest_chain(d,all_acquisitions=True)
+            check_original_rock_death(d)
             check_timed_messages(d)
             check_screen_shakes(d)
             check_object_previews(d)

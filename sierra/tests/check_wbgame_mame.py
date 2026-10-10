@@ -37,7 +37,7 @@ def main():
     ap.add_argument('--persistence',action='store_true',help='Save original KQ1, walk, restore, and issue another command')
     ap.add_argument('--hall',action='store_true',help='Exercise original KQ1 hall logic after stop.motion/new.room')
     ap.add_argument('--king-dialog',action='store_true',help="Exercise the original king's text-screen speech and fresh-key wait")
-    ap.add_argument('--quest-chain',choices=('basic','acquisitions','quest-items'),nargs='?',const='basic',help='Run original root/rooms through controlled encounters, pickups, transfers and ending')
+    ap.add_argument('--quest-chain',choices=('basic','acquisitions','quest-items','quest-save'),nargs='?',const='basic',help='Run original root/rooms through controlled encounters, pickups, transfers and ending')
     ap.add_argument('--encounter',choices=('fiddle','dragon','giant'),help='Type an original encounter command and verify its outcome')
     ap.add_argument('--coronation',action='store_true',help='Exercise the original three-treasure throne-room ending')
     ap.add_argument('--pickup',choices=('clover','mirror','shield','chest'),help='Type a pickup command twice in an original puzzle room with controlled encounter preconditions')
@@ -65,7 +65,7 @@ def main():
             install(source.name,source.read_bytes(),'game/'+source.name)
     if a.quest_chain:
         from check_wbgame import original_quest_chain_files
-        fixture=original_quest_chain_files(a.quest_chain!='basic',a.quest_chain=='quest-items')
+        fixture=original_quest_chain_files(a.quest_chain!='basic',a.quest_chain in ('quest-items','quest-save'),a.quest_chain=='quest-save')
         for name in ('vol.0','logDir'):
             install('quest-chain-'+name,fixture['/game/'+name],'game/'+name)
     if a.encounter:
@@ -505,6 +505,27 @@ end)
         action=action[:-3]+f'; printf "QUESTCHAIN REMAINING=%d,%d,%d,%d",b@(u+{syms["vmvariables"]+203:x}),b@(u+{syms["vmvariables"]+204:x}),b@(u+{syms["vmvariables"]+205:x}),b@(u+{syms["vmvariables"]+206:x}); g'
         event=f' if frames==950 then cpu.debug:bpset({base+syms["GameQuitCommand"]},{json.dumps(guard)},{json.dumps(action)}) end'
         source=lua.read_text().replace(' frames=frames+1',' frames=frames+1\n'+event,1)
+        if a.quest_chain=='quest-save':
+            # Read only this task's mapped private state. The filename prompt
+            # may occur at any frame; supply each operation once, independently
+            # of dialog animation or host execution speed.
+            prompts=f'''
+ local mem=cpu.spaces["program"]
+ if mem:read_u16({base})==0x87cd and mem:read_u16({base+2})=={len(code)} then
+  local dp=cpu.state["DP"].value*256
+  local private=mem:read_u16(dp+{syms["resourcebase"]})
+  if private+{syms["vmvariables"]+251}<65536 then
+   local mode=mem:read_u8(private+{syms["dialoginputmode"]})
+   local stage=mem:read_u8(private+{syms["vmvariables"]+250})
+   local op=mem:read_u8(dp+{syms["vmopcode"]})
+   if stage==13 and mode==1 and (op==125 or op==126) and quest_prompt~=op then
+    quest_prompt=op;print("QUESTSAVE PROMPT "..op);post("/s0/questsave\\r")
+   end
+  end
+ end
+'''
+            source=source.replace(' frames=frames+1',' frames=frames+1\n'+prompts,1)
+            source='local quest_prompt=0\n'+source
         source='local cpu=manager.machine.devices[":maincpu"]\nmanager.machine.debugger.execution_state="run"\n'+source
         if not a.audio_trace:
             source='quest_stop=emu.add_machine_stop_notifier(function() local log=manager.machine.debugger.consolelog;for index=1,#log do if log[index] then print(log[index]) end end end)\n'+source
@@ -659,10 +680,22 @@ end)
     assert before==after,'real game leaked memory'
     if a.quest_chain:
         states=re.findall(r'QUESTCHAIN SCORE=(\d+) QUEST=(\d+) END=(\d+) ITEMS=(\d+),(\d+),(\d+)',(out/'mame.log').read_text())
-        score={'basic':'34','acquisitions':'39','quest-items':'61'}[a.quest_chain]
+        score={'basic':'34','acquisitions':'39','quest-items':'61','quest-save':'61'}[a.quest_chain]
         assert states==[(score,'3','1','255','255','255')],('combined quest outcome',states)
         remaining=re.findall(r'QUESTCHAIN REMAINING=(\d+),(\d+),(\d+),(\d+)',(out/'mame.log').read_text())
         assert remaining==[('0','255','255','0')],('remaining prerequisites',remaining)
+        if a.quest_chain=='quest-save':
+            prompts=re.findall(r'QUESTSAVE PROMPT (\d+)',(out/'mame.log').read_text())
+            assert prompts==['125','126'],('quest save/restore prompts',prompts)
+            saved=out/'questsave.bin';os9('copy',f'{disk},questsave',saved)
+            data=saved.read_bytes()
+            assert data[:3]==b'WS\x01' and len(data)==18+int.from_bytes(data[4:6],'big')
+            saved_symbols=symbols(VIEWER/'wbstate.map')
+            variables=18+saved_symbols['SavedVariables']
+            inventory=18+saved_symbols['SavedInventory']
+            assert data[variables+3]==38 and data[variables+74]==1,'checkpoint did not contain earned score/progress'
+            assert data[variables+250:variables+252]==bytes([13,1]),'checkpoint phase differs'
+            assert data[variables+256+188]==1 and data[inventory+21]==255,'checkpoint lacked the earned shield'
         print('PASS: original-root combined quest, carried inventory/score, room transfers, ending and unchanged exit memory')
         return
     if a.encounter:
