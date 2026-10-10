@@ -2708,3 +2708,21 @@ regression passes at two addresses: all four modes, first/middle/last and
 single-cel loops, one-tick suppression, completion flags 0/255, callback/context
 preservation and errors, 255-cel wrapping, native invalid modes, stack/state
 guards and immutable code. No files, instructions or state were added.
+
+
+### Shared include scope verification — 2026-10-10
+
+The absolute-line loop in `shared/picture-commands.asm` contained an orphan
+`else/endc` pair around a duplicate coordinate read. lwasm silently accepts
+these directives and skips the duplicate instruction, so successful assembly
+alone did not establish a self-contained include. Removing the dead branch
+preserves all 63 owner binaries byte for byte.
+
+The picture regression now checks balanced conditional scopes in all 54 shared
+assembly components before execution and rejects orphan, repeated-else and
+unclosed-condition negative fixtures. Actual native F0..FA decoding continues
+to match every CoCo reference pixel at two code/data addresses, with immutable
+code and malformed/unsupported-input bounds checks. Freshly rebuilt KQ1
+production modules also pass the CoCo instance CPU/MMU regression, including
+private mappings, descriptor lookup, timer registration, screen ownership and
+failure rollback. This is CPU/MMU coverage, not a new two-game OS boot claim.

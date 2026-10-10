@@ -2,6 +2,7 @@
 """Compare native F0-FA mapped decoding against the existing actual 6809 renderer."""
 from pathlib import Path
 import random
+import re
 import shutil
 import subprocess
 import tempfile
@@ -44,7 +45,43 @@ def pictures():
     yield bytes(data)
 
 
+def check_shared_conditionals():
+    # lwasm accepts orphan ELSE/ENDC directives. Inside an include they can
+    # consume a caller's condition, so successful assembly is insufficient.
+    def check(text, name):
+        stack = []
+        for number, line in enumerate(text.splitlines(), 1):
+            match = re.match(r'^\s+(if\w+|else|endc)\b', line, re.I)
+            if not match:
+                continue
+            op = match[1].lower()
+            if op.startswith('if'):
+                stack.append([number, False])
+            else:
+                assert stack, (name, number, 'orphan '+op)
+                if op == 'else':
+                    assert not stack[-1][1], (name, number, 'duplicate else')
+                    stack[-1][1] = True
+                else:
+                    stack.pop()
+        assert not stack, (name, 'unclosed condition', stack)
+    for malformed in ('                    else\n', '                    endc\n',
+                      '                    ifne 1\n',
+                      '                    ifne 1\n                    else\n                    else\n                    endc\n'):
+        try:
+            check(malformed, 'negative fixture')
+        except AssertionError:
+            pass
+        else:
+            raise AssertionError('conditional guard accepted malformed fixture')
+    files = sorted((SIERRA/'objs/shared').glob('*.asm'))
+    for path in files:
+        check(path.read_text(), path.name)
+    print(f'PASS: {len(files)} shared assembly components have self-contained conditional scopes; orphan/duplicate/unclosed negative fixtures rejected', flush=True)
+
+
 def main():
+    check_shared_conditionals()
     assembler = shutil.which('lwasm.orig') or shutil.which('lwasm')
     defs = SIERRA.parents[1] / 'nitros9' / 'defs'
     references = [(payload, render(SIERRA / 'kingsquest1', payload, assembler, defs)) for payload in pictures()]

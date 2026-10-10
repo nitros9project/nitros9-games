@@ -77,9 +77,6 @@ AbsoluteLine        equ       *
                     std       <PosInitX  save at pos_init_x/y positions
                     lbsr      SbuffPlot head for sbuff_plot()
 AbsLineLoop         bsr       ReadXyPos call read_xy_pos
-                    else
-                    bsr       ReadXyPos
-                    endc
                     bcs       CmdReturn prior subs return
                     std       <PosFinalX save at pos_final_x/y and passed draw_line in d
                     lbsr      DrawLine  call draw_line()
