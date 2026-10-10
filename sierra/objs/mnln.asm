@@ -4641,10 +4641,7 @@ ObjHitRestore       equ PositionRejected
 CheckObjBoundary    equ PositionAccepted
 ObjBoundaryHit      equ PositionOtherBoundary
                     MOTION_EMIT_COMMIT
-CheckMoveTarget     lda       <$22,u    load motion type
-                    cmpa      #$03      check for move-to-position
-                    bne       UpdateObjFlags skip if not move-to
-                    lbsr      ObjMoveReached check if target position reached
+CheckMoveTarget     MOTION_CHECK_DESTINATION UpdateObjFlags,0,ObjMoveReached
 UpdateObjFlags      lda       <$25,u    load status flags
                     anda      #$FB      clear collision-flags bit
                     sta       <$25,u    store cleaned status

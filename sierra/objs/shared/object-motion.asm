@@ -217,3 +217,21 @@ TargetReached       lda       <$29,u
                     TARGET_EGO_STATE
 TargetReachedReturn rts
                     endm
+
+
+* ===== object-destination-check =====
+* Gate post-commit completion on move.obj mode. The coordinate test is an
+* owner policy: native stops at exact coordinates; CoCo calls this boundary
+* path only after an edge hit (ordinary arrival is handled by direction zero).
+* Parameters: continuation, exact-coordinate requirement, completion routine.
+MOTION_CHECK_DESTINATION macro
+                    lda       <$22,u
+                    cmpa      #3
+                    bne       \1
+                    ifne      \2
+                    ldd       3,u
+                    cmpd      $27,u
+                    bne       \1
+                    endc
+                    lbsr      \3
+                    endm

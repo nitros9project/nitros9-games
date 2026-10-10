@@ -65,13 +65,35 @@ def main():
                         assert d.read(0x6fff,45)==b'G'+record+b'H',(owner,(cx,cy,tx,ty),regs)
                         assert d.read(0x7ef2+len(args),5)==b'STACK'
                         calls+=1
+                    # Test the post-commit gate separately from arrival's
+                    # state mutation. CoCo reaches this gate on an edge hit;
+                    # native reaches it after each accepted position.
+                    arrival = base+syms['TargetReached']
+                    continuation = base+syms['MotionNextObject' if private else 'UpdateObjFlags']
+                    d.breakpoint(arrival); d.breakpoint(continuation)
+                    for mode in range(256):
+                        for tx,ty in ((85,171),(84,171),(85,170),(84,170)):
+                            record=bytearray(range(43))
+                            record[3:5]=bytes([85,171])
+                            record[0x27:0x29]=bytes([tx,ty]); record[0x22]=mode
+                            d.write(0x6fff,b'G'+record+b'H')
+                            d.regs(pc=base+syms['MotionCheckDestination' if private else 'CheckMoveTarget'],
+                                   s=0x7ef0,u=0x7000,x=private or 0x4567,y=0x7777,
+                                   dp=private>>8,cc=0x50)
+                            d.call('c'); regs=d.regs()
+                            completes=mode==3 and (not private or (tx,ty)==(85,171))
+                            assert regs['pc']==(arrival if completes else continuation),(owner,mode,tx,ty,regs)
+                            assert regs['s']==0x7ef0-(2 if completes else 0)
+                            assert regs['u']==0x7000 and regs['x']==(private or 0x4567) and regs['y']==0x7777
+                            assert d.read(0x6fff,45)==b'G'+record+b'H'
+                    d.breakpoint(arrival,False); d.breakpoint(continuation,False)
                     if private:
                         assert d.read(private,syms['size'])==state
                         assert d.read(private+syms['size'],5)==b'GUARD'
                     assert d.read(base,len(code))==code
             print(f'PASS: {calls} actual CoCo/native direction calls at two addresses; '
                   'all coordinate bytes, signed-boundary edges, every direction, '
-                  'native context/records, private state, stack guards and immutable code')
+                  'native context/records, all destination motion modes and coordinate-match cases, private state, stack guards and immutable code')
         finally:
             d.s.close(); emulator.terminate()
             try: emulator.wait(timeout=5)

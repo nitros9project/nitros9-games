@@ -8,7 +8,7 @@ direction-vector stepping, screen/horizon clamping, terrain classification and
 constraints, complete object collision scanning, and candidate-position
 transactions. Platform bindings retain
 storage, mapping and intentionally different legacy policies. The broader
-migration is unfinished: per-cycle orchestration, destination triggering, resource/view
+migration is unfinished: per-cycle orchestration, resource/view
 acquisition, rendering and remaining presentation/formatter behavior still need
 consolidation. Historical sections below describe their stage when written;
 the latest sections record the ongoing shared-engine work.
@@ -2626,3 +2626,21 @@ is four bytes smaller; placement behavior is verified rather than claiming
 byte identity for those changed modules. The unchanged native executable
 retains the prior complete CPU regression and MAME quest/save/restore evidence.
 The broader migration remains active.
+
+
+### Shared destination completion gate — 2026-10-10
+
+`MOTION_CHECK_DESTINATION` in the existing motion component now owns the
+post-commit move-mode test and completion call in both engines. Its explicit
+coordinate-check argument preserves the existing policies: native completion
+requires exact target coordinates after clamping, whereas CoCo reaches this
+path on a boundary hit and separately completes ordinary motion when the
+step-based direction calculation returns zero. This does not change the
+meaning of either movement scheduler or introduce a new callback.
+
+The expanded `tests/check_move_direction.py` executes the actual production
+gates at two code addresses, covering every byte-valued motion mode and
+matches/mismatches on both target axes, with record and register guards. Its
+9,280 direction calls also pass. All 63 rebuilt owner binaries compare
+byte-for-byte with the preceding room-entry commit, including headers and
+CRCs. Existing runtime acceptance therefore continues to apply.

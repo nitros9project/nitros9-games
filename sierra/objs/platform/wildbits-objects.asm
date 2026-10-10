@@ -554,13 +554,7 @@ MotionCheckTerrain  lbsr      GameCheckBlock
 MotionAccept        equ PositionAccepted
 MotionOtherEdge     equ PositionOtherBoundary
                     MOTION_EMIT_COMMIT
-MotionCheckDestination lda    $22,u
-                    cmpa      #3
-                    bne       MotionNextObject
-                    ldd       3,u
-                    cmpd      $27,u
-                    bne       MotionNextObject
-                    lbsr      MotionArrived
+MotionCheckDestination MOTION_CHECK_DESTINATION MotionNextObject,1,MotionArrived
                     bra       MotionNextObject
 MotionBlocked       ldu       motionobject,x
                     lda       $22,u
