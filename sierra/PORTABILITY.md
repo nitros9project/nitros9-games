@@ -2906,3 +2906,13 @@ The successful disk is `/tmp/sierra-consolidation-coco-boot/latest.dsk`; it
 contains the latest tested module bytes. The original disk and user emulator
 sessions were untouched. This proves initialization and entry into the game
 cycle, rather than a complete CoCo playthrough or a two-game OS boot test.
+
+
+### Sprite-damage failure-injection fixture repair — 2026-10-10
+
+The remaining standard checks found a second stale fixture: the erase-span
+failure hook in `check_wbsprite_damage.py` read private state at 1000 although
+its exercise explicitly starts at 0000. The hook now uses the actual fixture
+base. Engine code is unchanged. The test passes moved/erased sprite frames,
+split rows, screen clips, offscreen positions, exact-8K staging, large-cel
+fallback and both source/destination span failures with complete cleanup.

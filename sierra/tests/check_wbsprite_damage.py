@@ -82,7 +82,7 @@ def main():
                 armed=[False];failed=[False]
                 def arm(cpu,regs,syms):armed[0]=True
                 def fail(cpu,regs,syms):
-                    data=0x1000
+                    data=0x0000  # matches this exercise's database argument
                     if (armed[0] and not failed[0]
                             and cpu.read(data+syms['gamecopydirection'],1)==bytes([direction])
                             and cpu.read(data+syms['pictureoutoffset'],2)==b'\x20\x00'):
