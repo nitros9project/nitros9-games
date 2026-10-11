@@ -3014,3 +3014,33 @@ The private boot image is `/tmp/sierra-consolidation-coco-boot/latest.dsk`.
 The coverage manifest is `/tmp/sierra-consolidation-check-coverage.json`; its
 54 command names are covered with no pending checks. Original user disks,
 untracked assets and running emulator sessions were preserved.
+
+
+## Release-candidate acceptance, 2026-10-10
+
+A fresh CoCo King's Quest I build and a clean Wild Bits production/probe
+build completed before the standard `wildbits.mk check` target passed all
+54 commands in one uninterrupted run. The complete log is
+`/tmp/sierra-release-clean-check.log`; this supersedes the resumed-run
+qualification above for the release candidate.
+
+Fresh real-MAME runs also passed:
+
+- Simultaneous original Larry and King's Quest I: independent input,
+  restored scenes after terminal switching, Larry continuing after King's
+  Quest exits, exact Larry-only/final free-memory restoration, and 15 owned
+  PSG writes. Artifacts: `/tmp/sierra-release-final-pair-v3`.
+- Original King's Quest I room travel and lake/castle descriptions,
+  king speech remaining visible until a fresh key, save/restore followed by
+  further input, and menu restart followed by further input. Each run
+  recovered memory. Logs: `/tmp/sierra-release-acceptance.log`.
+
+The two-game run uses the documented emulator-only expanded-memory kernel
+and shared raster-clock driver on a private disk copy. An initial run without
+that kernel ran out of memory before the second game started; it is not
+counted as a passing acceptance run. These checks do not claim complete AGI
+feature compatibility or continuous full-adventure traversal.
+
+The local release package contains the matched `wbgame`, `wbstate`, and
+`wbfont`, the port documentation, and a SHA-256 manifest. Original game
+resources are supplied separately by the player.
