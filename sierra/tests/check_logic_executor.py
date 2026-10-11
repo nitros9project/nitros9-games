@@ -9,6 +9,9 @@ from check_wbres import idle_rom,start_cpu
 ROOT=Path(__file__).resolve().parents[1]
 CASES=[
     (b'\0',{},set()),
+    # Operand bytes resemble return/branch opcodes: both must be consumed.
+    *[(bytes([155,a,b,3,250,42,0]),{250:42},set())
+      for a,b in ((0,0),(254,255),(255,254),(3,255),(255,3))],
     (bytes([3,255,250,1,255,2,0,3,0,7,5,0,250,7,0,2,12,255,14,255,12,200,0]),{0:255,255:251},{200}),
     (bytes([254,3,0,3,0,99,3,0,42,0]),{0:42},set()),
     (bytes([3,0,0,1,0,255,3,0,3,255,3,0,254,244,255,0]),{0:3},set()),
@@ -30,11 +33,11 @@ def compile_module(source,target,defines=(),listing=False):
 def main():
     with tempfile.TemporaryDirectory(prefix='sierra-executor-') as tmp:
         tmp=Path(tmp);coco,cs=compile_module(ROOT/'objs/mnln.asm',tmp/'mnln')
-        native,ns=compile_module(ROOT/'tests/logic-harness.asm',tmp/'native')
+        native,ns=compile_module(ROOT/'objs/sierra.asm',tmp/'native',defines=('WILDBITS=1',))
         d,emulator=start_cpu(idle_rom(tmp/'idle.rom'),timeout=900)
         try:
             d.write(0xffdf,b'\0');d.write(0xff90,b'\x4c');d.write(0xff91,b'\x01');d.write(0xffa8,bytes(range(8)))
-            for owner,code,syms,bases in [('CoCo',coco,cs,(0x8000,0x9000)),('native',native,ns,(0xe000,0xd000))]:
+            for owner,code,syms,bases in [('CoCo',coco,cs,(0x8000,0x9000)),('native',native,ns,(0x9000,0xa000))]:
                 for base in bases:
                     d.write(base,code)
                     if owner=='CoCo':
@@ -51,24 +54,25 @@ def main():
                             entry=base+syms['ExecLogicScript'];private=0
                             page_callback=base+syms['SetLogicPage'];d.breakpoint(page_callback)
                         else:
-                            private=0x8000;d.write(private,bytes(syms['size'])+b'GUARD')
-                            for field,value in [('resourcebase',private),('scriptbase',0x2000),('vmip',2),('vmend',len(script)+2)]:
+                            private=0x1000;d.write(private,bytes(syms['size'])+b'GUARD')
+                            for field,value in [('resourcebase',private),('assetmapbase',0x7a00),('vmip',2),('vmend',len(script)+2)]:
                                 d.write(private+syms[field],value.to_bytes(2,'big'))
-                            d.write(0x2000,b'\0\0'+script+b'GUARD');entry=base+syms['ExecuteLogic']
-                        d.write(0x1df0,b'\x1d\x00STACK');d.breakpoint(0x1d00)
-                        d.regs(pc=entry,s=0x1df0,dp=private>>8,u=private,cc=0x50)
+                            d.write(private+syms['assetmapped'],b'\1')
+                            d.write(0x7a00,b'\0\0'+script+b'GUARD');entry=base+syms['ExecuteLogic']
+                        d.write(0x7ef0,b'\x7e\x00STACK');d.breakpoint(0x7e00)
+                        d.regs(pc=entry,s=0x7ef0,dp=private>>8,u=private,cc=0x50)
                         pages=0
                         for _ in range(10):
                             d.call('c');r=d.regs()
-                            if r['pc']==0x1d00:break
+                            if r['pc']==0x7e00:break
                             assert owner=='CoCo' and r['pc']==page_callback,r
                             # Only the physical page service is substituted;
                             # table dispatch, argument reads and handlers run.
                             pages+=1;ret=int.from_bytes(d.read(r['s'],2),'big')
                             d.regs(pc=ret,s=r['s']+2)
                         else:raise AssertionError('executor did not return')
-                        d.breakpoint(0x1d00,False)
-                        assert r['s']==0x1df2 and d.read(0x1df2,5)==b'STACK'
+                        d.breakpoint(0x7e00,False)
+                        assert r['s']==0x7ef2 and d.read(0x7ef2,5)==b'STACK'
                         if owner=='CoCo':
                             d.breakpoint(page_callback,False);assert pages==1
                             actual=d.read(0x0431,256);packed=d.read(0x01ae,32)
@@ -79,11 +83,11 @@ def main():
                             actual=d.read(private+syms['vmvariables'],256)
                             flags={index for index,value in enumerate(d.read(private+syms['vmflags'],256)) if value}
                             assert d.read(private+syms['size'],5)==b'GUARD'
-                            assert d.read(0x2002+len(script),5)==b'GUARD'
+                            assert d.read(0x7a02+len(script),5)==b'GUARD'
                         assert actual==variables,(owner,script,actual[:8],variables[:8])
                         assert flags==flagset,(owner,script,flags,flagset)
                         assert d.read(base,len(code))==initialized_code
-            print('PASS: common complete executor in both real owners at two code bases; actual command/test table dispatch, saturating/wrapping arithmetic, packed/byte flags, forward/backward jumps, bounded loop, mixed condition groups, return/frame guards and post-initialization code immutability')
+            print('PASS: common complete executor in both real owners at two code bases; actual command/test table dispatch and mapped native byte fetch, fixed-origin set.upper.left operand consumption, saturating/wrapping arithmetic, packed/byte flags, forward/backward jumps, bounded loop, mixed condition groups, return/frame guards and post-initialization code immutability')
         finally:
             d.s.close();emulator.terminate()
             try:emulator.wait(timeout=5)

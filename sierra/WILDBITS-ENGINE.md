@@ -2324,3 +2324,27 @@ The complete rebuilt native suite passes at
 quests, original lethal-rock death and restart, status pixels, injected refresh
 failure, old-helper rejection, room controls, modal behavior, motion, parser,
 inventory, snapshot validation, deep callers and complete ownership cleanup.
+
+
+### Fixed-origin command compatibility — 2026-10-11
+
+Wild Bits now accepts AGI opcode 155 (`set.upper.left`) with the same
+fixed-origin behavior as CoCo: consume both operands and continue without
+moving the display. CoCo's handler falls through its second operand read;
+native's common executor reads both operands from the command catalog before
+routing to its existing success handler. This changes only the native dispatch
+target and adds no resident bytes or private state. It does not implement a
+movable viewport.
+
+The current King's Quest III static audit finds the command in 86 of its 132
+logic resources (correcting the earlier 87-resource count). No command in that
+audit now routes to the unsupported handler. This is a dispatch coverage result,
+not a full King’s Quest III gameplay or feature-parity claim.
+
+`check_logic_executor.py` now executes the production Wild Bits game owner
+rather than the smaller logic harness. Its real mapped-byte fetch, argument
+reader, dispatch table, and command handlers run together. Five new scripts
+place return/branch-like bytes in the two operands, then assign a sentinel
+variable, proving the following instruction remains aligned. Both real owners
+run at two load addresses with stack, state and code guards. The native dispatch
+regression also checks the new route in the game and execution probe.

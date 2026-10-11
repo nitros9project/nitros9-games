@@ -157,7 +157,7 @@
                     AGI_COMMAND cmd_print_at_v,$480,GamePrintCommand,1 *print at v
                     AGI_COMMAND cmd_discard_view_v,$180,VmCommandDiscardViewVariable,0 *discard view v
                     AGI_COMMAND cmd_clear_text_rect,$500,GameClearTextRect,1 *clear text rect
-                    AGI_COMMAND cmd_set_upper_left,$200,VmPlatformUnsupported,0 *set upper left
+                    AGI_COMMAND cmd_set_upper_left,$200,VmSuccess,0 *set upper left: fixed-origin backend
                     AGI_COMMAND cmd_set_menu,$100,MenuCommand,0 *set menu
                     AGI_COMMAND cmd_set_menu_item,$200,MenuCommand,0 *set menu item
                     AGI_COMMAND cmd_submit_menu,$0000,MenuCommand,0 *submit menu
