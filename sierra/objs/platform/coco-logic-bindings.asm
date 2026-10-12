@@ -102,3 +102,8 @@ ROOM_PREVIOUS_VARIABLE macro
 ROOM_REQUEST_READ macro
                     \1       ,s
                     endm
+
+* Native nearby predicate results use short branches; CoCo retains its layout.
+TEST_BRANCH         macro
+                    l\1       \2
+                    endm

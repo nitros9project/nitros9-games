@@ -91,6 +91,7 @@ check: all probes
 	python3 ../tests/check_object_terrain.py
 	python3 ../tests/check_said.py
 	python3 ../tests/check_wbgame.py
+	python3 ../tests/check_original_kq3.py
 	python3 ../tests/check_wbcredits.py
 	python3 ../tests/check_wbsprite_damage.py
 	python3 ../tests/check_wbparser.py

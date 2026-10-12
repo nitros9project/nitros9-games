@@ -55,17 +55,21 @@ LOGIC_CONTINUE      macro
                     ifne      GAME_PRESENTATION
                     ldu       <resourcebase
                     tst       gamequit,u
-                    lbne      ExecScriptDone
+                    bne       ExecScriptDone
                     endc
                     tst       <vmroompending
-                    lbne      ExecScriptDone
+                    bne       ExecScriptDone
                     lbra      VmNext
                     endm
 LOGIC_SUCCESS       macro
                     clrb
                     endm
 LOGIC_BRANCH        macro
+                    ifne \3
                     l\1       \2
+                    else
+                    \1       \2
+                    endc
                     endm
 LOGIC_SKIP_HELPER   macro
                     endm
@@ -84,16 +88,20 @@ CONDITION_READ_CODE macro
                     endm
 CONDITION_EVALUATE  macro
                     lbsr      VmConditionTest
-                    lbcs      VmConditionFailure
+                    bcs       VmConditionFailure
                     tfr       b,a
                     endm
 CONDITION_SKIP_TEST macro
                     lbsr      VmConditionOperands
-                    lbcs      VmConditionFailure
+                    bcs       VmConditionFailure
                     clr       1,s
                     endm
 CONDITION_BRANCH    macro
+                    ifne \3
                     l\1       \2
+                    else
+                    \1       \2
+                    endc
                     endm
 CONDITION_VALIDATE_END macro
                     ldd       ,s
@@ -105,14 +113,14 @@ CONDITION_VALIDATE_OR macro
                     endm
 CONDITION_SCAN_CONTROL macro
                     lbsr      VmConditionScanControl
-                    lbcs      VmConditionFailure
+                    bcs       VmConditionFailure
                     endm
 CONDITION_TRUE_SCAN_BEGIN macro
                     inc       ,s
                     endm
 CONDITION_TRUE_BRANCH macro
                     lbsr      VmReadWord
-                    lbcs      VmConditionFailure
+                    bcs       VmConditionFailure
                     lbra      VmNext
                     endm
 
@@ -195,4 +203,13 @@ ROOM_PREVIOUS_VARIABLE macro
                     endm
 ROOM_REQUEST_READ macro
                     \1       <vmnewroom
+                    endm
+
+* Native nearby predicate results use short branches; CoCo retains its layout.
+TEST_BRANCH         macro
+                    ifne \3
+                    l\1       \2
+                    else
+                    \1       \2
+                    endc
                     endm

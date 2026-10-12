@@ -85,7 +85,17 @@ def main():
                                        (b'%v'+b'0'*257, b'0', 0), (b'%%', b'%', 0)]
                         cases_full += [(s, None, syms['E$BMode']) for s in
                                        [b'%v256', b'%v0000256', b'%v999', b'%v', b'%s12', b'%w0', b'%v'+b'0'*256]]
-                        cases_full += [(b'%v0|2', None, syms['E$UnkSvc'])]
+                        cases_full += [(b'%v0|2', b'00', 0),
+                                       (b'%v117:%v116|2:%v115|2', b'117:116:115', 0),
+                                       (b'%v7|2', b'07', 0), (b'%v255|1', b'255', 0),
+                                       (b'%v7|0!', b'7!', 0),
+                                       (b'%v7|255', b'0'*254+b'7', 0),
+                                       (b'%v7|256', None, syms['E$BMode']),
+                                       (b'%v7|', b'7', 0),
+                                       (b'%v7|002!', b'07!', 0),
+                                       (b'%v7|2%v7', b'077', 0),
+                                       (b'%s0|2', b'|2', 0),
+                                       (b'%v7|255'*9, None, syms['E$BMode'])]
                         # Every other non-NUL directive must retain the native
                         # unsupported policy, including CoCo's global/object forms.
                         cases_full += [(b'%' + bytes([letter]) + b'1', None, syms['E$UnkSvc'])

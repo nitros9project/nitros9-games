@@ -2348,3 +2348,48 @@ place return/branch-like bytes in the two operands, then assign a sentinel
 variable, proving the following instruction remains aligned. Both real owners
 run at two load addresses with stack, state and code guards. The native dispatch
 regression also checks the new route in the game and execution probe.
+
+
+### KQ3 clock-width formatting — 2026-10-12
+
+Running unchanged King's Quest III resources exposed a gap that the static
+command audit cannot detect: the root's clock display uses
+`%v117:%v116|2:%v115|2`. Native formatting rejected the width marker and exited
+with `E$UnkSvc` after two scheduler waits, despite every command having a
+supported dispatch target.
+
+The native variable formatter now accepts `%vN|W`, prefixes zeroes until the
+number reaches the requested minimum width, and keeps all digits when the
+number is already wider. Width zero or an empty width adds no padding;
+widths through 255 are supported, and byte overflow is rejected through the
+existing bounded decimal scanner. A width applies to its variable expansion;
+a bar after another substitution remains literal text. Output still passes
+through the existing 2,047-byte limit and error/frame cleanup.
+
+Native bindings now select short encodings for nearby executor and predicate
+branches, retaining explicit long-range hints for distant targets. CoCo's
+bindings retain its long encodings. The assembler checks every short range;
+the resident limit and private-memory layout are unchanged. The resulting
+native game is 23,801/23,808 bytes, six bytes smaller than the prior build.
+
+`check_original_kq3.py` runs the unchanged root and startup resources through
+30 scheduler waits, verifies room 7, game ID and enabled input, then requests
+a planned interrupt. The service harness verifies resource/path/allocation
+cleanup, terminal restoration and immutable code. This is a CPU integration
+test with simulated OS services, not a real-driver MAME or full-adventure pass.
+The temporary MAME binary and boot fixtures from the previous acceptance run
+were no longer present during this work. The standard regression target now
+includes this startup test in addition to its previous 54 commands.
+
+
+Validation for this change passes all 63 owner builds, byte-identical CoCo
+mainlines for all 14 titles, all 54 shared conditional-scope checks, 4,102
+index/formatter cases, decimal output, real executor/condition/dispatch tests,
+the new unchanged-KQ3 startup regression, and the full native gameplay suite
+(including original quest chains, persistence, restart and cleanup). Logs are
+`/tmp/sierra-width-output-bounds.log`,
+`/tmp/sierra-width-control-flow.log`,
+`/tmp/sierra-width-kq3-regression.log`, and
+`/tmp/sierra-width-final-regression.log`. The complete 55-command standard
+regression target was not rerun for this change; these are the focused checks
+and full game integration test relevant to the modified paths.

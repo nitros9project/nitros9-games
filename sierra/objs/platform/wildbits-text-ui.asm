@@ -2611,10 +2611,7 @@ FormatNumberStart   sta       parsercharacter,u
                     clr       parserbestlength,u
 FormatNumber        lbsr      ParseDecStr
                     bcs      FormatPartError
-FormatDispatch      lda       ,x
-                    cmpa      #'|
-                    beq       FormatUnsupported
-                    tst       parserbestlength,u
+FormatDispatch      tst       parserbestlength,u
                     beq      FormatPartInvalid
                     lda       parsercharacter,u
                     ldb       parserwordlength,u
@@ -2682,7 +2679,23 @@ FormatMessage       pshs      x
                     bcs       FormatMessageReturn
 FormatMessageReturn equ FormatExpansionReturn
                     FORMAT_EMIT_EXPANSION
-FormatVariable      leay      vmvariables,u
+* Optional decimal width belongs to this numeric expansion only. No recursive
+* expansion occurs between parsing the width and consuming its zero padding.
+FormatVariable      pshs      b
+                    clrb
+                    lda       ,x
+                    cmpa      #'|
+                    bne       FormatWidthReady
+                    leax      1,x
+                    clr       parserwordlength,u
+                    clr       parserbestlength,u
+                    lbsr      ParseDecStr
+                    bcc       FormatWidthReady
+                    leas      1,s
+                    lbra      FormatPartError
+FormatWidthReady    stb       parserbestlength,u
+                    puls      b
+                    leay      vmvariables,u
                     clra
                     ldb       d,y
 * Keep the source cursor/context and four numeric bytes on the caller stack.
@@ -2692,8 +2705,22 @@ FormatVariable      leay      vmvariables,u
                     leax      3,s
                     bsr      UIntToDecStr
                     tfr       x,y
-                    ldx       4,s
+* The converter ends at stack byte 3; subtract the first digit address.
+                    leax      3,s
+                    tfr       x,d
+                    pshs      y
+                    subd      ,s++
                     ldu       6,s
+                    pshs      b
+                    ldb       parserbestlength,u
+                    subb      ,s+
+                    bls       FormatWidthDone
+                    lda       #'0
+FormatWidthPad      lbsr      FormatPut
+                    bcs       FormatVariableError
+                    decb
+                    bne       FormatWidthPad
+FormatWidthDone     ldx       4,s
                     NUL_STRING_COPY y,FormatVariableCopy,0,FORMAT_STRING_WRITE,FORMAT_NUMBER_DONE,FORMAT_NUMBER_ERROR
 FormatVariableDone  leas      8,s
                     lbra      FormatNext
