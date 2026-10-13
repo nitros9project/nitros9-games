@@ -2697,6 +2697,21 @@ AuxStatusRefresh    tst       <vmstatusenabled
 AuxStatusBlank      sta       ,x+
                     decb
                     bne       AuxStatusBlank
+* Scripts own columns 20..29 (KQ3 displays its clock there). Refreshing
+* score/sound must retain that text instead of erasing it every cycle.
+                    lda       <vmstatusrow
+                    ldb       #40
+                    mul
+                    leax      textcharacters+20,u
+                    leax      d,x
+                    leay      rowoutput+20,u
+                    ldb       #10
+AuxStatusCustom     lda       ,x+
+                    bne       AuxStatusCustomCell
+                    lda       #32
+AuxStatusCustomCell sta       ,y+
+                    decb
+                    bne       AuxStatusCustom
                     leax      rowoutput+1,u
                     leay      AuxStatusScore,pcr
                     lbsr      AuxStatusCopy

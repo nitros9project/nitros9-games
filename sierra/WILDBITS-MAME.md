@@ -941,3 +941,47 @@ For movement comparisons with an earlier binary, `check_wbgame_mame.py` now
 accepts `--helper-file` alongside `--module-file`; supply a matching pair.
 The pre/post joystick runs at `/tmp/sierra-joystick-movement-before` and
 `/tmp/sierra-joystick-movement-after` each measure 32 AGI pixels in 200 frames.
+
+
+## Persistent KQ3 acceptance environment — 2026-10-13
+
+The restored local environment lives at
+`/Users/boisy/Projects/coco-shelf/.wildbits-test`, outside the games repository
+and outside temporary storage. Its `manifest.json` records revisions and hashes
+for the emulator, boot images, driver source and expanded test kernel.
+
+It uses MAME `078e0eeb`, SDL3 3.4.16, OS branch commit `f99a8196` (the previously
+recorded `c45760ab` terminal base plus owned PSG version 4), and the `SOLdrv.asm`
+source from `edaa2283`. The existing workspace's `vs.asm` supplies the recipe's
+missing command. Emulator and OS builds are isolated; the active OS checkout
+and original disks are unchanged. The expanded kernel matches the previously
+recorded SHA-256 `98acf809d94d357cfe1bd8d02383b3dcea03aed7cc2ba6908fc180f810b03549`.
+
+From the games repository, repeat the acceptance run with a new output directory:
+
+```sh
+SIERRA_TEST_ROOT=/Users/boisy/Projects/coco-shelf/.wildbits-test
+python3 sierra/tests/check_kq3_mame.py \
+  --mame "$SIERRA_TEST_ROOT/mame/mamed" \
+  --disk "$SIERRA_TEST_ROOT/nitros9/recipes/wildbits/l2/l2_wildbitsjr2.dsk" \
+  --firmware "$SIERRA_TEST_ROOT/nitros9/recipes/wildbits/feu" \
+  --pair-game sierra/kingsquest1 \
+  --expanded-krnp2 "$SIERRA_TEST_ROOT/expanded-krnp2" \
+  --output "$SIERRA_TEST_ROOT/kq3-kq1-next"
+```
+
+Omit `--pair-game` and `--expanded-krnp2` for single-game acceptance. The runner
+copies the disk/firmware and installs the current matching game/helper/font;
+it never updates the source boot disk. It checks original KQ3 clock glyphs,
+arrow movement, room-description and filename dialogs, save checksum, changed
+and restored player positions, static background pixels, interrupt exit and
+identical free-memory maps. Candle flames animate independently, so the static
+pixel comparison excludes them; it is not an exact comparison of all animated
+sprite frames. The pair adds KQ1 inventory input, terminal restoration, KQ3 input
+after switching, KQ3 continuation after KQ1 exit and exact single-game/final
+memory recovery.
+
+The final pair passes at `.wildbits-test/kq3-kq1-verified`; the existing
+Larry/KQ1 control also passes at `.wildbits-test/larry-kq1-control` with 15 owned
+PSG writes. These are emulator/driver acceptance scenarios, not a complete KQ3
+adventure playthrough or physical-hardware timing measurement.

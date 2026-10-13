@@ -33,6 +33,76 @@ def check_state_transfers(d):
     print('PASS: cold snapshot transfers reject zero/oversized counts and advance partial reads regardless of the incoming zero flag')
 
 
+def check_reused_private_state(d):
+    """A newly allocated process may inherit nonzero restore staging bytes."""
+    game=ROOT/'kingsquest1'
+    files={'/game/'+p.name:p.read_bytes() for p in game.iterdir()
+           if p.name.startswith('vol.') or p.name in
+           ('logDir','picDir','viewDir','sndDir','object','words.tok')}
+    for fill,long_path in ((0xa5,False),(0xff,True)):
+        directory='/'+('x'*126) if long_path else '/game'
+        inputs={directory+name[5:]:data for name,data in files.items()}
+        def poison(cpu,r,syms):
+            # Preserve loaded parameters/stack and the font/audio tail. This
+            # models recycled private controls, not a changed OS service.
+            cpu.write(r['u'],bytes([fill])*syms['gamefont'])
+        error,output,state=exercise(d,inputs,arguments=(directory+' 0\r').encode(),
+            module='wbgame',base=0xa000,database=0,window=0x8000,blocks=None,
+            multiple=True,firstblock=0x10,capture=True,cycle_limit=10,
+            keyboard_by_cycle={2:(b' \r',0)},breakpoint_hooks={'start':poison},
+            os_call_limit=100000)
+        assert error==228 and state['cycles']==10,(fill,long_path,error,state['cycles'])
+        assert state['vmvariables'][0]==1
+        assert state['vminputenabled']==b'\1'
+        assert state['gamefont']==(ROOT/'objs/wbfont').read_bytes()
+    print('PASS: original KQ1 starts in recycled nonzero private memory, preserves short/126-byte paths and font, enables input and cleans up on planned interrupt')
+
+
+def check_state_cache_bounds(d, helper_root=None):
+    """Restoring code bounds must not write beyond a 12-byte cache entry."""
+    root=Path(helper_root) if helper_root is not None else ROOT/'objs'
+    hs=symbols(root/'wbstate.map');gs=symbols(ROOT/'objs/wbgame.map')
+    base=0x9000;code=(root/'wbstate').read_bytes();d.write(base,code)
+    labels=('StateCallWarm','StateMapSpan','StateUnmap','StateNextRecipe')
+    for label in labels:d.breakpoint(base+hs[label])
+    try:
+        for private in (0,0x1000):
+            for index in (0,1):
+                slot=private+gs['vmcache']+12*index
+                record=bytes.fromhex('000100300100002000200002')
+                neighbor=b'NEXT-SLOT-ID!'
+                d.write(slot,record+neighbor)
+                cache=base+hs['StateCache'];recipe=cache+5*index
+                d.write(cache,bytes(160));d.write(recipe,bytes([1,index,0,2,0]))
+                for field,value in (('StateBase',private),('StateRecipe',recipe)):
+                    d.write(base+hs[field],value.to_bytes(2,'big'))
+                if 'StateRootCodeEnd' in hs:
+                    d.write(base+hs['StateRootCodeEnd'],b'\x12\x34')
+                d.write(0x8000,b'\x0a\0'+bytes(30))
+                d.write(0x7ef0,b'\x7e\0STACK')
+                d.regs(pc=base+hs['StateLoadRecipe'],s=0x7ef0,u=private,dp=private>>8,cc=0x50)
+                for _ in range(8):
+                    d.call('c');r=d.regs()
+                    if r['pc']==base+hs['StateNextRecipe']:break
+                    assert r['pc'] in {base+hs[n] for n in labels},r
+                    ret=int.from_bytes(d.read(r['s'],2),'big')
+                    if r['pc']==base+hs['StateCallWarm']:
+                        assert d.read(ret,1)==b'\x0a'
+                        d.regs(pc=ret+1,s=r['s']+2,x=slot,cc=r['cc']&~1)
+                    else:
+                        d.regs(pc=ret,s=r['s']+2,u=0x8000,cc=r['cc']&~1)
+                else:raise AssertionError('recipe reconstruction did not finish')
+                assert d.read(slot,12)==record,'cache record changed outside its scan field'
+                assert d.read(slot+12,len(neighbor))==neighbor,'logic code-end overwrote the adjacent cache slot'
+                assert d.read(0x7ef0,7)==b'\x7e\0STACK'
+                assert 'StateRootCodeEnd' in hs
+                expected=b'\0\x0c' if index==0 else b'\x12\x34'
+                assert d.read(base+hs['StateRootCodeEnd'],2)==expected
+    finally:
+        for label in labels:d.breakpoint(base+hs[label],False)
+    print('PASS: root/non-root restore code bounds preserve adjacent 12-byte cache entries at two private bases')
+
+
 def check_state_validation(d):
     root=ROOT/'objs'; syms=symbols(root/'wbstate.map'); base=0x9000
     d.write(base,(root/'wbstate').read_bytes())
@@ -1203,13 +1273,18 @@ def check_cycle_input_error(d):
 def check_status_line(d):
     """Check actual status cells and every output pixel against the font."""
     font=(ROOT/'objs/wbfont').read_bytes()
-    cases=[(score,255,True,0,False,False) for score in (0,9,10,99,100,255)]
-    cases += [(24,158,False,24,False,False),(24,158,True,0,True,False),
-              (24,158,True,0,False,True)]
-    for score,maximum,sound,row,off,updated in cases:
+    cases=[(score,255,True,0,False,False,b'') for score in (0,9,10,99,100,255)]
+    cases += [(24,158,False,24,False,False,b''),(24,158,True,0,True,False,b''),
+              (24,158,True,0,False,True,b''),
+              (24,158,True,0,False,True,b'0:03:07'),
+              (24,158,True,24,False,True,b'0:03:07'),
+              (24,158,True,0,True,False,b'0:03:07')]
+    for score,maximum,sound,row,off,updated,custom in cases:
         print('Checking status line:',score,maximum,sound,row,off,updated,flush=True)
         setup=bytes([3,240,0,24,240,25,240,26,3,3,score,3,7,maximum,
                      12 if sound else 13,9,111,1,23,row,112])
+        if custom:
+            setup+=bytes([3,117,0,3,116,3,3,115,7,103,row,20,1])
         if updated:
             body=bytes([255,1,250,0,255])+len(setup).to_bytes(2,'little')+setup
             change=bytes([3,3,7,13,9])
@@ -1218,6 +1293,9 @@ def check_status_line(d):
             score,sound=7,False
         else:body=setup+(bytes([113]) if off else b'')+bytes([134,1,0])
         logic=len(body).to_bytes(2,'little')+body
+        if custom:
+            text=b'%v117:%v116|2:%v115|2\0';key=b'Avis Durgan'
+            logic+=bytes([1])+(len(text)+4).to_bytes(2,'little')+bytes([4,0])+bytes(v^key[i%11] for i,v in enumerate(text))
         def record(payload):return b'\x12\x34\0'+len(payload).to_bytes(2,'little')*2+payload
         volume=record(logic);offset=len(volume);volume+=record(b'\xff')
         files={'/game/logDir':b'\xff'*3+bytes(3),'/game/picDir':offset.to_bytes(3,'big'),'/game/vol.0':volume}
@@ -1231,6 +1309,7 @@ def check_status_line(d):
         expected=bytearray(b' '*40)
         if not off:
             label=f'Score:{score} of {maximum}'.encode();expected[1:1+len(label)]=label
+            if custom:expected[20:20+len(custom)]=custom
             label=b'Sound: '+(b'on' if sound else b'off');expected[30:30+len(label)]=label
         assert cells==[bytes(expected)],('status cells',cells,expected)
         for y in range(8):
@@ -1238,7 +1317,7 @@ def check_status_line(d):
                          for character in expected for bit in range(8))
             start=(row*8+y)*320
             assert frame[start:start+320]==wanted,('status pixels',row,y)
-    print('PASS: score/sound status pixels, decimal boundaries, selected row, disable and live cycle updates')
+    print('PASS: score/sound status pixels, decimal boundaries, selected row, disable, live cycle updates and script-owned clock text')
 
 
 def check_cold_prefix_bounds(d):
@@ -1351,6 +1430,7 @@ def main():
             d.write(0xff90, b'\x4c')
             d.write(0xff91, b'\x01')
             d.write(0xffa8, bytes(range(8)))
+            check_reused_private_state(d)
             check_compatibility_noops(d)
             check_positioned_messages(d)
             check_text_screen_key_wait(d)
@@ -1383,6 +1463,7 @@ def main():
             check_cold_prefix_bounds(d)
             check_restarts(d)
             check_bounded_said(d)
+            check_state_cache_bounds(d)
             check_state_transfers(d)
             check_state_validation(d)
             error, frame = exercise(d, files, module='wbgame', base=0xa000,

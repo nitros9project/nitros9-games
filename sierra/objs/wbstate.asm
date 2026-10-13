@@ -478,7 +478,15 @@ StateLoadRecipe     ldx StateRecipe,pcr
                     lbhi StateBad
                     cmpd 10,x
                     lbls StateBad
-                    std 12,x
+* Code bounds are not part of the 12-byte cache record. Writing at +12
+* would corrupt the next slot's id/ownership and can resurrect a freed view.
+* The first canonical recipe is the root; retain only its execution bound.
+                    ldx StateRecipe,pcr
+                    leay StateCache,pcr
+                    pshs y
+                    cmpx ,s++
+                    bne StateNextRecipe
+                    std StateRootCodeEnd,pcr
 StateNextRecipe     ldx StateRecipe,pcr
                     leax 5,x
                     stx StateRecipe,pcr
@@ -606,7 +614,7 @@ StateSaveBackground lbsr StateFree
 StateRestoreRoot    ldu StateBase,pcr
                     clrb
                     STATE_CALL 12
-                    ldd 12,x
+                    ldd StateRootCodeEnd,pcr
                     std <vmend
                     ldd 10,x
                     std <vmip
@@ -851,6 +859,7 @@ StateCRC            fdb 0
 StateRecipe         fdb 0
 StateSlot           fdb 0
 StateCodeEnd        fdb 0
+StateRootCodeEnd    fdb 0
 StateDestination    fdb 0
 StateRemaining      fdb 0
 StatePictureOffset  fdb 0

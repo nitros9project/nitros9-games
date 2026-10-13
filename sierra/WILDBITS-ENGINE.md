@@ -2393,3 +2393,53 @@ the new unchanged-KQ3 startup regression, and the full native gameplay suite
 `/tmp/sierra-width-final-regression.log`. The complete 55-command standard
 regression target was not rerun for this change; these are the focused checks
 and full game integration test relevant to the modified paths.
+
+
+### Real-driver KQ3 restore and reused-memory fixes — 2026-10-13
+
+MAME testing uncovered three runtime defects beyond opcode coverage:
+
+- Restore wrote a logic code boundary at offset 12 of a 12-byte cache entry,
+  overwriting the next entry's ID/ownership. KQ3 then selected stale view data
+  and exited during scene reconstruction. `wbstate` now keeps the root code
+  boundary in a private helper field; each cache entry retains only its
+  existing 12-byte representation. The new guard test covers root/non-root
+  recipes at two private bases and rejects the original helper for the actual
+  adjacent-entry overwrite.
+- Status refresh blanked columns 20–29, erasing KQ3's custom clock on each
+  cycle. The cold screen adapter preserves those script-owned columns while
+  updating score and sound, normalizes untouched zero cells to spaces, and
+  still clears the entire row when status is disabled. CPU tests verify every
+  output pixel at rows 0 and 24, including updates and disable behavior.
+- A new instance assumed portions of its private allocation were initially
+  zero. Memory recycled after restore could make the subsequent KQ1 launch
+  fail. The native entry now clears private controls/workspaces up to the
+  font buffer before inspecting any ownership state. It preserves the argument
+  pointer and leaves the font/audio and argument/stack tail outside the clear
+  region. Tests poison the controls with A5/FF, exercise original KQ1 with
+  short and 126-byte paths, and verify input, font integrity and cleanup.
+
+These changes keep helper ABI 3 and the WS version-1 save representation.
+Resident code is 23,775/23,808 bytes; the helper is 7,330/8,192 bytes with a
+3,100/4,096-byte copied writable prefix. Private data remains 24,460 bytes.
+No per-frame dispatch layer or additional allocation is introduced. Startup
+performs the bounded clear once. The CoCo backend is unchanged.
+
+`tests/check_kq3_mame.py` now provides original-game single/two-terminal
+acceptance with visible clock, movement, parsed dialogs, save/change/restore,
+independent input and exit, static-scene restoration and memory recovery.
+See [the persistent environment instructions](WILDBITS-MAME.md#persistent-kq3-acceptance-environment--2026-10-13)
+for exact fixtures and limitations.
+
+
+Final validation passes all 63 owner builds, the full native gameplay suite
+with the new regressions, and the unchanged 54 shared conditional scopes.
+The new cache guard demonstrably rejects the pre-fix helper. Original KQ3/KQ1
+MAME acceptance passes after a KQ3 save/restore followed by a second-game
+launch; both games have independent input and recover their memory on exit.
+The tested `wbgame` and `wbstate` images match the all-owner matrix exactly.
+Artifacts and logs are retained under `.wildbits-test`, including
+`kq3-kq1-verified`, `recycled-startup-regression.log`,
+`baseline-cache-rejection.log`, `final-matrix.log` and
+`final-recycled-native-game.log`. The full 55-command standard target was not
+rerun; validation covers the modified paths and full gameplay integration.

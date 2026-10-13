@@ -600,7 +600,21 @@ lzwerror            rmb       1
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_RESOURCE_CLI
 * ===== wildbits-resource-cli =====
 * Shared probe argument/output body. Owning module supplies state and help.
-start               stu       <resourcebase
+start               equ       *
+                    ifne      GAME_PRESENTATION
+* OS allocations can contain a previous process or restore staging stream.
+* Clear all private controls/workspaces before reading any ownership flags.
+* Font/audio buffers and the argument/stack tail follow this bounded region.
+                    pshs      x
+                    tfr       u,x
+                    ldy       #gamefont
+                    clra
+GameClearPrivate    sta       ,x+
+                    leay      -1,y
+                    bne       GameClearPrivate
+                    puls      x
+                    endc
+                    stu       <resourcebase
                     ifne      GAME_TRACE
                     clr       gametracestagebyte,u
                     clr       gametracekeybyte,u
@@ -609,20 +623,6 @@ start               stu       <resourcebase
                     ifne      GAME_PRESENTATION
                     lda       #$FF
                     sta       gameclockpath,u
-                    clr       gameclockmuted,u
-                    clr       terminalchanged,u
-                    clr       gamebackgroundowned,u
-                    clr       <soundpath
-                    clra
-                    clrb
-                    std       textstoremodule,u
-                    std       textstoreentry,u
-                    std       textwaitentry,u
-                    std       textrectentry,u
-                    std       restartentry,u
-                    pshs      x
-                    lbsr      GameTextInitialize
-                    puls      x
                     endc
                     clr       <resourceopen
                     ifne      AGI_ASSET
