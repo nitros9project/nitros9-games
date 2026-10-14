@@ -843,7 +843,7 @@ StateLoadModule     pshs      u
                     ldd       M$Exec,u
                     cmpd      #13
                     blo       StateLoadBad
-                    addd      #35       branch, private ABI, eleven metadata words and CRC must fit
+                    addd      #37       branch, private ABI, twelve metadata words and CRC must fit
                     bcs       StateLoadBad
                     cmpd      M$Size,u
                     bhi       StateLoadBad
@@ -858,7 +858,7 @@ StateCheckABI       lda       ,x+
                     tfr       y,x       validated metadata follows the ABI
 * Only the writable state prefix is copied; linked cold code stays shared.
                     ldd       M$Exec,u
-                    addd      #35
+                    addd      #37
                     cmpd      8,x
                     bhi       StateLoadBad
                     ldy       8,x
@@ -1121,6 +1121,7 @@ GameTextUnlink      ldu       <resourcebase
                     std       showentry,u
                     std       shakeentry,u
                     std       menuentry,u
+                    std       formatentry,u
 GameTextUnlinkDone  rts
 GameTextPresent     lbsr      AssetUnmap
                     bcs       GameTextReturn
@@ -2674,6 +2675,15 @@ FormatWordCopy      tstb
 FormatString        equ *
                     FORMAT_EMIT_STRING_SLOT
                     NUL_STRING_COPY y,FormatStringCopy,0,FORMAT_STRING_WRITE,FORMAT_STRING_DONE,FORMAT_STRING_ERROR
+* Object names use the same checked recursive expansion as messages.
+* The cold adapter reads a bounded inventory name and resolves v[index].
+FormatObject        pshs      x
+                    leax      formatentry,u
+                    ldb       #22
+                    leay      FormatObjectCallbacks,pcr
+                    lbsr      GameColdInvoke
+                    bra       FormatMessageReturn
+FormatObjectCallbacks fdb AssetUnmap-FormatObjectCallbacks,ResourceClose-FormatObjectCallbacks,FormatPart-FormatObjectCallbacks
 FormatMessage       pshs      x
                     lbsr      ReadLogicMessage
                     bcs       FormatMessageReturn
@@ -3279,7 +3289,177 @@ NORMAL_STRING_FOLD  equ       ParserLower
                     endc
 
                     else
+                    ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_FORMAT_COLD_CODE
+* Object names are read into the 512-byte I/O buffer, never inventoryfile:
+* inventoryfile aliases the live recursive formatter frames in fillstack.
+* Y names relative callbacks (unmap, close, recursive format). No allocation
+* or inventory-room mutation is needed; all state lives on the private stack.
+AuxFormatObject     pshs      y
+                    leas      -6,s     ; table bytes, name offset, item offset
+                    clra
+                    ldb       parserwordlength,u
+                    leax      vmvariables,u
+                    ldb       d,x
+                    lda       #3
+                    mul
+                    std       4,s
+                    ldd       ,y
+                    leax      d,y
+                    jsr       ,x       ; release ephemeral asset mapping
+                    lbcs      AuxObjectReturn
+                    ldu       <resourcebase
+                    ldy       resourcenameend,u
+                    leax      AuxObjectFilename,pcr
+AuxObjectPath       lda       ,x+
+                    sta       ,y+
+                    cmpa      #C$CR
+                    bne       AuxObjectPath
+                    leax      resourcefilename,u
+                    lda       #READ.
+                    os9       I$Open
+                    lbcs      AuxObjectReturn
+                    sta       <resourcepath
+                    inc       <resourceopen
+                    ldd       #0
+                    ldy       #3
+                    lbsr      AuxObjectReadAt
+                    lbcs      AuxObjectFailed
+                    cmpy      #3
+                    lbne      AuxObjectInvalid
+                    ldb       ,x
+                    lda       1,x
+                    cmpd      #768
+                    lbhi      AuxObjectInvalid
+                    std       ,s
+AuxObjectTableCheck  subd      #3
+                    lblo      AuxObjectInvalid
+                    bne       AuxObjectTableCheck
+                    ldd       4,s
+                    cmpd      ,s
+                    lbhs      AuxObjectInvalid
+                    addd      #3
+                    ldy       #3
+                    lbsr      AuxObjectReadAt
+                    lbcs      AuxObjectFailed
+                    cmpy      #3
+                    lbne      AuxObjectInvalid
+                    ldb       ,x
+                    lda       1,x
+                    addd      #3
+                    lbcs      AuxObjectInvalid
+                    cmpd      #2048
+                    lbhs      AuxObjectInvalid
+                    std       2,s
+                    subd      #3
+                    cmpd      ,s
+                    lblo      AuxObjectInvalid
+                    ldd       #2048
+                    subd      2,s
+                    cmpd      #512
+                    bls       AuxObjectReadLength
+                    ldd       #512
+AuxObjectReadLength tfr       d,y
+                    ldd       2,s
+                    lbsr      AuxObjectReadAt
+                    bcs       AuxObjectFailed
+                    pshs      x
+AuxObjectBound      lda       ,x+
+                    beq       AuxObjectReady
+                    leay      -1,y
+                    bne       AuxObjectBound
+                    leas      2,s
+                    bra       AuxObjectInvalid
+AuxObjectReady      lbsr      AuxObjectClose
+                    puls      x
+                    bcs       AuxObjectReturn
+                    ldy       6,s
+                    ldd       4,y
+                    leay      d,y
+                    jsr       ,y       ; shared recursive formatter body
+AuxObjectReturn     leas      6,s
+                    puls      y,pc
+AuxObjectInvalid    ldb       #E$BMode
+                    orcc      #1
+AuxObjectFailed     pshs      b,cc
+                    lbsr      AuxObjectClose
+                    puls      cc,b
+                    bra       AuxObjectReturn
+* Return address, saved X or error, six locals, then the callback pointer.
+AuxObjectClose      ldy       10,s
+                    ldd       2,y
+                    leay      d,y
+                    jmp       ,y
+* D=file offset, Y=maximum read; return X=decoded bytes, Y=actual length.
+* Decryption starts at the absolute file offset, not the current read window.
+AuxObjectReadAt     pshs      d,y
+                    tfr       d,u
+                    ldx       #0
+                    lda       <resourcepath
+                    os9       I$Seek
+                    bcs       AuxObjectReadError
+                    ldu       <resourcebase
+                    leax      assetinput,u
+                    ldy       2,s
+                    stx       <resourcepointer
+                    sty       <resourceremaining
+AuxObjectReadMore   lda       <resourcepath
+                    ldx       <resourcepointer
+                    ldy       <resourceremaining
+                    os9       I$Read
+                    bcs       AuxObjectReadEnd
+                    cmpy      #0
+                    lbeq      AuxObjectReadInvalid
+                    tfr       y,d
+                    leax      d,x
+                    stx       <resourcepointer
+                    ldy       <resourceremaining
+                    pshs      d
+                    tfr       y,d
+                    subd      ,s++
+                    std       <resourceremaining
+                    bne       AuxObjectReadMore
+                    bra       AuxObjectReadComplete
+AuxObjectReadEnd    cmpb      #E$EOF
+                    lbne      AuxObjectReadError
+AuxObjectReadComplete ldd     2,s
+                    subd      <resourceremaining
+                    lbeq      AuxObjectReadInvalid
+                    tfr       d,y
+                    ldu       <resourcebase
+                    leax      assetinput,u
+                    pshs      y
+                    ldd       2,s
+AuxObjectKeyModulo  cmpd      #11
+                    blo       AuxObjectKeyReady
+                    subd      #11
+                    bra       AuxObjectKeyModulo
+AuxObjectKeyReady   leau      AuxObjectKey,pcr
+AuxObjectDecrypt    lda       ,x
+                    eora      b,u
+                    sta       ,x+
+                    incb
+                    cmpb      #11
+                    blo       AuxObjectNextByte
+                    clrb
+AuxObjectNextByte   leay      -1,y
+                    bne       AuxObjectDecrypt
+                    puls      y
+                    ldu       <resourcebase
+                    leax      assetinput,u
+                    clrb
+                    bra       AuxObjectReadReturn
+AuxObjectReadInvalid ldb      #E$BMode
+                    orcc      #1
+AuxObjectReadError  ldu       <resourcebase
+AuxObjectReadReturn leas      4,s
+                    rts
+AuxObjectFilename   fcc       /object/
+                    fcb       C$CR
+AuxObjectKey        fcc       /Avis Durgan/
+
+                    else
                     error Unknown platform feature section
+                    endc
                     endc
                     endc
                     endc

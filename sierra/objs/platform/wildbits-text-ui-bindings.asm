@@ -118,7 +118,8 @@ FORMAT_SCAN_WRITE macro
                     endm
 
 * ===== format-directive =====
-FORMAT_DIRECTIVE_EXTENDED equ 0
+FORMAT_DIRECTIVE_GLOBAL_ENABLED equ 0
+FORMAT_DIRECTIVE_OBJECT_ENABLED equ 1
 FORMAT_DIRECTIVE_COMPARE macro
                     cmpa #\1
                     endm
@@ -133,6 +134,10 @@ FORMAT_DIRECTIVE_MESSAGE macro
                     endm
 FORMAT_DIRECTIVE_VARIABLE macro
                     lbeq FormatVariable
+                    endm
+
+FORMAT_DIRECTIVE_OBJECT macro
+                    lbeq FormatObject
                     endm
 
 * ===== format-string =====

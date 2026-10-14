@@ -48,13 +48,13 @@ FORMAT_EMIT_DIRECTIVES macro
                     FORMAT_DIRECTIVE_STRING
                     FORMAT_DIRECTIVE_COMPARE 'm
                     FORMAT_DIRECTIVE_MESSAGE
-                    ifne FORMAT_DIRECTIVE_EXTENDED
+                    ifne FORMAT_DIRECTIVE_GLOBAL_ENABLED
                     FORMAT_DIRECTIVE_COMPARE 'g
                     FORMAT_DIRECTIVE_GLOBAL
                     endc
                     FORMAT_DIRECTIVE_COMPARE 'v
                     FORMAT_DIRECTIVE_VARIABLE
-                    ifne FORMAT_DIRECTIVE_EXTENDED
+                    ifne FORMAT_DIRECTIVE_OBJECT_ENABLED
                     FORMAT_DIRECTIVE_COMPARE 'o
                     FORMAT_DIRECTIVE_OBJECT
                     endc

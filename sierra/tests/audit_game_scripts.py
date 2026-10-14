@@ -31,7 +31,7 @@ def catalogs():
     return commands, tests, supported
 
 
-def script(game, number, entry):
+def logic_resource(game, number, entry):
     volume = (game/f'vol.{entry>>20}').read_bytes()
     offset = entry&0xfffff
     header = volume[offset:offset+7]
@@ -46,7 +46,74 @@ def script(game, number, entry):
         raise ValueError(f'logic {number}: wrong expanded length')
     length=int.from_bytes(payload[:2],'little')
     if length+2>len(payload): raise ValueError(f'logic {number}: truncated code')
+    return payload, decoded == stored
+
+
+def script(game, number, entry):
+    payload, _ = logic_resource(game, number, entry)
+    length = int.from_bytes(payload[:2], "little")
     return payload[2:length+2]
+
+
+def message_formats(payload, encrypted):
+    """Report substitution locations without copying original message text.
+
+    This scans every declared message, including messages not statically reached.
+    An empty offset denotes an absent message. Escaped percent signs are literals.
+    """
+    at = 2 + int.from_bytes(payload[:2], "little")
+    if at == len(payload):
+        return []
+    if at + 3 > len(payload):
+        raise ValueError("truncated message header")
+    count = payload[at]
+    base = at + 1
+    end = base + int.from_bytes(payload[base:base+2], "little")
+    start = base + 2 + count * 2
+    if not start <= end <= len(payload):
+        raise ValueError("invalid message table extent")
+    text = bytearray(payload[start:end])
+    if encrypted:
+        key = b"Avis Durgan"
+        text = bytearray(value ^ key[i % len(key)] for i, value in enumerate(text))
+    findings = []
+    for index in range(count):
+        slot = base + 2 + index * 2
+        offset = int.from_bytes(payload[slot:slot+2], "little")
+        if offset == 0:
+            continue
+        position = base + offset
+        if not start <= position < end:
+            raise ValueError("message offset outside string area")
+        relative = position - start
+        terminator = text.find(0, relative)
+        if terminator < 0:
+            raise ValueError("unterminated message")
+        message = text[relative:terminator]
+        cursor = 0
+        while cursor < len(message):
+            if message[cursor] != 37:
+                cursor += 1
+                continue
+            origin = cursor
+            cursor += 1
+            if cursor < len(message) and message[cursor] == 37:
+                cursor += 1
+                continue
+            directive = chr(message[cursor]) if cursor < len(message) else ""
+            cursor += 1
+            digits = cursor
+            while cursor < len(message) and 48 <= message[cursor] <= 57:
+                cursor += 1
+            # Keep the operand as decimal text: arbitrarily long malformed
+            # operands must not trigger Python integer conversion limits.
+            operand = bytes(message[digits:cursor]).decode("ascii")
+            if directive not in "wsmvo" or not directive or not operand:
+                findings.append({"message": index + 1, "offset": origin,
+                                 "directive": directive, "operand": operand,
+                                 "reason": "unsupported directive" if directive not in "wsmvo" or not directive
+                                           else "missing operand"})
+    return findings
 
 
 def analyze(code, commands, tests):
@@ -105,7 +172,10 @@ def audit(game):
     for number in range(len(directory)//3):
         entry=int.from_bytes(directory[number*3:number*3+3],'big')
         if entry==0xffffff:continue
-        code=script(game,number,entry)
+        payload, encrypted = logic_resource(game,number,entry)
+        code = payload[2:2+int.from_bytes(payload[:2], "little")]
+        try: formats = message_formats(payload, encrypted)
+        except ValueError as error: raise ValueError(f"logic {number}: {error}") from error
         try:instructions,predicates=analyze(code,commands,tests)
         except ValueError as error:raise ValueError(f'logic {number}: {error}') from error
         operations=[i for i in instructions if i['opcode']<182]
@@ -116,7 +186,8 @@ def audit(game):
                  for i in operations if i['opcode'] in (19,23)]
         report['logics'].append({'logic':number,'code_bytes':len(code),'instructions':len(instructions),
             'commands':sorted({i['opcode'] for i in operations}),'predicates':predicates,
-            'direct_destinations':direct,'dynamic_destinations':dynamic,'unsupported':unsupported})
+            'direct_destinations':direct,'dynamic_destinations':dynamic,'unsupported':unsupported,
+            'unsupported_message_formats':formats})
     by_number={item['logic']:item for item in report['logics']};reachable=set();queue=deque([0])
     while queue:
         number=queue.popleft()
@@ -126,7 +197,9 @@ def audit(game):
     report['unresolved_dynamic_from_direct_graph']=[{'logic':n,**d} for n in sorted(reachable)
                                                    for d in by_number[n]['dynamic_destinations']]
     report['summary']={'logics':len(by_number),'instructions':sum(i['instructions'] for i in by_number.values()),
-        'unsupported':[{'logic':i['logic'],**op} for i in by_number.values() for op in i['unsupported']]}
+        'unsupported':[{'logic':i['logic'],**op} for i in by_number.values() for op in i['unsupported']],
+        'unsupported_message_formats':[{'logic':i['logic'],**item} for i in by_number.values()
+                                       for item in i['unsupported_message_formats']]}
     return report
 
 
@@ -137,6 +210,19 @@ def main():
     parser.add_argument('--self-test',action='store_true')
     args=parser.parse_args()
     if args.self_test:
+        # One code byte, two offsets (second absent), then plain/encrypted text.
+        message = b"%%g1 %g2 %o3 %v7|2 %s1 %w2 %m4 %v\0"
+        header = b"\x01\0\0\x02" + (6+len(message)).to_bytes(2, "little") + b"\x06\0\0\0"
+        expected = [{"message":1,"offset":5,"directive":"g","operand":"2","reason":"unsupported directive"},
+                    {"message":1,"offset":31,"directive":"v","operand":"","reason":"missing operand"}]
+        assert message_formats(header+message, False) == expected
+        key = b"Avis Durgan"
+        encrypted = bytes(value ^ key[i % len(key)] for i,value in enumerate(message))
+        assert message_formats(header+encrypted, True) == expected
+        for invalid in (header+message[:-1], header+message[:-1]+b"!", header[:5]):
+            try: message_formats(invalid, False)
+            except ValueError: pass
+            else: raise AssertionError("malformed message accepted")
         commands,tests,_=catalogs()
         instructions,predicates=analyze(bytes([255,1,0,0,255,3,0,3,0,7,0]),commands,tests)
         assert {i['offset'] for i in instructions}=={0,7,10} and predicates==[1]
@@ -151,7 +237,7 @@ def main():
             try:analyze(bad,commands,tests)
             except ValueError:pass
             else:raise AssertionError(('malformed code accepted',bad))
-        print('PASS: both branch arms, said operands, variable calls, truncation, invalid targets and malformed conditions')
+        print('PASS: plain/encrypted message directives, literal percent, absent messages, malformed message bounds; both branch arms, said operands, variable calls, truncation, invalid targets and malformed conditions')
         if args.output is None:return
     if args.output is None:parser.error('--output is required for a game audit')
     report=audit(args.game);args.output.write_text(json.dumps(report,indent=2)+'\n')

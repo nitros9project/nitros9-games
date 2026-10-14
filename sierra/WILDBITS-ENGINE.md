@@ -2443,3 +2443,101 @@ Artifacts and logs are retained under `.wildbits-test`, including
 `baseline-cache-rejection.log`, `final-matrix.log` and
 `final-recycled-native-game.log`. The full 55-command standard target was not
 rerun; validation covers the modified paths and full gameplay integration.
+
+
+### Message compatibility audit — 2026-10-13
+
+`tests/audit_game_scripts.py` now checks declared logic messages as well as
+reachable instructions. It validates table/string extents, decrypts uncompressed
+message strings with the resource-relative Avis Durgan key, and scans expanded
+compressed messages as plain text. Reports contain message numbers, directive
+locations and decimal operands, without copying original message text. `%%`
+consumes a literal percent sign; absent message offsets are skipped. The
+self-test covers both encodings, supported directives, missing operands, escaped
+percent signs and malformed bounds/terminators.
+
+The new `unsupported_message_formats` fields identify candidates requiring
+runtime coverage; they scan all declared messages rather than asserting each
+message is reachable. Existing opcode findings remain separate. This closes an
+audit blind spot: a title with no unsupported opcodes can still contain an
+unsupported formatted message. It does not implement new substitutions or
+establish formatter equivalence.
+
+The local original-resource survey completed for 13 titles. `%g` occurs in Gold
+Rush, Larry, Police Quest and Space Quest II; `%o` occurs in Black Cauldron,
+King's Quest IV, Larry and Police Quest. KQ1 and KQ3 have no message findings.
+Other candidates include literal percent sequences and missing operands, which
+need comparison with the original behavior before changing error policy.
+Manhunter I's opcode walk still rejects an overlapping instruction in logic
+159, so that title has no completed audit result. Reports are retained at
+`/tmp/sierra-all-games-audit-20261013.json`.
+
+
+### Object-name formatter parity — 2026-10-14
+
+Wild Bits now supports the CoCo `%oN` substitution: N selects a variable, that
+variable selects an inventory item, and the item's name is recursively formatted
+using the common formatter path. Global-message (`%g`) support remains separate.
+The shared directive selector now has independent global/object capabilities;
+CoCo enables both and retains exactly the same emitted instructions.
+
+A naive inventory load cannot supply the name during formatting: `inventoryfile`
+aliases `fillstack`, which already holds live recursion frames. The cold adapter
+in `wildbits-text-ui.asm` instead opens the original encrypted object resource,
+reads its header and selected entry, and decodes the selected name into the
+existing 512-byte I/O buffer. It computes the Avis Durgan key position from the
+absolute file offset, handles partial reads, bounds table/entry/name accesses
+to the supported 2048-byte resource range, and requires a terminator within
+512 bytes. The copied recursion frame then holds at most 511 characters plus
+NUL. It validates the selected path through the file, rather than revalidating
+every other inventory name. No allocation or inventory-location update occurs.
+
+The adapter unmaps ephemeral resource data before I/O, closes the file before
+recursion, and uses the existing close/cleanup ownership contract on errors.
+All traversal state is on the process's private stack; immutable helper code
+contains no new writable cells. A two-byte private entry cache avoids repeated
+module lookup. This work adds no dispatch or I/O to ordinary motion cycles.
+Object substitutions perform bounded file I/O when requested.
+
+The extra helper entry changes the private helper ABI to 4 and extends the
+validated metadata extent from 35 to 37 bytes. Install `wbgame` and `wbstate`
+from the same build. WS save files retain version 1. Resident code is exactly
+23,808/23,808 bytes; helper code is 7,748/8,192 bytes with a 3,102/4,096-byte
+writable prefix; private data is 24,462 bytes. Further resident additions need
+space reclaimed or existing cold code reorganized before they can fit.
+
+`check_wbplay.py` checks exact output pixels for variable 220 selecting items
+0, 2, 128 and 255, empty names, repeated substitutions, nested numeric
+formatting, invalid indices, recursive names and the 511/512-byte boundary.
+The service harness supplies at most 97 bytes per read, so long-name checks
+exercise partial progress. The index regression still checks every other
+unsupported directive and both owners' scanners. The message audit now treats
+`%o` as supported: the earlier Black Cauldron/KQ4 object-name findings disappear,
+while global-message findings remain.
+
+The baseline standard regression was completed in segments: the original run
+passed through the parser before a dictionary debugger timeout; that test passed
+on reproduction and rerun. The tail then exposed an obsolete assertion that
+`%v220|3` was malformed. Valid padding opened a dialog with no dismissal input.
+The rejection case now uses width 256, and all remaining baseline commands pass.
+This is not a claim of a single uninterrupted clean standard-target run. Logs
+are `/tmp/sierra-full-check-20261013.log`,
+`/tmp/sierra-regression-tail-20261014.log` and
+`/tmp/sierra-regression-tail-20261014b.log`.
+
+Final validation of the object-name change passes all 63 owner builds; all 56
+CoCo module images are byte-identical to the previous verified matrix, and the
+production native pair matches the new matrix. The full native gameplay suite,
+4,100 index/formatter calls, object-name/padding regression, and native audio
+installation/ownership tests pass. Original KQ3/KQ1 MAME acceptance passes with
+the matching ABI-4 modules: clock, dialogs, movement, save/change/restore,
+independent terminals and memory recovery. Logs are
+`/tmp/sierra-object-matrix-20261014.log`,
+`/tmp/sierra-object-game-20261014.log`,
+`/tmp/sierra-object-index-20261014.log`,
+`/tmp/sierra-object-live-play-20261014.log`,
+`/tmp/sierra-object-audio-20261014.log` and
+`/tmp/sierra-object-mame-20261014.log`. The prepared interactive image is
+`.wildbits-test/object-kq3-kq1-20261014/play.sh`. These checks validate this
+change and existing scenarios; `%g`, custom priority behavior and a continuous
+full-adventure playthrough remain outside this result.

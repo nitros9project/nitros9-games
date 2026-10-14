@@ -152,10 +152,51 @@ def main():
                     for pixel in range(8):
                         wanted[(24+gy)*320+col*8+pixel]=16 if font[char*8+gy]&(128>>pixel) else 1
             assert frame==wanted, 'word.to.string did not preserve parsed word text'
-            for malformed in (b'%m1',b'%v256',b'%w0',b'%w20',b'%x1',b'%v220|3'):
+            # %o resolves a variable to an inventory item and recursively
+            # formats the bounded name through the linked cold helper's I/O buffer.
+            names = [b""] * 256
+            names[0] = b"zero"
+            names[128] = b"%v7|2"
+            names[255] = b"last"
+            table = bytearray(); strings = bytearray()
+            for name in names:
+                table.extend((768+len(strings)).to_bytes(2, "little") + b"\xff")
+                strings.extend(name+b"\0")
+            plain = (768).to_bytes(2, "little") + b"\0" + table + strings
+            key = b"Avis Durgan"
+            objects = bytes(value ^ key[i % len(key)] for i,value in enumerate(plain))
+            for item, expected in ((0,b"zero"),(2,b""),(128,b"07"),(255,b"last")):
+                body = bytes([3,220,item,3,7,7,103,3,0,1,134,1,0])
+                files = fixture(body,message=b"[%o220/%o220]")
+                files["/game/object"] = objects
+                error,frame,_ = run(files,frame_capture=True)
+                assert not error, ("object format", item, error)
+                wanted = bytearray([1])*76800
+                for col,char in enumerate(b"["+expected+b"/"+expected+b"]"):
+                    for gy in range(8):
+                        for pixel in range(8):
+                            wanted[(24+gy)*320+col*8+pixel] = 16 if font[char*8+gy]&(128>>pixel) else 1
+                assert frame == wanted, ("object name/variable indirection/recursion",item)
+            # The frame boundary includes the terminator: 511 bytes fit.
+            key = b"Avis Durgan"
+            plain = b"\x03\0\0\x03\0\xff" + b"A"*511 + b"\0"
+            files = fixture(bytes([3,220,0,103,3,0,1,134,1,0]),message=b"%o220")
+            files["/game/object"] = bytes(value ^ key[i % len(key)] for i,value in enumerate(plain))
+            error,_,_ = run(files)
+            assert not error, ("511-byte object name rejected",error)
+            for message, item, names in ((b"%o220",1,[b"zero"]),
+                                          (b"%o256",0,[b"zero"]),
+                                          (b"%o220",0,[b"%o220"]),
+                                          (b"%o220",0,[b"A"*512])):
+                plain = b"\x03\0\0\x03\0\xff" + names[0]+b"\0"
+                files = fixture(bytes([3,220,item,103,3,0,1,134,1,0]),message=message)
+                files["/game/object"] = bytes(value ^ key[i % len(key)] for i,value in enumerate(plain))
+                error,_,_ = run(files)
+                assert error == 203, ("invalid/recursive object format accepted",message,item,error)
+            for malformed in (b'%m1',b'%v256',b'%w0',b'%w20',b'%x1',b'%v220|256'):
                 error,_,_=run(fixture(bytes([101,1,134,1,0]),message=malformed))
                 assert error, ('malformed format accepted',malformed)
-            print('PASS: byte math, zero-divisor rejection, random range edges, follow completion/high flag, signed/absolute placement and blocked-position search, stop/start/force update and retained sprites, pause/resume clock freezing, modal restoration, formatted variables/strings/words/nested messages and rejection bounds, and ownership cleanup')
+            print('PASS: byte math, zero-divisor rejection, random range edges, follow completion/high flag, signed/absolute placement and blocked-position search, stop/start/force update and retained sprites, pause/resume clock freezing, modal restoration, formatted variables/strings/words/object names/nested messages, high item indices, repeated cold calls, 511/512-byte name bounds and rejection bounds, and ownership cleanup')
         finally:
             d.s.close()
             emu.terminate()

@@ -109,7 +109,8 @@ FORMAT_SCAN_WRITE macro
                     endm
 
 * ===== format-directive =====
-FORMAT_DIRECTIVE_EXTENDED equ 1
+FORMAT_DIRECTIVE_GLOBAL_ENABLED equ 1
+FORMAT_DIRECTIVE_OBJECT_ENABLED equ 1
 FORMAT_DIRECTIVE_COMPARE macro
                     cmpb #\1
                     endm
