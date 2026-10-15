@@ -70,15 +70,21 @@ class _StartupTimeout(socket.timeout):
     pass
 
 
+class _ReferenceDisconnected(ConnectionError):
+    pass
+
+
 def render(game, payload, assembler, defs):
-    # The headless XRoar GDB thread can time out during startup on macOS.
-    # Restart a bounded number of times; a persistent failure still fails.
+    # Headless XRoar can fail to attach or disconnect intermittently on macOS.
+    # Retry only transport failures in fresh emulators, with diagnostics.
+    # Persistent disconnects, timeouts while rendering and output errors fail.
     for attempt in range(4):
         try:
             return _render_once(game, payload, assembler, defs)
-        except _StartupTimeout:
+        except (_StartupTimeout, _ReferenceDisconnected) as error:
             if attempt == 3:
                 raise
+            print(f"Reference emulator retry {attempt+1}/3: {error}",file=sys.stderr,flush=True)
 
 
 def _render_once(game, payload, assembler, defs):
@@ -99,10 +105,12 @@ def _render_once(game, payload, assembler, defs):
             reservation.bind(('127.0.0.1', 0))
             port = reservation.getsockname()[1]
         bootrom = idle_rom(work / 'idle.rom')
+        emulog=(work/'xroar.log').open('w')
         emulator = subprocess.Popen(['xroar', '-machine', 'coco3', '-ui', 'null', '-ao', 'null',
             '-ram', '2048', '-no-ratelimit', '-gdb', '-gdb-port', str(port), '-timeout', '900',
-            '-no-bas', '-extbas', bootrom, '-no-altbas'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            '-no-bas', '-extbas', bootrom, '-no-altbas'], stdout=emulog, stderr=subprocess.STDOUT)
         debugger = None
+        phase="attach"
         try:
             # Match start_cpu: finish the queued power-on reset before writes.
             time.sleep(.1)
@@ -118,6 +126,7 @@ def _render_once(game, payload, assembler, defs):
             if debugger is None:
                 raise RuntimeError('XRoar debugger did not start')
             d = debugger
+            phase="setup"
             d.write(0xFFDF, b'\0')
             d.write(0xFF90, b'\x4c')
             d.write(0xFF91, b'\x01')
@@ -132,8 +141,14 @@ def _render_once(game, payload, assembler, defs):
             # RenderPic expects a resource-node pointer on the caller's stack.
             # Its zero block pair matches the zero cache, so no MMU switch is needed.
             d.write(0x1DF2, b'\x03\x00')
+            phase="render"
             d.run(0xE000 + symbols['RenderPic'])
+            phase="readback"
             return d.read(0x6040, 160 * 168)
+        except ConnectionError as error:
+            emulog.flush()
+            diagnostic=(work/'xroar.log').read_text(errors='replace')[-1024:]
+            raise _ReferenceDisconnected(f'{phase}: {error}; emulator exit={emulator.poll()}; {diagnostic}') from error
         finally:
             if debugger:
                 debugger.s.close()
@@ -143,6 +158,7 @@ def _render_once(game, payload, assembler, defs):
             except subprocess.TimeoutExpired:
                 emulator.kill()
                 emulator.wait(timeout=2)
+            emulog.close()
 
 
 def main():

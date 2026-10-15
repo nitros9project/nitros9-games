@@ -2588,7 +2588,9 @@ GameFormatMessage   ldu       <resourcebase
                     leax      fillstack+2048,u
                     clrb
                     rts
-FormatPart          lda       formatdepth,u
+FormatPart          tst       ,x
+                    lbeq      FormatSuccess
+                    lda       formatdepth,u
                     cmpa      #4
                     lbhs      FormatInvalid
                     clrb
@@ -2602,25 +2604,29 @@ FormatPart          lda       formatdepth,u
 FormatNext          equ *
                     FORMAT_EMIT_SCAN
 FormatDirective     lda       ,x+
-                    cmpa      #'%
-                    bne       FormatNumberStart
-                    bsr      FormatPut
-                    bcs      FormatPartError
-                    bra       FormatNext
+                    beq       FormatPartInvalid
+* CoCo ignores an unknown two-byte escape without consuming following digits.
+                    cmpa      #'w
+                    beq       FormatNumberStart
+                    cmpa      #'s
+                    beq       FormatNumberStart
+                    cmpa      #'m
+                    beq       FormatNumberStart
+                    cmpa      #'g
+                    beq       FormatNumberStart
+                    cmpa      #'v
+                    beq       FormatNumberStart
+                    cmpa      #'o
+                    bne       FormatNext
 FormatNumberStart   sta       parsercharacter,u
-                    clr       parserwordlength,u
-                    clr       parserbestlength,u
 FormatNumber        lbsr      ParseDecStr
-                    bcs      FormatPartError
-FormatDispatch      tst       parserbestlength,u
-                    beq      FormatPartInvalid
-                    lda       parsercharacter,u
-                    ldb       parserwordlength,u
+                    stb       parserwordlength,u
+FormatDispatch      lda       parsercharacter,u
                     FORMAT_EMIT_DIRECTIVES
 FormatUnsupported   ldb       #E$UnkSvc
                     bra       FormatSetError
 FormatDone          dec       formatdepth,u
-                    clrb
+FormatSuccess       clrb
 FormatReturn        rts
 FormatPartInvalid   ldb       #E$BMode
 FormatSetError      orcc      #1
@@ -2645,16 +2651,16 @@ FormatPut           pshs      d,y
 FormatFull          puls      d,y
                     bra       FormatInvalid
 FormatWord          tstb
-                    beq      FormatPartInvalid
+                    lbeq      FormatNext
                     cmpb      #20
-                    bhi      FormatPartInvalid
+                    lbhi      FormatNext
                     lda       parsercount,u
                     tst       vmvariables+9,u
                     beq       FormatWordBound
                     inca
 FormatWordBound     pshs      a
                     cmpb      ,s+
-                    bhi      FormatPartInvalid
+                    lbhi      FormatNext
                     decb
                     leay      parseroffsets,u
                     leay      b,y
@@ -2671,7 +2677,6 @@ FormatWordCopy      tstb
                     bra       FormatWordCopy
 FormatString        equ *
                     FORMAT_EMIT_STRING_SLOT
-                    NUL_STRING_COPY y,FormatStringCopy,0,FORMAT_STRING_WRITE,FORMAT_STRING_DONE,FORMAT_STRING_ERROR
 * Global/object readers share the checked recursive expansion return.
 * Platform acquisition lives in the immutable cold helper.
 FormatExternal      pshs      x
@@ -2681,9 +2686,31 @@ FormatExternal      pshs      x
                     lbsr      GameColdInvoke
                     bra       FormatMessageReturn
 FormatExternalCallbacks fdb AssetUnmap-FormatExternalCallbacks,ResourceClose-FormatExternalCallbacks,FormatPart-FormatExternalCallbacks
-                    fdb ReadLogicMessage-FormatExternalCallbacks,AssetReadWord-FormatExternalCallbacks,StateAPI-FormatExternalCallbacks,ResourceReadExact-FormatExternalCallbacks
-FormatMessage       pshs      x
+                    fdb FormatReadMessage-FormatExternalCallbacks,AssetReadWord-FormatExternalCallbacks,StateAPI-FormatExternalCallbacks,ResourceReadExact-FormatExternalCallbacks
+* Formatter-only optional messages. Other message commands retain strict errors.
+* CoCo skips indices above the declared count. Zero is a bounded empty expansion,
+* avoiding its reference header-as-pointer access; corrupt tables still fail.
+FormatReadMessage   tstb
+                    beq       FormatReadEmpty
+                    lda       #255
+                    sta       <messagecount
                     lbsr      ReadLogicMessage
+                    bcc       FormatReadReturn
+                    cmpb      #E$BMode
+                    bne       FormatReadReturn
+                    ldb       <messagenumber
+                    cmpb      <messagecount
+                    bhi       FormatReadEmpty
+                    ldb       #E$BMode
+                    orcc      #1
+FormatReadReturn    rts
+FormatReadEmpty     ldu       <resourcebase
+                    leax      messagebuffer,u
+                    clr       ,x
+                    clrb
+                    rts
+FormatMessage       pshs      x
+                    lbsr      FormatReadMessage
                     bcs       FormatMessageReturn
 FormatMessageReturn equ FormatExpansionReturn
                     FORMAT_EMIT_EXPANSION
@@ -2695,12 +2722,7 @@ FormatVariable      pshs      b
                     cmpa      #'|
                     bne       FormatWidthReady
                     leax      1,x
-                    clr       parserwordlength,u
-                    clr       parserbestlength,u
                     bsr      ParseDecStr
-                    bcc       FormatWidthReady
-                    leas      1,s
-                    lbra      FormatPartError
 FormatWidthReady    stb       parserbestlength,u
                     puls      b
                     leay      vmvariables,u
@@ -2767,9 +2789,6 @@ FormatByteDivide10  lda       #10
                     endc
                     endc
                     use       shared/decimal-index.asm
-DecimalIndexOverflow ldb     #E$BMode
-                    orcc      #1
-                    rts
 
                     else
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_PARSER_CODE

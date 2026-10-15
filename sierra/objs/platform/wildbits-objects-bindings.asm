@@ -76,7 +76,7 @@ POSITION_RESTORE_OLD macro
                     std       3,u
                     endm
 POSITION_RECOVER macro
-                    lbra      MotionBlocked
+                    bra       MotionBlocked
                     endm
 POSITION_ACCEPT_STATE macro
                     lda       $25,u
@@ -300,7 +300,7 @@ SPIRAL_REPEAT      macro
                     lbne      RepositionCandidate
                     endm
 SPIRAL_LENGTH_ERROR macro
-                    lbeq      RepositionExhausted
+                    beq       RepositionExhausted
                     endm
 
 * ===== wildbits-object-scalar-operands =====
@@ -311,7 +311,7 @@ PRIORITY_VALIDATE macro
                     lbhi      ObjectBadIndex
                     endm
 DIRECTION_READ     macro
-                    lbsr      ObjectArgumentValue
+                    bsr       ObjectArgumentValue
                     endm
 DIRECTION_VALIDATE macro
                     cmpb      #8

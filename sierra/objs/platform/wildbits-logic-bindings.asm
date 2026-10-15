@@ -59,7 +59,7 @@ LOGIC_CONTINUE      macro
                     endc
                     tst       <vmroompending
                     bne       ExecScriptDone
-                    lbra      VmNext
+                    bra       VmNext
                     endm
 LOGIC_SUCCESS       macro
                     clrb
@@ -105,7 +105,7 @@ CONDITION_BRANCH    macro
                     endm
 CONDITION_VALIDATE_END macro
                     ldd       ,s
-                    lbne      VmConditionInvalid
+                    bne       VmConditionInvalid
                     endm
 CONDITION_VALIDATE_OR macro
                     tst       1,s

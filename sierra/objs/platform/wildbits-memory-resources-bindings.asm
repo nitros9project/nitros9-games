@@ -22,7 +22,7 @@ CYCLE_NOTIFY_FLAG   macro
                     endm
 CYCLE_SET_CEL       macro
                     lda       #47
-                    lbra      MotionSelectView
+                    bra       MotionSelectView
                     endm
 CYCLE_RETURN        macro
                     clrb
@@ -49,7 +49,7 @@ LZW_CHAIN_BASE macro
                     endm
 LZW_CHAIN_PUSH macro
                     lbsr      LzwPush
-                    lbcs      LzwReturn
+                    bcs       LzwReturn
                     endm
 LZW_CHAIN_RETAIN macro
                     endm
@@ -74,5 +74,5 @@ ANIMATION_FINISH macro
 ANIMATION_ADVANCE_BEFORE_RESET macro
                     endm
 ANIMATION_ADVANCE_AFTER_RESET macro
-                    lbra      AdvanceCelFrame
+                    bra       AdvanceCelFrame
                     endm

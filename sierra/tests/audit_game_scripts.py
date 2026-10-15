@@ -113,7 +113,7 @@ def message_formats(payload, encrypted):
             if directive not in "wsmvog" or not directive or not operand:
                 findings.append({"message": index + 1, "offset": origin,
                                  "directive": directive, "operand": operand,
-                                 "reason": "unsupported directive" if directive not in "wsmvog" or not directive
+                                 "reason": "unknown directive" if directive not in "wsmvog" or not directive
                                            else "missing operand"})
     return findings
 
@@ -144,7 +144,7 @@ def analyze(code, commands, tests, overlaps=None):
                     inside_or=not inside_or;continue
                 if test==253:
                     negated=not negated;continue
-                if not 1<=test<len(tests):raise ValueError(f'invalid predicate {test} at {at-1}')
+                if not 0<=test<len(tests):raise ValueError(f'invalid predicate {test} at {at-1}')
                 predicates.add(test);negated=False
                 count=tests[test]
                 if test==14:
@@ -249,9 +249,11 @@ def coverage_manifest():
     names=re.findall(r'^\s*AGI_TEST\s+([^,]+),', (ROOT/'objs/shared/agi-test-table.asm').read_text(),re.M)
     predicates=[{'predicate':i,'coco_handler':name.strip(),'operands':tests[i],
                  'acceptance_gate':'S01' if i<=8 else 'S05' if i in (14,15) else 'S03' if i in (11,16,17,18) else 'S06',
-                 'equivalence_result':'open'} for i,name in enumerate(names)]
+                 'native_handler': 'VmTrue' if i==0 else name.strip() if i<=8 else 'InventoryTest' if i in (9,10) else 'ObjectPositionTest' if i in (11,16,17,18) else {12:'InputControllerTest',13:'InputHaveKeyTest',14:'InputSaidTest',15:'StringCompareTest'}[i],
+                 'candidate_regressions':['check_logic_executor.py'] if i==0 else candidates['S01' if i<=8 else 'S05' if i in (14,15) else 'S03' if i in (11,16,17,18) else 'S06'],
+                 'equivalence_result':'constant-true/NOT/OR/AND/skip full-executor comparison' if i==0 else 'open'} for i,name in enumerate(names)]
     return {'limits':['Candidate regression names identify where to verify behavior; they are not proof that every command is already tested or equivalent.',
-                       'Predicate zero is retained as a reference catalog entry; its native/script validity must be accounted for explicitly.'],
+                       'Predicate zero is the verified CoCo constant-true entry; native command zero remains script return.'],
             'command_catalog_sha256':hashlib.sha256((ROOT/'objs/shared/agi-command-table.asm').read_bytes()).hexdigest(),
             'commands':rows,'predicates':predicates}
 
@@ -268,7 +270,7 @@ def main():
         # One code byte, two offsets (second absent), then plain/encrypted text.
         message = b"%%g1 %x2 %o3 %v7|2 %s1 %w2 %m4 %g4 %v\0"
         header = b"\x01\0\0\x02" + (6+len(message)).to_bytes(2, "little") + b"\x06\0\0\0"
-        expected = [{"message":1,"offset":5,"directive":"x","operand":"2","reason":"unsupported directive"},
+        expected = [{"message":1,"offset":5,"directive":"x","operand":"2","reason":"unknown directive"},
                     {"message":1,"offset":35,"directive":"v","operand":"","reason":"missing operand"}]
         assert message_formats(header+message, False) == expected
         key = b"Avis Durgan"
@@ -294,6 +296,9 @@ def main():
         assert len(manifest['commands'])==182 and len(manifest['predicates'])==19
         assert {row['opcode'] for row in manifest['commands'] if row['route_status']=='unsupported'}=={29,133,135,149,150,170,177}
         assert all((ROOT/'tests'/name).exists() for row in manifest['commands'] for name in row['candidate_regressions'])
+        zero_instructions,zero_predicates=analyze(bytes.fromhex('ff 00 ff 00 00 00'),commands,tests)
+        assert {i['offset'] for i in zero_instructions}=={0,5} and zero_predicates==[0]
+        assert manifest['predicates'][0]['native_handler']=='VmTrue'
         overlapping=bytes.fromhex('ff 01 00 00 ff 03 00 fe 05 00 ff 01 00 01 ff 08 00 84 03 fa 2a 00 00 00 00 03 fa 49 00')
         findings=[];instructions,_=analyze(overlapping,commands,tests,overlaps=findings)
         assert {i['offset'] for i in instructions}>={10,15,17,18,25}

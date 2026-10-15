@@ -107,7 +107,7 @@ def main():
                 (Path(__file__).resolve().parents[1]/'objs/font-data.asm').read_text()))
             for messages,body,expected in [
                 ([b'%m2:%v220:%s1:%%',b'nested',b'word'],
-                 bytes([3,220,255,114,1,3,103,3,0,1,134,1,0]),b'nested:255:word:%'),
+                 bytes([3,220,255,114,1,3,103,3,0,1,134,1,0]),b'nested:255:word:'),
                 ([b'%w1/%w2',b'look tree'],
                  bytes([114,0,2,117,0,103,3,0,1,134,1,0]),b'look/tree')]:
                 files=fixture(body,message=messages)
@@ -165,9 +165,10 @@ def main():
             plain = (768).to_bytes(2, "little") + b"\0" + table + strings
             key = b"Avis Durgan"
             objects = bytes(value ^ key[i % len(key)] for i,value in enumerate(plain))
-            for item, expected in ((0,b"zero"),(2,b""),(128,b"07"),(255,b"last")):
-                body = bytes([3,220,item,3,7,7,103,3,0,1,134,1,0])
-                files = fixture(body,message=b"[%o220/%o220]")
+            for item, expected, operand in ((0,b"zero",220),(2,b"",220),(128,b"07",220),(255,b"last",220),
+                                            (0,b"zero",256),(128,b"07",476),(255,b"last",732)):
+                body = bytes([3,operand&255,item,3,7,7,103,3,0,1,134,1,0])
+                files = fixture(body,message=f"[%o{operand}/%o{operand}]".encode())
                 files["/game/object"] = objects
                 error,frame,_ = run(files,frame_capture=True)
                 assert not error, ("object format", item, error)
@@ -185,7 +186,6 @@ def main():
             error,_,_ = run(files)
             assert not error, ("511-byte object name rejected",error)
             for message, item, names in ((b"%o220",1,[b"zero"]),
-                                          (b"%o256",0,[b"zero"]),
                                           (b"%o220",0,[b"%o220"]),
                                           (b"%o220",0,[b"A"*512])):
                 plain = b"\x03\0\0\x03\0\xff" + names[0]+b"\0"
@@ -218,12 +218,15 @@ def main():
                     volume.extend(b"\x12\x34\0"+len(payload).to_bytes(2,"little")+
                                   len(stored).to_bytes(2,"little")+stored)
                 return {"/game/logDir":bytes(directory),"/game/vol.0":bytes(volume)}
-            for messages, expected, boot, compressed in (
-                    ([b"global-%g2",b"%m3",b"root"],b"global-root",False,False),
-                    ([b"%o220/%m3",b"unused",b"root"],b"key/root",False,False),
-                    ([b"global-%g2",b"%m3",b"root"],b"global-root",True,False),
-                    ([b"global-%g2",b"%m3",b"root"],b"global-root",True,True)):
-                files = global_files(messages,boot_caller=boot,compressed_root=compressed)
+            for messages, expected, boot, compressed, source in (
+                    ([b"global-%g2",b"%m3",b"root"],b"global-root",False,False,b"%g1"),
+                    ([b"%o220/%m3",b"unused",b"root"],b"key/root",False,False,b"%g1"),
+                    ([b"global-%g2",b"%m3",b"root"],b"global-root",True,False,b"%g1"),
+                    ([b"global-%g2",b"%m3",b"root"],b"global-root",True,True,b"%g1"),
+                    *[([b"root"],expected,False,False,source) for source,expected in
+                      ((b"%g2",b""),(b"%g0",b""),(b"%g256",b""),(b"%g257",b"root"),
+                       (b"%m99",b""),(b"%m0",b""),(b"%m",b""),(b"%m2",b"local"))]):
+                files = global_files(messages,source,boot_caller=boot,compressed_root=compressed)
                 plain = b"\x03\0\0\x03\0\xffkey\0"
                 files["/game/object"] = bytes(value ^ key[i%11] for i,value in enumerate(plain))
                 error,frame,state = run(files,arguments=b"/game 1\r" if boot else b"/game 0\r",frame_capture=True)
@@ -235,8 +238,7 @@ def main():
                             for pixel in range(8):
                                 wanted[(row*8+gy)*320+col*8+pixel] = 16 if font[char*8+gy]&(128>>pixel) else 1
                 assert frame == wanted, "global/local message context or object expansion corrupted"
-            for messages, source in (([b"%g1"],b"%g1"),([b"root"],b"%g2"),
-                                     ([b"root"],b"%g0"),([b"root"],b"%g256")):
+            for messages, source in (([b"%g1"],b"%g1"),):
                 restored = []
                 def before_unwind(debug,registers,syms):
                     restored.append((debug.read(syms["vmcurrent"],1),debug.read(syms["vmend"],2)))
@@ -290,7 +292,7 @@ def main():
                     for pixel in range(8):
                         wanted[((3+row)*8+gy)*320+column*8+pixel] = 16 if font[char*8+gy]&(128>>pixel) else 1
             assert frame == wanted, "original Larry %g176 text differs from original root message"
-            for malformed in (b'%m1',b'%v256',b'%w0',b'%w20',b'%x1',b'%v220|256'):
+            for malformed in (b'%m1',b'%s12',b'%v220|255'*9):
                 error,_,_=run(fixture(bytes([101,1,134,1,0]),message=malformed))
                 assert error, ('malformed format accepted',malformed)
             print('PASS: byte math, zero-divisor rejection, random range edges, follow completion/high flag, signed/absolute placement and blocked-position search, stop/start/force update and retained sprites, pause/resume clock freezing, modal restoration, formatted variables/strings/words/object names/global messages, nested global/local contexts, lazy plain/LZW root loads, original Larry %g176 pixels and error restoration, high item indices, repeated cold calls, 511/512-byte name bounds and rejection bounds, and ownership cleanup')

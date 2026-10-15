@@ -2,16 +2,11 @@
 PLATFORM_WILDBITS_TEXT_UI_BINDINGS equ 1
 
 * ===== wildbits-decimal-index-operands =====
-* Keep the complete product until overflow is checked; record accepted digits.
+* Match CoCo modulo-256 parsing; the caller stores only the fields it needs.
 DECIMAL_INDEX_ADJUST macro
-                    subd      #$30
+                    subb      #$30
                     endm
 DECIMAL_INDEX_VALIDATE macro
-                    adca      #0
-                    tsta
-                    bne       DecimalIndexOverflow
-                    stb       parserwordlength,u
-                    inc       parserbestlength,u
                     endm
 DECIMAL_INDEX_RETURN macro
                     andcc     #$FE
@@ -23,7 +18,7 @@ DECIMAL_INDEX_RETURN macro
 DECIMAL_OUTPUT_END  macro
                     endm
 DECIMAL_OUTPUT_DIVIDE macro
-                    lbsr      FormatByteDivide10
+                    bsr       FormatByteDivide10
                     endm
 
 * ===== wildbits-dictionary-operands =====
@@ -66,7 +61,7 @@ DICTIONARY_ADVANCE macro
                     leax      1,x
                     endm
 DICTIONARY_CHARACTER_NEXT macro
-                    lbsr      DictionaryReadAt
+                    bsr       DictionaryReadAt
                     lbcs      DictionaryReadFailure
                     leax      1,x
                     tsta
@@ -113,7 +108,7 @@ FORMAT_SCAN_ESCAPE macro
                     beq FormatDirective
                     endm
 FORMAT_SCAN_WRITE macro
-                    lbsr FormatPut
+                    bsr  FormatPut
                     bcs FormatPartError
                     endm
 
@@ -155,6 +150,9 @@ FORMAT_STRING_ADDRESS macro
                     leay      d,y
                     endm
 FORMAT_STRING_EXPAND macro
+                    pshs      x
+                    tfr       y,x
+                    bra       FormatExpansion
                     endm
 FORMAT_STRING_WRITE macro
                     lbsr      FormatPut
@@ -176,9 +174,9 @@ FORMAT_NUMBER_ERROR macro
 * Native private room bytes; U=private base, X=room, Y=operand/variable.
 INVENTORY_ITEM      macro
                     ifne      \1
-                    lbsr      InventoryVariableItemAddress
+                    bsr       InventoryVariableItemAddress
                     else
-                    lbsr      InventoryItemAddress
+                    bsr       InventoryItemAddress
                     endc
                     lbcs      InventoryReturn
                     endm

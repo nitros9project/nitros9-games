@@ -29,6 +29,12 @@ CASES=[
     *[(prefix+bytes.fromhex('ff 01 00 00 ff 03 00 fe 05 00 ff 01 00 01 ff 08 00 84 03 fa 2a 00 00 00 00 03 fa 49 00'),wanted,set())
       for prefix,wanted in ((b'',{250:42}),(bytes([3,0,1]),{0:1,250:42}),
                             (bytes([3,0,2]),{0:2,250:73}))],
+    # Predicate zero is CoCo's constant-true catalog entry, not return.
+    (bytes.fromhex('ff 00 ff 03 00 03 fa 2a 00'),{250:42},set()),
+    (bytes.fromhex('ff fd 00 ff 03 00 03 fa 2a 00'),{},set()),
+    (bytes.fromhex('ff fc 00 fd 00 fc ff 03 00 03 fa 2a 00'),{250:42},set()),
+    (bytes.fromhex('ff 01 00 01 00 ff 03 00 03 fa 2a 00'),{},set()),
+    (bytes.fromhex('ff 01 00 00 00 ff 03 00 03 fa 2a 00'),{250:42},set()),
     (bytes([3,255,250,1,255,2,0,3,0,7,5,0,250,7,0,2,12,255,14,255,12,200,0]),{0:255,255:251},{200}),
     (bytes([254,3,0,3,0,99,3,0,42,0]),{0:42},set()),
     (bytes([3,0,0,1,0,255,3,0,3,255,3,0,254,244,255,0]),{0:3},set()),

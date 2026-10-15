@@ -304,3 +304,17 @@ The formatter inventory contains 18 findings across six titles: literal
 percent punctuation/spacing and missing operands. Their byte locations and
 classifications are recorded in the reports. Resolve them against CoCo under
 S05 before treating them as either harmless text or native defects.
+
+
+### Additional focused evidence, 2026-10-15
+
+The formatter/predicate comparison results and the bounded reference-transport
+retry policy are recorded in
+[engine validation](WILDBITS-ENGINE.md#formatter-and-constant-true-predicate-parity).
+531 direct formatter comparisons, 4,094 index/formatter cases and 192 executor
+executions pass. S01 and S05 remain open: these results cover specific boundaries,
+not their complete acceptance scope. Message index zero is safely normalized to
+empty; recursion and malformed-resource policies still require final decisions.
+
+The user confirmed emulator-only availability. V06 physical-hardware acceptance
+remains unchecked and has not been waived. Independent software work continues.

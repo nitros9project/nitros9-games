@@ -65,7 +65,7 @@ FORMAT_EMIT_DIRECTIVES macro
 FORMAT_EMIT_STRING_SLOT macro
 * Resolve a 40-byte AGI string slot, then expand its contents. The caller
 * supplies B=index (or an adapter which parses it), validation and storage.
-* CoCo recursively formats a resolved slot; native emits its literal bytes.
+* Both owners recursively format a resolved slot using their expansion ABI.
 FormatStringSlot    FORMAT_STRING_PREPARE
                     lda       #40
                     mul

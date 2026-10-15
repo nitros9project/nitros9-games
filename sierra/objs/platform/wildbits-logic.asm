@@ -684,8 +684,6 @@ VmConditionFailure  equ       VmLogicFailure
 
 * A=test number. Decode operands for evaluated and skipped predicates alike.
 VmConditionOperands sta       <vmopcode
-                    cmpa      #1
-                    lblo      VmInvalid
                     cmpa      #18
                     lbhi      VmInvalid
                     cmpa      #14
@@ -874,6 +872,7 @@ VmWordError         leas      1,s
                     rts
 VmEvaluateTest      ldu       <resourcebase
                     ldb       <vmopcode
+                    lbeq      VmTrue
                     cmpb      #8
                     lbhi      VmExternalTest
                     leay      vmarguments,u

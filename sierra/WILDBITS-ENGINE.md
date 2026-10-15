@@ -12,7 +12,7 @@ for retry. Sprite visibility now uses the same shared per-cel rule for both
 owners; native publishes AGI flag 1 only for ego. Selected-cel positioning is also shared, including right-edge and
 height/horizon adjustment. Native platform commands now use an immutable relative dispatch table
 from the shared AGI catalog. Both decoders also expand the shared LZW
-window-alignment/mask and dictionary-walk core. The game is 23,779 bytes, with 29 resident code bytes free;
+window-alignment/mask and dictionary-walk core. The game is 23,757 bytes, with 51 resident code bytes free;
 process data is 24,465 bytes (111 bytes below its three-page limit).
 The per-cel visibility byte reuses the sort key after collection completes.
 
@@ -2774,10 +2774,50 @@ original Manhunter progression test.
 Current validation artifacts are `.wildbits-test/parity-stubs-final-matrix-20261015`,
 `.wildbits-test/parity-stubs-kq3-kq1-20261015` and
 `.wildbits-test/parity-classified-audit-20261015`. Original KQ3/KQ1 real-driver
-MAME acceptance and the focused audio/executor/dispatch tests pass. The full
-standard target is running at `/tmp/sierra-parity-check-final-20261015.log`;
-do not mark A04 complete from the earlier failed run or a partial log.
+MAME acceptance and the focused audio/executor/dispatch tests pass. The first full standard run stopped when the CoCo picture-reference debugger
+disconnected during KQ4 picture 5. Three fresh reference renders succeeded.
+The reference harness now retries only startup/transport disconnects, at most
+four fresh processes, and records diagnostics. Persistent failures, rendering
+timeouts and data/assertion failures still fail. Unit tests cover those limits;
+the focused picture-stream suite passes all 23 real pictures and ten synthetic
+boundary/error cases. A04 remains open pending a complete uninterrupted run.
 
-Further formatter equivalence work is isolated under `/tmp/sierra-parity-next`.
-It is not part of this baseline. Physical Wild Bits acceptance remains open:
-the user currently has emulator access only, without waiving that gate.
+Physical Wild Bits acceptance remains open: the user currently has emulator
+access only, without waiving that gate.
+
+
+## Formatter and constant-true predicate parity
+
+Direct execution of both assembled engines exposed differences hidden by earlier
+native-only expectations. Wild Bits now recursively expands string substitutions,
+drops unknown two-byte escapes while retaining following literal digits, and
+uses CoCo's byte wrapping for indices and numeric widths. Missing numeric operands
+default to zero; out-of-range words and messages produce empty substitutions.
+The message wrapper is limited to formatting: direct message commands retain
+their strict resource reader, and corrupt/missing resources still fail. Message
+index zero is normalized to an empty substitution rather than following CoCo's
+unsafe header-derived pointer; this remains an explicit decision under S05.
+The bounded recursion and output policies also remain part of that open gate.
+
+`check_decimal_index.py` passes 531 actual CoCo/native formatter comparisons and
+4,094 index/formatter cases, including cursor, state, stack and code guards.
+The native playback suite passes updated visible-output cases and retains
+missing/corrupt resource, recursion and output-bound failures. Decimal parsing
+now returns its byte result without writing private state on each digit; empty
+expansions avoid reserving an unnecessary copied recursion frame.
+
+Predicate zero now returns true, matching CoCo's actual condition catalog.
+The executor suite passes 48 scripts in both interpreters at two addresses
+(192 executions), including NOT/OR/AND and skipped predicate-zero paths.
+The all-title auditor accepts and classifies that predicate while preserving
+malformed-condition checks. These focused results do not close S01 or S05 as
+a whole. The promoted full regression log is
+`/tmp/sierra-parity-complete-check-20261015.log`; a partial log is not A04 evidence.
+
+The promoted revision builds all 63 owners. All 56 CoCo images remain
+byte-identical to the preceding compatibility-stub baseline, and both production
+native modules match the matrix in
+`.wildbits-test/parity-formatter-main-final-matrix-20261015`. Resident code is
+23,757/23,808 bytes; helper code remains 8,111/8,192, writable prefix
+3,177/4,096, and private data 24,465 bytes (ABI 6). Reclaimed space is not a
+capacity-gate completion claim.
