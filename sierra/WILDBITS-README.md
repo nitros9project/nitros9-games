@@ -1,5 +1,8 @@
 # Wild Bits Sierra port
 
+See the [Wild Bits / CoCo 3 parity checklist](WILDBITS-PARITY.md) for verified
+evidence, remaining work, and the acceptance criteria for completion.
+
 `wbgame` is the native 6809/NitrOS-9 game owner. King's Quest I now accepts
 typed commands, displays responses, moves the player between rooms, and opens
 inventory and menus. Its platform code and state are grouped by feature in

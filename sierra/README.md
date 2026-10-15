@@ -1,5 +1,8 @@
 # Sierra instances
 
+See the [Wild Bits / CoCo 3 parity checklist](WILDBITS-PARITY.md) for verified
+evidence, remaining work, and the acceptance criteria for completion.
+
 See [the implementation explanation](INSTANCE-DESIGN.md) for the memory
 layout, loader, graphics ownership, startup, cleanup, and validation details.
 
