@@ -12,7 +12,7 @@ for retry. Sprite visibility now uses the same shared per-cel rule for both
 owners; native publishes AGI flag 1 only for ego. Selected-cel positioning is also shared, including right-edge and
 height/horizon adjustment. Native platform commands now use an immutable relative dispatch table
 from the shared AGI catalog. Both decoders also expand the shared LZW
-window-alignment/mask and dictionary-walk core. The game is 23,807 bytes, with one resident code byte free;
+window-alignment/mask and dictionary-walk core. The game is 23,779 bytes, with 29 resident code bytes free;
 process data is 24,465 bytes (111 bytes below its three-page limit).
 The per-cel visibility byte reuses the sort key after collection completes.
 
@@ -2733,3 +2733,51 @@ Reproduction artifacts are `.wildbits-test/priority-shared-final-matrix-20261015
 `/tmp/sierra-priority-final-index.log`, `/tmp/sierra-priority-final-audio.log`,
 `/tmp/sierra-priority-final-dispatch.log`, `/tmp/sierra-priority-final-mame.log`
 and `/tmp/sierra-priority-final-kq3.log`.
+
+
+## Parity checklist: compatibility stubs, capacity and audit inventory
+
+The active acceptance contract is [WILDBITS-PARITY.md](WILDBITS-PARITY.md).
+Commands 144, 175, 179 and 180 now succeed like their actual CoCo stub bodies,
+consuming the catalog's literal/variable operands. They are not silent fallbacks
+for missing CoCo features. The catalog now routes 175/182 commands; seven real
+diagnostic/menu/save routes remain unsupported. The common executor regression
+runs 43 scripts in both interpreters at two bases, checks complete variables and
+flags, and includes a counterpart of Manhunter I's overlapping instruction paths.
+The audio suite checks opcode 175 while notes are playing, including exact packet
+sequence, completion and cleanup.
+
+Checked native-only short branches recover 28 resident and 79 helper bytes.
+All 63 owners compile, and all 56 CoCo binaries stay byte-identical. Two probe
+branches needed their original long forms. The copied audio adapter's entry slots
+also remain fixed-width: its tick entry is byte 3, now protected by an assembly
+assertion and a named constant shared with the caller. Budgets are
+23,779/23,808 game bytes, 8,111/8,192 helper bytes, a 3,177/4,096-byte writable
+prefix and 24,465 private bytes. The private helper ABI remains 6. This initial
+recovery does not yet close the checklist's capacity gate for all missing features.
+
+`audit_game_scripts.py --self-test --all-games --output-dir /tmp/sierra-audits`
+now inventories all fourteen bundled resource sets. Reports include resource
+SHA-256 values, ignored/unsupported command sites, formatter findings, unresolved
+dynamic destinations and overlapping decodings. `coverage.json` accounts for all
+182 command and 19 predicate catalog entries with routes, acceptance gates and
+candidate regression families. Candidate tests are explicitly not per-command
+equivalence results; the complete coverage gate remains open.
+
+Manhunter I logic 159 jumps from byte 245 into a conditional's skip operand at
+443. Report mode retains both bounded instruction interpretations and records
+overlapping bytes 443..445, while strict analysis retains its overlap rejection.
+Malformed conditions and out-of-range branches still fail. The all-title audit
+and its negative/overlap tests pass; this is static classification, not an
+original Manhunter progression test.
+
+Current validation artifacts are `.wildbits-test/parity-stubs-final-matrix-20261015`,
+`.wildbits-test/parity-stubs-kq3-kq1-20261015` and
+`.wildbits-test/parity-classified-audit-20261015`. Original KQ3/KQ1 real-driver
+MAME acceptance and the focused audio/executor/dispatch tests pass. The full
+standard target is running at `/tmp/sierra-parity-check-final-20261015.log`;
+do not mark A04 complete from the earlier failed run or a partial log.
+
+Further formatter equivalence work is isolated under `/tmp/sierra-parity-next`.
+It is not part of this baseline. Physical Wild Bits acceptance remains open:
+the user currently has emulator access only, without waiving that gate.

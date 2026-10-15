@@ -141,7 +141,7 @@ AuxWaitLoop         ldy       ,s
                     beq       AuxWaitDelta
                     stb       dialogepoch,u
                     sta       dialogseen,u
-                    lbra      AuxWaitLoop
+                    bra      AuxWaitLoop
 AuxWaitDelta        suba      dialogseen,u
                     ldb       gameclockticks,u
                     stb       dialogseen,u
@@ -192,7 +192,7 @@ AuxWaitInputMode
                     tsta
                     lbeq      AuxWaitLoop
 AuxWaitKeyDone      clrb
-                    lbra      AuxWaitRestore
+                    bra      AuxWaitRestore
 AuxWaitSample       ldy       2,s
                     ldd       6,y
                     leax      d,y
@@ -205,15 +205,15 @@ AuxClearTextRect    pshs      y
                     lda       ,x
                     ldb       2,x
                     cmpb      #25
-                    lbhs      AuxRectInvalid
+                    bhs      AuxRectInvalid
                     cmpa      2,x
-                    lbhi      AuxRectInvalid
+                    bhi      AuxRectInvalid
                     lda       1,x
                     ldb       3,x
                     cmpb      #40
-                    lbhs      AuxRectInvalid
+                    bhs      AuxRectInvalid
                     cmpa      3,x
-                    lbhi      AuxRectInvalid
+                    bhi      AuxRectInvalid
                     subb      1,x
                     incb
                     pshs      b
@@ -371,7 +371,7 @@ AuxShowCopy         ldd       showposition,u
                     lbra      AuxShowInvalid
 AuxShowEmpty        clr       ,x
 AuxShowCopied       UI_CALL 18
-                    lbcs      AuxShowReturn
+                    bcs      AuxShowReturn
                     ldb       <vmcurrent
                     UI_CALL 20
                     UI_CALL 10
@@ -382,17 +382,17 @@ AuxShowCopied       UI_CALL 18
                     pshs      cc,b
                     clr       showactive,u
                     puls      cc,b
-                    lbcs      AuxShowReturn
+                    bcs      AuxShowReturn
 * The fast sprite eraser scans game records, not this temporary preview.
 * Restore the pristine background fully, then recompose ordinary objects.
                     lda       #1
                     sta       gamecopydirection,u
                     UI_CALL 28
-                    lbcs      AuxShowReturn
+                    bcs      AuxShowReturn
                     UI_CALL 30
-                    lbcs      AuxShowReturn
+                    bcs      AuxShowReturn
                     UI_CALL 32
-                    lbcs      AuxShowReturn
+                    bcs      AuxShowReturn
                     tst       showcached,u
                     bne       AuxShowDone
                     lda       #2
@@ -451,7 +451,7 @@ AuxUICall         pshs      x,y,u
 AuxRestart          ldu       <resourcebase
                     lda       <vmroompending
                     cmpa      #3
-                    lbeq      AuxRestartApply
+                    beq      AuxRestartApply
                     sty       restartapi,u
                     tst       vmflags+16,u
                     bne       AuxRestartAccepted
@@ -474,19 +474,19 @@ AuxRestartReturn    rts
 AuxRestartPrompt    fcc       /Restart game? ENTER confirms./
                     fcb       0
 AuxRestartApply     lda       #2       stop owned sound
-                    lbsr      AuxRestartCall
+                    bsr      AuxRestartCall
                     bcs       AuxRestartReturn
                     lda       #4       unregister/close this raster subscription
-                    lbsr      AuxRestartCall
+                    bsr      AuxRestartCall
                     bcs       AuxRestartReturn
                     lda       #6       release temporary and all cached resources
-                    lbsr      AuxRestartCall
+                    bsr      AuxRestartCall
                     bcs       AuxRestartReturn
                     lda       #8       release the saved background
-                    lbsr      AuxRestartCall
+                    bsr      AuxRestartCall
                     bcs       AuxRestartReturn
                     lda       #10      release the combined picture slab
-                    lbsr      AuxRestartCall
+                    bsr      AuxRestartCall
                     bcs       AuxRestartReturn
 * Strings, labels, key bindings, controllers, object records and cache cells.
                     leax      vmvariables,u
@@ -511,17 +511,17 @@ AuxRestartClear     sta       ,x+
                     clr       gameclockmuted,u
                     clr       presentationconfigured,u
                     lda       #14
-                    lbsr      AuxRestartCall
+                    bsr      AuxRestartCall
                     lda       #16
-                    lbsr      AuxRestartCall
+                    bsr      AuxRestartCall
                     lda       #18
-                    lbsr      AuxRestartCall
+                    bsr      AuxRestartCall
 * The original CLI root number/directory never change during resource loads.
                     clr       <resourcekind
                     ldx       <argdirectory
                     ldy       <argnumber
                     lda       #12
-                    lbra      AuxRestartCall
+                    bra      AuxRestartCall
 AuxRestartCall      pshs      x,y
                     ldy       restartapi,u
                     ldd       a,y
@@ -766,13 +766,13 @@ GameStateCommand    lbsr      GameSoundStop
                     lbsr      ParserClearLine
                     leax      StatePrompt,pcr
                     lbsr      GamePrintText
-                    lbcs      GameStateReturn
+                    bcs      GameStateReturn
                     ldu       <resourcebase
                     clr       dialoginputmode,u
                     tst       parserlength,u
                     beq      GameStateSuccess
                     lbsr      PictureUnmap
-                    lbcs      GameStateReturn
+                    bcs      GameStateReturn
                     ldu       <resourcebase
                     pshs      u
                     lbsr      StateLoadModule
@@ -1247,7 +1247,7 @@ GameClearLines      ldu       <resourcebase
                     clr       vmarguments+1,u
                     ldb       #39
                     stb       vmarguments+3,u
-                    lbra      GameClearTextRect
+                    bra      GameClearTextRect
 
                     else
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_GAME_TEXT_DATA
@@ -2035,7 +2035,7 @@ GameMenuReadKey     ldu       <resourcebase
                     ldy       #1
                     clra
                     os9       I$Read
-                    lbcs      GameMenuRestore
+                    bcs      GameMenuRestore
                     ldu       <resourcebase
                     lda       parsercharacter,u
                     cmpa      #5
@@ -2090,9 +2090,9 @@ GameMenuCopyBack    ldd       ,x++
                     bne       GameMenuCopyBack
                     leas      2,s
                     puls      cc,b
-                    lbcs      AuxMenuReturn
+                    bcs      AuxMenuReturn
                     UI_CALL   12
-                    lbcs      AuxMenuReturn
+                    bcs      AuxMenuReturn
                     UI_CALL   14
                     rts
 GameMenuLabel       tstb
@@ -2697,7 +2697,7 @@ FormatVariable      pshs      b
                     leax      1,x
                     clr       parserwordlength,u
                     clr       parserbestlength,u
-                    lbsr      ParseDecStr
+                    bsr      ParseDecStr
                     bcc       FormatWidthReady
                     leas      1,s
                     lbra      FormatPartError
@@ -3339,23 +3339,23 @@ AuxObjectTableCheck  subd      #3
                     bne       AuxObjectTableCheck
                     ldd       4,s
                     cmpd      ,s
-                    lbhs      AuxObjectInvalid
+                    bhs      AuxObjectInvalid
                     addd      #3
                     ldy       #3
                     lbsr      AuxObjectReadAt
-                    lbcs      AuxObjectFailed
+                    bcs      AuxObjectFailed
                     cmpy      #3
-                    lbne      AuxObjectInvalid
+                    bne      AuxObjectInvalid
                     ldb       ,x
                     lda       1,x
                     addd      #3
-                    lbcs      AuxObjectInvalid
+                    bcs      AuxObjectInvalid
                     cmpd      #2048
-                    lbhs      AuxObjectInvalid
+                    bhs      AuxObjectInvalid
                     std       2,s
                     subd      #3
                     cmpd      ,s
-                    lblo      AuxObjectInvalid
+                    blo      AuxObjectInvalid
                     ldd       #2048
                     subd      2,s
                     cmpd      #512
@@ -3363,7 +3363,7 @@ AuxObjectTableCheck  subd      #3
                     ldd       #512
 AuxObjectReadLength tfr       d,y
                     ldd       2,s
-                    lbsr      AuxObjectReadAt
+                    bsr      AuxObjectReadAt
                     bcs       AuxObjectFailed
                     pshs      x
 AuxObjectBound      lda       ,x+
@@ -3372,7 +3372,7 @@ AuxObjectBound      lda       ,x+
                     bne       AuxObjectBound
                     leas      2,s
                     bra       AuxObjectInvalid
-AuxObjectReady      lbsr      AuxObjectClose
+AuxObjectReady      bsr      AuxObjectClose
                     puls      x
                     bcs       AuxObjectReturn
                     ldy       6,s
@@ -3384,7 +3384,7 @@ AuxObjectReturn     leas      6,s
 AuxObjectInvalid    ldb       #E$BMode
                     orcc      #1
 AuxObjectFailed     pshs      b,cc
-                    lbsr      AuxObjectClose
+                    bsr      AuxObjectClose
                     puls      cc,b
                     bra       AuxObjectReturn
 * Return address, saved X or error, six locals, then the callback pointer.
@@ -3412,10 +3412,10 @@ AuxObjectReadAt     pshs      d,y
                     leas      2,s
                     bcc       AuxObjectReadComplete
                     cmpb      #E$EOF
-                    lbne      AuxObjectReadError
+                    bne      AuxObjectReadError
 AuxObjectReadComplete ldd     2,s
                     subd      <resourceremaining
-                    lbeq      AuxObjectReadInvalid
+                    beq      AuxObjectReadInvalid
                     tfr       d,y
                     ldu       <resourcebase
                     leax      assetinput,u
@@ -3464,7 +3464,7 @@ AuxFormatGlobal     ldb       <vmcurrent
                     clra
                     clrb
                     jsr       ,y       ; ensure logic zero is cache-owned
-                    lbcs      AuxGlobalRestore
+                    bcs      AuxGlobalRestore
                     ldb       <vmcacheindex
                     stb       <vmcurrent
                     ldy       ,s

@@ -1,5 +1,8 @@
 * Wild Bits owned audio adapter: private state, resident entry points and
 * position-independent user code exported by the existing cold state module.
+                    ifndef AUDIO_TICK_OFFSET
+AUDIO_TICK_OFFSET   equ 3
+                    endc
                     ifndef AUDIO_USER_COPY
 AUDIO_USER_COPY     equ 0
                     endc
@@ -17,8 +20,12 @@ soundoffsets        rmb 8
 SS.PSG              equ $C5
                     endc
                     ifne AUDIO_USER_COPY
+* Two fixed-width public entry slots; the resident tick caller uses slot 3.
 AudioBlobStart      lbra SoundCommandBody
-                    lbra SoundTickBody
+AudioTickEntry      lbra SoundTickBody
+                    ifne AudioTickEntry-AudioBlobStart-AUDIO_TICK_OFFSET
+                    error Audio tick entry ABI moved
+                    endc
 SoundCommandBody    jsr [soundcalls+12,u]
                     lbcs SoundPrivateReturn
                     ldu <resourcebase
@@ -30,7 +37,7 @@ SoundCommandBody    jsr [soundcalls+12,u]
                     ldb vmarguments,u
                     lda #3
                     jsr [soundcalls+0,u]
-                    lbcs GameSoundUnavailable
+                    bcs GameSoundUnavailable
                     ldb <vmcacheindex
                     stb <soundcache
                     jsr [soundcalls+2,u]
@@ -38,11 +45,11 @@ SoundCommandBody    jsr [soundcalls+12,u]
 * tone, DAC amplitude, big-endian duration; then FF and an elapsed-time word.
                     ldd <resourcelength
                     subd #3
-                    lbcs GameSoundUnavailable
+                    bcs GameSoundUnavailable
                     pshs d
                     andb #3
                     puls d
-                    lbne GameSoundUnavailable
+                    bne GameSoundUnavailable
                     std <soundoffsets+2
                     std <soundoffsets+4
                     std <soundoffsets+6
@@ -79,7 +86,7 @@ SoundQueueStart     lbsr GameSoundSet
                     leax 1,x
                     cmpx #6
                     blo SoundQueueStart
-                    lbra SoundTickBody
+                    bra SoundTickBody
 SoundClaimFailed    cmpb #E$DevBsy
                     bne GameSoundUnavailable
                     bra SoundDropRequest   another owner must not disable future sound
@@ -246,7 +253,7 @@ SoundCommandReady   leax soundcode,u
 GameSoundTick       ldu <resourcebase
                     tst <soundpath
                     beq GameSoundSuccess
-                    leax soundcode+3,u
+                    leax soundcode+AUDIO_TICK_OFFSET,u
                     jmp ,x
 GameSoundStop       equ SoundStopBody
 GameSoundLoad       lbsr StateLoadModule

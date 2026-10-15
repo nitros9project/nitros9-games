@@ -146,7 +146,7 @@
                     AGI_COMMAND CmdShowAgiInfo,$0000,GameVersionCommand,1 *version
                     AGI_COMMAND cmd_script_size,$100,ReplayInitialize,0 *script size
                     AGI_COMMAND cmd_set_game_id,$100,VmCommandGameId,0 *set game id
-                    AGI_COMMAND cmd_shake_screen,$100,VmPlatformUnsupported,0 *log
+                    AGI_COMMAND cmd_shake_screen,$100,VmSuccess,0 *log
                     AGI_COMMAND cmd_set_scan_start,$0000,VmCommandScanStart,0 *set scan start
                     AGI_COMMAND cmd_reset_scan_start,$0000,VmCommandScanReset,0 *reset scan start
                     AGI_COMMAND cmd_reposition_to,$300,GameReposition,1 *reposition to
@@ -177,10 +177,10 @@
                     AGI_COMMAND cmd_pop_script,$0000,ReplayRestore,0 *pop script
                     AGI_COMMAND NoopCmdsRet,$0000,VmSuccess,0 *hold key
                     AGI_COMMAND SetPriBaseStub,$100,GamePriorityBaseCommand,1 *set pri base, via patch stub
-                    AGI_COMMAND cmd_shake_screen,$180,VmPlatformUnsupported,0 *discard sound
+                    AGI_COMMAND cmd_shake_screen,$180,VmSuccess,0 *discard sound
                     AGI_COMMAND NoopCmdsRet,$0000,VmSuccess,0 *do nothing
                     AGI_COMMAND cmd_show_menu,$100,VmPlatformUnsupported,0
                     AGI_COMMAND NoopCmdsRet,$0000,VmSuccess,0 *do nothing
-                    AGI_COMMAND cmd_hide_mouse,$400,VmPlatformUnsupported,0 *hide mouse
-                    AGI_COMMAND cmd_set_upper_left,$2c0,VmPlatformUnsupported,0 *allow menu
+                    AGI_COMMAND cmd_hide_mouse,$400,VmSuccess,0 *hide mouse
+                    AGI_COMMAND cmd_set_upper_left,$2c0,VmSuccess,0 *allow menu
                     AGI_COMMAND NoopCmdsRet,$0000,VmSuccess,0 *do nothing

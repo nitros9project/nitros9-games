@@ -34,9 +34,12 @@ unchecked equivalence gates below.
 
 ## 1. Close the command coverage inventory
 
-The catalog contains 182 commands: 171 have native routes, including eight
-success-only routes; eleven are explicitly unsupported. Commands 0..17 execute
-in the VM before platform dispatch and are included in the 171. These numbers
+At the recorded baseline the catalog contained 182 commands: 171 had native
+routes, including eight success-only routes; eleven were explicitly unsupported.
+The C08–C11 correction now gives 175 routed commands and seven unsupported
+commands. Four added success-only routes reproduce actual CoCo stubs, rather
+than suppressing unimplemented CoCo behavior. Commands 0..17 execute
+in the VM before platform dispatch and are included in both totals. These numbers
 measure routing, not behavioral equivalence.
 
 The catalog's CoCo symbol names are sometimes misleading: opcode 29 is labeled
@@ -58,8 +61,8 @@ Compare the actual bodies and caller contracts, not symbol names alone.
 | C11 | 180: allow menu | `cmd_set_upper_left` stub | Consume both variable operands, match CoCo's ignored operation, and leave state/instruction alignment intact. |
 
 - [ ] **C01–C07:** Close each real diagnostic/UI/save behavior above individually.
-- [ ] **C08–C11:** Close each CoCo-stub compatibility case above individually.
-- [ ] **C12 — Existing success-only routes:** Verify all of 127, 155, 163, 164,
+- [x] **C08–C11:** Close each CoCo-stub compatibility case above individually.
+- [x] **C12 — Existing success-only routes:** Verify all of 127, 155, 163, 164,
   173, 176, 178 and 181 against their actual CoCo bodies. Record argument
   consumption, successful return and preserved state for each. In particular,
   155's fixed-origin behavior is a permitted platform difference only after its
@@ -69,6 +72,20 @@ Compare the actual bodies and caller contracts, not symbol names alone.
   component/backend boundary, meaningful test and result. Every unsupported or
   intentionally different result must link to its decision. Do not implement
   omitted PC behavior that CoCo does not implement merely to improve a count.
+
+Evidence for C08–C12: `check_logic_executor.py` executes 43 controlled scripts
+in both actual interpreters at two load addresses (172 executions). Tests use
+return/branch/condition-looking operands, execute a following assignment, and
+compare the entire variable and flag sets plus stack, cursor guards and immutable
+initialized code. The new cases fail on the old native unsupported routes and
+pass after the correction (`/tmp/sierra-parity-stub-baseline.log`,
+`/tmp/sierra-parity-stubs.log`). Opcode 155's two ignored operands also match the
+actual CoCo body; no additional platform exception is needed for that stub.
+The final rerun also passes the overlap counterpart below. Native audio
+regressions verify that opcode 175 during active playback retains the exact
+converted note/end packet sequence, completion flags and balanced ownership
+(`/tmp/sierra-parity-audio-fixed.log`). Broader audio/driver equivalence remains
+under S07/V04.
 
 Reference sources: [command catalog](objs/shared/agi-command-table.asm),
 [CoCo engine](objs/mnln.asm), [dispatch contract](tests/check_native_dispatch.py).
@@ -124,11 +141,22 @@ Existing focused tests cover portions of every family. Closing a family requires
 an explicit comparison report identifying covered boundaries and remaining
 exceptions; a native-only regression cannot by itself prove CoCo equivalence.
 
+The all-title audit also emits `coverage.json`, a complete 182-command and
+19-predicate inventory with effective routes, acceptance gates and candidate
+regression families. C13 remains open: test suggestions and routed status are
+not individual semantic comparison results, and predicate zero's reference/native
+validity must be explicitly accounted for. Resource hashes identify the audited
+versions without treating a game-directory name as sufficient provenance.
+
 ## 3. Finish the architecture and capacity work
 
 - [ ] **A01 — Reclaim code capacity:** Establish space for C01–C07 before adding
-  resident instructions. Current limits: game 23,807/23,808 bytes; helper
+  resident instructions. Baseline limits: game 23,807/23,808 bytes; helper
   8,190/8,192; writable prefix 3,191/4,096; private data 24,465/24,576.
+  Checked short branches now reduce the game to 23,779 and helper
+  to 8,111 bytes, with all 63 owners compiling and CoCo unchanged.
+  This is initial capacity recovery, not enough evidence to close A01 for all
+  remaining features.
   Record before/after budgets and preserve stack headroom and ABI checks.
   Do not solve this by silently increasing the address-space limits.
 - [ ] **A02 — Complete duplication inventory:** Review remaining engine behavior
@@ -148,7 +176,7 @@ exceptions; a native-only regression cannot by itself prove CoCo equivalence.
 
 ## 4. Acceptance across games, terminals and hardware
 
-- [ ] **V01 — Audit every bundled title:** Run script/message audits for all 14
+- [x] **V01 — Audit every bundled title:** Run script/message audits for all 14
   bundled titles; resolve parse failures and classify every unsupported/no-op
   site and unresolved dynamic destination. An audit must never imply runtime
   completion merely because it reports no missing routes.
@@ -195,3 +223,84 @@ explicitly accepted and documented by the user.** Do not convert unsupported
 commands to success-only routes, reduce test scope, or redefine parity to mark
 this checklist complete. Until then report closed gates and concrete blockers,
 not a completion percentage or an unsupported delivery date.
+
+
+## Confirmed remaining behavior differences
+
+S05 now has direct CoCo/native reproducers: string-slot contents are recursive
+on CoCo but literal on the baseline native owner; CoCo drops unknown two-byte
+percent escapes, defaults missing numeric operands to zero and wraps indices
+modulo 256. The baseline native owner differs on those paths. An isolated
+candidate is under test in `/tmp/sierra-parity-next`, with direct comparison
+logs `/tmp/sierra-format-reference.log` and
+`/tmp/sierra-format-policies-isolated.log`. Do not count that candidate as merged
+or close S05 until its complete required validation passes. Recursion-depth,
+invalid/missing-message and malformed-source bounds also need explicit parity
+or exception decisions.
+
+C07/S06 must account for the menu representation: CoCo uses its menu-bar and
+selection machinery, while the existing native backend presents a paged list.
+Existing selection/cleanup tests do not by themselves establish identical
+visibility rules or navigation behavior.
+
+## Hardware availability
+
+The user confirmed emulator-only testing on 2026-10-15. V06 remains open; this
+is not an accepted waiver of physical-hardware parity. Continue all independent
+software/emulator work and report that gate separately when it is the remaining
+external dependency.
+
+
+## Bundled-title audit inventory (2026-10-15)
+
+All 14 resource sets parse in report mode. V01 is closed as a static inventory: every
+ignored/unsupported command site is classified, dynamic targets remain explicitly
+unresolved, and overlaps are reported with byte offsets. This does not establish
+playability or close runtime destination coverage under S02/V02/V03. Reproduce:
+
+```sh
+python3 sierra/tests/audit_game_scripts.py --self-test --all-games \
+  --output-dir /tmp/sierra-parity-audits
+```
+
+Full per-logic JSON is retained under
+`.wildbits-test/parity-classified-audit-20261015` with validation log
+`/tmp/sierra-parity-classified-audit.log`. Each report includes every logic's dynamic
+calls/rooms and the unresolved sites in the directly reachable root graph.
+
+| Title | Logics | Instructions | Unsupported sites | Ignored CoCo-stub sites | Formatter findings | Dynamic sites from direct root graph | Overlapping bytes |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| blackcauldron | 85 | 10560 | 6 | 0 | 0 | 6 | 0 |
+| christmas86 | 26 | 2837 | 5 | 0 | 0 | 2 | 0 |
+| goldrush | 184 | 49898 | 6 | 0 | 1 | 4 | 0 |
+| kingsquest1 | 90 | 11413 | 3 | 4 | 0 | 2 | 0 |
+| kingsquest2 | 133 | 11676 | 4 | 4 | 1 | 8 | 0 |
+| kingsquest3 | 132 | 20564 | 0 | 88 | 0 | 17 | 0 |
+| kingsquest4 | 178 | 33465 | 6 | 12 | 0 | 5 | 0 |
+| leisuresuitlarry | 52 | 12128 | 4 | 0 | 0 | 5 | 0 |
+| manhunter1 | 66 | 30945 | 0 | 16 | 0 | 13 | 3 |
+| manhunter2 | 96 | 36507 | 0 | 61 | 0 | 14 | 0 |
+| policequest1 | 122 | 26106 | 6 | 15 | 3 | 15 | 0 |
+| spacequest0 | 82 | 17961 | 5 | 10 | 9 | 5 | 0 |
+| spacequest1 | 106 | 16401 | 4 | 4 | 2 | 2 | 0 |
+| spacequest2 | 118 | 19844 | 6 | 2 | 2 | 3 | 0 |
+
+The unsupported sites in this inventory use only opcodes 29, 133, 135 and 150
+(11, 21, 15 and 8 sites respectively). The other three unsupported routes remain
+strict-parity requirements even though this static scan finds no reachable use.
+Zero missing sites for KQ3 or Manhunter is not a gameplay equivalence claim.
+
+Manhunter I logic 159 contains a jump at byte 245 to byte 443, inside a conditional
+instruction beginning at 438. Bytes 443..445 have two instruction interpretations.
+The auditor previously rejected any overlap. Report mode now retains both
+bounded decodings and reports the three overlapping bytes explicitly; strict
+`analyze` mode still rejects overlap. Invalid/truncated predicates and out-of-range
+branches remain errors in both modes. A controlled counterpart is included in
+the actual CoCo/native executor suite to verify the two paths rather than
+assuming the resource is malformed or silently ignoring the finding. This does
+not prove Manhunter's complete control flow or puzzles.
+
+The formatter inventory contains 18 findings across six titles: literal
+percent punctuation/spacing and missing operands. Their byte locations and
+classifications are recorded in the reports. Resolve them against CoCo under
+S05 before treating them as either harmless text or native defects.

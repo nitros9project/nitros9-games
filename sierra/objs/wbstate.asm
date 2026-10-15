@@ -277,7 +277,7 @@ StateStageCopy      lda ,x+
                     ldd StateCursor,pcr
                     addd StateCount,pcr
                     std StateCursor,pcr
-                    lbra StateReadPayload
+                    bra StateReadPayload
 StateReadEnd        ldd StateCRC,pcr
                     cmpd StateHeader+6,pcr
                     lbne StateBad
@@ -291,7 +291,7 @@ StateReadEnd        ldd StateCRC,pcr
                     lbne StateFail
                     lbsr StateClose
                     lbcs StateFail
-                    lbsr StateValidate
+                    bsr StateValidate
                     lbcs StateFail
                     inc StateReady,pcr
                     clrb
@@ -358,14 +358,14 @@ StateValidate       ldd StateFirst,pcr
                     lbhs StateValidateBad
                     ldd SavedInventoryControl+3,u
                     cmpd #256
-                    lbhi StateValidateBad
+                    bhi StateValidateBad
                     ldd SavedReplay+1,u
                     bitb #1
-                    lbne StateValidateBad
+                    bne StateValidateBad
                     cmpd #510
-                    lbhi StateValidateBad
+                    bhi StateValidateBad
                     cmpd SavedReplay+3,u
-                    lblo StateValidateBad
+                    blo StateValidateBad
                     leax SavedText,u
                     ldy #1000
 StateCheckText      lda ,x+
@@ -824,11 +824,11 @@ StateFree           tst StateOwned,pcr
                     rts
 StateBad            ldb #E$BMode
 StateFail           stb StateError,pcr
-                    lbsr StateUnmap
+                    bsr StateUnmap
                     bcc StateFailClose
-                    lbsr StateUnmap
-StateFailClose      lbsr StateClose
-                    lbsr StateFree
+                    bsr StateUnmap
+StateFailClose      bsr StateClose
+                    bsr StateFree
                     tst StateCreated,pcr
                     beq StateFailReturn
                     ldx StateFilename,pcr

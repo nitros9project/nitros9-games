@@ -12,6 +12,23 @@ CASES=[
     # Operand bytes resemble return/branch opcodes: both must be consumed.
     *[(bytes([155,a,b,3,250,42,0]),{250:42},set())
       for a,b in ((0,0),(254,255),(255,254),(3,255),(255,3))],
+    # CoCo PC-compatibility stubs and zero-operand no-ops. Operand bytes
+    # deliberately resemble VM return/branch/condition markers. A command
+    # after each stub proves exact consumption through both real executors.
+    *[(bytes([3,249,73,12,221,opcode,*operands,4,250,249,0]),
+       {249:73,250:73},{221})
+      for opcode,count in ((144,1),(175,1),(179,4),(180,2))
+      for operands in (bytes(count),bytes([255])*count,bytes([254])*count,
+                       bytes((3+i)%256 for i in range(count)),
+                       bytes((255-i)%256 for i in range(count)))],
+    *[(bytes([3,249,73,12,221,opcode,4,250,249,0]),
+       {249:73,250:73},{221})
+      for opcode in (127,163,164,173,176,178,181)],
+    # AGI bytecode can have two legal decodings of the same bytes. This
+    # models Manhunter I logic 159's jump into a condition's skip operand.
+    *[(prefix+bytes.fromhex('ff 01 00 00 ff 03 00 fe 05 00 ff 01 00 01 ff 08 00 84 03 fa 2a 00 00 00 00 03 fa 49 00'),wanted,set())
+      for prefix,wanted in ((b'',{250:42}),(bytes([3,0,1]),{0:1,250:42}),
+                            (bytes([3,0,2]),{0:2,250:73}))],
     (bytes([3,255,250,1,255,2,0,3,0,7,5,0,250,7,0,2,12,255,14,255,12,200,0]),{0:255,255:251},{200}),
     (bytes([254,3,0,3,0,99,3,0,42,0]),{0:42},set()),
     (bytes([3,0,0,1,0,255,3,0,3,255,3,0,254,244,255,0]),{0:3},set()),
@@ -87,7 +104,7 @@ def main():
                         assert actual==variables,(owner,script,actual[:8],variables[:8])
                         assert flags==flagset,(owner,script,flags,flagset)
                         assert d.read(base,len(code))==initialized_code
-            print('PASS: common complete executor in both real owners at two code bases; actual command/test table dispatch and mapped native byte fetch, fixed-origin set.upper.left operand consumption, saturating/wrapping arithmetic, packed/byte flags, forward/backward jumps, bounded loop, mixed condition groups, return/frame guards and post-initialization code immutability')
+            print('PASS: common complete executor in both real owners at two code bases; actual command/test table dispatch and mapped native byte fetch, all CoCo PC stubs/zero-operand no-ops and fixed-origin set.upper.left operand consumption, saturating/wrapping arithmetic, packed/byte flags, forward/backward jumps, bounded loop, mixed condition groups, return/frame guards and post-initialization code immutability')
         finally:
             d.s.close();emulator.terminate()
             try:emulator.wait(timeout=5)

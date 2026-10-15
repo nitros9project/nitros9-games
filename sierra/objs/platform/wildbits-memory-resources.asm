@@ -1020,7 +1020,7 @@ ResourceVolumeDigit adda      #'0
                     lda       #C$CR
                     sta       ,y
                     lbsr      OpenPicturePath
-                    lbcs      ResourceFailed
+                    bcs      ResourceFailed
                     ldx       resourceoffset,u
                     ldu       resourceoffset+2,u
                     lda       <resourcepath

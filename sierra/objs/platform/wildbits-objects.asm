@@ -117,11 +117,11 @@ GameResetControllers clr     ,x+
                     leay      -1,y
                     bne       GameResetControllers
                     lbsr      GameClockGate
-                    lbcs     GameCycleReturn
+                    bcs     GameCycleReturn
                     lbsr      foreground
-                    lbcs     GameCycleReturn
+                    bcs     GameCycleReturn
                     bsr      GameReadClock
-                    lbcs     GameCycleReturn
+                    bcs     GameCycleReturn
                     lbsr      GamePollJoystick
                     bcs       GameCycleReturn
                     lbsr      GameUpdateObjects
@@ -130,7 +130,7 @@ GameResetControllers clr     ,x+
                     lda       #40
                     sta       gamekeybudget,u
 GameDrainKeyboard   lbsr      GamePollKeyboard
-                    lbcs     GameCycleReturn
+                    bcs     GameCycleReturn
                     ldu       <resourcebase
                     tst       gamekeypending,u
                     beq       GameKeyboardDone
@@ -146,7 +146,7 @@ GameKeyboardDone    tst       <bitmapowned
                     bne       GameCycleGraphics
                     lbra      GameDrawText
 GameCycleGraphics   lbsr      GameComposeScene
-                    lbcs     GameCycleReturn
+                    bcs     GameCycleReturn
                     lbsr      PresentPicture
 GameCycleReturn     rts
 GameCycleSuccess    clrb
@@ -157,7 +157,7 @@ GameCycleSuccess    clrb
 GameReadClock       ldu       <resourcebase
                     leax      gametime,u
 GameClockTimeCall   os9       F$Time
-                    lbcs     GameCycleReturn
+                    bcs     GameCycleReturn
                     ldu       <resourcebase
                     ldb       gametime+5,u
                     cmpb      #60

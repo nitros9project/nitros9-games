@@ -102,7 +102,7 @@ InputTestFalse      clrb
                     ifne      GAME_PRESENTATION
 * Digital stick 0 through the terminal driver. Never read hardware directly.
 GameJoystickCommand lbsr      AssetUnmap
-                    lbcs      GameJoystickReturn
+                    bcs      GameJoystickReturn
                     ldu       <resourcebase
                     lda       joystickenabled,u
                     eora      #1
@@ -137,7 +137,7 @@ GameJoystickReturn  rts
 * Release only a direction this stick still owns; retain keyboard/script changes.
 GamePollJoystick    ldu       <resourcebase
                     tst       joystickenabled,u
-                    lbeq      GameJoystickDone
+                    beq      GameJoystickDone
                     clra
                     ldb       #SS.Joy
                     ldx       #0
@@ -220,7 +220,7 @@ ParserClearLine     ldu       <resourcebase
                     clr       parserline,u
                     clrb
                     rts
-GameCancelLine      lbsr      ParserClearLine
+GameCancelLine      bsr      ParserClearLine
                     tst       <vminputenabled
                     lbne      ParserInputVisible
                     clrb

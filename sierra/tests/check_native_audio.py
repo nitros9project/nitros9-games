@@ -6,9 +6,10 @@ from check_wbres import exercise, idle_rom, start_cpu
 ROOT=Path(__file__).resolve().parents[1]
 
 
-def fixture(sound, requests=1, modal=False):
+def fixture(sound, requests=1, modal=False, discard_stub=False):
     # Start once, then wait for the completion flag before quitting.
     body=bytes([12,201])+bytes([99,0,200])*requests
+    if discard_stub:body+=bytes([175,255])
     if modal:body+=bytes([136])
     script=bytes([255,253,7,201,255,len(body),0])+body
     script+=bytes([255,7,200,255,2,0,134,1,0])
@@ -42,6 +43,7 @@ def main():
             assert error==211,error
             for label,files,driver in (
                 ('converted notes',{**fixture(sound),'wbstate':helper},{}),
+                ('CoCo discard-sound stub during playback',{**fixture(sound,discard_stub=True),'wbstate':helper},{}),
                 ('missing helper',{**fixture(sound),'wbstate':None},None),
                 ('missing driver',{**fixture(sound),'wbstate':helper},None),
                 ('older driver',{**fixture(sound),'wbstate':helper},{'version':3}),
@@ -56,7 +58,7 @@ def main():
                     firstblock=0x10,capture=True,psg=driver,os_call_limit=3000)
                 assert not error and not output,(label,error,output)
                 assert state['vmflags'][200]==1,(label,'completion flag')
-                if label in ('converted notes','busy then available'):
+                if label in ('converted notes','busy then available','CoCo discard-sound stub during playback'):
                     expected=[bytes([128,28,63,0,2,0])]
                     expected += [bytes([ch,255,255,0,0,0]) for ch in range(1,4)]
                     expected += [bytes([128,29,0,0,3,0]),bytes([0,255,255,0,0,0])]

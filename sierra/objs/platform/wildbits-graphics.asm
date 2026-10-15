@@ -2223,7 +2223,7 @@ PresentReleaseError tst       <errorcode
 RefreshPicture      lbsr      AssetUnmap
                     lbcs     PresentFailure
                     lbsr      PictureUnmap
-                    lbcs     PresentFailure
+                    bcs     PresentFailure
                     tst       <bitmapowned
                     lbeq      PresentPicture
                     lbra      PresentClearBitmap

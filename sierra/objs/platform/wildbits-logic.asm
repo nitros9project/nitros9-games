@@ -456,7 +456,7 @@ VmRestartRoot       ldu       <resourcebase
                     ldx       restartentry,u
                     jsr       ,x
                     bcs       VmNativeReturn
-                    lbra      StartLogic
+                    bra      StartLogic
 VmOrdinaryRoomChange equ      *
                     endc
                     lbsr      ApplyRoomChange
