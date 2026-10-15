@@ -2541,3 +2541,75 @@ independent terminals and memory recovery. Logs are
 `.wildbits-test/object-kq3-kq1-20261014/play.sh`. These checks validate this
 change and existing scenarios; `%g`, custom priority behavior and a continuous
 full-adventure playthrough remain outside this result.
+
+
+### Global-message formatter parity — 2026-10-15
+
+Wild Bits now implements `%gN` through the same shared directive selector and
+recursive formatter used for local messages and object names. A global expansion
+uses message N from logic zero, including local `%m` substitutions encountered
+inside that global text. On return, subsequent `%m` directives again use the
+original caller's messages. Four source frames and the 2047-byte output limit
+continue to bound recursion and expansion.
+
+The immutable cold adapter saves the caller's cache slot and logic-code boundary
+on its private stack. It releases ephemeral mappings, asks the existing resource
+provider to obtain/cache logic zero, selects its slab through the existing state
+callbacks, and reads its checked code boundary and message. It recursively formats
+the copied message, unmaps the temporary selection, and restores the caller's
+slot, slab metadata and code boundary. Logic instruction position and call depth
+are not changed. Error paths perform the same restoration before propagating the
+error to the interpreter's ordinary call unwind and ownership cleanup. Nested
+global substitutions therefore restore the immediately enclosing global context
+before the outermost expansion restores its original caller.
+
+The provider can load logic zero when a diagnostic starts another logic first;
+plain and LZW-compressed resources use the normal loader. This introduces no
+second decoder, patched shared code or permanent allocation. Already cached
+logic zero stays cache-owned. Module linking and the two-byte cold-entry cache
+remain shared with object-name formatting. New callbacks reuse the existing
+StateAPI table rather than duplicate cache-selection/restore implementations.
+
+Resident space was reclaimed by short branches with assembly-checked range,
+shared error tails, `CLRB` for a zero byte, and removal of a carry clear already
+performed by the NUL terminator's `CLR`. These changes affect only the native
+formatter. The result is 23,806/23,808 resident bytes, 7,936/8,192 helper bytes,
+a 3,102/4,096-byte writable helper prefix and unchanged 24,462-byte private
+storage. The helper callback contract changes the private ABI to 5; install
+matching `wbgame` and `wbstate`. WS save representation remains version 1.
+
+The format audit now recognizes `%g`. The earlier global-message findings in
+Gold Rush, Larry, Police Quest and Space Quest II disappear. Other literal or
+malformed percent sequences remain candidates for original-behavior comparison;
+this change does not establish full formatter equivalence or custom-priority
+support. The focused audit is `/tmp/sierra-global-audit-20261015.json`.
+
+`check_wbplay.py` checks exact pixels for nested global/local text, global/object
+combinations, and lazy plain/LZW logic-zero loading when logic one starts first.
+Missing resources, missing/out-of-range messages and recursion failures must
+restore the local slot and code boundary at `VmCallRestore`, before the VM's
+normal unwind restores root logic. It also renders Larry logic 12's original
+message 42 (`%g176`) and compares both output rows with the original logic-zero
+message. That case preserves the original message tables while replacing only
+the two instruction bodies with controlled bootstraps; it is a CPU test with
+simulated OS services, not an original Larry playthrough.
+
+Final validation passes all 63 owner builds and confirms all 56 CoCo module
+images are byte-identical to the previous verified build. The production native
+pair matches the matrix. The full native gameplay suite, 4,098 index/formatter
+cases, global/object/padding regression, audit self-test and private audio tests
+pass. Original KQ3/KQ1 MAME acceptance passes with ABI-5 modules, including
+save/change/restore, independent input and exit, clock and memory recovery.
+This MAME run protects the existing game/terminal behavior; the new global-message
+paths are covered by the CPU tests described above. The current 56-command
+standard target was not rerun as one uninterrupted run.
+
+Logs are `/tmp/sierra-global-matrix-20261015.log`,
+`/tmp/sierra-global-game-20261015.log`,
+`/tmp/sierra-global-index-20261015.log`,
+`/tmp/sierra-global-original-final-play-20261015.log`,
+`/tmp/sierra-global-audio-20261015.log` and
+`/tmp/sierra-global-mame-20261015.log`. The prepared interactive launcher is
+`.wildbits-test/global-kq3-kq1-20261015/play.sh`. Custom priority behavior and
+remaining literal/malformed percent policies still require migration work;
+no continuous full-adventure completion is claimed.

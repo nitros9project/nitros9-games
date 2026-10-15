@@ -2591,7 +2591,7 @@ GameFormatMessage   ldu       <resourcebase
 FormatPart          lda       formatdepth,u
                     cmpa      #4
                     lbhs      FormatInvalid
-                    ldb       #0
+                    clrb
                     lsla
                     leay      fillstack,u
                     leay      d,y
@@ -2618,13 +2618,12 @@ FormatDispatch      tst       parserbestlength,u
                     ldb       parserwordlength,u
                     FORMAT_EMIT_DIRECTIVES
 FormatUnsupported   ldb       #E$UnkSvc
-                    orcc      #1
-                    bra       FormatPartError
+                    bra       FormatSetError
 FormatDone          dec       formatdepth,u
                     clrb
 FormatReturn        rts
 FormatPartInvalid   ldb       #E$BMode
-                    orcc      #1
+FormatSetError      orcc      #1
 FormatPartError     dec       formatdepth,u
                     rts
 FormatInvalid       ldb       #E$BMode
@@ -2641,12 +2640,10 @@ FormatPut           pshs      d,y
                     sta       ,y+
                     clr       ,y
                     sty       parserreadindex,u
-                    andcc     #$FE
+* CLR of the terminator already cleared carry.
                     puls      d,y,pc
 FormatFull          puls      d,y
-                    ldb       #E$BMode
-                    orcc      #1
-                    rts
+                    bra       FormatInvalid
 FormatWord          tstb
                     beq      FormatPartInvalid
                     cmpb      #20
@@ -2675,15 +2672,16 @@ FormatWordCopy      tstb
 FormatString        equ *
                     FORMAT_EMIT_STRING_SLOT
                     NUL_STRING_COPY y,FormatStringCopy,0,FORMAT_STRING_WRITE,FORMAT_STRING_DONE,FORMAT_STRING_ERROR
-* Object names use the same checked recursive expansion as messages.
-* The cold adapter reads a bounded inventory name and resolves v[index].
-FormatObject        pshs      x
+* Global/object readers share the checked recursive expansion return.
+* Platform acquisition lives in the immutable cold helper.
+FormatExternal      pshs      x
                     leax      formatentry,u
                     ldb       #22
-                    leay      FormatObjectCallbacks,pcr
+                    leay      FormatExternalCallbacks,pcr
                     lbsr      GameColdInvoke
                     bra       FormatMessageReturn
-FormatObjectCallbacks fdb AssetUnmap-FormatObjectCallbacks,ResourceClose-FormatObjectCallbacks,FormatPart-FormatObjectCallbacks
+FormatExternalCallbacks fdb AssetUnmap-FormatExternalCallbacks,ResourceClose-FormatExternalCallbacks,FormatPart-FormatExternalCallbacks
+                    fdb ReadLogicMessage-FormatExternalCallbacks,AssetReadWord-FormatExternalCallbacks,StateAPI-FormatExternalCallbacks
 FormatMessage       pshs      x
                     lbsr      ReadLogicMessage
                     bcs       FormatMessageReturn
@@ -3292,9 +3290,12 @@ NORMAL_STRING_FOLD  equ       ParserLower
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_FORMAT_COLD_CODE
 * Object names are read into the 512-byte I/O buffer, never inventoryfile:
 * inventoryfile aliases the live recursive formatter frames in fillstack.
-* Y names relative callbacks (unmap, close, recursive format). No allocation
-* or inventory-room mutation is needed; all state lives on the private stack.
-AuxFormatObject     pshs      y
+* Y names relative callbacks: unmap, close, recurse, message, word, StateAPI.
+* Object reads do not allocate or mutate item rooms. State is private to S.
+AuxFormatExpansion  lda       parsercharacter,u
+                    cmpa      #'g
+                    lbeq      AuxFormatGlobal
+                    pshs      y
                     leas      -6,s     ; table bytes, name offset, item offset
                     clra
                     ldb       parserwordlength,u
@@ -3453,6 +3454,88 @@ AuxObjectReadInvalid ldb      #E$BMode
 AuxObjectReadError  ldu       <resourcebase
 AuxObjectReadReturn leas      4,s
                     rts
+* Nested global messages temporarily select logic zero and restore the caller.
+AuxFormatGlobal     ldb       <vmcurrent
+                    pshs      b
+                    ldd       <vmend
+                    pshs      d
+                    pshs      y
+                    ldd       ,y
+                    leay      d,y
+                    jsr       ,y
+                    lbcs      AuxGlobalReturn
+                    ldu       <resourcebase
+                    ldy       ,s
+                    ldd       10,y
+                    leay      d,y
+                    ldd       10,y
+                    leay      d,y
+                    clra
+                    clrb
+                    jsr       ,y       ; ensure logic zero is cache-owned
+                    lbcs      AuxGlobalRestore
+                    ldb       <vmcacheindex
+                    stb       <vmcurrent
+                    ldy       ,s
+                    ldd       10,y
+                    leay      d,y
+                    ldd       14,y
+                    leay      d,y
+                    jsr       ,y
+                    ldy       ,s
+                    ldd       8,y
+                    leay      d,y
+                    ldd       #0
+                    jsr       ,y
+                    bcs       AuxGlobalRestore
+                    addd      #2
+                    bcs       AuxGlobalInvalid
+                    cmpd      #2
+                    bls       AuxGlobalInvalid
+                    cmpd      <resourcelength
+                    bhs       AuxGlobalInvalid
+                    std       <vmend
+                    ldy       ,s
+                    ldd       6,y
+                    leay      d,y
+                    ldb       parserwordlength,u
+                    jsr       ,y
+                    bcs       AuxGlobalRestore
+                    ldy       ,s
+                    ldd       4,y
+                    leay      d,y
+                    jsr       ,y
+AuxGlobalRestore    pshs      b,cc
+                    ldy       2,s
+                    ldd       ,y
+                    leay      d,y
+                    jsr       ,y
+                    bcc       AuxGlobalUnmapped
+                    leas      2,s
+                    pshs      b,cc
+AuxGlobalUnmapped   ldy       2,s
+                    ldd       10,y
+                    leay      d,y
+                    ldd       12,y
+                    leay      d,y
+                    ldb       6,s
+                    stb       <vmcurrent
+                    jsr       ,y
+                    ldy       2,s
+                    ldd       10,y
+                    leay      d,y
+                    ldd       14,y
+                    leay      d,y
+                    jsr       ,y
+                    ldd       4,s
+                    std       <vmend
+                    puls      cc,b
+AuxGlobalReturn     puls      y
+                    leas      3,s
+                    rts
+AuxGlobalInvalid    ldb       #E$BMode
+                    orcc      #1
+                    bra       AuxGlobalRestore
 AuxObjectFilename   fcc       /object/
                     fcb       C$CR
 AuxObjectKey        fcc       /Avis Durgan/

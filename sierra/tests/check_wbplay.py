@@ -193,10 +193,107 @@ def main():
                 files["/game/object"] = bytes(value ^ key[i % len(key)] for i,value in enumerate(plain))
                 error,_,_ = run(files)
                 assert error == 203, ("invalid/recursive object format accepted",message,item,error)
+            # Root logic 0 and caller logic 1 deliberately use different
+            # message tables. Nested %g must restore both message and VM state.
+            def global_files(root_messages, local_message=b"%g1", boot_caller=False, compressed_root=False):
+                payloads = []
+                for number,(code,messages) in enumerate(((bytes([22,1,134,1,0]),root_messages),
+                                      (bytes([103,3,0,1,103,4,0,2,3,230,42]+([134,1] if boot_caller else [])+[0]),
+                                       [local_message,b"%m3",b"local"]))):
+                    clear = b"".join(message+b"\0" for message in messages)
+                    position = 2+2*len(messages); offsets = bytearray()
+                    for message in messages:
+                        offsets.extend(position.to_bytes(2,"little")); position+=len(message)+1
+                    payloads.append(len(code).to_bytes(2,"little")+code+bytes([len(messages)])+
+                                    position.to_bytes(2,"little")+offsets+
+                                    (clear if number==0 and compressed_root else
+                                     bytes(value ^ key[i%11] for i,value in enumerate(clear))))
+                volume = bytearray(); directory = bytearray()
+                for number,payload in enumerate(payloads):
+                    directory.extend(len(volume).to_bytes(3,"big"))
+                    stored = payload
+                    if number==0 and compressed_root:
+                        from check_lzw import packed
+                        stored = packed([(256,9)]+[(value,9) for value in payload]+[(257,9)])
+                    volume.extend(b"\x12\x34\0"+len(payload).to_bytes(2,"little")+
+                                  len(stored).to_bytes(2,"little")+stored)
+                return {"/game/logDir":bytes(directory),"/game/vol.0":bytes(volume)}
+            for messages, expected, boot, compressed in (
+                    ([b"global-%g2",b"%m3",b"root"],b"global-root",False,False),
+                    ([b"%o220/%m3",b"unused",b"root"],b"key/root",False,False),
+                    ([b"global-%g2",b"%m3",b"root"],b"global-root",True,False),
+                    ([b"global-%g2",b"%m3",b"root"],b"global-root",True,True)):
+                files = global_files(messages,boot_caller=boot,compressed_root=compressed)
+                plain = b"\x03\0\0\x03\0\xffkey\0"
+                files["/game/object"] = bytes(value ^ key[i%11] for i,value in enumerate(plain))
+                error,frame,state = run(files,arguments=b"/game 1\r" if boot else b"/game 0\r",frame_capture=True)
+                assert not error and state["vmvariables"][230] == 42, ("global caller resume",error)
+                wanted = bytearray([1])*76800
+                for row,text in ((3,expected),(4,b"local")):
+                    for col,char in enumerate(text):
+                        for gy in range(8):
+                            for pixel in range(8):
+                                wanted[(row*8+gy)*320+col*8+pixel] = 16 if font[char*8+gy]&(128>>pixel) else 1
+                assert frame == wanted, "global/local message context or object expansion corrupted"
+            for messages, source in (([b"%g1"],b"%g1"),([b"root"],b"%g2"),
+                                     ([b"root"],b"%g0"),([b"root"],b"%g256")):
+                restored = []
+                def before_unwind(debug,registers,syms):
+                    restored.append((debug.read(syms["vmcurrent"],1),debug.read(syms["vmend"],2)))
+                error,_,state = run(global_files(messages,source),arguments=b"/game 0\r",
+                                    breakpoint_hooks={"VmCallRestore":before_unwind})
+                assert error == 203, ("invalid/recursive global format",source,error)
+                assert restored == [(b"\x01",b"\0\x0e")], ("global error did not restore caller",restored)
+                assert state["vmcurrent"] == b"\0" and state["vmend"] == b"\0\x07", "VM failed to unwind to root"
+            files = global_files([b"root"],boot_caller=True)
+            files["/game/logDir"] = b"\xff"*3 + files["/game/logDir"][3:]
+            error,_,state = run(files,arguments=b"/game 1\r")
+            assert error and state["vmcurrent"] == b"\0" and state["vmend"] == b"\0\x10", "missing global resource damaged caller"
+            # Keep Larry's original global/local message tables unchanged;
+            # only the two instruction bodies are controlled bootstraps.
+            from audit_game_scripts import logic_resource
+            from check_lzw import packed
+            game = Path(__file__).resolve().parents[1]/"leisuresuitlarry"
+            original_directory = (game/"logDir").read_bytes()
+            directory = bytearray(b"\xff"*39); volume = bytearray()
+            expected = None
+            for number,body in ((0,bytes([22,12,134,1,0])),
+                                (12,bytes([103,3,0,42,3,230,42,0]))):
+                original, encrypted = logic_resource(game,number,int.from_bytes(
+                    original_directory[number*3:number*3+3],"big"))
+                at = 2+int.from_bytes(original[:2],"little")
+                if number == 0:
+                    base = at+1; start = base+2+2*original[at]
+                    end = base+int.from_bytes(original[base:base+2],"little")
+                    text = original[start:end]
+                    if encrypted: text = bytes(value ^ key[i%11] for i,value in enumerate(text))
+                    offset = base+int.from_bytes(original[base+352:base+354],"little")-start
+                    expected = text[offset:].split(b"\0")[0]
+                    assert 0 < len(expected) <= 80 and b"%" not in expected
+                payload = len(body).to_bytes(2,"little")+body+original[at:]
+                stored = payload
+                if not encrypted:
+                    codes = []
+                    for position in range(0,len(payload),200):
+                        codes += [(256,9)]+[(value,9) for value in payload[position:position+200]]
+                    stored = packed(codes+[(257,9)])
+                directory[number*3:number*3+3] = len(volume).to_bytes(3,"big")
+                volume.extend(b"\x12\x34\0"+len(payload).to_bytes(2,"little")+
+                              len(stored).to_bytes(2,"little")+stored)
+            error,frame,state = run({"/game/logDir":bytes(directory),"/game/vol.0":bytes(volume)},
+                                    arguments=b"/game 0\r",frame_capture=True)
+            assert not error and state["vmvariables"][230] == 42, ("original Larry global message",error)
+            wanted = bytearray([1])*76800
+            for position,char in enumerate(expected):
+                row,column = divmod(position,40)
+                for gy in range(8):
+                    for pixel in range(8):
+                        wanted[((3+row)*8+gy)*320+column*8+pixel] = 16 if font[char*8+gy]&(128>>pixel) else 1
+            assert frame == wanted, "original Larry %g176 text differs from original root message"
             for malformed in (b'%m1',b'%v256',b'%w0',b'%w20',b'%x1',b'%v220|256'):
                 error,_,_=run(fixture(bytes([101,1,134,1,0]),message=malformed))
                 assert error, ('malformed format accepted',malformed)
-            print('PASS: byte math, zero-divisor rejection, random range edges, follow completion/high flag, signed/absolute placement and blocked-position search, stop/start/force update and retained sprites, pause/resume clock freezing, modal restoration, formatted variables/strings/words/object names/nested messages, high item indices, repeated cold calls, 511/512-byte name bounds and rejection bounds, and ownership cleanup')
+            print('PASS: byte math, zero-divisor rejection, random range edges, follow completion/high flag, signed/absolute placement and blocked-position search, stop/start/force update and retained sprites, pause/resume clock freezing, modal restoration, formatted variables/strings/words/object names/global messages, nested global/local contexts, lazy plain/LZW root loads, original Larry %g176 pixels and error restoration, high item indices, repeated cold calls, 511/512-byte name bounds and rejection bounds, and ownership cleanup')
         finally:
             d.s.close()
             emu.terminate()

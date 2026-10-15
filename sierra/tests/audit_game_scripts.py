@@ -108,10 +108,10 @@ def message_formats(payload, encrypted):
             # Keep the operand as decimal text: arbitrarily long malformed
             # operands must not trigger Python integer conversion limits.
             operand = bytes(message[digits:cursor]).decode("ascii")
-            if directive not in "wsmvo" or not directive or not operand:
+            if directive not in "wsmvog" or not directive or not operand:
                 findings.append({"message": index + 1, "offset": origin,
                                  "directive": directive, "operand": operand,
-                                 "reason": "unsupported directive" if directive not in "wsmvo" or not directive
+                                 "reason": "unsupported directive" if directive not in "wsmvog" or not directive
                                            else "missing operand"})
     return findings
 
@@ -211,10 +211,10 @@ def main():
     args=parser.parse_args()
     if args.self_test:
         # One code byte, two offsets (second absent), then plain/encrypted text.
-        message = b"%%g1 %g2 %o3 %v7|2 %s1 %w2 %m4 %v\0"
+        message = b"%%g1 %x2 %o3 %v7|2 %s1 %w2 %m4 %g4 %v\0"
         header = b"\x01\0\0\x02" + (6+len(message)).to_bytes(2, "little") + b"\x06\0\0\0"
-        expected = [{"message":1,"offset":5,"directive":"g","operand":"2","reason":"unsupported directive"},
-                    {"message":1,"offset":31,"directive":"v","operand":"","reason":"missing operand"}]
+        expected = [{"message":1,"offset":5,"directive":"x","operand":"2","reason":"unsupported directive"},
+                    {"message":1,"offset":35,"directive":"v","operand":"","reason":"missing operand"}]
         assert message_formats(header+message, False) == expected
         key = b"Avis Durgan"
         encrypted = bytes(value ^ key[i % len(key)] for i,value in enumerate(message))

@@ -107,24 +107,24 @@ FORMAT_SCAN_READ macro
                     lda ,x+
                     endm
 FORMAT_SCAN_END macro
-                    lbeq FormatDone
+                    beq FormatDone
                     endm
 FORMAT_SCAN_ESCAPE macro
                     beq FormatDirective
                     endm
 FORMAT_SCAN_WRITE macro
                     lbsr FormatPut
-                    lbcs FormatPartError
+                    bcs FormatPartError
                     endm
 
 * ===== format-directive =====
-FORMAT_DIRECTIVE_GLOBAL_ENABLED equ 0
+FORMAT_DIRECTIVE_GLOBAL_ENABLED equ 1
 FORMAT_DIRECTIVE_OBJECT_ENABLED equ 1
 FORMAT_DIRECTIVE_COMPARE macro
                     cmpa #\1
                     endm
 FORMAT_DIRECTIVE_WORD macro
-                    lbeq FormatWord
+                    beq FormatWord
                     endm
 FORMAT_DIRECTIVE_STRING macro
                     lbeq FormatString
@@ -136,8 +136,12 @@ FORMAT_DIRECTIVE_VARIABLE macro
                     lbeq FormatVariable
                     endm
 
+FORMAT_DIRECTIVE_GLOBAL macro
+                    lbeq FormatExternal
+                    endm
+
 FORMAT_DIRECTIVE_OBJECT macro
-                    lbeq FormatObject
+                    lbeq FormatExternal
                     endm
 
 * ===== format-string =====

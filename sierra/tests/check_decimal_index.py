@@ -97,9 +97,9 @@ def main():
                                        (b'%s0|2', b'|2', 0),
                                        (b'%v7|255'*9, None, syms['E$BMode'])]
                         # Every other non-NUL directive must retain the native
-                        # unsupported policy, including CoCo's global form.
+                        # unsupported policy, excluding the implemented global/object forms.
                         cases_full += [(b'%' + bytes([letter]) + b'1', None, syms['E$UnkSvc'])
-                                       for letter in range(1, 256) if letter not in b'wvsmo%']
+                                       for letter in range(1, 256) if letter not in b'wvsmog%']
                         output = private+syms['fillstack']+2048
                         for source, wanted, error in cases_full:
                             d.write(address, source+b'\0')

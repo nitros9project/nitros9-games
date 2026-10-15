@@ -10,7 +10,7 @@ algorithms live in `objs/shared`. See
 Build with `make -C sierra/objs -f wildbits.mk all` from the games repository. Install
 `wbgame`, `wbfont`, and the matching `wbstate` auxiliary helper in the OS-9
 execution directory, with read/execute access. The current private helper ABI
-is version 4; install both modules together when upgrading.
+is version 5; install both modules together when upgrading.
 Keep the original game resources together in a readable directory, then run:
 
 ```text
