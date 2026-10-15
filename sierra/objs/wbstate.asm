@@ -51,6 +51,12 @@ StateSaveID         lda ,y+
                     ldb vmcache,u
                     stb StateHeader+16,pcr
                     clr StateHeader+17,pcr
+                    ldd priorityscale,u
+                    beq StateDefaultPriority
+                    lda prioritybase,u
+                    inca
+                    sta StateHeader+17,pcr
+StateDefaultPriority equ *
                     tst gamebackgroundowned,u
                     beq StateSaveCurrentPicture
                     ldd gamebackgroundfirst,u
@@ -200,8 +206,9 @@ StateCheckID        lda ,x+
                     ldb StateHeader+16,pcr
                     cmpb vmcache,u
                     lbne StateBad
-                    tst StateHeader+17,pcr
-                    lbne StateBad
+                    lda StateHeader+17,pcr
+                    cmpa #168
+                    lbhi StateBad
                     ldd StateHeader+4,pcr
                     addd #8191
                     lsra
@@ -529,6 +536,17 @@ StateRestoreCopy    lda ,x+
                     bne StateRestoreChunk
                     bra StateRestoreRange
 StateRestorePixels  ldu StateBase,pcr
+                    ldd #0
+                    std priorityscale,u
+                    lda StateHeader+17,pcr
+                    beq StatePriorityReady
+                    deca
+                    sta prioritybase,u
+                    ldy #2
+                    STATE_CALL 26
+                    ldu StateBase,pcr
+                    lbsr StatePriorityScale
+StatePriorityReady  ldu StateBase,pcr
                     lda #$FF
                     sta gameclocklast,u
                     lda #1
@@ -827,6 +845,25 @@ STATE_COPY_FIELD    macro
                     fdb \2,\3
 StateFieldOffset    set StateFieldOffset+\3
                     endm
+                    use shared/priority-bands.asm
+PRIORITY_SCALE_BASE macro
+                    subb prioritybase,u
+                    endm
+PRIORITY_SCALE_DIVIDE macro
+                    ldy #0
+PriorityScaleLoop   subd #10
+                    bcs PriorityScaleDone
+                    leay 1,y
+                    bra PriorityScaleLoop
+PriorityScaleDone   tfr y,d
+                    endm
+PRIORITY_SCALE_STORE macro
+                    std priorityscale,u
+                    endm
+* Pure private-field operation, valid in the linked image and copied prefix.
+StatePriorityScale  PRIORITY_BUILD_SCALE
+                    andcc #$FE
+                    rts
 StateRanges         equ *
                     STATE_SCHEMA STATE_COPY_FIELD
 StateCoreBytes      equ StateFieldOffset

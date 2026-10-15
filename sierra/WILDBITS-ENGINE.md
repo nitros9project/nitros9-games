@@ -13,7 +13,7 @@ owners; native publishes AGI flag 1 only for ego. Selected-cel positioning is al
 height/horizon adjustment. Native platform commands now use an immutable relative dispatch table
 from the shared AGI catalog. Both decoders also expand the shared LZW
 window-alignment/mask and dictionary-walk core. The game is 23,807 bytes, with one resident code byte free;
-process data is 24,460 bytes (116 bytes below its three-page limit).
+process data is 24,465 bytes (111 bytes below its three-page limit).
 The per-cel visibility byte reuses the sort key after collection completes.
 
 
@@ -2613,3 +2613,123 @@ Logs are `/tmp/sierra-global-matrix-20261015.log`,
 `.wildbits-test/global-kq3-kq1-20261015/play.sh`. Custom priority behavior and
 remaining literal/malformed percent policies still require migration work;
 no continuous full-adventure completion is claimed.
+
+
+## Custom priority bands and fixed-priority depth (2026-10-15)
+
+Wild Bits now implements AGI opcode 174, `set.pri.base`, through the shared
+command catalog and its screen backend. The common `shared/priority-bands.asm`
+component defines the fixed-point scale, row-offset multiplication and default
+fixed-priority projection used by
+CoCo's existing table builder and the native implementation. CoCo keeps its
+168-byte lookup table and division interfaces; the shared macros emit the same
+instructions as before. All 56 CoCo module images remain byte-identical.
+
+For a base in 0..167, the scale is `floor((168-base)*168/10)`. Rows above the
+base have priority 4. Other rows use
+`min(15,5+floor((row-base)*168/scale))`. This is deliberately the CoCo integer
+calculation, including truncation, rather than an approximate ten-band split.
+Base 48 reproduces the default bands. Wild Bits rejects bases 168..255 with
+`E$BMode` before changing state. This validation does not alter CoCo's existing
+invalid-input behavior.
+
+The native backend stores only a one-byte base and a two-byte scale in each
+process's private allocation. Scale zero selects the existing default row
+calculation; a custom scale is always nonzero. Screen initialization restores
+default mode, including restart. There is no shared mutable priority table and
+no additional allocation or buffer mapping. The custom row and band-height
+operations execute immutable helper code using U-relative private fields.
+The game passes a small selector through its cached screen entry, preserving
+its object pointer and registers. `add.to.pic` control-box height uses the same
+custom band boundaries as sprite occlusion.
+
+Fixed-priority objects also need a projected depth. Sorting by their actual
+baseline incorrectly lets a fixed-priority sprite cover an automatic sprite
+within the same band. The default projected row is the CoCo byte calculation
+`48+12*(priority-5)`. In custom mode it is the first row whose table priority
+reaches the requested value: zero for priorities through 4, 168 for priority
+15, and `base+ceil((priority-5)*scale/168)` otherwise. The native collection
+routine now obtains both the priority and projected row from its priority
+provider. It preserves the object's fixed priority and uses the projected row
+for depth ordering. A regression paints overlapping, different-colored cels
+and checks the complete output frame in default and custom modes.
+
+The custom path uses bounded integer loops. Scale calculation happens when
+the base changes or a custom snapshot is restored; row calculation requires
+at most ten subtractions. Fixed-row projection uses at most nine additions
+and a bounded division. Default rendering retains its original band arithmetic
+with an added mode check and register preservation. These checks establish
+correctness and bounded work, not zero cycle overhead or physical-hardware
+performance equivalence.
+
+### Persistence and module contracts
+
+The matching game/helper private ABI is now 6. Install `wbgame` and `wbstate`
+together. The native WS save format remains version 1 with its existing payload
+schema. Header byte 17, formerly required to be zero, is now zero for default
+mode or `base+1` for custom mode. Values 169..255 are rejected during validation.
+Existing default snapshots remain readable. Older readers reject custom
+snapshots because their reserved byte is nonzero; they do not silently restore
+a custom scene using default bands. The stored scale is derived again rather
+than serialized.
+
+Restore warms the screen helper entry before rebuilding a custom scale and
+composing sprites. This matters when restore happens before the first game
+cycle and the cached entry is still zero. A new resident callback supplies that
+operation; helper ABI validation also covers the private layout change.
+The linked helper stays immutable. Its writable state prefix remains copied
+into the calling process's reserved workspace.
+
+To stay within the existing code windows, native startup now relies on
+`GameClearPrivate` for fields it already clears, instead of clearing them again
+or calling redundant input/string/cache initializers. Font, adapter and argument
+storage remain outside that clear. Diagnostic owners retain their explicit
+initializers. The cold inventory-name formatter also calls the resident bounded
+resource reader rather than maintaining a duplicate partial-read loop. Its EOF
+accounting, name bounds, decryption offsets and cleanup remain covered by the
+formatter regressions.
+
+The final game is 23,807/23,808 code bytes with 24,465 private bytes. The helper
+is 8,190/8,192 linked bytes with a 3,191/4,096-byte writable prefix. Further
+features need space reclaimed or code moved; these limits remain enforced.
+
+### Validation scope
+
+`check_priority_bands.py` runs the actual CoCo table builder for every valid
+base, compares 4,565 native custom row/band-height cases, checks every default
+row and all transitions, and verifies fixed-row projection for all 16 priorities
+at every custom base plus default mode. Invalid bases preserve state. Stack,
+register, object-record and immutable-code guards are checked. The overlapping
+sprite regression fails with the old actual-baseline sort and passes with the
+projected sort. `check_add_to_picture.py` checks 52 default/custom painting
+scenarios, including exact priority/control pixels and occlusion.
+
+The reproducible MAME runner is `tests/check_priority_mame.py`, documented in
+[the emulator guide](WILDBITS-MAME.md). It uses a controlled AGI fixture to change
+base 80 to 40, restore 80, and compare the saved/restored scene pixels. A second
+terminal retains base 20 through the first instance's restore and exit. A fresh
+boot restores the custom file before its first cycle, starting with scale and
+cached entry both zero. It also checks snapshot header/checksum, successful
+exits and exact free-memory recovery. This is real-driver emulator acceptance,
+not a full original-game playthrough.
+
+The complete native gameplay suite passes, including original quest chains,
+restart, recycled private memory, persistence and rendering. Its log is
+`/tmp/sierra-priority-final-game.log`. All 63 owners build, and the native
+production pair matches the matrix.
+All 55 shared components pass conditional-scope checks. The formatter suite,
+4,098 index/formatter calls, native audio suite, 1,024 dispatch cases and both
+MAME acceptance runners pass with the final ABI-6 binaries. KQ4's static audit
+covers 178 logics and 33,465 instructions; opcode 174 no longer appears among
+unsupported command sites. Other audited command gaps and literal/malformed
+formatter policies remain migration work. No complete-adventure equivalence
+is claimed, and the current 57-command target was not run uninterrupted.
+
+Reproduction artifacts are `.wildbits-test/priority-shared-final-matrix-20261015`,
+`.wildbits-test/priority-final-acceptance-20261015` and
+`.wildbits-test/priority-final-kq3-kq1-20261015` (including its interactive
+`play.sh`). Focused logs are `/tmp/sierra-priority-final-priority.log`,
+`/tmp/sierra-priority-final-render.log`, `/tmp/sierra-priority-final-format.log`,
+`/tmp/sierra-priority-final-index.log`, `/tmp/sierra-priority-final-audio.log`,
+`/tmp/sierra-priority-final-dispatch.log`, `/tmp/sierra-priority-final-mame.log`
+and `/tmp/sierra-priority-final-kq3.log`.

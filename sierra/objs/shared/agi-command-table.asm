@@ -176,7 +176,7 @@
                     AGI_COMMAND cmd_push_script,$0000,ReplaySaveCheckpoint,0 *push script
                     AGI_COMMAND cmd_pop_script,$0000,ReplayRestore,0 *pop script
                     AGI_COMMAND NoopCmdsRet,$0000,VmSuccess,0 *hold key
-                    AGI_COMMAND SetPriBaseStub,$100,VmPlatformUnsupported,0 *set pri base, via patch stub
+                    AGI_COMMAND SetPriBaseStub,$100,GamePriorityBaseCommand,1 *set pri base, via patch stub
                     AGI_COMMAND cmd_shake_screen,$180,VmPlatformUnsupported,0 *discard sound
                     AGI_COMMAND NoopCmdsRet,$0000,VmSuccess,0 *do nothing
                     AGI_COMMAND cmd_show_menu,$100,VmPlatformUnsupported,0

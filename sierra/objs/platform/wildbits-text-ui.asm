@@ -883,7 +883,7 @@ StateAPI            fdb       AssetUnmap-StateAPI,PictureUnmap-StateAPI
                     fdb       VmSlotAddress-StateAPI,VmRestoreAsset-StateAPI
                     fdb       PictureAllocate-StateAPI,PicturePointer-StateAPI
                     fdb       GameSaveBackground-StateAPI,GameComposeScene-StateAPI
-                    fdb       RefreshPicture-StateAPI
+                    fdb       RefreshPicture-StateAPI,GameWarmPriority-StateAPI
 
                     else
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_DICTIONARY_CODE
@@ -2681,7 +2681,7 @@ FormatExternal      pshs      x
                     lbsr      GameColdInvoke
                     bra       FormatMessageReturn
 FormatExternalCallbacks fdb AssetUnmap-FormatExternalCallbacks,ResourceClose-FormatExternalCallbacks,FormatPart-FormatExternalCallbacks
-                    fdb ReadLogicMessage-FormatExternalCallbacks,AssetReadWord-FormatExternalCallbacks,StateAPI-FormatExternalCallbacks
+                    fdb ReadLogicMessage-FormatExternalCallbacks,AssetReadWord-FormatExternalCallbacks,StateAPI-FormatExternalCallbacks,ResourceReadExact-FormatExternalCallbacks
 FormatMessage       pshs      x
                     lbsr      ReadLogicMessage
                     bcs       FormatMessageReturn
@@ -3239,6 +3239,7 @@ ParserNormalize     ldu       <resourcebase
                     endc
                     use       shared/bounded-string-copy.asm
 * Private 12-slot, 40-byte string table matching the existing CoCo layout.
+                    ifeq GAME_PRESENTATION
 StringsInitialize   ldu       <resourcebase
                     leax      vmstrings,u
                     ldy       #480
@@ -3247,6 +3248,7 @@ StringsClear        sta       ,x+
                     leay      -1,y
                     bne       StringsClear
                     rts
+                    endc
 SetStringCommand    ldu       <resourcebase
                     lda       vmarguments,u
                     cmpa      #12
@@ -3400,27 +3402,16 @@ AuxObjectReadAt     pshs      d,y
                     bcs       AuxObjectReadError
                     ldu       <resourcebase
                     leax      assetinput,u
-                    ldy       2,s
-                    stx       <resourcepointer
-                    sty       <resourceremaining
-AuxObjectReadMore   lda       <resourcepath
-                    ldx       <resourcepointer
-                    ldy       <resourceremaining
-                    os9       I$Read
-                    bcs       AuxObjectReadEnd
-                    cmpy      #0
-                    lbeq      AuxObjectReadInvalid
-                    tfr       y,d
-                    leax      d,x
-                    stx       <resourcepointer
-                    ldy       <resourceremaining
-                    pshs      d
-                    tfr       y,d
-                    subd      ,s++
-                    std       <resourceremaining
-                    bne       AuxObjectReadMore
-                    bra       AuxObjectReadComplete
-AuxObjectReadEnd    cmpb      #E$EOF
+* Reuse the resident bounded reader, including partial-read/EOF accounting.
+                    ldy       12,s
+                    ldd       12,y
+                    leay      d,y
+                    pshs      y
+                    ldy       4,s
+                    jsr       [,s]
+                    leas      2,s
+                    bcc       AuxObjectReadComplete
+                    cmpb      #E$EOF
                     lbne      AuxObjectReadError
 AuxObjectReadComplete ldd     2,s
                     subd      <resourceremaining

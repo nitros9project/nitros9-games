@@ -624,26 +624,39 @@ GameClearPrivate    sta       ,x+
                     lda       #$FF
                     sta       gameclockpath,u
                     endc
+* GameClearPrivate already initialized native controls and arrays.
+* Probes retain their explicit zeroing and initialization calls.
+                    ifeq      GAME_PRESENTATION
                     clr       <resourceopen
+                    endc
                     ifne      AGI_ASSET
                     ifne      DECODE_PICTURE
+                    ifeq      GAME_PRESENTATION
                     clr       <pictureowned
                     clr       <picturemapped
                     clr       <decodeerror
+                    endc
                     ifne      PRESENT_PICTURE
+                    ifne      GAME_PRESENTATION
+                    stu       <dbase
+                    else
                     pshs      x
                     lbsr      PresentationInitialize
                     puls      x
                     endc
                     endc
                     endc
+                    endc
                     ifne      AGI_ASSET
+                    ifeq      GAME_PRESENTATION
                     clr       <assetowned
                     clr       <assetmapped
                     clr       <asseterror
                     clr       <resourcekind
+                    endc
                     ifne      AGI_VM
                     pshs      x
+                    ifeq      GAME_PRESENTATION
                     clr       <replaylimit
                     clr       <replayused
                     clr       <replayused+1
@@ -651,15 +664,20 @@ GameClearPrivate    sta       ,x+
                     clr       <replaycheckpoint+1
                     clr       <vmroompending
                     clr       <vmroomchanges
+                    endc
                     lda       #36
                     sta       <vmhorizon
                     lda       #1
                     sta       <vmplayercontrol
+                    ifeq      GAME_PRESENTATION
                     lbsr      InputInitialize
+                    endc
                     lbsr      ScreenInitialize
+                    ifeq      GAME_PRESENTATION
                     lbsr      StringsInitialize
                     lbsr      MenuInitialize
                     lbsr      VmClearCache
+                    endc
                     puls      x
                     endc
                     pshs      x

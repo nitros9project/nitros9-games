@@ -3,6 +3,7 @@
 
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_INPUT_CODE
 * ===== wildbits-input-code =====
+                    ifeq GAME_PRESENTATION
 InputInitialize     clr       <vmkeycount
                     clr       <vmhavekey
                     ldu       <resourcebase
@@ -13,6 +14,7 @@ InputClearController sta      ,x+
                     leay      -1,y
                     bne       InputClearController
                     rts
+                    endc
 SetKeyCommand       ldu       <resourcebase
                     leax      vmkeys,u
                     ldy       #0

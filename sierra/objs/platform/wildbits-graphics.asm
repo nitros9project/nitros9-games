@@ -640,6 +640,17 @@ AddPicControlBox    lsla
                     sta       <DrawColor
                     lda       #$F0
                     sta       <DrawMask
+                    pshs      x,y,u
+                    ldx       <resourcebase
+                    ldd       priorityscale,x
+                    beq       PriorityBoxDefault
+                    ldu       <resourcebase
+                    ldx       screenentry,u
+                    ldy       #1
+                    jsr       ,x
+                    puls      x,y,u
+                    bra       AddPicBoxHeight
+PriorityBoxDefault     puls      x,y,u
                     ldb       4,u
                     cmpb      #48
                     blo       AddPicBoxHeight
@@ -719,8 +730,6 @@ SpriteCollect       ldb       spriteid,x
                     bne       SpriteCollectNext
                     stu       spriteobject,x
                     lbsr      SpriteCalculatePriority
-                    lda       $24,u
-                    ldb       4,u
                     std       spritekey,x
                     ldb       spritecount,x
                     lda       #4
@@ -777,10 +786,24 @@ SpriteDrawNext      ldb       spriteorder,x
 SpriteSceneDone     clrb
 SpriteReturn        rts
 
+                    use shared/priority-bands.asm
+* Return D=(priority,sort row); preserve X/Y/U and fixed object priorities.
 * Default AGI priority: 4 above row 48; subsequent 12-row bands are 5..14.
 SpriteCalculatePriority lda       $26,u
                     bita      #4
-                    bne       SpritePriorityDone
+                    bne       SpriteFixedPriority
+                    pshs      x,y,u
+                    ldx       <resourcebase
+                    ldd       priorityscale,x
+                    beq       PriorityDefault
+                    ldu       <resourcebase
+                    ldx       screenentry,u
+                    ldy       #0
+                    jsr       ,x
+                    puls      x,y,u
+                    sta       $24,u
+                    rts
+PriorityDefault     puls      x,y,u
                     lda       #4
                     ldb       4,u
                     cmpb      #48
@@ -791,7 +814,22 @@ SpritePriorityBand  subb      #12
                     inca
                     bra       SpritePriorityBand
 SpritePriorityStore sta       $24,u
-SpritePriorityDone  rts
+                    ldb       4,u
+                    rts
+* Fixed priority projects the sort row onto the selected priority band.
+SpriteFixedPriority pshs      x,y,u
+                    ldx       <resourcebase
+                    ldd       priorityscale,x
+                    beq       PriorityFixedDefault
+                    ldu       <resourcebase
+                    ldx       screenentry,u
+                    ldy       #3
+                    jsr       ,x
+                    puls      x,y,u,pc
+PriorityFixedDefault puls     x,y,u
+                    PRIORITY_PROJECT_DEFAULT $24,u
+                    lda       $24,u
+                    rts
 
 * U=private object record. Read one bounded RLE row into private staging,
 * unmap the view, then plot it in the combined buffer. Never map both.
@@ -1667,6 +1705,7 @@ CoCoRGBPalette      fcb       0,0,0,0,0,0,0,255,170,0,0,255,0,170,85,255
 * Shared native presentation entry points. No module header or fixed buffers.
 * The combined buffer stays owned by the decoder. Only one mapping is live:
 * copy a source span to private row staging, unmap, then map the framebuffer.
+                    ifeq      GAME_PRESENTATION
 PresentationInitialize stu    <dbase
                     leax      dbase,u
                     ldb       #nearend-dbase
@@ -1677,6 +1716,7 @@ PresentationInitLoop clr      ,x+
                     clr       <presentoffset
                     clr       <presentoffset+1
                     rts
+                    endc
                     ifne      GAME_PRESENTATION
 * Re-publish colors without copying the game image or touching other terminals.
 GamePaletteRefresh  lbsr      AssetUnmap
@@ -2192,7 +2232,12 @@ RefreshPicture      lbsr      AssetUnmap
                     else
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_SCREEN_CODE
 * ===== wildbits-screen-code =====
-ScreenInitialize    lda       #'_
+ScreenInitialize    equ *
+                    ifne GAME_PRESENTATION
+                    ldd       #0
+                    std       priorityscale,u
+                    endc
+                    lda       #'_
                     sta       <vmcursor
                     lda       #15
                     sta       <vmtextforeground
@@ -2208,10 +2253,11 @@ ScreenInitialize    lda       #'_
                     rts
                     ifne      GAME_PRESENTATION
 GameMonitorCommand  equ       *
-ScreenCommand       ldu       <resourcebase
+GamePriorityBaseCommand equ    *
+ScreenCommand       leay      ScreenCallbacks,pcr
+GameWarmPriority    ldu       <resourcebase
                     leax      screenentry,u
                     ldb       #14
-                    leay      ScreenCallbacks,pcr
                     lbra      GameColdInvoke
 ScreenCallbacks     fdb       ReadLogicMessage-ScreenCallbacks,GamePaletteRefresh-ScreenCallbacks,GameDrawText-ScreenCallbacks
                     else
@@ -2586,11 +2632,103 @@ AuxShakeChunkDone   ldu       <resourcebase
                     rts
                     else
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_SCREEN_COLD_CODE
-* Immutable UI configuration backend; native Y is a resident callback table.
+* Immutable screen backend. Native Y normally points to resident callbacks.
+* Internal selectors: 0=row priority, 1=band height, 2=warm, 3=fixed sort row.
                     ifeq      GAME_PRESENTATION
 ScreenCommand       equ       *
                     endc
+                    ifne GAME_PRESENTATION
+                    use shared/priority-bands.asm
+* First row at/above the fixed band: base+ceil((priority-5)*scale/168).
+AuxPriorityProject  ldx       6,s
+                    lda       $24,x
+                    pshs      a
+                    ldb       #168
+                    cmpa      #15
+                    bhs       PriorityProjectDone
+                    clrb
+                    cmpa      #4
+                    bls       PriorityProjectDone
+                    suba      #5
+                    tfr       a,b
+                    clra
+                    tfr       d,x
+                    ldd       #167
+PriorityProjectSum  cmpx      #0
+                    beq       PriorityProjectDivide
+                    addd      priorityscale,u
+                    leax      -1,x
+                    bra       PriorityProjectSum
+PriorityProjectDivide ldx     #0
+PriorityProjectLoop cmpd      #168
+                    blo       PriorityProjectRow
+                    subd      #168
+                    leax      1,x
+                    bra       PriorityProjectLoop
+PriorityProjectRow  tfr       x,d
+                    addb      prioritybase,u
+PriorityProjectDone puls      a,pc
+* Resident caller saved X/Y/U; its object U is at 6,S after JSR.
+AuxPriorityRow      ldx       6,s
+                    ldb       4,x
+                    bra       PriorityAtRow
+AuxPriorityHeight   ldx       6,s
+                    ldb       4,x
+                    pshs      b
+                    bsr       PriorityAtRow
+                    pshs      a
+PriorityHeightLoop  tstb
+                    beq       PriorityHeightDone
+                    decb
+                    bsr       PriorityAtRow
+                    cmpa      ,s
+                    beq       PriorityHeightLoop
+                    incb
+PriorityHeightDone  negb
+                    addb      1,s
+                    leas      2,s
+                    rts
+PriorityAtRow       pshs      b,y
+                    subb      prioritybase,u
+                    bcs       PriorityAboveBase
+                    PRIORITY_MULTIPLY_OFFSET
+                    ldy       #5
+PriorityRowLoop     cmpd      priorityscale,u
+                    blo       PriorityRowDone
+                    subd      priorityscale,u
+                    leay      1,y
+                    cmpy      #15
+                    blo       PriorityRowLoop
+PriorityRowDone     tfr       y,d
+                    tfr       b,a
+                    puls      b,y,pc
+PriorityAboveBase   lda       #4
+                    puls      b,y,pc
+AuxPrioritySet      ldb       vmarguments,u
+                    cmpb      #168
+                    bhs       AuxPriorityInvalid
+                    stb       prioritybase,u
+                    lbsr      StatePriorityScale
+AuxPriorityReady    clrb
+                    rts
+AuxPriorityInvalid  ldb       #E$BMode
+                    orcc      #1
+                    rts
+                    endc
 AuxScreenCommand    ldu       <resourcebase
+                    ifne      GAME_PRESENTATION
+                    cmpy      #3
+                    lbeq      AuxPriorityProject
+                    cmpy      #2
+                    beq       AuxPriorityReady
+                    cmpy      #1
+                    beq       AuxPriorityHeight
+                    cmpy      #0
+                    beq       AuxPriorityRow
+                    ldb       <vmopcode
+                    cmpb      #174
+                    beq       AuxPrioritySet
+                    endc
                     ifne      GAME_PRESENTATION
                     sty       coldapi,u
                     ldb       <vmopcode

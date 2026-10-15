@@ -1637,25 +1637,29 @@ NumZeroPad          fdb       $0000
 *   base row (used by the set_pri_base command).
 *======================================================================
 *
+                    use shared/priority-bands.asm
+PRIORITY_SCALE_BASE macro
+                    subb      $01,s
+                    endm
+PRIORITY_SCALE_DIVIDE macro
+                    ldu       #$000A
+                    lbsr      UIntDivide
+                    endm
+PRIORITY_SCALE_STORE macro
+                    stu       $02,s
+                    endm
 SetPriBase          leas      -$04,s    allocate 4-byte local frame on stack
                     clr       >PriBaseFlag,pcr clear priority-base-set flag
                     ldb       ,y+       load base row argument from script
                     stb       $01,s     save base row
-                    ldb       #$A8      168 = total screen rows
-                    subb      $01,s     compute (168 - base_row)
-                    lda       #$A8      168
-                    mul                 compute (168 - base_row) * 168
-                    ldu       #$000A    divide by 10 (number of priority bands)
-                    lbsr      UIntDivide divide A by U, quotient in U
-                    stu       $02,s     save the division result (rows per band)
+                    PRIORITY_BUILD_SCALE
                     clrb                start from row 0
                     stb       ,s        save current row counter
 SetPriBaseLoop      subb      $01,s     subtract base row from current row
                     bcc       SetPriBaseMul branch if current >= base (within active range)
                     ldb       #$04      default priority 4 for rows before base
                     bra       SetPriBaseStore store default priority
-SetPriBaseMul       lda       #$A8      168 rows
-                    mul                 multiply row offset by 168
+SetPriBaseMul       PRIORITY_MULTIPLY_OFFSET
                     ldu       $02,s     load saved rows-per-band divisor
                     lbsr      UIntDivideToD divide to get band index, return as D
                     addd      #$0005    add 5 (minimum priority = 5)
@@ -4717,11 +4721,7 @@ ScanViewObjsLoop    cmpu      <$0032    check if past end of array
                     beq       ScanViewObjsPriStore branch if priority is computed
                     lda       >PriBaseFlag,pcr load priority-base flag
                     beq       ScanViewObjsPriCalc branch if not base mode
-                    lda       <$24,u    load object Y position
-                    suba      #$05      subtract bottom margin
-                    ldb       #$0C      priority bands per strip
-                    mul                 compute priority band
-                    addb      #$30      add base priority offset
+                    PRIORITY_PROJECT_DEFAULT <$24,u
                     bra       ScanViewObjsPriStore store computed priority
 ScanViewObjsPriCalc clrb                start priority at 0
                     lda       <$24,u    load object Y position

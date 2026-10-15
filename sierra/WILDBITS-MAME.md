@@ -985,3 +985,27 @@ The final pair passes at `.wildbits-test/kq3-kq1-verified`; the existing
 Larry/KQ1 control also passes at `.wildbits-test/larry-kq1-control` with 15 owned
 PSG writes. These are emulator/driver acceptance scenarios, not a complete KQ3
 adventure playthrough or physical-hardware timing measurement.
+
+
+## Custom priority acceptance
+
+With matching ABI-6 game/helper binaries built, run the controlled two-terminal
+priority fixture with a fresh output directory:
+
+```sh
+PYTHONPYCACHEPREFIX=/tmp/sierra-python-cache python3 sierra/tests/check_priority_mame.py \
+  --mame "$HOME/Projects/mame/mamed" \
+  --disk "$SIERRA_TEST_ROOT/nitros9/recipes/wildbits/l2/l2_wildbitsjr2.dsk" \
+  --firmware "$SIERRA_TEST_ROOT/nitros9/recipes/wildbits/feu" \
+  --expanded-krnp2 "$SIERRA_TEST_ROOT/expanded-krnp2" \
+  --output "$SIERRA_TEST_ROOT/priority-next"
+```
+
+The runner prepares copies of the boot image and fixture resources. It checks
+opcode 174 changing sprite occlusion, custom save/change/restore with identical
+restored pixels, two independent terminal bases, and exact memory recovery.
+A second boot restores the saved custom state before its first game cycle,
+verifying that restore initializes the previously cold helper entry. Screenshot,
+debugger-state, saved-file and MAME logs are retained under the output directory.
+The fixture does not establish complete King's Quest IV compatibility or a
+continuous original-adventure playthrough.

@@ -122,6 +122,8 @@ joysticklast        rmb       1
 joystickbuttons     rmb       1
 joystickpressed     rmb       1
 monitorprofile      rmb       1
+prioritybase        rmb       1
+priorityscale       rmb       2
 gamefont            rmb       1024
 soundcalls          rmb       20
 soundcode           rmb       512
@@ -151,9 +153,9 @@ STATE_HASH_FIELD    macro
                     endm
                     STATE_SCHEMA STATE_HASH_FIELD
 * Immutable field expressions avoid ambiguous forward references to SET symbols.
-StateLayoutHash     equ       (SavedVariablesLayoutHash+SavedStringsLayoutHash+SavedObjectsLayoutHash+SavedInventoryLayoutHash+SavedInventoryControlLayoutHash+SavedKeysLayoutHash+SavedKeyCountLayoutHash+SavedMenusLayoutHash+SavedMenuControlLayoutHash+SavedScreenLayoutHash+SavedPlayerLayoutHash+SavedBlockLayoutHash+SavedRandomLayoutHash+SavedReplayLayoutHash+SavedReplayBufferLayoutHash+SavedTextLayoutHash+resourcebase+assetfirst*3+picturefirst*5+gamebackgroundfirst*7+vmip*11+vmcache*13+textpointer*17+soundcalls*19+soundcode*23+512*29+4*31+textstoremodule*37+textstoreentry*41+dialogleft*43+dialogright*47+textwaitentry*53+dialogticks*59+dialogseen*61+dialogtimed*67+dialogepoch*71+textrectentry*73+11*79+screenentry*103+showentry*107+coldapi*109+showactive*113+shakeentry*127+shakemap*131+shakecycles*137+menuentry*139+joystickenabled*149+joystickpressed*151+monitorprofile*157+restartentry*83+restartapi*89+restartcall*97+VM_CACHE_ENTRY_BYTES*101+formatentry*163)&$FFFFFFFF
+StateLayoutHash     equ       (SavedVariablesLayoutHash+SavedStringsLayoutHash+SavedObjectsLayoutHash+SavedInventoryLayoutHash+SavedInventoryControlLayoutHash+SavedKeysLayoutHash+SavedKeyCountLayoutHash+SavedMenusLayoutHash+SavedMenuControlLayoutHash+SavedScreenLayoutHash+SavedPlayerLayoutHash+SavedBlockLayoutHash+SavedRandomLayoutHash+SavedReplayLayoutHash+SavedReplayBufferLayoutHash+SavedTextLayoutHash+resourcebase+assetfirst*3+picturefirst*5+gamebackgroundfirst*7+vmip*11+vmcache*13+textpointer*17+soundcalls*19+soundcode*23+512*29+4*31+textstoremodule*37+textstoreentry*41+dialogleft*43+dialogright*47+textwaitentry*53+dialogticks*59+dialogseen*61+dialogtimed*67+dialogepoch*71+textrectentry*73+11*79+screenentry*103+showentry*107+coldapi*109+showactive*113+shakeentry*127+shakemap*131+shakecycles*137+menuentry*139+joystickenabled*149+joystickpressed*151+monitorprofile*157+restartentry*83+restartapi*89+restartcall*97+VM_CACHE_ENTRY_BYTES*101+formatentry*163+prioritybase*167+priorityscale*173)&$FFFFFFFF
 STATE_ABI           macro
-                    fdb       5,size,StateLayoutHash>>16,StateLayoutHash&$FFFF
+                    fdb       6,size,StateLayoutHash>>16,StateLayoutHash&$FFFF
                     endm
 * A cold state module reuses this exact private layout without emitting the game.
                     ifeq      WILDBITS_LAYOUT_ONLY
