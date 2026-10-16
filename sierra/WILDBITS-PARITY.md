@@ -492,5 +492,6 @@ Shared paired-nibble emission preserves the native VM decoding bytes and all
 CoCo images while reducing `wbui` by 77 bytes. All 364 actual UI selections,
 1,024 VM routes, targeted loaded-provider/cache/shake/preview/save-name checks,
 and 128 before/after builds pass. C04/C05 remain open; this does not enable the
-trace commands. MAME and the matching complete target are pending. See the
+trace commands. All eight matching MAME phases pass. The complete 59-check
+target is running on frozen `f1a52a3`; A04 remains open. See the
 [catalog contract and evidence](WILDBITS-ENGINE.md#shared-packed-catalog-emission).

@@ -3477,4 +3477,14 @@ The before/after matrix compiles 64 owners on each side. All 56 CoCo images,
 five probes and native game/state images match byte for byte; only `wbui`
 changes. Artifacts and the manifest are in
 `.wildbits-test/trace-catalog-resume-20261016` under the workspace root.
-MAME acceptance and the matching complete standard target remain pending.
+All eight real-driver MAME acceptance phases pass with the matching binaries:
+custom priority persistence, cold restore, priority view, object status, memory
+information, menu visibility, automatic naming and automatic cold restore.
+Each phase checks the relevant terminal independence, scene/state restoration
+and exact ownership recovery. Artifacts are in
+`.wildbits-test/trace-catalog-mame-20261016`; the retained log is
+`.wildbits-test/trace-catalog-resume-20261016/evidence/catalog-mame.log`.
+The matching complete 59-check target is running from frozen revision `f1a52a3`
+at `.wildbits-test/trace-catalog-full-20261016/checkout/sierra`, with its log at
+`.wildbits-test/trace-catalog-full-20261016/check.log`. It is not yet a complete
+pass. These paths are relative to the workspace root and survive loss of `/tmp`.
