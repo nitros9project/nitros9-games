@@ -2958,3 +2958,81 @@ Focused audio and 14 affected UI/state test families also pass. The complete
 58-command target for the preceding ABI-7 build passed; the matching ABI-8
 complete target is running. A04 remains open pending its result. Physical
 hardware remains unavailable and its acceptance gate is unverified.
+
+
+## Shared object-status diagnostic (ABI 9)
+
+Opcode 133 now uses the same object-status command and strings as CoCo,
+through `OBJECT_EMIT_STATUS` and `OBJECT_EMIT_STATUS_STRINGS` in
+`shared/object-commands.asm`. It consumes a variable number, reads that
+variable's object index, and formats the object's ID, coordinates, dimensions,
+priority, step size, control word, cycle description and motion description.
+Move-to motion includes its destination coordinates. The original default
+cycle/motion descriptions are preserved. Native indices 64 and above retain
+the backend's existing `E$IllArg` bounds policy; reference equivalence is claimed
+for valid native object records, not unchecked CoCo memory outside that table.
+
+CoCo still allocates its original 404-byte local frame. Wild Bits binds the
+same command to a four-byte frame containing the saved object pointer and
+cycle-string pointer. Formatting arguments use the ordinary temporary stack;
+output and motion strings use separate regions of the existing private
+512-byte message workspace. Numeric conversion uses its last bytes. There is
+no new private allocation or shared writable buffer. The maximum supported
+16 nested logic calls and a 127-byte resource directory pass, including the
+private font guard and resource cleanup.
+
+The word-argument formatter is also shared in `shared/formatter.asm`.
+Its contract is X=format and U=successive big-endian word arguments; the
+character hook owns storage. Decimal and hexadecimal hooks return X=the
+first digit of a NUL-terminated conversion. The common decimal template and
+CoCo's actual hexadecimal/divide routines live in `shared/unsigned-decimal.asm`;
+backend bindings choose the buffer and byte or full-word division. Native
+AGI-byte formatting retains its existing fast path. Diagnostic word conversion
+supports values through 65,535 without writing shared code.
+
+The Wild Bits implementation remains in the grouped `wildbits-text-ui.asm`.
+`wbui.asm` supplies assembly selection and immutable module metadata. Moving
+the diagnostic out of the owner preserved all three production binaries
+byte-for-byte. The resident uses its existing show-object interface and
+callback table; there is no new resident command wrapper.
+
+Before drawing, the diagnostic releases the mapped room resource even when
+the UI entry is already cached. Otherwise both mapping windows can be occupied
+and the real kernel returns `E$MemFul`. It creates a default canvas only when
+no picture exists, preserving the current scene. Untimed dialogs drain stale
+keys after drawing and accept Enter or either supported Escape encoding;
+ordinary keys leave the dialog visible. Timed dialogs honor variable 21 and
+print-only dialogs honor/clear flag 15. These changes target opcode 133;
+the broader S06 modal-equivalence gate remains open.
+
+Install matching ABI-9 `wbgame`, `wbui`, `wbstate` and `wbfont`. The private
+layout and WS1 logical payload are unchanged. Budgets are game 23,803/23,808,
+UI 5,897/8,192, state 3,180/8,192, copied prefix 3,177/4,096 and private data
+24,468/24,576 bytes. The UI retains 2,295 free bytes; A01 remains open.
+
+Evidence: `.wildbits-test/parity-diagnostics-c02-grouped-final-matrix-20261015`
+builds all 64 owners. All 56 CoCo images and five integration probes remain
+byte-identical to the capacity revision; main production/probes match this
+matrix. Focused tests pass 400 actual CoCo/native object-status comparisons,
+84 diagnostic word conversions, eight unmap/canvas/index failure cases and
+the existing 1,560 decimal/formatter cases. Loaded-script tests cover fresh
+and cached calls, held/timed text, keys, object/variable boundaries and deepest
+nesting. Failures preserve private state, the error code, private base and stack.
+
+All four real-driver MAME phases pass in
+`.wildbits-test/parity-diagnostics-c02-cached-final-mame-20261015`: custom
+priority persistence, cold restoration, priority displays, and object-status
+pixels across two terminals. The last phase verifies ordinary-key rejection,
+Enter/Escape restoration, foreground retention, repeated calls and exact
+memory recovery. A prior MAME candidate exposed the cached-mapping defect;
+its failing result is superseded by this corrected run. An earlier ad-hoc CPU
+fixture omitted RAM/MMU initialization; that fixture failure was not a game
+memory-corruption defect.
+
+The all-title audit now records 177/182 native routes and five unsupported
+commands: 135, 149, 150, 170 and 177. Reports are in
+`.wildbits-test/parity-diagnostics-c02-final-audit-20261015`. A stale auditor
+self-test still expected 133 to be unsupported; the explicit expected set and
+C02 regression references are updated. The matching complete 58-command run
+has restarted on the frozen final sources and remains pending. C02 is verified;
+C03–C07, broader semantic gates and hardware acceptance remain open.

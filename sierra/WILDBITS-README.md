@@ -13,7 +13,7 @@ algorithms live in `objs/shared`. See
 Build with `make -C sierra/objs -f wildbits.mk all` from the games repository. Install
 `wbgame`, `wbfont`, and the matching `wbui` and `wbstate` auxiliary helpers in the OS-9
 execution directory, with read/execute access. The current private helper ABI
-is version 8; install all three executable modules together when upgrading.
+is version 9; install all three executable modules together when upgrading.
 Keep the original game resources together in a readable directory, then run:
 
 ```text
@@ -734,3 +734,7 @@ The game's priority diagnostic (`show.pri`, opcode 29) displays the priority
 plane until a fresh Enter or Escape, then restores the color scene. Ordinary
 keys do not dismiss it. Each terminal owns its mode, including across foreground
 switches. See the parity checklist for comparison and failure-path evidence.
+
+
+Opcode 133 object status now shares CoCo's command/formatter source.
+See [ABI-9 ownership, modal behavior and verification](WILDBITS-ENGINE.md#shared-object-status-diagnostic-abi-9).

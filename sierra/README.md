@@ -68,7 +68,7 @@ Wild Bits native presentation work and target-side testing are documented in
 [WILDBITS-README.md](WILDBITS-README.md). The interactive King’s Quest I port supports
 typed commands, movement, inventory, menus, save/restore, owned queued sound and
 positioned messages on the tested Wild Bits drivers. Install the matching
-`wbgame`, `wbui`, `wbstate` and `wbfont` build together. The matching ABI-8
+`wbgame`, `wbui`, `wbstate` and `wbfont` build together. The matching ABI-9
 UI helper supplies text/audio code; the state helper supplies save/restore code.
 Build it with `make -C sierra/objs -f wildbits.mk all` from the games repository.
 Full AGI compatibility and common-engine consolidation remain unfinished.

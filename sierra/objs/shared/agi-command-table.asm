@@ -135,7 +135,7 @@
                     AGI_COMMAND CmdRandomImpl,$320,GameRandomCommand,1 *random
                     AGI_COMMAND cmd_program_control,$0000,VmProgramControl,0 *program control
                     AGI_COMMAND cmd_player_control,$0000,VmSetPlayerControl,0 *player control
-                    AGI_COMMAND CmdObjStatusV,$180,VmPlatformUnsupported,0 *obj status v
+                    AGI_COMMAND CmdObjStatusV,$180,GameShowObjectCommand,1 *obj status v
                     AGI_COMMAND CmdQuitImpl,$100,GameQuitCommand,1 *quit
                     AGI_COMMAND CmdShowMemInfo,$0000,VmPlatformUnsupported,0 *show mem
                     AGI_COMMAND CmdPauseImpl,$0000,GamePauseCommand,1 *pause

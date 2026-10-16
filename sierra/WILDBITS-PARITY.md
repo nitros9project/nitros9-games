@@ -37,7 +37,7 @@ unchecked equivalence gates below.
 At the recorded baseline the catalog contained 182 commands: 171 had native
 routes, including eight success-only routes; eleven were explicitly unsupported.
 The C08–C11 correction gave 175 routed commands and seven unsupported
-commands. C01 now raises that to 176 routed commands and six unsupported routes. Four added success-only routes reproduce actual CoCo stubs, rather
+commands. C01 and C02 raise that to 177 routed commands and five unsupported routes. Four added success-only routes reproduce actual CoCo stubs, rather
 than suppressing unimplemented CoCo behavior. Commands 0..17 execute
 in the VM before platform dispatch and are included in both totals. These numbers
 measure routing, not behavioral equivalence.
@@ -62,7 +62,9 @@ Compare the actual bodies and caller contracts, not symbol names alone.
 
 - [x] **C01 — Priority diagnostic:** Actual CoCo/native conversion and control
   comparisons, loaded logic and real-driver MAME acceptance pass (evidence below).
-- [ ] **C02–C07:** Close each remaining diagnostic/UI/save behavior individually.
+- [x] **C02 — Object status:** Shared command/strings/word formatter; direct
+  reference comparisons and loaded-script/MAME modal and restoration checks pass.
+- [ ] **C03–C07:** Close each remaining diagnostic/UI/save behavior individually.
 - [x] **C08–C11:** Close each CoCo-stub compatibility case above individually.
 - [x] **C12 — Existing success-only routes:** Verify all of 127, 155, 163, 164,
   173, 176, 178 and 181 against their actual CoCo bodies. Record argument
@@ -168,7 +170,7 @@ versions without treating a game-directory name as sufficient provenance.
   resident instructions. Baseline limits: game 23,807/23,808 bytes; helper
   8,190/8,192; writable prefix 3,191/4,096; private data 24,465/24,576.
   Short branches, arithmetic delegation and common copies made C01 fit. Current
-  budgets are game 23,803, UI helper 5,084, state helper 3,180, copied prefix
+  budgets are game 23,803, UI helper 5,897, state helper 3,180, copied prefix
   3,177 and private 24,468 bytes. All 64 owners compile; CoCo stays unchanged.
   This is initial capacity recovery, not enough evidence to close A01 for all
   remaining features.
@@ -190,7 +192,7 @@ versions without treating a game-directory name as sufficient provenance.
   baseline is useful evidence but does not satisfy this gate. Revision `78893f7`
   now passes the former 57-command target uninterrupted; the promoted
   priority/arithmetic/copy revision `a9a889a` passes all 58 commands. The
-  matching ABI-8 capacity revision has its complete target running.
+  ABI-8 capacity run and latest ABI-9 C02 run remain in progress.
 
 ## 4. Acceptance across games, terminals and hardware
 
@@ -346,3 +348,13 @@ The ABI-8 UI/persistence split, byte budgets, loader safety checks and matching
 It creates 3,108 UI bytes of headroom; A01 remains open for the complete
 remaining feature set. The preceding ABI-7 complete 58-command target passed.
 The matching ABI-8 complete target is running, so A04 remains open.
+
+
+### Object-status evidence, 2026-10-15
+
+C02 is verified by the shared CoCo/native command and formatter, 400 direct
+comparisons, 84 numeric and eight guarded failure cases, loaded-script modal
+and maximum-nesting tests, and two-terminal real-driver MAME acceptance.
+See [the complete interface and evidence record](WILDBITS-ENGINE.md#shared-object-status-diagnostic-abi-9).
+Current package ABI is 9; current UI size is 5,897 bytes. C03–C07 and the
+matching complete-regression gate remain open.

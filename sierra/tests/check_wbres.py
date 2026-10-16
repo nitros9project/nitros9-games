@@ -51,7 +51,7 @@ def start_cpu(bootrom, timeout=300):
     raise RuntimeError('XRoar debugger did not attach after four fresh starts')
 
 
-def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zero_read=False, seek_error=False, write_error=False, module='wbres', map_failure=0, allocation_error=False, unmap_error=False, window=0x8000, terminal=True, blocks=4, capture=False, multiple=False, firstblock=0x30, frame_capture=False, keyboard=b'', clock=(0,), bitmap_error=False, key_sense=0, cycle_limit=None, os_call_limit=20000, keyboard_by_cycle=None, option_set_error=False, resource_kind=None, module_root=None, breakpoint_hooks=None, psg=None, sol=None, joystick=None, palette_error=0):
+def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zero_read=False, seek_error=False, write_error=False, module='wbres', map_failure=0, allocation_error=False, unmap_error=False, window=0x8000, terminal=True, blocks=4, capture=False, multiple=False, firstblock=0x30, frame_capture=False, keyboard=b'', clock=(0,), bitmap_error=False, key_sense=0, cycle_limit=None, os_call_limit=20000, keyboard_by_cycle=None, option_set_error=False, resource_kind=None, module_root=None, breakpoint_hooks=None, psg=None, sol=None, joystick=None, palette_error=0, keyboard_by_sleep=None):
     module_root = Path(module_root) if module_root is not None else ROOT
     ui_owner='wbui' if (module_root/'wbui').exists() else 'wbstate'
     if module == 'wbgame':
@@ -87,6 +87,7 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
     nextblock = firstblock
     bitmapfirst, frame = None, bytearray()
     keyboard = bytearray(keyboard)
+    sleep_count = 0
     clock = list(clock)
     clocksecond = clock[0]
     cycles = 0
@@ -177,6 +178,7 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
                 if module=='wbgame':
                     state['vmstrings']=d.read(database+syms['vmstrings'],480)
                     state['palettes']=palettes
+                    state['sleeps']=sleep_count
                     if 'monitorprofile' in syms:state['monitorprofile']=d.read(database+syms['monitorprofile'],1)
                     state['joystick_polls']=joystick_polls
                     for name in ('joystickenabled','joysticklast','joystickbuttons','joystickpressed'):
@@ -261,6 +263,9 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
                 clocksecond = clock.pop(0)
             d.write(r['x'], bytes([126,10,4,12,0,clocksecond]))
         elif service == syms.get('F$Sleep'):
+            sleep_count += 1
+            if keyboard_by_sleep and sleep_count in keyboard_by_sleep:
+                keyboard.extend(keyboard_by_sleep[sleep_count])
             assert not mapped
             cycles += 1
             if sol:sol_ticks=(sol_ticks+sol.get("step",1))&255

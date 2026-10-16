@@ -4,6 +4,14 @@ AUDIO_USER_COPY     equ 1
 WILDBITS            equ 1
 WILDBITS_LAYOUT_ONLY equ 1
                     use platform/wildbits-runtime.asm
+WORD_FORMAT_CUSTOM_DECIMAL equ 1
+WORD_FORMAT_DECIMAL macro
+                    lbsr      WordUIntToDecStr
+                    endm
+                    use shared/formatter.asm
+                    ifndef SHARED_OBJECT_COMMANDS_DEFINED
+                    use shared/object-commands.asm
+                    endc
                     org 0
                     mod UiEnd,UiName,Sbrtn+Objct,ReEnt+1,UiEntry,0
 UiName              fcs /wbui/
@@ -36,6 +44,8 @@ PLATFORM_SECTION    set PLATFORM_WILDBITS_SHAKE_CODE
 PLATFORM_SECTION    set PLATFORM_WILDBITS_MENU_COLD_CODE
                     use platform/wildbits-text-ui.asm
 PLATFORM_SECTION    set PLATFORM_WILDBITS_FORMAT_COLD_CODE
+                    use platform/wildbits-text-ui.asm
+PLATFORM_SECTION    set PLATFORM_WILDBITS_DIAGNOSTIC_CODE
                     use platform/wildbits-text-ui.asm
                     emod
 UiEnd               equ *

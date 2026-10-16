@@ -1063,38 +1063,7 @@ OBJECT_FLAG_OPCODE  set       70
 OBJECT_FLAG_OPCODE  set       71
                     use       shared/object-flag-rules.asm
 
-StrNormalCycle      fcc       /normal cycle/
-                    fcb       0
-StrEndOfLoop        fcc       /end of loop/
-                    fcb       0
-StrReverseLoop      fcc       /reverse loop/
-                    fcb       0
-StrReverseCycle     fcc       /reverse cycle/
-                    fcb       0
-StrNormalMotion     fcc       /normal motion/
-                    fcb       0
-StrWander           fcc       /wander/
-                    fcb       0
-StrFollow           fcc       /follow/
-                    fcb       0
-StrMoveTo           fcc       /move to (%d, %d)/
-                    fcb       0
-StrObjHeader        fcc       /Object %d:/
-                    fcb       $0a
-StrObjX             fcc       /x: %d  xsize: %d/
-                    fcb       $0a
-StrObjY             fcc       /y: %d  ysize: %d/
-                    fcb       $0a
-StrObjPri           fcc       /pri: %d/
-                    fcb       $0a
-StrObjStepSize      fcc       /stepsize: %d/
-                    fcb       $0a
-StrObjControl       fcc       /control: %x/
-                    fcb       $0a
-StrFmtNewline       fcc       /%s/
-                    fcb       $0a
-StrFmtNull          fcc       /%s/
-                    fcb       0
+                    OBJECT_EMIT_STATUS_STRINGS
 StrAgiVersion       fcc       /Adventure Game Interpreter/
                     fcb       $0a
                     fcc       /      Version 2.072/
@@ -1156,7 +1125,10 @@ ObjStatusStore      abx                 index to destination variable
                     leas      <$54,s    release local stack frame
                     rts
 * obj.status.v command
-CmdObjStatusV       leas      >-$0194,s allocate 404-byte local frame on stack
+OBJECT_STATUS_FRAME equ 404
+OBJECT_STATUS_OBJECT equ 402
+OBJECT_STATUS_CYCLE equ 400
+OBJECT_STATUS_SELECT macro
                     ldx       #$0431    point to variable table
                     ldb       ,y+       load variable number
                     abx                 index to variable
@@ -1165,76 +1137,20 @@ CmdObjStatusV       leas      >-$0194,s allocate 404-byte local frame on stack
                     mul                 compute byte offset into object table
                     addd      <$0030    add base address of object table
                     tfr       d,u       transfer object address to U
-                    std       >$0192,s  save object address on stack
-                    lda       <$23,u    load cycle type
-                    cmpa      #$00      check if normal cycling
-                    bne       CheckCycleType1 branch if not normal cycle
-                    leax      >StrNormalCycle,pcr normal cycle
-                    bra       GotCycleStr
-CheckCycleType1     cmpa      #$01      check if end-of-loop mode
-                    bne       CheckCycleType2 branch if not end-of-loop
-                    leax      >StrEndOfLoop,pcr end of loop
-                    bra       GotCycleStr
-CheckCycleType2     cmpa      #$02      check if reverse-loop mode
-                    bne       DefaultCycleStr branch if none of the above
-                    leax      >StrReverseLoop,pcr reverse loop
-                    bra       GotCycleStr
-DefaultCycleStr     leax      >StrReverseCycle,pcr reverse cycle
-GotCycleStr         stx       >$0190,s  save cycle type string pointer
-                    lda       <$22,u    load motion type
-                    cmpa      #$00      check if normal motion
-                    bne       CheckMotionType1 branch if not normal motion
-                    leax      >StrNormalMotion,pcr normal motion
-                    bra       GotMotionStr
-CheckMotionType1    cmpa      #$01      check if wander motion
-                    bne       CheckMotionType2 branch if not wander
-                    leax      >StrWander,pcr wander
-                    bra       GotMotionStr
-CheckMotionType2    cmpa      #$02      check if follow-ego motion
-                    bne       BuildMoveToStr branch if not follow (must be move-to)
-                    leax      >StrFollow,pcr follow
-                    bra       GotMotionStr
-BuildMoveToStr      clra                clear A for word construction
-                    ldb       <$28,u    load target Y position
-                    pshs      b,a       push Y arg for format
-                    ldb       <$27,u    load target X position
-                    pshs      b,a       push X arg for format
-                    leax      >StrMoveTo,pcr load "move to (%d, %d)" format string
-                    pshs      x         push format string pointer
-                    leax      >$0132,s  point to local string buffer
-                    pshs      x         push output buffer pointer
-                    lbra      stub1     format string into X
-MoveToFormatDone    leas      $08,s     release 4 pushed arguments
-GotMotionStr        pshs      x         push motion string pointer
-                    ldx       >$0192,s  load saved object address
-                    pshs      x         push object address for format
-                    ldu       >$0196,s  reload object address
-                    ldd       <$25,u    load animation flags (both bytes)
-                    pshs      b,a       push flags
-                    clra                clear A for word construction
-                    ldb       <$1E,u    load step size
-                    pshs      b,a       push step size
-                    ldb       <$24,u    load priority
-                    pshs      b,a       push priority
-                    ldb       <$1D,u    load Y size
-                    pshs      b,a       push Y size
-                    ldb       $04,u     load Y position
-                    pshs      b,a       push Y position
-                    ldb       <$1C,u    load X size
-                    pshs      b,a       push X size
-                    ldb       $03,u     load X position
-                    pshs      b,a       push X position
-                    ldb       $02,u     load object number
-                    pshs      b,a       push object number
-                    leau      >StrObjHeader,pcr load address of object header format string
-                    pshs      u         push format string pointer
-                    leax      <$16,s    point to local output buffer
-                    pshs      x         push output buffer pointer
-                    lbsr      PrintFmtStr
-                    leas      <$18,s    release all pushed arguments
+                    endm
+OBJECT_STATUS_MOTION_BUFFER macro
+                    leax      >$0132,s
+                    endm
+OBJECT_STATUS_MOTION_FORMAT macro
+                    lbra      stub1
+                    endm
+OBJECT_STATUS_OUTPUT_BUFFER macro
+                    leax      <$16,s
+                    endm
+OBJECT_STATUS_DISPLAY macro
                     lbsr      message_box
-                    leas      >$0194,s  release local stack frame
-                    rts
+                    endm
+                    OBJECT_EMIT_STATUS
 CmdSaveGame         inc       >GfxPicBufRotate enable in-place nibble swap for UI
                     lbsr      gfx_picbuff_update update graphics buffer before UI
                     lbsr      BooleanPoll run save/restore selection UI
@@ -1737,38 +1653,7 @@ StrCompareRet       puls      u,x       restore saved registers
                     endc
                     endc
                     use       shared/unsigned-decimal.asm
-UIntToHexStr        leax      >NumConvEnd,pcr point X to end of numeric conversion buffer
-                    clr       ,x        null-terminate the buffer
-UIntToHexLoop       ldu       #$0010    divide by 16 for hex conversion
-                    bsr       UIntDivide divide D by 16 for hex digit
-                    addb      #$30      convert remainder to ASCII
-                    cmpb      #$39      check if digit is 0-9
-                    ble       UIntToHexStore branch if in '0'-'9' range
-                    addb      #$07      adjust for 'A'-'F' range
-UIntToHexStore      stb       ,-x       store hex digit left of current position
-                    tfr       u,d       transfer quotient to D
-                    cmpd      #$0000    check if quotient is zero
-                    bhi       UIntToHexLoop loop if more digits to convert
-                    rts
-UIntDivide          leas      -$05,s    allocate 5-byte local frame on stack
-                    std       ,s        save dividend (D)
-                    stu       $02,s     save divisor (U)
-                    lda       #$10      16 iterations for 16-bit divide
-                    sta       $04,s     save iteration count
-                    ldd       #$0000    clear quotient accumulator
-UIntDivideLoop      lsl       $01,s     shift dividend left (LSB of dividend)
-                    rol       ,s        shift dividend MSB with carry
-                    rolb                roll bit into quotient LSB
-                    rola                roll quotient MSB
-                    cmpd      $02,s     compare partial remainder to divisor
-                    bcs       UIntDivideShift branch if remainder < divisor (no subtract)
-                    subd      $02,s     subtract divisor from partial remainder
-                    inc       $01,s     set quotient bit (LSB of dividend was 1)
-UIntDivideShift     dec       $04,s     decrement iteration count
-                    bne       UIntDivideLoop loop for all 16 bits
-                    ldu       ,s        load final quotient into U
-                    leas      $05,s     release local stack frame
-                    rts
+                    WORD_EMIT_HEX_DIVIDE
 StrZeroPad          leas      -$0B,s    allocate 11-byte local frame on stack
                     pshs      x,b       save X (dest) and B (desired width)
                     tfr       u,x       transfer source pointer to X
@@ -5862,60 +5747,7 @@ PrintFmtStrToScr    leas      <-$2A,s   ; allocate 42-byte line buffer
                     leas      <$2A,s    ; release line buffer
                     rts
 
-PrintFmtLoop        lda       ,x+       ; load next format char
-                    beq       PrintFmtOutputChar ; null = end, flush it
-                    cmpa      #$25      ; check for '%' format specifier
-                    beq       PrintFmtEscS ; handle format escape
-                    bsr       PrintFmtOutputChar ; emit literal char
-                    bra       PrintFmtLoop
-PrintFmtEscS        lda       ,x+       ; load format type char
-                    cmpa      #$73
-                    bne       PrintFmtEscD ; not '%s'
-                    ldd       ,u++      ; fetch string pointer from args
-                    pshs      u,x       ; save U and X
-                    bra       PrintFmtStrEmit ; emit string
-PrintFmtEscD        cmpa      #$64
-                    bne       PrintFmtEscUX ; not '%d'
-                    tst       ,u        ; test sign of next arg
-                    bpl       PrintFmtEscU ; positive, treat as unsigned
-                    lda       #$2D
-                    bsr       PrintFmtOutputChar ; emit '-' for negative
-                    ldd       #$0000
-                    subd      ,u++      ; negate: 0 - arg
-                    pshs      u,x       ; save U and X
-                    lbsr      UIntToDecStr ; convert to decimal string
-                    tfr       x,d       ; D = pointer to decimal string
-                    bra       PrintFmtStrEmit
-PrintFmtEscUX       cmpa      #$75
-                    beq       PrintFmtEscU ; '%u' = unsigned decimal
-                    cmpa      #$78
-                    bne       PrintFmtEscC ; not '%x'
-                    ldd       ,u++      ; fetch unsigned arg
-                    pshs      u,x       ; save U and X
-                    lbsr      UIntToHexStr ; convert to hex string
-                    tfr       x,d       ; D = pointer to hex string
-                    bra       PrintFmtStrEmit
-PrintFmtEscU        ldd       ,u++      ; fetch unsigned arg
-                    pshs      u,x       ; save U and X
-                    lbsr      UIntToDecStr ; convert to decimal string
-                    tfr       x,d       ; D = pointer to decimal string
-                    bra       PrintFmtStrEmit
-PrintFmtEscC        cmpa      #$63
-                    bne       PrintFmtEscOther ; not '%c'
-                    ldd       ,u++      ; fetch character value from args
-                    bsr       PrintFmtOutputChar ; emit character
-                    bra       PrintFmtLoop
-PrintFmtEscOther    leax      -$01,x    ; back up to format type char
-                    lda       -$01,x    ; reload '%' char
-                    bsr       PrintFmtOutputChar ; emit '%' literally
-                    bra       PrintFmtLoop
-PrintFmtStrEmit     tfr       d,x       ; X = pointer to converted string
-PrintFmtStrEmitLoop lda       ,x+       ; load next char of converted string
-                    lbne      PrintFmtStrEmitChar ; non-null, emit it
-                    puls      u,x       ; restore U and X
-                    lbra      PrintFmtLoop ; continue format loop
-PrintFmtStrEmitChar bsr       PrintFmtOutputChar ; emit string character
-                    bra       PrintFmtStrEmitLoop
+                    FORMAT_EMIT_WORD_ARGUMENTS
 PrintFmtOutputChar  pshs      u,x       ; save U and X
                     ldu       >PrintFmtOutPtr,pcr ; load current output pointer
                     sta       ,u+       ; store character and advance

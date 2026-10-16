@@ -1,4 +1,91 @@
-* Immutable text-store backend executes while wbstate remains linked.
+* Grouped diagnostic backend; owner-specific buffers stay private.
+                    ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_DIAGNOSTIC_CODE
+* Diagnostics use private text storage, not CoCo's 404-byte stack frame.
+OBJECT_STATUS_FRAME equ 4
+OBJECT_STATUS_OBJECT equ 2
+OBJECT_STATUS_CYCLE equ 0
+OBJECT_STATUS_SELECT macro
+                    ldu       <resourcebase
+                    clra
+                    ldb       vmarguments,u
+                    leax      vmvariables,u
+                    ldb       d,x
+                    cmpb      #64
+                    lbhs      AuxStatusBadObject
+                    lda       #43
+                    mul
+                    leau      vmobjects,u
+                    leau      d,u
+                    tfr       u,d
+                    pshs      d
+                    UI_CALL 18
+                    lbcs      AuxStatusSetupError
+                    tst       <pictureowned
+                    bne       AuxStatusCanvasReady
+                    UI_CALL 26
+                    lbcs      AuxStatusSetupError
+AuxStatusCanvasReady puls      d
+                    tfr       d,u
+                    endm
+OBJECT_STATUS_MOTION_BUFFER macro
+                    ldx       <resourcebase
+                    leax      messagebuffer+320,x
+                    endm
+OBJECT_STATUS_MOTION_FORMAT macro
+                    lbsr      PrintFmtStr
+                    tfr       u,x
+                    endm
+OBJECT_STATUS_OUTPUT_BUFFER macro
+                    ldx       <resourcebase
+                    leax      messagebuffer,x
+                    endm
+OBJECT_STATUS_DISPLAY macro
+                    tfr       u,x
+                    ldu       <resourcebase
+                    UI_CALL 16
+                    endm
+                    OBJECT_EMIT_STATUS_STRINGS
+                    OBJECT_EMIT_STATUS
+AuxStatusSetupError leas      2+OBJECT_STATUS_FRAME,s
+                    ldu       <resourcebase
+                    orcc      #1
+                    rts
+AuxStatusBadObject  leas      OBJECT_STATUS_FRAME,s
+                    ldu       <resourcebase
+                    ldb       #E$IllArg
+                    orcc      #1
+                    rts
+PrintFmtStr         ldu       <resourcebase
+                    ldd       2,s
+                    std       textpointer,u
+                    ldx       4,s
+                    leau      6,s
+                    lbsr      PrintFmtLoop
+                    ldu       2,s
+                    rts
+                    FORMAT_EMIT_WORD_ARGUMENTS
+PrintFmtOutputChar  pshs      u,x
+                    ldu       <resourcebase
+                    ldx       textpointer,u
+                    sta       ,x+
+                    stx       textpointer,u
+                    puls      u,x,pc
+WORD_HEX_OUTPUT_END macro
+                    ldx       <resourcebase
+                    leax      messagebuffer+511,x
+                    endm
+WORD_DECIMAL_OUTPUT_END macro
+                    WORD_HEX_OUTPUT_END
+                    endm
+WORD_DECIMAL_OUTPUT_DIVIDE macro
+                    lbsr      UIntDivide
+                    endm
+WORD_CONVERSION_DEFINITIONS_ONLY equ 1
+                    use shared/unsigned-decimal.asm
+                    UNSIGNED_DECIMAL_EMIT WordUIntToDecStr,WordUIntToDecLoop,WORD_DECIMAL_OUTPUT_END,WORD_DECIMAL_OUTPUT_DIVIDE
+                    WORD_EMIT_HEX_DIVIDE
+                    else
+* Immutable text/UI backend executes while wbui remains linked.
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_TEXT_STORE_CODE
 AuxTextStore        tst       dialogactive,u
                     beq       GameTextRead
@@ -91,6 +178,8 @@ AuxPrintWait        pshs      y
                     tst       dialoginputmode,u
                     bne       AuxWaitUntimed
                     lda       <vmopcode
+                    cmpa      #133
+                    beq       AuxWaitTimer
                     cmpa      #101
                     beq       AuxWaitTimer
                     cmpa      #102
@@ -110,17 +199,22 @@ AuxWaitTimer        ldb       vmvariables+21,u
                     cmpa      #$FF
                     beq       AuxWaitLoop
                     lbsr      AuxWaitSample
-                    bcs       AuxWaitRestore
+                    lbcs      AuxWaitRestore
                     sta       dialogseen,u
                     lda       #2
                     sta       dialogtimed,u
                     bra       AuxWaitLoop
 AuxWaitUntimed      clr       dialogtimed,u
+                    lda       <vmopcode
+                    cmpa      #133
+                    bne       AuxWaitLoop
+                    lbsr      AuxDiagnosticDrain
+                    lbcs      AuxWaitRestore
 AuxWaitLoop         ldy       ,s
                     ldd       ,y
                     leax      d,y
                     jsr       ,x
-                    bcs       AuxWaitRestore
+                    lbcs      AuxWaitRestore
                     lda       #0
                     ldb       #SS.Ready
                     os9       I$GetStt
@@ -135,7 +229,7 @@ AuxWaitLoop         ldy       ,s
                     cmpa      #2
                     bne       AuxWaitOneTick
                     lbsr      AuxWaitSample
-                    bcs       AuxWaitRestore
+                    lbcs      AuxWaitRestore
                     ldb       gameclockreset,u
                     cmpb      dialogepoch,u
                     beq       AuxWaitDelta
@@ -172,7 +266,7 @@ AuxWaitKey          lda       #0
                     leax      parsercharacter,u
                     ldy       #1
                     os9       I$Read
-                    bcs       AuxWaitRestore
+                    lbcs      AuxWaitRestore
                     ldu       <resourcebase
                     lda       dialoginputmode,u
                     cmpa      #3         have.key: key variable only, no parser
@@ -183,16 +277,48 @@ AuxWaitKey          lda       #0
                     bra       AuxWaitKeyDone
 AuxWaitInputMode
                     tst       dialoginputmode,u
+                    bne       AuxWaitEditor
+                    lda       <vmopcode
+                    cmpa      #133
+                    bne       AuxWaitKeyDone
+                    lda       parsercharacter,u
+                    cmpa      #13
+                    beq       AuxWaitKeyDone
+                    cmpa      #5
+                    beq       AuxWaitKeyDone
+                    cmpa      #27
+                    beq       AuxWaitKeyDone
+                    lbra      AuxWaitLoop
+AuxWaitEditor       tst       dialoginputmode,u
                     beq       AuxWaitKeyDone
                     ldy       ,s
                     ldd       2,y
                     leax      d,y
                     jsr       ,x
-                    bcs       AuxWaitRestore
+                    lbcs      AuxWaitRestore
                     tsta
                     lbeq      AuxWaitLoop
 AuxWaitKeyDone      clrb
                     bra      AuxWaitRestore
+* CoCo BooleanPoll clears queued events after an untimed box is visible.
+AuxDiagnosticDrain  clra
+                    ldb       #SS.Ready
+                    os9       I$GetStt
+                    bcc       AuxDiagnosticRead
+                    cmpb      #E$NotRdy
+                    bne       AuxDiagnosticError
+                    clrb
+                    rts
+AuxDiagnosticRead   ldu       <resourcebase
+                    leax      parsercharacter,u
+                    ldy       #1
+                    clra
+                    os9       I$Read
+                    bcs       AuxDiagnosticReturn
+                    ldu       <resourcebase
+                    bra       AuxDiagnosticDrain
+AuxDiagnosticError  orcc      #1
+AuxDiagnosticReturn rts
 AuxWaitSample       ldy       2,s
                     ldd       6,y
                     leax      d,y
@@ -268,6 +394,8 @@ UI_CALL           macro
 AuxShowObject       ldu       <resourcebase
                     sty       coldapi,u
                     lda       <vmopcode
+                    cmpa      #133
+                    lbeq      CmdObjStatusV
                     cmpa      #29
                     lbeq      AuxPriorityView
                     cmpa      #141
@@ -432,13 +560,13 @@ AuxPriorityRestoreError leas   2,s
                     rts
 * Interpreter information shares the existing text callback and cold entry.
 AuxJoystickInfo     leax      JoystickInfo,pcr
-                    bra       AuxBlockingPrint
+                    lbra      AuxBlockingPrint
 JoystickInfo        fcc       /Joystick service unavailable./
                     fcb       13
                     fcc       /Use the keyboard to play./
                     fcb       0
 AuxInterpreterInfo  leax      InterpreterInfo,pcr
-                    bra       AuxBlockingPrint
+                    lbra      AuxBlockingPrint
 InterpreterInfo     fcc       /Adventure Game Interpreter/
                     fcb       13
                     fcc       /Wild Bits NitrOS-9 engine/
@@ -3594,6 +3722,7 @@ AuxObjectKey        fcc       /Avis Durgan/
 
                     else
                     error Unknown platform feature section
+                    endc
                     endc
                     endc
                     endc

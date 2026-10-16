@@ -19,11 +19,11 @@ ROOT=Path(__file__).resolve().parents[1]
 def fixture(base=80, identity=1, restore=False):
     def when(test,body):return bytes([255,*test,255])+len(body).to_bytes(2,'little')+bytes(body)
     setup=[3,200,1,3,202,identity,143,1]
-    for key,controller in zip(b'sbrqp',range(1,6)):setup += [121,key,0,controller]
+    for key,controller in zip(b'sbrqpo',range(1,7)):setup += [121,key,0,controller]
     setup += [126,0] if restore else [174,base]
     setup += [3,0,0,24,0,25,0,33,0,41,0,0,37,0,20,100,35,0,26]
     code=when([1,200,0],setup)
-    for controller,body in ((1,[125]),(2,[174,40]),(3,[126]),(4,[134,1]),(5,[29])):
+    for controller,body in ((1,[125]),(2,[174,40]),(3,[126]),(4,[134,1]),(5,[29]),(6,[133,255])):
         code+=when([12,controller],body)
     code+=b'\0';message=b'PRIO\0';key=b'Avis Durgan'
     logic=len(code).to_bytes(2,'little')+code+b'\x01\x09\0\x04\0'+bytes(c^key[i%11] for i,c in enumerate(message))
@@ -163,5 +163,29 @@ def main():
            5100:'other-priority',5600:'other-restored',6300:'priority-resumed',6800:'restored',7300:'repeated',7800:'repeated-restored'}
     folder,log,snap=run('priority-view',events,shots,{3300:'Right',5800:'Left',8400:'Right'},14000)
     check_view_result(folder,log,disk,os9,shots)
+
+    events={500:'iniz /vt1\r',650:'shell i=/vt1&\r',800:'mfree >/s0/status-free-before\r',
+            1000:'wbgame /s0/game 0\r',2200:'o',2800:'x',3600:'wbgame /s0/other 0\r',
+            4700:'o',5300:'\r',6500:'\x1b',6900:'o',7500:'\r',8100:'q',9000:'q',
+            12000:'procs >/s0/status-procs-after\r',12500:'mfree >/s0/status-free-after\r',
+            13000:'echo STATUS-DONE >/s0/status-done\r'}
+    shots={2000:'normal',2600:'status',3100:'ordinary-key',4500:'other-normal',
+           5100:'other-status',5600:'other-restored',6300:'status-resumed',6800:'restored',
+           7300:'repeated',7800:'repeated-restored'}
+    folder,log,snap=run('object-status',events,shots,{3300:'Right',5800:'Left',8400:'Right'},14000)
+    pixels={name:png_rgb(folder/(name+'.png')) for name in shots.values()}
+    assert pixels['normal']!=pixels['status'],'object diagnostic did not appear'
+    assert pixels['status']==pixels['ordinary-key'],'ordinary key dismissed object status'
+    assert pixels['status']==pixels['status-resumed'],'terminal switch lost object status'
+    assert pixels['normal']==pixels['restored'],'Escape did not restore object-status scene'
+    assert pixels['status']==pixels['repeated'],'repeated object status differed'
+    assert pixels['normal']==pixels['repeated-restored'],'Enter did not restore repeated status'
+    assert pixels['other-normal']!=pixels['other-status'],'second terminal lacks object status'
+    assert pixels['other-normal']==pixels['other-restored'],'second terminal scene not restored'
+    assert re.findall(r'PRIEXIT (\d+)',log)==['0','0']
+    assert os9('list',f'{disk},status-free-before')==os9('list',f'{disk},status-free-after'),'status leaked memory'
+    assert b'STATUS-DONE' in os9('list',f'{disk},status-done')
+    assert b'wbgame' not in os9('list',f'{disk},status-procs-after').lower()
+    print('PASS: object-status pixels, ordinary-key rejection, Enter/Escape restoration, foreground retention, repeated calls, independent terminals and exact memory recovery')
 
 if __name__=='__main__':main()

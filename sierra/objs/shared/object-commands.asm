@@ -343,3 +343,114 @@ RoomEntryBottom     lda       #37
 RoomEntryDone       ROOM_ENTRY_CLEAR_SIDE
 RoomEntryFinished   equ *
                     endm
+
+* Object-status diagnostic: owner supplies frame/buffer/storage bindings.
+* Word-argument layout and cycle/motion selection match the CoCo command.
+OBJECT_EMIT_STATUS_STRINGS macro
+StrNormalCycle      fcc       /normal cycle/
+                    fcb       0
+StrEndOfLoop        fcc       /end of loop/
+                    fcb       0
+StrReverseLoop      fcc       /reverse loop/
+                    fcb       0
+StrReverseCycle     fcc       /reverse cycle/
+                    fcb       0
+StrNormalMotion     fcc       /normal motion/
+                    fcb       0
+StrWander           fcc       /wander/
+                    fcb       0
+StrFollow           fcc       /follow/
+                    fcb       0
+StrMoveTo           fcc       /move to (%d, %d)/
+                    fcb       0
+StrObjHeader        fcc       /Object %d:/
+                    fcb       $0a
+StrObjX             fcc       /x: %d  xsize: %d/
+                    fcb       $0a
+StrObjY             fcc       /y: %d  ysize: %d/
+                    fcb       $0a
+StrObjPri           fcc       /pri: %d/
+                    fcb       $0a
+StrObjStepSize      fcc       /stepsize: %d/
+                    fcb       $0a
+StrObjControl       fcc       /control: %x/
+                    fcb       $0a
+StrFmtNewline       fcc       /%s/
+                    fcb       $0a
+StrFmtNull          fcc       /%s/
+                    fcb       0
+                    endm
+OBJECT_EMIT_STATUS macro
+CmdObjStatusV       leas      >-OBJECT_STATUS_FRAME,s
+                    OBJECT_STATUS_SELECT
+                    std       >OBJECT_STATUS_OBJECT,s  save object address on stack
+                    lda       <$23,u    load cycle type
+                    cmpa      #$00      check if normal cycling
+                    bne       CheckCycleType1 branch if not normal cycle
+                    leax      >StrNormalCycle,pcr normal cycle
+                    bra       GotCycleStr
+CheckCycleType1     cmpa      #$01      check if end-of-loop mode
+                    bne       CheckCycleType2 branch if not end-of-loop
+                    leax      >StrEndOfLoop,pcr end of loop
+                    bra       GotCycleStr
+CheckCycleType2     cmpa      #$02      check if reverse-loop mode
+                    bne       DefaultCycleStr branch if none of the above
+                    leax      >StrReverseLoop,pcr reverse loop
+                    bra       GotCycleStr
+DefaultCycleStr     leax      >StrReverseCycle,pcr reverse cycle
+GotCycleStr         stx       >OBJECT_STATUS_CYCLE,s  save cycle type string pointer
+                    lda       <$22,u    load motion type
+                    cmpa      #$00      check if normal motion
+                    bne       CheckMotionType1 branch if not normal motion
+                    leax      >StrNormalMotion,pcr normal motion
+                    bra       GotMotionStr
+CheckMotionType1    cmpa      #$01      check if wander motion
+                    bne       CheckMotionType2 branch if not wander
+                    leax      >StrWander,pcr wander
+                    bra       GotMotionStr
+CheckMotionType2    cmpa      #$02      check if follow-ego motion
+                    bne       BuildMoveToStr branch if not follow (must be move-to)
+                    leax      >StrFollow,pcr follow
+                    bra       GotMotionStr
+BuildMoveToStr      clra                clear A for word construction
+                    ldb       <$28,u    load target Y position
+                    pshs      b,a       push Y arg for format
+                    ldb       <$27,u    load target X position
+                    pshs      b,a       push X arg for format
+                    leax      >StrMoveTo,pcr load "move to (%d, %d)" format string
+                    pshs      x         push format string pointer
+                    OBJECT_STATUS_MOTION_BUFFER
+                    pshs      x         push output buffer pointer
+                    OBJECT_STATUS_MOTION_FORMAT
+MoveToFormatDone    leas      $08,s     release 4 pushed arguments
+GotMotionStr        pshs      x         push motion string pointer
+                    ldx       >OBJECT_STATUS_CYCLE+2,s  load saved cycle string
+                    pshs      x         push object address for format
+                    ldu       >OBJECT_STATUS_OBJECT+4,s  reload object address
+                    ldd       <$25,u    load animation flags (both bytes)
+                    pshs      b,a       push flags
+                    clra                clear A for word construction
+                    ldb       <$1E,u    load step size
+                    pshs      b,a       push step size
+                    ldb       <$24,u    load priority
+                    pshs      b,a       push priority
+                    ldb       <$1D,u    load Y size
+                    pshs      b,a       push Y size
+                    ldb       $04,u     load Y position
+                    pshs      b,a       push Y position
+                    ldb       <$1C,u    load X size
+                    pshs      b,a       push X size
+                    ldb       $03,u     load X position
+                    pshs      b,a       push X position
+                    ldb       $02,u     load object number
+                    pshs      b,a       push object number
+                    leau      >StrObjHeader,pcr load address of object header format string
+                    pshs      u         push format string pointer
+                    OBJECT_STATUS_OUTPUT_BUFFER
+                    pshs      x         push output buffer pointer
+                    lbsr      PrintFmtStr
+                    leas      <$18,s    release all pushed arguments
+                    OBJECT_STATUS_DISPLAY
+                    leas      >OBJECT_STATUS_FRAME,s
+                    rts
+                    endm

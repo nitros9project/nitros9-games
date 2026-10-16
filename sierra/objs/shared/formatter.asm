@@ -1,3 +1,5 @@
+                    ifndef SHARED_FORMATTER_DEFINED
+SHARED_FORMATTER_DEFINED equ 1
 * Formatter component. Definitions emit no code until invoked.
 * Named expansion sites preserve module layout and direct branch/call targets.
 
@@ -85,3 +87,69 @@ FormatExpansionReturn FORMAT_EXPANSION_RESULT
                     endc
                     lbra      FORMAT_EXPANSION_NEXT
                     endm
+
+* Word-argument formatter. X=format, U=successive big-endian word arguments.
+* Output hook accepts A; numeric hooks return X=NUL-terminated digits.
+* Owner supplies output storage and decimal/hex conversion buffers.
+                    ifndef WORD_FORMAT_CUSTOM_DECIMAL
+WORD_FORMAT_DECIMAL macro
+                    lbsr      UIntToDecStr
+                    endm
+                    endc
+FORMAT_EMIT_WORD_ARGUMENTS macro
+PrintFmtLoop        lda       ,x+       ; load next format char
+                    beq       PrintFmtOutputChar ; null = end, flush it
+                    cmpa      #$25      ; check for '%' format specifier
+                    beq       PrintFmtEscS ; handle format escape
+                    bsr       PrintFmtOutputChar ; emit literal char
+                    bra       PrintFmtLoop
+PrintFmtEscS        lda       ,x+       ; load format type char
+                    cmpa      #$73
+                    bne       PrintFmtEscD ; not '%s'
+                    ldd       ,u++      ; fetch string pointer from args
+                    pshs      u,x       ; save U and X
+                    bra       PrintFmtStrEmit ; emit string
+PrintFmtEscD        cmpa      #$64
+                    bne       PrintFmtEscUX ; not '%d'
+                    tst       ,u        ; test sign of next arg
+                    bpl       PrintFmtEscU ; positive, treat as unsigned
+                    lda       #$2D
+                    bsr       PrintFmtOutputChar ; emit '-' for negative
+                    ldd       #$0000
+                    subd      ,u++      ; negate: 0 - arg
+                    pshs      u,x       ; save U and X
+                    WORD_FORMAT_DECIMAL
+                    tfr       x,d       ; D = pointer to decimal string
+                    bra       PrintFmtStrEmit
+PrintFmtEscUX       cmpa      #$75
+                    beq       PrintFmtEscU ; '%u' = unsigned decimal
+                    cmpa      #$78
+                    bne       PrintFmtEscC ; not '%x'
+                    ldd       ,u++      ; fetch unsigned arg
+                    pshs      u,x       ; save U and X
+                    lbsr      UIntToHexStr ; convert to hex string
+                    tfr       x,d       ; D = pointer to hex string
+                    bra       PrintFmtStrEmit
+PrintFmtEscU        ldd       ,u++      ; fetch unsigned arg
+                    pshs      u,x       ; save U and X
+                    WORD_FORMAT_DECIMAL
+                    tfr       x,d       ; D = pointer to decimal string
+                    bra       PrintFmtStrEmit
+PrintFmtEscC        cmpa      #$63
+                    bne       PrintFmtEscOther ; not '%c'
+                    ldd       ,u++      ; fetch character value from args
+                    bsr       PrintFmtOutputChar ; emit character
+                    bra       PrintFmtLoop
+PrintFmtEscOther    leax      -$01,x    ; back up to format type char
+                    lda       -$01,x    ; reload '%' char
+                    bsr       PrintFmtOutputChar ; emit '%' literally
+                    bra       PrintFmtLoop
+PrintFmtStrEmit     tfr       d,x       ; X = pointer to converted string
+PrintFmtStrEmitLoop lda       ,x+       ; load next char of converted string
+                    lbne      PrintFmtStrEmitChar ; non-null, emit it
+                    puls      u,x       ; restore U and X
+                    lbra      PrintFmtLoop ; continue format loop
+PrintFmtStrEmitChar bsr       PrintFmtOutputChar ; emit string character
+                    bra       PrintFmtStrEmitLoop
+                    endm
+                    endc

@@ -2,12 +2,94 @@
 """Run both real decimal converters and native expansion/overflow stack cleanup."""
 from pathlib import Path
 import subprocess
+import itertools
 import tempfile
 from check_logic_executor import compile_module
 from check_wbres import idle_rom, start_cpu
 
 ROOT = Path(__file__).resolve().parents[1]
 WIDE = [256, 257, 999, 1000, 9999, 10000, 32767, 32768, 65534, 65535]
+
+
+def check_object_status(d, c, cs, tmp):
+    """Compare the shared diagnostic's actual output before either modal backend."""
+    n, ns = compile_module(ROOT/'objs/wbui.asm', tmp/'wbui-status')
+    d.breakpoint(0x7e00, False)
+    d.write(0xffdf,b'\0');d.write(0xff90,b'\x4c');d.write(0xff91,b'\1');d.write(0xffa8,bytes(range(8)));d.write(0x7e00,b'\x39');d.write(0x7e04,b'\x5f\x39');d.breakpoint(0x7e02)
+    results={};calls=0
+    for owner,code,syms,bases in [('CoCo',c,cs,(0x8000,0x9000)),('native',n,ns,(0x8000,0xa000))]:
+     for base in bases:
+      d.write(base,code)
+      hook=base+cs['message_box'] if owner=='CoCo' else 0x7e00;d.breakpoint(hook)
+      for obj,var,cycle,motion in itertools.product((0,63),(0,255),(0,1,2,3,255),(0,1,2,3,255)):
+       d.write(0,bytes(0x6000));d.write(0x7000,bytes([var]));d.write(0x7df0,b'\x7e\x02STACK');d.write(0x7b00,b'LOWGUARD')
+       record=bytearray(43);record[2:5]=bytes([obj,255,167]);record[0x1c:0x20]=bytes([160,168,255,1]);record[0x22:0x29]=bytes([motion,cycle,15,255,255,255,167])
+       if owner=='CoCo':
+        d.write(0x30,b'\x30\0');d.write(0x431+var,bytes([obj]));d.write(0x3000+43*obj,record)
+       else:
+        d.write(syms['resourcebase'],b'\0\0');d.write(syms['vmvariables']+var,bytes([obj]));d.write(syms['vmarguments'],bytes([var]));d.write(syms['vmobjects']+43*obj,record);d.write(syms['coldapi'],b'\x72\0');d.write(0x7210,(0x7e00-0x7200).to_bytes(2,'big'));d.write(0x721a,(0x7e04-0x7200).to_bytes(2,'big'));d.write(0x7212,(0x7e04-0x7200).to_bytes(2,'big'))
+       d.regs(pc=base+syms['CmdObjStatusV'],s=0x7df0,y=0x7000,u=0,dp=0,cc=0x50);d.call('c');regs=d.regs();assert regs['pc']==hook,(owner,regs)
+       ptr=regs['u'] if owner=='CoCo' else regs['x'];text=d.read(ptr,300).split(b'\0')[0];key=(obj,var,cycle,motion)
+       if owner=='CoCo':
+        if key in results:assert text==results[key]
+        results[key]=text
+       else:assert text==results[key],(key,text,results[key])
+       d.breakpoint(hook,False);d.regs(pc=0x7e00);d.call('c');regs=d.regs();assert regs['pc']==0x7e02 and regs['s']==0x7df2,(owner,regs);assert d.read(0x7b00,8)==b'LOWGUARD';assert d.read(0x7df2,5)==b'STACK';d.breakpoint(hook)
+       if owner=='native':assert d.read(base,len(code))==code
+       calls+=1
+      d.breakpoint(hook,False)
+    print('PASS:',calls,'actual shared object-status calls, two bases, all cycle/motion classes, object/variable edges, exact reference text and stack/code guards')
+    wide_calls=0
+    values=sorted(set([0,1,9,10,15,16,99,100,255,256,4095,4096]+WIDE))
+    for base in (0x8000,0xa000):
+        d.write(base,n)
+        for routine in ('WordUIntToDecStr','UIntToHexStr'):
+            for value in values:
+                d.write(0,bytes(ns['size']))
+                d.write(ns['messagebuffer'],b'\xa5'*512)
+                d.write(0x7df0,b'\x7e\x02STACK')
+                d.write(0x7b00,b'LOWGUARD')
+                d.regs(pc=base+ns[routine],s=0x7df0,x=0x7777,y=0x6666,u=0,dp=0,
+                       a=value>>8,b=value&255,cc=0x50)
+                d.call('c');regs=d.regs()
+                expected=(str(value) if routine=='WordUIntToDecStr' else format(value,'X')).encode()
+                start=ns['messagebuffer']+511-len(expected)
+                assert regs['pc']==0x7e02 and regs['s']==0x7df2 and regs['x']==start
+                assert regs['y']==0x6666 and regs['u']==0 and regs['a']==regs['b']==0
+                assert d.read(start,len(expected)+1)==expected+b'\0',(routine,value,regs)
+                assert d.read(ns['messagebuffer'],start-ns['messagebuffer'])==b'\xa5'*(start-ns['messagebuffer'])
+                assert d.read(0x7b00,8)==b'LOWGUARD' and d.read(0x7df2,5)==b'STACK'
+                assert d.read(base,len(n))==n
+                wide_calls+=1
+    print(f'PASS: {wide_calls} native diagnostic word decimal/hex conversions through 65535, two bases, bounded private buffers, exact registers/stack and immutable code')
+    error_calls=0
+    d.write(0x7e08,b'\xc6\xcb\x1a\x01\x39')
+    for base in (0x8000,0xa000):
+        d.write(base,n)
+        for label,object_number,failed_callback,error in [
+                ('unmap',0,18,203),('canvas',63,26,203),
+                ('object64',64,None,187),('object255',255,None,187)]:
+            d.write(0,bytes(ns['size']))
+            d.write(ns['messagebuffer'],b'\xa5'*512)
+            d.write(ns['vmarguments'],b'\xff')
+            d.write(ns['vmvariables']+255,bytes([object_number]))
+            d.write(ns['coldapi'],b'\x72\0')
+            for callback in (18,26):
+                target=0x7e08 if callback==failed_callback else 0x7e04
+                d.write(0x7200+callback,(target-0x7200).to_bytes(2,'big'))
+            before=d.read(0,ns['size'])
+            d.write(0x7df0,b'\x7e\x02STACK');d.write(0x7b00,b'LOWGUARD')
+            d.regs(pc=base+ns['CmdObjStatusV'],s=0x7df0,x=0x7777,y=0x6666,u=0,dp=0,cc=0x50)
+            d.call('c');regs=d.regs()
+            assert regs['pc']==0x7e02 and regs['s']==0x7df2 and regs['u']==0
+            assert regs['cc']&1 and regs['b']==error,(label,regs)
+            assert d.read(0,ns['size'])==before,(label,'private state changed')
+            assert d.read(base,len(n))==n and d.read(0x7b00,8)==b'LOWGUARD'
+            assert d.read(0x7df2,5)==b'STACK'
+            error_calls+=1
+    print(f'PASS: {error_calls} diagnostic unmap/canvas/index failures, unchanged private state and exact stack/private-base/error recovery')
+    d.breakpoint(0x7e02, False)
+    d.breakpoint(0x7e00)
 
 
 def main():
@@ -113,6 +195,7 @@ def main():
                         # engine conversion buffer; all instruction bytes stay intact.
                         current[syms['NumConvBuf']:syms['NumConvEnd']+1] = code[syms['NumConvBuf']:syms['NumConvEnd']+1]
                     assert current == code
+            check_object_status(d, coco, cs, tmp)
             print(f'PASS: {calls} real decimal converter/formatter calls; all bytes, CoCo wide values through 65535, exact digits/termination, native message preservation, numeric output-limit failure/frame unwinding, two load addresses, state/buffer/stack guards and instruction immutability')
         finally:
             d.s.close(); emulator.terminate()

@@ -10,6 +10,44 @@ ROOT = Path(__file__).resolve().parents[1]
 from export_picture import resource, render
 
 
+def check_object_status_commands(d):
+    """Exercise actual scripts and modal lifetime, not just the formatter entry."""
+    for obj in (0,63,64,255):
+     body=bytes([3,255,obj,12,15,133,255,134,1,0]);logic=len(body).to_bytes(2,'little')+body
+     files={'/game/logDir':b'\xff'*3+bytes(3),'/game/vol.0':b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic}
+     error,out,state=exercise(d,files,module='wbgame',base=0xa000,database=0,window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,module_root=ROOT/'objs',os_call_limit=20000)
+     print('OBJECT',obj,'ERROR',error,'TEXT',state['messagebuffer'].split(b'\0')[0],flush=True)
+     assert error==(0 if obj<64 else 187),(obj,error)
+     if obj<64:assert state['messagebuffer'].startswith(f'Object {obj}:\n'.encode()) and state['vmflags'][15]==0
+    for label,setup,keys,future,wanted_sleeps in [
+        ('cached repeat',bytes([12,15,133,255]),b'old\r',{1:b'x',2:b'\r'},2),
+      ('fresh Enter',b'',b'old\r',{1:b'x',2:b'\r'},2),
+        ('fresh physical Escape',b'',b'old\r',{1:b'x',2:b'\x05'},2),
+        ('fresh AGI Escape',b'',b'old\r',{1:b'x',2:b'\x1b'},2),
+        ('timed ordinary key rejected',bytes([3,21,1]),b'x\r',None,0),
+        ('timed expiry',bytes([3,21,1]),b'',None,30)]:
+     body=setup+bytes([133,255,134,1,0]);logic=len(body).to_bytes(2,'little')+body
+     files={'/game/logDir':b'\xff'*3+bytes(3),'/game/vol.0':b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic}
+     error,out,state=exercise(d,files,module='wbgame',base=0xa000,database=0,window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,module_root=ROOT/'objs',os_call_limit=20000,keyboard=keys,keyboard_by_sleep=future)
+     print(label,error,state['sleeps'],flush=True)
+     assert error==0 and state['sleeps']==wanted_sleeps and state['vmvariables'][21]==0,(label,error,state['sleeps'])
+    directory=b'/'+b'a'*126
+    volume=bytearray();entries=[b'\xff'*3]
+    for number in range(1,18):
+        body=bytes([22,number+1,0]) if number<17 else bytes([3,255,63,12,15,133,255,134,1,0])
+        logic=len(body).to_bytes(2,'little')+body
+        entries.append(len(volume).to_bytes(3,'big'))
+        volume+=b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic
+    files={directory.decode()+'/logDir':b''.join(entries),directory.decode()+'/vol.0':bytes(volume)}
+    error,out,state=exercise(d,files,arguments=directory+b' 1\r',module='wbgame',base=0xa000,
+        database=0,window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,
+        module_root=ROOT/'objs',os_call_limit=30000)
+    assert error==0 and state['messagebuffer'].startswith(b'Object 63:\n'),(error,out)
+    assert state['gamefont']==(ROOT/'objs/wbfont').read_bytes(),'deep diagnostic damaged private font'
+    print('PASS: object status at 16 nested calls and a 127-byte directory, private font intact and owned cleanup')
+    print('PASS: real loaded object-status dispatch, held text, variable255, object0/63, invalid64/255 cleanup')
+
+
 def check_state_transfers(d):
     """File counts must be checked independently of the service's Z flag."""
     root=ROOT/'objs'; syms=symbols(root/'wbstate.map'); base=0x9000
@@ -1528,6 +1566,7 @@ def main():
             d.write(0xffa8, bytes(range(8)))
             check_reused_private_state(d)
             check_compatibility_noops(d)
+            check_object_status_commands(d)
             check_positioned_messages(d)
             check_text_screen_key_wait(d)
             check_original_help(d)

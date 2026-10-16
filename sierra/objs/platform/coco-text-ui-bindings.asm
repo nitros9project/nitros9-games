@@ -215,3 +215,7 @@ BOUNDED_COCO_COUNT  macro
                     subd      #$0001
                     std       ,s
                     endm
+
+WORD_HEX_OUTPUT_END macro
+                    leax      >NumConvEnd,pcr
+                    endm
