@@ -6,6 +6,16 @@ import tempfile
 from check_wbres import exercise, idle_rom, start_cpu
 
 
+def queued_menu_script(request,continuation):
+    """First cycle issues a request; the next cycle inspects its outcome.
+
+    v250 is a fixture-only guard. Returning from logic is essential: commands
+    following menu_input still run before the event loop displays the menu.
+    """
+    first=request+bytes([3,250,1,0])
+    return bytes([255,253,1,250,1,255])+len(first).to_bytes(2,'little')+first+continuation
+
+
 def fixture(script, picture=None, view=None, message=None):
     logic = len(script).to_bytes(2,'little') + script
     if message is not None:
@@ -92,8 +102,8 @@ def main():
             error,frame,s=run(fixture(body,message=b'A modal response.'),keyboard=b'\r',frame_capture=True)
             assert not error and s['vmflags'][200]==1 and frame==bytes([1])*76800, 'modal dismissal failed to restore blank frame'
             for keys, selected in [(b'\n\r',True),(b'\x1b',False),(b'\x05',False),(b'\r\n\r',True)]:
-                body=bytes([12,14,3,0,1,24,0,25,0,26,156,1,157,2,254,157,3,255,158,160,254,161,
-                            255,12,255,255,2,0,12,200,134,1,0])
+                body=queued_menu_script(bytes([12,14,3,0,1,24,0,25,0,26,156,1,157,2,254,157,3,255,158,160,254,161]),
+                            bytes([255,12,255,255,2,0,12,200,134,1,0]))
                 error,frame,s=run(fixture(body,b'\xff',message=[b'File',b'Disabled',b'Pick me']),
                                   keyboard=keys,frame_capture=True)
                 assert not error and bool(s['vmflags'][200])==selected, ('menu',keys,error)

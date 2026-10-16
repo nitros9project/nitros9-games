@@ -3072,7 +3072,7 @@ these edge differences, not the complete S01 acceptance family.
 ## Separate UI and persistence providers (ABI 8)
 
 The current package is `wbgame`, `wbui`, `wbstate` and `wbfont`. Install the
-three executable modules from the same ABI-11 build. UI/audio code now belongs
+three executable modules from the same ABI-12 build. UI/audio code now belongs
 to the immutable `wbui` provider; `wbstate` supplies the bounded private copy
 used for save/restore. Existing source feature groups are unchanged.
 See [provider ownership, loader contracts, budgets and verification](WILDBITS-ENGINE.md#separate-ui-and-persistence-providers-abi-8).
@@ -3093,3 +3093,10 @@ read-only resident-header offset at 44, with assembly-time guards. See the
 Menu visibility now uses two caller-private, module-lifetime bytes; flag 14
 independently permits menu input. See the [ABI-11 contract and evidence](WILDBITS-ENGINE.md#menu-visibility-and-input-permission-abi-11).
 No additional platform files or per-frame dispatch are introduced.
+
+
+Menu input is now deferred until the next event stage, with a shared request
+policy and private pending byte. Diagnostic/shake/restart commands share a cold
+UI loader/cache; screen calls retain their distinct interface. A cached shake
+releases engine mappings before borrowing the framebuffer window. See the
+[ABI-12 ownership and verification record](WILDBITS-ENGINE.md#deferred-menu-requests-and-shared-ui-entry-abi-12).

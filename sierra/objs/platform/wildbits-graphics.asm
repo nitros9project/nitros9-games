@@ -2331,6 +2331,12 @@ AuxShakeScreen      ldu       <resourcebase
                     lbeq      AuxShakeSuccess
                     tst       <bitmapowned
                     lbeq      AuxShakeSuccess
+* A cached UI provider may be entered with the logic slab still mapped.
+* Release both engine mappings before borrowing the framebuffer window.
+                    UI_CALL   8
+                    lbcs      AuxShakeReturn
+                    UI_CALL   10
+                    lbcs      AuxShakeReturn
                     clr       textrow,u
 AuxShakeSaveEdge    lbsr      AuxShakeRowOffset
                     addd      #312

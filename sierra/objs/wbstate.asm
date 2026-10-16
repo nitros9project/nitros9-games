@@ -11,7 +11,7 @@ StateName           fcs /wbstate/
                     fcb 1
 StateEntry          bra StateBegin
                     STATE_ABI
-                    fdb 0,0,0,0,StateCopyEnd,0,0,0,0,0,0,0
+                    fdb 0,0,0,0,StateCopyEnd,0,0,0,0,0,0,0,0
 * A=0 save, 1 validate/stage restore, 2 apply after nested logic unwinds.
 * X=filename, Y=engine callback table, U=the game's private base.
 StateBegin          stu StateBase,pcr

@@ -52,3 +52,14 @@ RoomVariablesBegin  ROOM_CURRENT_VARIABLE lda
                     ROOM_CURRENT_VARIABLE stb
 RoomVariablesDone   equ *
                     endm
+
+* Menu input is a request. The event loop consumes it after the script returns.
+* Owners supply the permission test and process-private pending-byte store.
+AGI_MENU_REQUEST macro
+                    MENU_REQUEST_ALLOWED
+                    beq       \1
+                    lda       #1
+                    MENU_REQUEST_STORE
+\1                 MENU_REQUEST_RETURN
+                    rts
+                    endm

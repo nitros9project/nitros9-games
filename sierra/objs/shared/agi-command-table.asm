@@ -163,7 +163,7 @@
                     AGI_COMMAND cmd_submit_menu,$0000,MenuCommand,0 *submit menu
                     AGI_COMMAND cmd_enable_item,$100,MenuCommand,0 *enable item
                     AGI_COMMAND cmd_disable_item,$100,MenuCommand,0 *disable item
-                    AGI_COMMAND cmd_menu_input,$0000,GameMenuInput,1 *menu input
+                    AGI_COMMAND cmd_menu_input,$0000,GameShowObjectCommand,1 *menu input
                     AGI_COMMAND cmd_show_obj_v,$100,GameShowObjectCommand,1 *show obj v
                     AGI_COMMAND NoopCmdsRet,$0000,VmSuccess,0 *open dialogue
                     AGI_COMMAND NoopCmdsRet,$0000,VmSuccess,0 *close dialogue

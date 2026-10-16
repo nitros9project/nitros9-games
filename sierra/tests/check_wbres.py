@@ -145,9 +145,14 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
         d.call('c')
         r = d.regs()
         if r['pc'] in hooks:
-            callback=hooks.pop(r['pc'])
-            callback(d,r,syms)
-            d.breakpoint(r['pc'],False)
+            callback=hooks[r['pc']]
+            if callback(d,r,syms):
+                # A repeating observer must advance beyond this instruction
+                # before continuing, otherwise it retriggers its breakpoint.
+                d.call('s')
+            else:
+                hooks.pop(r['pc'])
+                d.breakpoint(r['pc'],False)
             continue
         if r['pc'] == kind_entry:
             d.write(database + syms['resourcekind'], bytes([resource_kind]))

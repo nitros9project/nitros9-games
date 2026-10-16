@@ -6,6 +6,7 @@ import tempfile
 import re
 from check_wbres import exercise, idle_rom, start_cpu
 from check_instances import symbols
+from check_wbplay import queued_menu_script
 ROOT = Path(__file__).resolve().parents[1]
 from export_picture import resource, render
 
@@ -129,9 +130,9 @@ def check_provider_loaders(d):
                 for case in cases:
                     image=bytearray((root/'wbui').read_bytes() if case=='wrong state role' else original)
                     image_entry=int.from_bytes(image[9:11],'big')
-                    edits={'bad ABI':(entry+2,0),'short header':(2,entry+36),
+                    edits={'bad ABI':(entry+2,0),'short header':(2,entry+38),
                            'large module':(2,8193),'small entry':(9,12),'overflow entry':(9,65535),
-                           'short prefix':(entry+18,entry+37),'large prefix':(entry+18,4097),
+                           'short prefix':(entry+18,entry+39),'large prefix':(entry+18,4097),
                            'prefix past module':(2,int.from_bytes(image[entry+18:entry+20],'big')-1),
                            'reserved UI word':(entry+18,4097)}
                     if case in edits:
@@ -184,7 +185,7 @@ def check_provider_loaders(d):
         finally:
             for address in [*sites,0x7e00]:d.breakpoint(address,False)
     state=(root/'wbstate').read_bytes();state_entry=int.from_bytes(state[9:11],'big')
-    directory=[int.from_bytes(state[state_entry+10+n:state_entry+12+n],'big') for n in range(0,24,2)]
+    directory=[int.from_bytes(state[state_entry+10+n:state_entry+12+n],'big') for n in range(0,26,2)]
     assert all(value==0 for n,value in enumerate(directory) if n!=4), 'persistence module exported a UI entry'
     ui=(root/'wbui').read_bytes();ui_entry=int.from_bytes(ui[9:11],'big')
     assert int.from_bytes(ui[ui_entry+18:ui_entry+20],'big')==0, 'UI advertised copied code'
@@ -994,7 +995,7 @@ def check_screen_shakes(d):
         if count and picture:assert seen
     original_helper=(ROOT/'objs/wbui').read_bytes();entry=int.from_bytes(original_helper[9:11],'big')
     for offset in (0,len(original_helper),len(original_helper)-1):
-        helper_data=bytearray(original_helper);helper_data[entry+28:entry+30]=offset.to_bytes(2,'big')
+        helper_data=bytearray(original_helper);helper_data[entry+34:entry+36]=offset.to_bytes(2,'big')
         files=fixture(1);files['wbui']=bytes(helper_data)
         error,output,state=exercise(d,files,module='wbgame',base=0xa000,database=0,
             window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,os_call_limit=60000)
@@ -1079,7 +1080,7 @@ def check_object_previews(d):
         assert error==expected_error,(label,error)
     original=(ROOT/'objs/wbui').read_bytes();entry=int.from_bytes(original[9:11],'big')
     for offset in (0,len(original),len(original)-1):
-        helper=bytearray(original);helper[entry+26:entry+28]=offset.to_bytes(2,'big')
+        helper=bytearray(original);helper[entry+34:entry+36]=offset.to_bytes(2,'big')
         files=fixture(bytes([129,0]));files['wbui']=bytes(helper)
         error,output,state=exercise(d,files,module='wbgame',base=0xa000,database=0,
             window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,
@@ -1118,6 +1119,60 @@ def check_interpreter_information(d):
         assert state['vmflags'][15]==(1 if 15 in prefix else 0),(label,'print flag changed')
         assert state['vmvariables'][21]==(2 if 21 in prefix else 0),(label,'print timer changed')
     print('PASS: interpreter information, blocking dismissal, preserved flags/timer and deep caller resume')
+
+
+def check_ui_command_cache(d):
+    """Interleave diagnostic/shake/restart groups through one private cache."""
+    body=bytes([255,7,6,255,3,0,134,1,0,12,15,135,110,1,177,0,12,15,135,
+                12,16,128,3,254,99,134,1,0])
+    logic=len(body).to_bytes(2,'little')+body
+    files={'/game/logDir':b'\xff'*3+bytes(3),
+           '/game/vol.0':b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic}
+    calls=[]
+    def entry(cpu,regs,syms):
+        calls.append((cpu.read(syms['vmopcode'],1)[0],
+                      int.from_bytes(cpu.read(syms['uicommandentry'],2),'big')))
+        return True
+    error,out,state=exercise(d,files,module='wbgame',base=0xa000,database=0,
+        window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,
+        os_call_limit=30000,breakpoint_hooks={'GameUiCommand':entry})
+    assert error==0 and state['vmflags'][6]==1 and state['vmvariables'][254]==0,(error,out)
+    assert [opcode for opcode,_ in calls]==[135,110,177,135,128],calls
+    assert calls[0][1]==0 and len({pointer for _,pointer in calls[1:]})==1 and calls[1][1],calls
+    assert state['gamefont']==(ROOT/'objs/wbfont').read_bytes()
+    print('PASS: interleaved diagnostic/shake/visibility/restart use one stable private UI cache; restart apply survives unwind and preserves the private font')
+
+
+def check_menu_request_order_reference(d):
+    """Execute the actual CoCo script and following event loop as the oracle."""
+    from check_logic_executor import compile_module
+    with tempfile.TemporaryDirectory(prefix='sierra-menu-order-') as name:
+        code,syms=compile_module(ROOT/'objs/mnln.asm',Path(name)/'mnln')
+        base=0x8000;d.write(0,bytes(0x6000));d.write(base,code)
+        d.write(0x2e,base.to_bytes(2,'big'))
+        d.run(base+syms['PatchCmdTable']);d.run(base+syms['FixupEvalTbl'])
+        d.breakpoint(0x1d00,False)
+        script=bytes([12,14,161,177,0,3,240,73,0])
+        d.write(0x62,b'\x30\0');d.write(0x3000,bytes(10));d.write(0x3008,b'\x20\0')
+        d.write(0x2000,script)
+        page=base+syms['SetLogicPage'];d.breakpoint(page);d.breakpoint(0x7e00)
+        d.write(0x7ef0,b'\x7e\0STACK')
+        d.regs(pc=base+syms['ExecLogicScript'],s=0x7ef0,dp=0,cc=0x50)
+        for _ in range(5):
+            d.call('c');regs=d.regs()
+            if regs['pc']==0x7e00:break
+            assert regs['pc']==page,regs
+            d.regs(pc=int.from_bytes(d.read(regs['s'],2),'big'),s=regs['s']+2)
+        else:raise AssertionError('CoCo script failed to return')
+        assert d.read(0x431+240,1)==b'I' and d.read(base+syms['MenuExtraFlag'],1)==b'\0'
+        assert d.read(0x5ae,1)==b'\1'
+        d.breakpoint(page,False);d.write(0x92,b'\1\3\1\3')
+        d.write(0x7ef0,b'\x7e\0STACK')
+        d.regs(pc=base+syms['EventLoop'],s=0x7ef0,dp=0,cc=0x50)
+        d.call('c');regs=d.regs()
+        assert regs['pc']==0x7e00 and d.read(0x5ae,1)==b'\0'
+        d.breakpoint(0x7e00,False)
+    print('PASS: actual CoCo executor completes following hide/assignment before the next event loop consumes its menu request')
 
 
 def check_menu_visibility_reference(d):
@@ -1202,10 +1257,17 @@ def check_menu_visibility_reference(d):
                 d.write(ns['vmflags']+14,bytes([enabled]))
                 d.write(ns['menuvisibility'],bytes([visible,known]))
                 d.write(ns['menuready'],b'\x01');d.write(ns['menuitems'],b'\x01')
+                d.write(ns['menupending'],b'\0')
+                d.write(0x7ef0,b'\x7e\x02STACK')
+                d.regs(pc=base+ns['AuxMenuRequest'],s=0x7ef0,u=0,dp=0,cc=0x51)
+                d.call('c');requestregs=d.regs()
+                assert requestregs['pc']==0x7e02 and not(requestregs['cc']&1)
+                assert d.read(ns['menupending'],1)==bytes([enabled])
+                calls+=1
                 d.write(ns['coldapi'],b'\x72\0');d.write(0x7200,(0x7e00-0x7200).to_bytes(2,'big'))
                 d.write(0x7ef0,b'\x7e\x02STACK');d.breakpoint(0x7e00)
                 d.regs(pc=base+ns['AuxMenuInput'],s=0x7ef0,y=0x7200,u=0,dp=0,cc=0x50)
-                d.call('c');regs=d.regs();wanted=bool(enabled and (not known or visible))
+                d.call('c');regs=d.regs();wanted=bool(not known or visible)
                 assert regs['pc']==(0x7e00 if wanted else 0x7e02),(enabled,known,visible,regs)
                 d.breakpoint(0x7e00,False);calls+=1
             assert d.read(base,len(native))==native
@@ -1281,28 +1343,37 @@ def check_menu_visibility_commands(d):
            ('noncanonical visible',bytes([12,14])+build+bytes([177,2,161]),b'\r',True,b'\2\1'),
            ('high byte visible',bytes([12,14])+build+bytes([177,255,161]),b'\r',True,b'\xff\1'),
            ('hide then show',bytes([12,14])+build+bytes([177,0,161,177,255,161]),b'\r',True,b'\xff\1'),
+           ('request then hide',bytes([12,14])+build+bytes([161,177,0]),b'',False,b'\0\1'),
+           ('hidden request then show',bytes([12,14])+build+bytes([177,0,161,177,255]),b'\r',True,b'\xff\1'),
+           ('request then revoke permission',bytes([12,14])+build+bytes([161,13,14]),b'\r',True,b'\0\0'),
+           ('duplicate request',bytes([12,14])+build+bytes([161,161]),b'\r',True,b'\0\0'),
            ('flag14 disabled',build+bytes([13,14,177,255,161]),b'',False,b'\xff\1'),
            ('flag14 disabled unsubmitted',bytes([13,14,161]),b'',False,b'\0\0'),
            ('physical Escape',bytes([12,14])+build+bytes([161]),b'\5',False,b'\0\0')]
     for label,body,keys,selected,visibility in cases:
-        body+=bytes([3,240,73,134,1,0]);files={'/game/logDir':b'\xff'*3+bytes(3),'/game/vol.0':record(body,True)}
-        seen=[]
+        body=queued_menu_script(body+bytes([3,240,73]),bytes([134,1,0]));files={'/game/logDir':b'\xff'*3+bytes(3),'/game/vol.0':record(body,True)}
+        seen=[];requests=[]
         def observe(cpu,regs,syms):seen.append(cpu.read(syms['menuvisibility'],2))
+        def event(cpu,regs,syms):
+            requests.append((cpu.read(syms['vmvariables']+240,1),cpu.read(syms['menuvisibility'],2)))
+            return True
         error,out,state=exercise(d,files,module='wbgame',base=0xa000,database=0,window=0x8000,
             blocks=None,multiple=True,firstblock=0x10,capture=True,keyboard=keys,os_call_limit=30000,
-            breakpoint_hooks={'GameQuitCommand':observe})
+            breakpoint_hooks={'GameQuitCommand':observe,'GameMenuInput':event})
         expected=bytearray(32)
         if selected:expected[31]=128
         assert error==0 and state['vmvariables'][240]==73,(label,error,out)
         assert state['vmcontrollers']==expected,(label,state['vmcontrollers'])
         assert seen==[visibility],(label,seen,visibility)
+        expected_requests=[] if label.startswith('flag14 disabled') else [(b'I',visibility)]
+        assert requests==expected_requests,(label,'request consumed before script completion',requests,expected_requests)
         assert state['gamefont']==(ROOT/'objs/wbfont').read_bytes()
         print('PASS: menu visibility:',label,flush=True)
     # The room changes resource ownership, not the module-lifetime visibility.
     def when(test,code):return bytes([255,*test,255])+len(code).to_bytes(2,'little')+code
     root=when([1,0,0],bytes([3,0,1]))+bytes([23,0,0])
     first=bytes([12,14,177,0])+build+bytes([18,2,0])
-    second=bytes([12,14,161,3,240,73,134,1,0])
+    second=queued_menu_script(bytes([12,14,161,3,240,73]),bytes([134,1,0]))
     volume=bytearray();entries=[]
     for code,messages in [(root,False),(first,True),(second,False)]:
         entries.append(len(volume).to_bytes(3,'big'));volume+=record(code,messages)
@@ -1316,7 +1387,7 @@ def check_menu_visibility_commands(d):
     print('PASS: hidden menu survives room/resource transition without taking input or changing the private font')
     directory=b'/'+b'a'*126;volume=bytearray();entries=[b'\xff'*3]
     for number in range(1,18):
-        body=bytes([22,number+1,0]) if number<17 else bytes([12,14,177,0,177,255])+build+bytes([161,3,240,73,134,1,0])
+        body=bytes([22,number+1,0]) if number<17 else queued_menu_script(bytes([12,14,177,0,177,255])+build+bytes([161,3,240,73]),bytes([134,1,0]))
         entries.append(len(volume).to_bytes(3,'big'));volume+=record(body,number==17)
     files={directory.decode()+'/logDir':b''.join(entries),directory.decode()+'/vol.0':bytes(volume)}
     error,out,state=exercise(d,files,arguments=directory+b' 1\r',module='wbgame',base=0xa000,
@@ -1330,7 +1401,7 @@ def check_menu_visibility_commands(d):
 def check_cold_menus(d):
     """Cold navigation must retain labels, selection policy and ownership."""
     def fixture(command,picture=True):
-        script=bytes([12,14])+(bytes([3,0,1,24,0,25,0,26]) if picture else b'')+command+bytes([3,240,73,134,1,0])
+        script=queued_menu_script(bytes([12,14])+(bytes([3,0,1,24,0,25,0,26]) if picture else b'')+command+bytes([3,240,73]),bytes([134,1,0]))
         plain=b'Title\0Item\0';key=b'Avis Durgan'
         messages=bytes([2,17,0,6,0,12,0])+bytes(v^key[i%11] for i,v in enumerate(plain))
         logic=len(script).to_bytes(2,'little')+script+messages
@@ -1710,7 +1781,7 @@ def check_cold_prefix_bounds(d):
     logic=len(script).to_bytes(2,'little')+script
     cases=[('valid',None,None),
            ('old screen ABI',entry+2,2),
-           ('incomplete current metadata',2,entry+36),
+           ('incomplete current metadata',2,entry+38),
            ('entry outside module',9,len(original)),
            ('oversized module',2,8193),
            ('zero rectangle entry',entry+20,0),
@@ -1781,7 +1852,7 @@ def check_restarts(d):
     for name in ('zero','size','CRC'):
         helper=bytearray((ROOT/'objs/wbui').read_bytes());entry=int.from_bytes(helper[9:11],'big')
         offset=0 if name=='zero' else len(helper)-(1 if name=='CRC' else 0)
-        helper[entry+22:entry+24]=offset.to_bytes(2,'big')
+        helper[entry+34:entry+36]=offset.to_bytes(2,'big')
         files=restart_fixture();files['wbui']=bytes(helper)
         error,output,state=exercise(d,files,module='wbgame',base=0xa000,
             database=0x0000,window=0x8000,blocks=None,multiple=True,
@@ -1832,6 +1903,7 @@ def main():
             check_screen_shakes(d)
             check_object_previews(d)
             check_interpreter_information(d)
+            check_menu_request_order_reference(d)
             check_menu_visibility_reference(d)
             check_menu_visibility_commands(d)
             check_cold_menus(d)
@@ -1851,6 +1923,7 @@ def main():
             check_state_transfers(d)
             check_state_validation(d)
             check_provider_loaders(d)
+            check_ui_command_cache(d)
             error, frame = exercise(d, files, module='wbgame', base=0xa000,
                 database=0x0000, window=0x8000, blocks=None, multiple=True,
                 firstblock=0x10, frame_capture=True)

@@ -3208,3 +3208,73 @@ checks remain scoped evidence for visibility/lifetime, not ordering equivalence.
 C07 is reopened along with the already-open S06 scope. Queueing and cycle-stage
 placement must be corrected before claiming that gate complete; the remaining
 trace/simple-name work does not supersede this requirement.
+
+## Deferred menu requests and shared UI entry (ABI 12)
+
+Opcode 161 now requests a menu and returns to the interpreter. It does not
+open the menu inside the command handler. This matches the actual CoCo
+`cmd_menu_input`/`EventLoop` contract: following AGI commands finish, and the
+next event stage consumes the pending request before motion and keyboard input.
+The shared `AGI_MENU_REQUEST` macro lives in `shared/game-cycle.asm`; owner
+bindings supply the packed CoCo permission bit or native flag-14 byte, the
+pending-byte store and native success status. All CoCo output stays unchanged.
+
+Permission and visibility are deliberately tested at different times. Flag 14
+permits the request when opcode 161 executes. The opaque opcode-177 visibility
+byte is checked when the event stage processes that request. Thus `161;177,0`
+hides the menu before it can appear; `177,0;161;177,255` makes it appear; resetting
+flag 14 after a permitted request does not cancel it. Multiple requests before
+one cycle coalesce. Controllers are cleared before the menu event, so a chosen
+controller survives into the next script execution. Pending requests are private
+transient state, excluded from the logical save schema and cleared on menu reset.
+
+The game had only three resident bytes available. Rare diagnostic, shake and
+restart commands now share one loader/cache entry (`uicommandentry`) and a cold
+`AuxUiCommand` dispatcher. A catalog-derived class table selects the existing
+callback group; it is not a second command inventory. Restart's unwind resumes
+through that same entry and uses the private restart API captured by its request.
+Screen callbacks keep their distinct cache and Y=0..3 calling contract. This
+recovers resident space without adding files, moving the hot VM into a helper or
+raising a memory limit.
+
+An interleaved diagnostic/shake/visibility/restart regression also exposed a
+mapping ownership error: a warm UI call could shake with the logic slab still
+mapped. The shake backend now calls the owner interfaces to unmap resource and
+picture windows before borrowing the framebuffer window. Errors return before
+any edge data is overwritten. The regression observes every call through the
+same private cache and verifies restart's non-local continuation and font guards.
+
+The directory now has thirteen metadata words; all three executables must come
+from the same ABI-12 build. The logical WS1 field sequence is unchanged. Current
+budgets are 23,788/23,808 game bytes, 6,531/8,192 UI bytes, 3,182/8,192 state bytes
+with a 3,179/4,096 copied prefix, and 24,467/24,576 private bytes. No private code
+or stack allowance was reduced to make the changes fit.
+
+Verification: the actual CoCo executor/event-loop regression and 2,580 direct
+calls pass, along with thirteen loaded visibility/order cases, room transitions,
+16 nested calls, a 127-byte directory, navigation and fault cleanup. Repeating
+observer hooks verify following assignments finish before display and duplicate
+requests are consumed once. The mixed UI regression, 46 loader cases, restart,
+shake, previews, screen configuration, audio and 1,024 dispatch checks pass.
+All 64 owner builds pass; all 56 CoCo images and four unchanged native probes are
+byte-identical to the ABI-11 matrix. The menu-layout integration probe and three
+ABI providers change; the tested providers exactly match the matrix artifacts.
+
+Final driver acceptance passes all six phases in
+`.wildbits-test/parity-menu-queue-shake-final-mame-20261015`: priority persistence,
+cold restore, priority view, object status, memory information and deferred menu
+visibility/selection, with independent terminals and exact memory recovery.
+Reference/order, mixed-cache, audio, dispatch and matrix logs are
+`/tmp/sierra-menu-queue-final-order.log`,
+`/tmp/sierra-menu-queue-ui-repeated-hooks.log`,
+`/tmp/sierra-menu-queue-audio.log`, `/tmp/sierra-menu-queue-final-dispatch.log`
+and `/tmp/sierra-menu-queue-shake-final-matrix.log`.
+
+The earlier ABI-11 complete target stopped on a debugger disconnect during
+static painting; its isolated 52-case rerun passes. An initial ABI-12 full run
+caught a stale dispatch-test expectation for opcode 161. Both failed logs remain
+recorded; neither is a pass. The corrected complete target runs on frozen
+`/tmp/sierra-workbench/menu-queue-verified/sierra`, with log
+`/tmp/sierra-menu-queue-verified-complete-check-20261015.log`. A04 remains open
+until that target completes. Broader S06 interaction coverage, trace, simple
+save naming and the other unchecked parity gates remain open.

@@ -122,7 +122,12 @@ GameResetControllers clr     ,x+
                     bcs     GameCycleReturn
                     bsr      GameReadClock
                     bcs     GameCycleReturn
-                    lbsr      GamePollJoystick
+                    tst       <menupending
+                    beq       GameCycleMenuDone
+                    clr       <menupending
+                    lbsr      GameMenuInput
+                    bcs       GameCycleReturn
+GameCycleMenuDone   lbsr      GamePollJoystick
                     bcs       GameCycleReturn
                     lbsr      GameUpdateObjects
                     bcs       GameCycleReturn

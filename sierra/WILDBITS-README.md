@@ -747,5 +747,6 @@ See [the ABI-10 memory mapping and callback contract](WILDBITS-ENGINE.md#native-
 Opcode 177 now honors the reference menu visibility setting and independent
 AGI flag-14 input permission. See [ABI-11 lifetime and verification](WILDBITS-ENGINE.md#menu-visibility-and-input-permission-abi-11).
 
-Menu request/display ordering is still being migrated to CoCo's deferred event
-model; see [the remaining interaction](WILDBITS-ENGINE.md#remaining-deferred-menu-ordering-gap).
+Menu input now queues a request for the next event stage, matching CoCo's
+ordering. Install matching ABI-12 executables; see the
+[implementation and verification record](WILDBITS-ENGINE.md#deferred-menu-requests-and-shared-ui-entry-abi-12).

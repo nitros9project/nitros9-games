@@ -3678,12 +3678,16 @@ SetItemEnableNext   ldu       ,u        advance to next menu entry
 *   navigation.
 *======================================================================
 *
-cmd_menu_input      lda       >$01AF    load misc-flags byte
-                    anda      #$02      isolate menu-input-allowed bit
-                    beq       MenuInputRet branch if menu input disabled
-                    lda       #$01      enable flag = true
-                    sta       >$05AE    set menu-input-active flag
-MenuInputRet        rts
+MENU_REQUEST_ALLOWED macro
+                    lda       >$01AF
+                    anda      #$02
+                    endm
+MENU_REQUEST_STORE macro
+                    sta       >$05AE
+                    endm
+MENU_REQUEST_RETURN macro
+                    endm
+cmd_menu_input      AGI_MENU_REQUEST MenuInputRet
 cmd_show_menu       ldb       ,y+       load show-menu flag from script
                     stb       >MenuExtraFlag,pcr store as menu-extra flag
                     rts

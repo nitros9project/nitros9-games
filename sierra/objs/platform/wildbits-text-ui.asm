@@ -6,6 +6,38 @@ ShowApiModuleHeader equ 44
                     endc
 * Grouped diagnostic backend; owner-specific buffers stay private.
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_DIAGNOSTIC_CODE
+* The restart unwind resumes through this cached entry without a directory
+* argument. Its private API was captured by the original request.
+AuxUiCommand        ldu       <resourcebase
+                    lda       <vmroompending
+                    cmpa      #3
+                    lbeq      AuxRestart
+                    clra
+                    ldb       <vmopcode
+                    leax      UiCommandClasses,pcr
+                    lda       d,x
+                    pshs      a
+                    lsla
+                    ldd       a,y
+                    leay      d,y
+                    puls      a
+                    cmpa      #1
+                    lbeq      AuxShakeScreen
+                    cmpa      #2
+                    lbeq      AuxRestart
+                    lbra      AuxShowObject
+* Derive grouping from the common command catalog, not a second opcode list.
+UiClass_GameShakeCommand equ 1
+UiClass_GameRestartCommand equ 2
+AGI_COMMAND         macro
+                    ifdef UiClass_\3
+                    fcb UiClass_\3
+                    else
+                    fcb 0
+                    endc
+                    endm
+UiCommandClasses    equ *
+                    use shared/agi-command-table.asm
 * Diagnostics use private text storage, not CoCo's 404-byte stack frame.
 OBJECT_STATUS_FRAME equ 4
 OBJECT_STATUS_OBJECT equ 2
@@ -494,6 +526,8 @@ UI_CALL           macro
 AuxShowObject       ldu       <resourcebase
                     sty       coldapi,u
                     lda       <vmopcode
+                    cmpa      #161
+                    lbeq      AuxMenuRequest
                     cmpa      #177
                     lbeq      AuxMenuVisibility
                     cmpa      #135
@@ -968,20 +1002,24 @@ GamePrintCopyBack equ *
 * State entry is a phase-local alias: no formatter runs between validated
 * staging and root-stack unwind. Both persistent text planes end before it.
 stateentry          equ       textpointer
-GameShakeCommand    ldu       <resourcebase
-                    leax      shakeentry,u
-                    ldb       #18
-                    leay      ShakeCallbacks,pcr
-                    lbra      GameColdInvoke
 ShakeCallbacks      fdb       GameFramePointer-ShakeCallbacks,unmap-ShakeCallbacks
                     fdb       GameModalForeground-ShakeCallbacks,GameClockSample-ShakeCallbacks
+                    fdb       AssetUnmap-ShakeCallbacks,PictureUnmap-ShakeCallbacks
+* Rare UI commands share a cache/loader; priority screen calls retain their
+* distinct Y=0..3 entry contract and are deliberately not part of this bridge.
+GameShakeCommand    equ       *
+GameRestartCommand  equ       *
 GameShowPriorityCommand equ   *
 GameVersionCommand  equ       *
-GameShowObjectCommand ldu     <resourcebase
-                    leax      showentry,u
-                    ldb       #16
-                    leay      ShowCallbacks,pcr
+GameShowObjectCommand equ     *
+GameUiCommand       ldu       <resourcebase
+                    leax      uicommandentry,u
+                    ldb       #24
+                    leay      UiCommandCallbacks,pcr
                     lbra      GameColdInvoke
+UiCommandCallbacks  fdb       ShowCallbacks-UiCommandCallbacks
+                    fdb       ShakeCallbacks-UiCommandCallbacks
+                    fdb       RestartCallbacks-UiCommandCallbacks
 ShowCallbacks       fdb       ViewSelect-ShowCallbacks,GameSaveBackground-ShowCallbacks
                     fdb       SpriteRenderObject-ShowCallbacks,PresentPicture-ShowCallbacks
                     fdb       VmLoadResource-ShowCallbacks,VmRestoreAsset-ShowCallbacks
@@ -1044,11 +1082,6 @@ GamePriorityKey     lda       parsercharacter,u
 GamePriorityAccepted lda      #1
                     clrb
                     rts
-GameRestartCommand  ldu       <resourcebase
-                    leax      restartentry,u
-                    ldb       #12
-                    leay      RestartCallbacks,pcr
-                    lbra      GameColdInvoke
 RestartCallbacks          fdb       GamePrintText-RestartCallbacks,GameSoundStop-RestartCallbacks
                     fdb       GameClockClose-RestartCallbacks,VmReleaseResources-RestartCallbacks
                     fdb       GameReleaseBackground-RestartCallbacks,PictureRelease-RestartCallbacks
@@ -1149,7 +1182,7 @@ ColdLoadModule      pshs      a,x,u
                     ldd       M$Exec,u
                     cmpd      #13
                     blo       StateLoadBad
-                    addd      #37       branch, private ABI, twelve metadata words and CRC must fit
+                    addd      #39       branch, private ABI, thirteen metadata words and CRC must fit
                     bcs       StateLoadBad
                     cmpd      M$Size,u
                     bhi       StateLoadBad
@@ -1423,8 +1456,6 @@ GameTextUnlink      ldu       <resourcebase
                     std       textrectentry,u
                     std       restartentry,u
                     std       screenentry,u
-                    std       showentry,u
-                    std       shakeentry,u
                     std       menuentry,u
                     std       formatentry,u
 GameTextUnlinkDone  rts
@@ -2045,7 +2076,8 @@ inventorypaint      rmb       1
 * AGI menu construction. Owner buffers: eight 4-byte titles, thirty-two
 * 6-byte items, and 768 bytes of NUL-terminated labels. Drawing/navigation
 * remain a separate component; no resource pointer is stored in these records.
-MenuInitialize      clr       <menucount
+MenuInitialize      clr       <menupending
+                    clr       <menucount
                     clr       <menuitems
                     clr       <menucurrent
                     clr       <menuready
@@ -2203,10 +2235,19 @@ AuxMenuVisibility   ldu       <resourcebase
                     sta       menuvisibilityset,u
                     clrb
                     rts
+MENU_REQUEST_ALLOWED macro
+                    ldu       <resourcebase
+                    tst       vmflags+14,u
+                    endm
+MENU_REQUEST_STORE macro
+                    sta       <menupending
+                    endm
+MENU_REQUEST_RETURN macro
+                    andcc     #$FE
+                    endm
+AuxMenuRequest      AGI_MENU_REQUEST AuxMenuRequestReturn
 AuxMenuInput        ldu       <resourcebase
                     sty       coldapi,u
-                    tst       vmflags+14,u
-                    lbeq      AuxMenuSuccess
                     tst       menuvisibilityset,u
                     beq       AuxMenuVisible
                     tst       menuvisibility,u
@@ -2419,6 +2460,7 @@ menuitems           rmb       1
 menucurrent         rmb       1
 menuready           rmb       1
 menutextused        rmb       2
+menupending         rmb       1
 menulabel           rmb       2
 menuoperation       rmb       1
 

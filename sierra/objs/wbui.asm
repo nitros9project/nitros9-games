@@ -18,7 +18,7 @@ UiName              fcs /wbui/
                     fcb 1
 UiEntry             bra UiInvalid
                     STATE_ABI
-                    fdb AudioBlobEnd-AudioBlobStart,AudioInstall,AuxTextStore,AuxPrintWait,0,AuxClearTextRect,AuxRestart,AuxScreenCommand,AuxShowObject,AuxShakeScreen,AuxMenuInput,AuxFormatExpansion
+                    fdb AudioBlobEnd-AudioBlobStart,AudioInstall,AuxTextStore,AuxPrintWait,0,AuxClearTextRect,AuxRestart,AuxScreenCommand,AuxShowObject,AuxShakeScreen,AuxMenuInput,AuxFormatExpansion,AuxUiCommand
 * The public entry is a directory, never the copied persistence dispatcher.
 UiInvalid           ldb #E$BMode
                     orcc #1

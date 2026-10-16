@@ -68,10 +68,10 @@ Compare the actual bodies and caller contracts, not symbol names alone.
   module headers/owned pages, guarded calculations and two-terminal modal/scene
   restoration checks pass.
 - [ ] **C04–C06:** Close each remaining trace/simple-save behavior individually.
-- [ ] **C07 — Menu visibility:** Literal values, flag-14 permission and module
-  lifetime are verified, but request/display ordering remains different: CoCo
-  queues `menu_input` for the next event loop; native still blocks inside it.
-  Close request-then-hide/show interactions before checking this gate.
+- [x] **C07 — Menu visibility:** Literal values, request-time flag-14 permission,
+  event-time visibility, deferred ordering, duplicate requests, controller
+  delivery, default/module lifetime, room/restore behavior, two terminals and
+  exact scene/memory recovery are verified.
 - [x] **C08–C11:** Close each CoCo-stub compatibility case above individually.
 - [x] **C12 — Existing success-only routes:** Verify all of 127, 155, 163, 164,
   173, 176, 178 and 181 against their actual CoCo bodies. Record argument
@@ -200,7 +200,9 @@ versions without treating a game-directory name as sufficient provenance.
   now passes the former 57-command target uninterrupted; the promoted
   priority/arithmetic/copy revision `a9a889a` passes all 58 commands. The
   ABI-8 capacity run now passes all 58 checks with exit status 0; the latest
-  ABI-11 C07 run remains in progress. The ABI-10 run stopped on a missing
+  ABI-12 deferred-menu run remains in progress. The ABI-11 run stopped on a
+  debugger disconnect in static painting; its isolated rerun passes. The ABI-10
+  run stopped on a missing
   prebuilt CoCo fixture; the test now compiles that reference itself. The
   ABI-9 partial run was superseded
   and is not a pass.
@@ -406,3 +408,21 @@ Evidence: `/tmp/sierra-menu-queue-counterexample.log` and the controlled runner
 `/tmp/sierra-menu-queue-counterexample.py`. C07 is reopened; S06 remains open.
 The next migration must share the request policy and queue native menu display
 at the corresponding cycle boundary, preserving controller/input ownership.
+
+
+## Deferred-menu correction (ABI 12)
+
+The ordering counterexample above is fixed and preserved as an actual CoCo
+executor/event-loop regression. C07 is reclosed with request-time flag-14 checks,
+event-time visibility, late hiding/showing, permission revocation, duplicate
+request coalescing, controller delivery, default/module lifetime, room/restore,
+two terminals and memory recovery verified. S06's broader interactions stay open.
+Rare UI commands now share a private loader/cache; a mixed-command test caught
+and fixed a framebuffer/resource mapping ownership error. The final 64-owner
+matrix leaves all 56 CoCo binaries unchanged. See the
+[ABI-12 implementation and verification record](WILDBITS-ENGINE.md#deferred-menu-requests-and-shared-ui-entry-abi-12).
+
+The ABI-11 complete run stopped on a debugger disconnect in static painting;
+its isolated 52-case rerun passes. The first ABI-12 full run failed a stale
+independent dispatch-test expectation. The corrected frozen complete run is in
+progress; A04 stays open. C04–C06, C13 and the other unchecked gates remain open.
