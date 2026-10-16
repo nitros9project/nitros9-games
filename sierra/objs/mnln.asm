@@ -1,3 +1,5 @@
+                    use       buffer-layout.d
+
 ********************************************************************
 * MNLN - Leisure Suit Larry main line module
 *
@@ -44,6 +46,8 @@
 *   Standard I/O path numbers shared with sierra, scrn, and shdw modules.
 *======================================================================
 *
+                    use       instance.d
+
 StdIn               equ       0
 StdOut              equ       1
 StdErr              equ       2
@@ -362,6 +366,11 @@ QuitMsg             fcc       /Press ENTER to quit./
 *   Module entry point and the top-level AGI interpreter cycle: poll joystick, run scripts, update objects, refresh screen.
 *======================================================================
 *
+                    ifndef PLATFORM_COCO_LOGIC_BINDINGS
+                    use platform/coco-logic-bindings.asm
+                    endc
+                    use shared/game-cycle.asm
+
 ModuleEntry         leas      -6,s      make room on the stack
                     lbsr      PatchCmdTable modifies table values at 1B0
                     lbsr      FixupEvalTbl modifies table values at D09
@@ -382,12 +391,8 @@ TimerReady          bcc       ResetGameState branch if timer has advanced enough
 ResetGameState      ldd       #$0000    zero out timer
                     std       <$003E    reset cycle timer
                     lbsr      ClearInputBuffer self contained call to clear 50 bytes 05BA
-ClearCycleFlags     lda       >$01AE    load game state flags
-                    anda      #$DF      clear cycle-active bit
-StoreStateFlag      sta       >$01AE    save updated flags
-                    lda       >$01AE    reload flags
-                    anda      #$F7      clear another state bit
-                    sta       >$01AE    save flags again
+ClearCycleFlags     AGI_CYCLE_INPUT_RESET
+StoreStateFlag      equ CycleInputFlag2Store
                     lbsr      EventLoop process pending game events
                     ldx       <$0030    load ego object pointer
                     lda       >$0250    check joystick control flag
@@ -430,12 +435,7 @@ UpdateScreenState   lbsr      StatusLineWrite
 CycleEndCleanup     clra                clear A for flag clearing
                     sta       >$0436    clear display update flag
                     sta       >$0435    clear cycle flag
-                    lda       >$01AE    load game flags
-                    anda      #$FB      clear said-input bit
-                    sta       >$01AE    save flags
-                    lda       >$01AE    reload flags
-                    anda      #$FD      clear another input flag
-                    sta       >$01AE    save flags
+CycleRoomReset      AGI_CYCLE_ROOM_RESET
                     lda       >$01AF    load audio/display flags
                     anda      #$F7      clear a display flag
                     sta       >$01AF    save audio/display flags
@@ -491,211 +491,11 @@ CmdQuitReturn       rts
 *   LSB = parameter flag
 
 cmd_table
-CmdTableStart       fdb       NoopCmdsRet,$0000 *do nothing
-                    fdb       cmd_increment,$180 *increment
-                    fdb       cmd_decrement,$180 *decrement
-                    fdb       cmd_assignn,$280 *assign nn
-                    fdb       cmd_assignv,$2c0 *assign nv
-                    fdb       cmd_addn,$280 *add n
-                    fdb       cmd_addv,$2c0 *add v
-                    fdb       cmd_subn,$280 *sub n
-                    fdb       cmd_subv,$2c0 *sub v
-                    fdb       cmd_lindirectv,$2c0 *l indirect v
-                    fdb       cmd_rindirect,$2c0 *r indirect
-                    fdb       cmd_lindirectn,$280 *l indirect n
-
-                    fdb       CmdSetImpl,$100 *set
-                    fdb       CmdResetImpl,$100 *reset
-                    fdb       CmdToggleImpl,$100 *toggle
-                    fdb       CmdSetVImpl,$180 *set v
-                    fdb       CmdResetVImpl,$180 *reset v
-                    fdb       CmdToggleVImpl,$180 *toggle v
-
-                    fdb       cmd_new_room,$100 *new room
-                    fdb       cmd_new_room_v,$180 *new room v
-
-                    fdb       cmd_load_logics,$100 *load logics
-                    fdb       cmd_load_logics_v,$180 *load logics v
-                    fdb       cmd_call,$100 *call
-                    fdb       cmd_call_v,$180 *call v
-
-                    fdb       cmd_load_pic,$180 *load pic
-                    fdb       cmd_draw_pic,$180 *draw pic
-                    fdb       cmd_show_pic,$0000 *show pic
-                    fdb       cmd_discard_pic,$180 *discard overlay
-                    fdb       cmd_overlay_pic,$180 *animate obj
-
-                    fdb       CmdSaveGame,$0000 *show pri
-
-                    fdb       cmd_load_view,$100 *load view
-                    fdb       cmd_load_view_v,$180 *load view v
-                    fdb       cmd_discard_view,$100 *discard view
-
-                    fdb       CmdAnimateObj,$100 *animate obj
-                    fdb       CmdUnanimateAll,$0000 *unanumate all
-
-                    fdb       CmdDrawImpl,$100 *draw
-                    fdb       CmdEraseImpl,$100 *erase
-
-                    fdb       cmd_position,$300 *position
-                    fdb       cmd_position_v,$360 *position v
-                    fdb       cmd_get_position,$360 *get position
-                    fdb       cmd_reposition,$360 *reposition
-
-                    fdb       cmd_set_view,$200 *set view
-                    fdb       cmd_set_view_v,$240 *set view v
-                    fdb       cmd_set_loop,$200 *set loop
-                    fdb       cmd_set_loop_v,$240 *set loop v
-
-                    fdb       CmdFixLoop,$100 *fix loop
-                    fdb       CmdReleaseLoop,$100 *release loop
-
-                    fdb       cmd_set_cel,$200 *set cel
-                    fdb       cmd_set_cel_v,$240 *set cel v
-                    fdb       cmd_last_cel,$240 *last cel
-                    fdb       cmd_current_cel,$240 *current cel
-                    fdb       cmd_current_loop,$240 *current loop
-                    fdb       cmd_current_view,$240 *current view
-                    fdb       cmd_number_of_loops,$240 *number of loops
-
-                    fdb       cmd_set_priority,$200 *set priority
-                    fdb       cmd_set_priority_v,$240 *set priority v
-                    fdb       cmd_release_priority,$100 *release priority
-                    fdb       cmd_get_priority,$240 *get priority
-
-                    fdb       CmdStopUpdate,$100 *stop update
-                    fdb       CmdStartUpdate,$100 *start update
-                    fdb       CmdForceUpdate,$100 *force update
-
-                    fdb       cmd_ignore_horizon,$100 *ignore horizon
-                    fdb       cmd_observe_horizon,$100 *observe horizon
-                    fdb       cmd_set_horizon,$100 *set horizon
-                    fdb       cmd_obj_on_water,$100 *obj on water
-                    fdb       cmd_obj_on_land,$100 *obj on land
-                    fdb       cmd_obj_on_anything,$100 *obj on anything
-
-                    fdb       CmdIgnoreObjects,$100 *ignore objects
-                    fdb       CmdObserveObjects,$100 *observe objects
-                    fdb       CmdDistance,$320 *distance
-                    fdb       CmdStopCycling,$100 *stop cycling
-                    fdb       CmdStartCycling,$100 *start cycling
-                    fdb       CmdNormalCycle,$100 *normal cycle
-                    fdb       CmdEndOfLoop,$200 *end of loop
-                    fdb       CmdReverseCycle,$100 *reverse cycle
-                    fdb       CmdReverseLoop,$200 *reverse loop
-                    fdb       CmdSetCycleTime,$240 *cycle time
-
-                    fdb       cmd_stop_motion,$100 *stop motion
-                    fdb       cmd_start_motion,$100 *start motion
-                    fdb       cmd_step_size_v,$240 *step size
-                    fdb       cmd_step_time,$240 *step time
-                    fdb       cmd_move_obj,$500 *move obj
-                    fdb       cmd_move_obj_v,$570 *move obj v
-                    fdb       cmd_follow_ego,$300 *follow ego
-                    fdb       cmd_wander,$100 *wander
-                    fdb       cmd_normal_motion,$100 *normal motion
-                    fdb       cmd_set_dir,$240 *set dir
-
-                    fdb       cmd_get_dir,$240 *get dir
-
-                    fdb       CmdIgnoreBlocks,$100 *ignore blocks
-                    fdb       CmdObserveBlocks,$100 *observe blocks
-                    fdb       CmdSetBlock,$400 *block
-                    fdb       CmdClearBlock,$0000 *unblock
-
-                    fdb       cmd_get,$100 *get
-                    fdb       cmd_get_v,$180 *get v
-                    fdb       cmd_drop,$100 *drop
-                    fdb       cmd_put,$200 *put
-                    fdb       cmd_put_v,$240 *put v
-                    fdb       cmd_get_room_v,$2c0 *get room v
-
-                    fdb       cmd_load_sound,$100 *load sound
-                    fdb       cmd_sound,$200 *sound
-                    fdb       NoopCmdsRet,$0000 *stop sound
-                    fdb       cmd_print,$100 *print
-                    fdb       cmd_print_v,$180 *print v
-                    fdb       cmd_display,$300 *display
-
-                    fdb       cmd_display_v,$3e0 *display v
-                    fdb       cmd_clear_lines,$300 *clear lines
-                    fdb       cmd_text_screen,$0000 *text screen
-                    fdb       cmd_graphics,$0000 *graphics
-                    fdb       cmd_set_cursor_char,$100 *set cursor char
-                    fdb       cmd_set_text_attribute,$200 *set text attribute
-                    fdb       cmd_shake_screen,$100 *shake screen
-                    fdb       cmd_config_screen,$300 *config screen
-                    fdb       cmd_status_line_on,$0000 *status line on
-                    fdb       cmd_status_line_off,$0000 *status line off
-
-                    fdb       cmd_set_string,$200 *set string
-                    fdb       cmd_get_string,$500 *get string
-                    fdb       cmd_word_to_string,$200 *word to string
-                    fdb       cmd_parse,$100 *parse
-                    fdb       CmdObjStatus,$240 *get num
-                    fdb       cmd_prevent_input,$0000 *prevent input
-                    fdb       cmd_accept_input,$0000 *accept inpur
-                    fdb       CmdSetKey,$300 *set key
-                    fdb       cmd_add_to_pic,$700 *add to pic
-                    fdb       cmd_add_to_pic_v,$7fe *add to pic v
-                    fdb       cmd_status,$0000 *status
-                    fdb       cmd_save_game,$0000 *save game
-                    fdb       cmd_restore_game,$0000 *restore game
-                    fdb       NoopCmdsRet,$0000 *init disk
-                    fdb       cmd_restart_game,$0000 *restart game
-                    fdb       cmd_show_obj,$100 *sow obj
-                    fdb       CmdRandomImpl,$320 *random
-                    fdb       cmd_program_control,$0000 *program control
-                    fdb       cmd_player_control,$0000 *player control
-                    fdb       CmdObjStatusV,$180 *obj status v
-                    fdb       CmdQuitImpl,$100 *quit
-                    fdb       CmdShowMemInfo,$0000 *show mem
-                    fdb       CmdPauseImpl,$0000 *pause
-                    fdb       cmd_echo_line,$0000 *echo line
-                    fdb       cmd_cancel_line,$0000 *cancel line
-                    fdb       cmd_init_joy,$0000 *init joy
-                    fdb       cmd_toggle_monitor,$0000 *toggle monitor
-                    fdb       CmdShowAgiInfo,$0000 *version
-                    fdb       cmd_script_size,$100 *script size
-                    fdb       cmd_set_game_id,$100 *set game id
-                    fdb       cmd_shake_screen,$100 *log
-                    fdb       cmd_set_scan_start,$0000 *set scan start
-                    fdb       cmd_reset_scan_start,$0000 *reset scan start
-                    fdb       cmd_reposition_to,$300 *reposition to
-                    fdb       cmd_reposition_to_v,$360 *reposition to v
-                    fdb       cmd_trace_on,$0000 *trace on
-                    fdb       cmd_trace_info,$300 *trace info
-                    fdb       cmd_print_at,$400 *print at
-                    fdb       cmd_print_at_v,$480 *print at v
-                    fdb       cmd_discard_view_v,$180 *discard view v
-                    fdb       cmd_clear_text_rect,$500 *clear text rect
-                    fdb       cmd_set_upper_left,$200 *set upper left
-                    fdb       cmd_set_menu,$100 *set menu
-                    fdb       cmd_set_menu_item,$200 *set menu item
-                    fdb       cmd_submit_menu,$0000 *submit menu
-                    fdb       cmd_enable_item,$100 *enable item
-                    fdb       cmd_disable_item,$100 *disable item
-                    fdb       cmd_menu_input,$0000 *menu input
-                    fdb       cmd_show_obj_v,$100 *show obj v
-                    fdb       NoopCmdsRet,$0000 *open dialogue
-                    fdb       NoopCmdsRet,$0000 *close dialogue
-                    fdb       cmd_multn,$280 *mult n
-                    fdb       cmd_multv,$2c0 *mult v
-                    fdb       cmd_divn,$280 *div n
-                    fdb       cmd_divv,$2c0 *div v
-                    fdb       cmd_close_window,$0000 *close window
-                    fdb       cmd_set_simple,$100 *set simple
-                    fdb       cmd_push_script,$0000 *push script
-                    fdb       cmd_pop_script,$0000 *pop script
-                    fdb       NoopCmdsRet,$0000 *hold key
-                    fdb       SetPriBaseStub,$100 *set pri base, via patch stub
-                    fdb       cmd_shake_screen,$180 *discard sound
-                    fdb       NoopCmdsRet,$0000 *do nothing
-                    fdb       cmd_show_menu,$100
-                    fdb       NoopCmdsRet,$0000 *do nothing
-                    fdb       cmd_hide_mouse,$400 *hide mouse
-                    fdb       cmd_set_upper_left,$2c0 *allow menu
-                    fdb       NoopCmdsRet,$0000 *do nothing
+AGI_COMMAND         macro
+                    fdb       \1,\2
+                    endm
+CmdTableStart       equ       *
+                    use       shared/agi-command-table.asm
 
 *
 *======================================================================
@@ -719,10 +519,37 @@ DispatchCmd         cmpb      #$B5      check if command index in range
                     bls       CheckTraceFlag branch if valid command number
                     lda       #$10      load error code for bad command
                     lbsr      ReportError
-CheckTraceFlag      lda       <$0068    check if trace/debug mode active
-                    beq       CallCmdHandler branch if trace disabled
-                    cmpa      #$01      compare trace mode level
-                    bne       CallCmdHandler branch if not single-step mode
+TRACE_MODE_READ macro
+                    ld\1      <$0068
+                    endm
+TRACE_MODE_COMPARE macro
+                    cmp\1     #1
+                    endm
+TRACE_MODE_STORE macro
+                    sta       <$0068
+                    endm
+TRACE_PERMISSION macro
+                    lda       >$01AF
+                    anda      #$20
+                    endm
+TRACE_CONFIG_FETCH macro
+                    lda       ,y+
+                    endm
+TRACE_CONFIG_LOGIC macro
+                    sta       <$006A
+                    endm
+TRACE_CONFIG_LINE macro
+                    sta       >TraceLineOff,pcr
+                    endm
+TRACE_CONFIG_ROWS macro
+                    sta       >TraceNumLines,pcr
+                    endm
+TRACE_SUCCESS macro
+                    endm
+TRACE_KEY_READ macro
+                    lda       $01,x
+                    endm
+CheckTraceFlag      AGI_TRACE_STEP_GATE a,CallCmdHandler,1
                     pshs      y         save Y (script pointer) for trace
                     lbsr      ScriptDispatch
                     puls      y         restore Y after trace display
@@ -743,83 +570,44 @@ DispatchCmdReturn   rts
 *   Advance an animated object's cel frame, handling normal, reverse, end-of-loop, and reverse-end-of-loop cycle modes.
 *======================================================================
 *
-AdvanceCelFrame     lda       <$25,u    load object animation flags
-                    bita      #$10      test single-cycle-advance flag
-                    beq       GetCelIndex branch if normal cycling
-                    anda      #$EF      clear single-advance flag
-                    sta       <$25,u    store updated flags
-                    bra       AdvCelReturn done for this cycle
-GetCelIndex         ldd       $0E,u     load current cel number (A) and last cel (B)
-                    decb                decrement last-cel index for comparison
-                    std       <$0074    save current and max cel indices
-                    lda       <$23,u    load cycle mode
-                    cmpa      #$00      check if forward cycling
-                    bne       CycleReverse branch if not forward cycle
-                    ldb       <$0074    reload current cel index
-                    incb                advance to next cel
-                    cmpb      <$0075    compare to maximum cel index
-                    bls       SetCelInLoop branch if still within range
-                    clrb                wrap back to cel 0
-                    bra       SetCelInLoop go set the new cel
-CycleReverse        cmpa      #$03      check if reverse-cycle mode
-                    bne       CycleRevEnd branch if not reverse cycling
-                    ldb       <$0074    load current cel index
-                    decb                step back one cel
-                    bpl       SetCelInLoop branch if still >= 0
-                    ldb       <$0075    wrap to last cel
-                    bra       SetCelInLoop go set the new cel
-CycleRevEnd         cmpa      #$02      check if end-of-loop mode
-                    bne       CycleEnd  branch if not end-of-loop
-                    ldb       <$0074    load current cel index
-                    beq       NotifyEndOfLoop branch if already at cel 0
-                    decb                step back one cel
-                    bne       SetCelInLoop branch if not yet at cel 0
-                    stb       <$0074    save cel index (0)
-                    bra       NotifyEndOfLoop signal end of loop
-CycleEnd            cmpa      #$01      check if end-of-forward-loop mode
-                    bne       SetCelInLoop branch if none of the special modes
-                    ldb       <$0074    load current cel index
-                    cmpb      <$0075    compare to last cel
-                    bcc       NotifyEndOfLoop branch if at or past last cel
-                    incb                advance to next cel
-                    cmpb      <$0075    compare to last cel again
-                    bne       SetCelInLoop branch if not yet at end
-                    stb       <$0074    save last cel index
-NotifyEndOfLoop     lda       <$27,u    load end-of-loop flag number
-                    lbsr      SetFlag   set the end-of-loop flag
-                    lda       <$26,u    load object state flags
-                    anda      #$DF      clear loop-active bit
-                    sta       <$26,u    store updated state
-                    clra                clear zero value
-                    sta       <$21,u    halt object direction (stop)
-                    sta       <$23,u    clear cycle mode
-                    ldb       <$0074    reload final cel index
-SetCelInLoop        lbsr      SetCelHelper
-AdvCelReturn        rts
+                    ifne WILDBITS
+                    ifndef PLATFORM_WILDBITS_MEMORY_RESOURCES_BINDINGS
+                    use platform/wildbits-memory-resources-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_MEMORY_RESOURCES_BINDINGS
+                    use platform/coco-memory-resources-bindings.asm
+                    endc
+                    endc
+
+                    use shared/object-animation.asm
+                    ANIMATION_EMIT_CEL_ADVANCE
+
 *
 *======================================================================
 * OBJECT ANIMATION — LOOP CONTROL
 *   Commands to fix and release an object's loop selection.
 *======================================================================
 *
-CmdFixLoop          lda       ,y+       load object number from script
-                    ldb       #$2B      object struct is $2B bytes wide
-                    mul                 compute byte offset into object table
-                    addd      <$0030    add base address of object table
-                    tfr       d,x       transfer computed address to X
-                    lda       <$25,x    load object animation flags
-                    ora       #$20      set loop-fix flag
-                    sta       <$25,x    store updated flags
+                    ifndef SHARED_OBJECT_COMMANDS_DEFINED
+                    use shared/object-commands.asm
+                    endc
+OBJECT_FLAG_RULE    macro
+                    ifeq      OBJECT_FLAG_OPCODE-\2
+\1                  equ       *
+                    lda       ,y+
+                    ldb       #$2B
+                    mul
+                    addd      <$0030
+                    tfr       d,\6
+                    OBJECT_FLAG_MASK \3,\4,\5,\6
                     rts
-CmdReleaseLoop      lda       ,y+       load object number from script
-                    ldb       #$2B      object struct is $2B bytes wide
-                    mul                 compute byte offset into object table
-                    addd      <$0030    add base address of object table
-                    tfr       d,x       transfer computed address to X
-                    lda       <$25,x    load object animation flags
-                    anda      #$DF      clear loop-fix flag
-                    sta       <$25,x    store updated flags
-                    rts
+                    endc
+                    endm
+OBJECT_FLAG_OPCODE  set       45
+                    use       shared/object-flag-rules.asm
+OBJECT_FLAG_OPCODE  set       46
+                    use       shared/object-flag-rules.asm
 *
 *======================================================================
 * OBJECT TERRAIN CLASSIFICATION
@@ -941,8 +729,7 @@ StartUpdateHelper   lda       <$26,u    load object state flags
                     sta       <$26,u    store updated flags
                     lbsr      SwapObjRanges
 StartUpdateReturn   rts
-DirTableFwd         fcb       4,4,0,0,0,4,1,1,1
-DirTableRev         fcb       4,3,0,0,0,2,1,1,1
+                    ANIMATION_EMIT_DIRECTION_TABLES
 
 *
 *======================================================================
@@ -950,6 +737,16 @@ DirTableRev         fcb       4,3,0,0,0,2,1,1,1
 *   Commands to start or stop animation for an object or all objects.
 *======================================================================
 *
+* Assembly-time operand/storage interface; emits no runtime dispatch.
+                    ifne      WILDBITS
+                    ifndef PLATFORM_WILDBITS_OBJECTS_BINDINGS
+                    use platform/wildbits-objects-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_OBJECTS_BINDINGS
+                    use platform/coco-objects-bindings.asm
+                    endc
+                    endc
 CmdAnimateObj       lda       ,y+       load object number from script
                     bsr       AnimateObjHelper
                     rts
@@ -964,27 +761,22 @@ AnimateObjHelper    leas      -$01,s    save one byte for object number
                     lda       #$0D      load "animate invalid object" error code
                     ldb       ,s        reload object number for error report
                     lbsr      ReportError
-AnimObjBadIndex     lda       <$26,u    load object state flags
-                    bita      #$40      check if already animated
-                    bne       AnimObjAlready branch if already in animated state
-                    lda       #$70      initial state: stopped, no loop fix
-                    sta       <$26,u    store initial animation flags
-                    lda       #$00      zero value
-                    sta       <$22,u    clear object's step timer
-                    sta       <$23,u    clear cycle mode
-                    sta       <$21,u    clear direction (stopped)
+AnimObjBadIndex     OBJECT_ANIMATE_STATE u,AnimObjAlready
 AnimObjAlready      leas      $01,s     release stack byte
                     rts
+                    ifne WILDBITS
+                    ifndef PLATFORM_WILDBITS_OBJECTS_BINDINGS
+                    use platform/wildbits-objects-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_OBJECTS_BINDINGS
+                    use platform/coco-objects-bindings.asm
+                    endc
+                    endc
 CmdUnanimateAll     lbsr      ClearBothRanges erase all objects from range lists
                     ldu       <$0030    load pointer to first object
-UnanimateAllLoop    cmpu      <$0032    compare to end of object table
-                    bcc       UnanimateAllDone branch if past last object
-                    lda       <$26,u    load object state flags
-                    anda      #$BE      clear animated and visible flags
-                    sta       <$26,u    store updated flags
-                    leau      <$2B,u    advance to next object struct
-                    bra       UnanimateAllLoop loop through all objects
-UnanimateAllDone    rts
+                    OBJECT_UNANIMATE_ALL u,UnanimateAllLoop,UnanimateAllDone
+                    rts
 *
 *======================================================================
 * PER-CYCLE OBJECT UPDATE
@@ -1001,45 +793,8 @@ UpdateAllLoop       cmpu      <$0032    compare to end-of-object-table pointer
                     cmpa      #$51      check if object is animated and visible
                     bne       NextObjInUpdateLoop branch if not active
                     inc       ,s        mark that at least one object updated
-                    ldb       #$04      default loop direction: 4 (no change)
-                    lda       <$25,u    load animation control flags
-                    bita      #$20      test loop-fix flag
-                    bne       CheckCycleTick branch if loop is fixed (skip dir table)
-                    lda       $0B,u     load number of loops in view
-                    cmpa      #$03      compare to 3 loops
-                    bhi       CheckCycleType4 branch if more than 3 loops
-                    cmpa      #$02      compare to 2 loops
-                    bcs       CheckCycleTick branch if fewer than 2 loops
-                    lda       <$21,u    load current movement direction
-                    leay      >DirTableFwd,pcr point to forward direction table
-                    ldb       a,y       look up loop index from direction
-                    bra       CheckObjVisible go validate the loop index
-CheckCycleType4     cmpa      #$04      check if exactly 4 loops
-                    beq       LookupRevDirTable branch if 4 loops (use reverse table)
-                    lda       >$01B0    load player control flags
-                    anda      #$08      test reverse-direction enable bit
-                    beq       CheckCycleTick branch if reverse dir not enabled
-LookupRevDirTable   lda       <$21,u    load current movement direction
-                    leay      >DirTableRev,pcr point to reverse direction table
-                    ldb       a,y       look up reverse loop index
-CheckObjVisible     lda       $01,u     load object visibility/draw flag
-CheckObjIsEgo       cmpa      #$01      check if this is the ego object
-                    bne       CheckCycleTick branch if not ego
-                    cmpb      #$04      check if loop 4 (special ego loop)
-                    beq       CheckCycleTick branch if loop 4 (skip set-loop for ego)
-                    cmpb      $0A,u     compare to current loop
-                    beq       CheckCycleTick branch if already on correct loop
-                    lbsr      SetLoopHelper
-CheckCycleTick      lda       <$26,u    load object state flags
-                    bita      #$20      test cycling-enabled flag
-                    beq       NextObjInUpdateLoop branch if cycling disabled
-                    lda       <$20,u    load cycle delay counter
-                    beq       NextObjInUpdateLoop branch if delay not expired yet
-                    dec       <$20,u    decrement cycle delay counter
-                    bne       NextObjInUpdateLoop branch if counter not zero
-                    lbsr      AdvanceCelFrame advance animation one frame
-                    lda       <$1F,u    load cycle time (delay reset value)
-                    sta       <$20,u    reset cycle delay counter
+                    ANIMATION_EMIT_UPDATE
+CheckCycleTick equ AnimationCycleTick
 NextObjInUpdateLoop leau      <$2B,u    advance U to next object struct
                     bra       UpdateAllLoop loop to process next object
 UpdateAllPostLoop   lda       ,s        check update-happened flag
@@ -1076,26 +831,20 @@ UpdateAllReturn     leas      $01,s     release stack flag byte
 DispatchMotion      ldu       <$0030    load pointer to first object
 MotionObjLoop       cmpu      <$0032    compare to end-of-object-table pointer
                     bcc       DispatchMotionDone branch if past all objects
-                    lda       <$26,u    load object state flags
-                    anda      #$51      isolate animated+visible bits
-                    cmpa      #$51      check if object is animated and visible
-                    bne       NextMotionObj branch if not active
-                    lda       $01,u     load object draw/visibility flag
-                    cmpa      #$01      check if object is visible
-                    bne       NextMotionObj branch if not visible
-                    lda       <$22,u    load motion type
-                    beq       MotionCheckBlock branch if no special motion (type 0)
-                    cmpa      #$01      check for wander motion type
-                    bne       MotionTypeWander branch if not wander
-                    lbsr      ObjAnimStep do random direction step
-                    bra       MotionCheckBlock check for blocking after motion
-MotionTypeWander    cmpa      #$02      check for follow motion type
-                    bne       MotionTypeFollow branch if not follow
-                    lbsr      CalcFollowDir compute direction to follow target
-                    bra       MotionCheckBlock check for blocking after follow calc
-MotionTypeFollow    cmpa      #$03      check for move-to motion type
-                    bhi       MotionCheckBlock branch if unknown motion type
-                    lbsr      SetObjMotion compute next step toward target
+                    ifne WILDBITS
+                    ifndef PLATFORM_WILDBITS_OBJECTS_BINDINGS
+                    use platform/wildbits-objects-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_OBJECTS_BINDINGS
+                    use platform/coco-objects-bindings.asm
+                    endc
+                    endc
+
+                    use shared/object-motion.asm
+                    MOTION_EMIT_SCHEDULE
+MotionTypeWander equ MotionScheduleNotWander
+MotionTypeFollow equ MotionScheduleNotFollow
 MotionCheckBlock    lda       <$26,u    reload object state flags
                     ldb       >$01AC    load global blocking-rect enable flag
                     bne       MotionCheckCollide branch if blocking rect is active
@@ -1171,17 +920,9 @@ MoveDir8            ldd       $01,s     load saved X,Y (direction 8: up-left)
 CheckMoveCollision  lbsr      InBlockRect check if new position is in block rect
                     cmpa      ,s        compare to original block status
                     bne       MoveIsBlocked branch if collision state changed
-MoveNoBlock         lda       <$26,u    load object state flags
-                    anda      #$7F      clear blocked flag
-                    sta       <$26,u    store updated flags
+MoveNoBlock         OBJECT_BLOCK_CLEAR u
                     bra       MoveOneStepReturn done, object moved successfully
-MoveIsBlocked       lda       <$26,u    load object state flags
-                    ora       #$80      set blocked flag
-                    sta       <$26,u    store updated flags
-                    clr       <$21,u    stop object (direction = 0)
-                    cmpu      <$0030    check if this is the ego object
-                    bne       MoveOneStepReturn branch if not ego
-                    clr       >$0437    clear ego direction variable too
+MoveIsBlocked       OBJECT_BLOCK_STOP u,MoveOneStepReturn
 MoveOneStepReturn   leas      $03,s     release 3-byte stack frame
                     rts
 *
@@ -1203,108 +944,48 @@ CmdSetBlock         lda       #$01      enable blocking rectangle
                     rts
 CmdClearBlock       clr       >$01AC    disable blocking rectangle
                     rts
-CmdIgnoreBlocks     lda       ,y+       load object number from script
-                    ldb       #$2B      object struct is $2B bytes wide
-                    mul                 compute byte offset into object table
-                    addd      <$0030    add base address of object table
-                    tfr       d,u       transfer computed address to U
-                    lda       <$26,u    load object state flags
-                    ora       #$02      set ignore-blocks flag
-                    sta       <$26,u    store updated flags
-                    rts
-CmdObserveBlocks    lda       ,y+       load object number from script
-                    ldb       #$2B      object struct is $2B bytes wide
-                    mul                 compute byte offset into object table
-                    addd      <$0030    add base address of object table
-                    tfr       d,u       transfer computed address to U
-                    lda       <$26,u    load object state flags
-                    anda      #$FD      clear ignore-blocks flag
-                    sta       <$26,u    store updated flags
-                    rts
+OBJECT_FLAG_OPCODE  set       88
+                    use       shared/object-flag-rules.asm
+OBJECT_FLAG_OPCODE  set       89
+                    use       shared/object-flag-rules.asm
 *
 *======================================================================
 * COLLISION DETECTION
 *   Tests whether a position falls inside the block rectangle, and checks for collisions between objects.
 *======================================================================
 *
-InBlockRect         leas      -$01,s    allocate one byte result on stack
-                    clr       ,s        assume not in block rect
-                    cmpa      >$024E    compare X to left edge
-                    bls       InBlockRectReturn branch if X is left of rect (not inside)
-                    cmpa      >$023C    compare X to right edge
-                    bcc       InBlockRectReturn branch if X is right of rect (not inside)
-                    cmpb      >$024F    compare Y to top edge
-                    bls       InBlockRectReturn branch if Y is above rect (not inside)
-                    cmpb      >$023D    compare Y to bottom edge
-                    bcc       InBlockRectReturn branch if Y is below rect (not inside)
-                    inc       ,s        inside rect: set result to 1
-InBlockRectReturn   lda       ,s        load result byte
-                    leas      $01,s     release stack byte
-                    rts
-CheckObjCollision   clra                assume no collision
-                    ldb       <$25,u    load object animation flags
-                    bitb      #$02      test ignore-objects flag
-                    bne       CollisionReturn branch if ignoring other objects
-                    ldx       <$0030    load pointer to first object
-CheckCollisionLoop  cmpx      <$0032    compare to end-of-object-table pointer
-                    bcc       CollisionReturn branch if past all objects (no collision)
-                    ldb       <$26,x    load candidate object state flags
-                    andb      #$41      isolate animated+visible bits
-                    cmpb      #$41      check if candidate is animated and visible
-                    bne       NextCollisionObj branch if candidate not active
-                    ldb       <$25,x    load candidate animation flags
-                    bitb      #$02      test ignore-objects flag
-                    bne       NextCollisionObj branch if candidate ignores objects
-                    ldb       $02,x     load candidate object number
-                    cmpb      $02,u     compare to current object number
-                    beq       NextCollisionObj branch if same object (skip self)
-                    ldb       $03,u     load current object Y bottom
-                    addb      <$1C,u    add height to get bottom edge
-                    cmpb      $03,x     compare to candidate Y top
-                    bcs       NextCollisionObj branch if current is above candidate
-                    ldb       $03,x     load candidate object Y bottom
-                    addb      <$1C,x    add height to get candidate bottom edge
-                    cmpb      $03,u     compare to current Y top
-                    bcs       NextCollisionObj branch if candidate is above current
-                    ldb       $04,x     load candidate priority
-                    cmpb      $04,u     compare to current priority
-                    beq       CollisionDetected branch if same priority (collision)
-                    bhi       CheckPriorityHigher branch if candidate priority is higher
-                    ldb       <$1B,x    load candidate base priority
-                    cmpb      <$1B,u    compare to current base priority
-                    bhi       CollisionDetected branch if candidate has higher base priority
-                    bra       NextCollisionObj no collision
-CheckPriorityHigher ldb       <$1B,x    load candidate base priority
-                    cmpb      <$1B,u    compare to current base priority
-                    bcs       CollisionDetected branch if candidate has lower base priority
-NextCollisionObj    leax      <$2B,x    advance to next object struct
-                    bra       CheckCollisionLoop loop to check next object
-CollisionDetected   lda       #$01      return 1 (collision detected)
-CollisionReturn     rts
+BlockLeft           equ       $024E
+BlockRight          equ       $023C
+BlockTop            equ       $024F
+BlockBottom         equ       $023D
+                    use       shared/object-block-test.asm
+                    ifne WILDBITS
+                    ifndef PLATFORM_WILDBITS_OBJECTS_BINDINGS
+                    use platform/wildbits-objects-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_OBJECTS_BINDINGS
+                    use platform/coco-objects-bindings.asm
+                    endc
+                    endc
+                    use shared/object-collision-filter.asm
+CheckObjCollision   equ CollisionScan
+CheckCollisionLoop  equ CollisionScanLoop
+NextCollisionObj    equ CollisionScanAdvance
+CollisionDetected   equ CollisionScanHit
+CollisionReturn     equ CollisionScanEmpty
+CheckPriorityHigher equ CollisionPreviousHigher
+                    use shared/object-collision-scan.asm
 *
 *======================================================================
 * OBJECT INTERACTION FLAGS
 *   Commands to ignore or observe object-to-object collisions, and to measure the distance between two objects.
 *======================================================================
 *
-CmdIgnoreObjects    lda       ,y+       load object number from script
-                    ldb       #$2B      object struct is $2B bytes wide
-                    mul                 compute byte offset into object table
-                    addd      <$0030    add base address of object table
-                    tfr       d,u       transfer computed address to U
-                    lda       <$25,u    load object animation flags
-                    ora       #$02      set ignore-objects flag
-                    sta       <$25,u    store updated flags
-                    rts
-CmdObserveObjects   lda       ,y+       load object number from script
-                    ldb       #$2B      object struct is $2B bytes wide
-                    mul                 compute byte offset into object table
-                    addd      <$0030    add base address of object table
-                    tfr       d,u       transfer computed address to U
-                    lda       <$25,u    load object animation flags
-                    anda      #$FD      clear ignore-objects flag
-                    sta       <$25,u    store updated flags
-                    rts
+OBJECT_FLAG_OPCODE  set       67
+                    use       shared/object-flag-rules.asm
+OBJECT_FLAG_OPCODE  set       68
+                    use       shared/object-flag-rules.asm
 CmdDistance         lda       ,y+       load first object number
                     ldb       #$2B      object struct is $2B bytes wide
                     mul                 compute byte offset into object table
@@ -1315,33 +996,8 @@ CmdDistance         lda       ,y+       load first object number
                     mul                 compute byte offset into object table
                     addd      <$0030    add base address of object table
                     tfr       d,u       transfer second object address to U
-                    lda       #$FF      default distance = 255 (max)
-                    ldb       <$26,x    load first object state flags
-                    bitb      #$01      test drawn/visible flag
-                    beq       StoreDistResult branch if first object not visible
-                    ldb       <$26,u    load second object state flags
-                    bitb      #$01      test drawn/visible flag
-                    beq       StoreDistResult branch if second object not visible
-                    lda       <$1C,u    load second object width
-                    lsra                halve width to get center offset
-                    adda      $03,u     add Y to get center Y
-                    ldb       <$1C,x    load first object width
-                    lsrb                halve width to get center offset
-                    addb      $03,x     add Y to get center Y
-                    stb       <$0076    save first object center Y
-                    suba      <$0076    subtract to get delta Y
-                    bcc       CalcDistStoreX branch if delta is positive
-                    nega                negate to get absolute delta Y
-CalcDistStoreX      sta       <$0076    save absolute delta Y
-                    lda       $04,u     load second object X position
-                    suba      $04,x     subtract first object X
-                    bcc       CalcDistAddY branch if delta X is positive
-                    nega                negate to get absolute delta X
-CalcDistAddY        adda      <$0076    add absolute delta Y to get Manhattan distance
-                    bcs       DistMaxOut branch if sum overflowed (distance > 255)
-                    cmpa      #$FF      check if distance equals max
-                    bne       StoreDistResult branch if distance is not 255
-DistMaxOut          lda       #$FE      cap distance at 254
+ObjectDistanceScratch equ    $0076
+                    use       shared/object-distance.asm
 StoreDistResult     ldb       ,y+       load destination variable number
                     ldx       #$0431    point to variable table
                     abx                 index to destination variable
@@ -1389,23 +1045,14 @@ CmdNormalCycle      lda       ,y+       load object number from script
                     mul                 compute byte offset into object table
                     addd      <$0030    add base address of object table
                     tfr       d,u       transfer computed address to U
-                    lda       #$00      cycle mode 0 = normal forward
-                    sta       <$23,u    store cycle mode
-                    lda       <$26,u    load object state flags
-                    ora       #$20      set cycling-enabled flag
-                    sta       <$26,u    store updated flags
+                    OBJECT_CYCLE_STATE 0,u,0    store updated flags
                     rts
 CmdEndOfLoop        lda       ,y+       load object number from script
                     ldb       #$2B      object struct is $2B bytes wide
                     mul                 compute byte offset into object table
                     addd      <$0030    add base address of object table
                     tfr       d,u       transfer computed address to U
-                    lda       #$01      cycle mode 1 = end-of-loop
-                    sta       <$23,u    store cycle mode
-                    ldd       <$25,u    load animation flags (both bytes)
-                    ora       #$10      set single-advance flag in A
-                    orb       #$30      set loop-fix and cycling flags in B
-                    std       <$25,u    store updated animation flags
+                    OBJECT_CYCLE_STATE 1,u,1    store updated animation flags
                     lda       ,y+       load end-of-loop flag number
                     sta       <$27,u    store flag to set when loop ends
                     lbsr      ClearFlag clear end-of-loop flag before cycling
@@ -1415,23 +1062,14 @@ CmdReverseCycle     lda       ,y+       load object number from script
                     mul                 compute byte offset into object table
                     addd      <$0030    add base address of object table
                     tfr       d,u       transfer computed address to U
-                    lda       #$03      cycle mode 3 = reverse cycle
-                    sta       <$23,u    store cycle mode
-                    lda       <$26,u    load object state flags
-                    ora       #$20      set cycling-enabled flag
-                    sta       <$26,u    store updated flags
+                    OBJECT_CYCLE_STATE 3,u,0    store updated flags
                     rts
 CmdReverseLoop      lda       ,y+       load object number from script
                     ldb       #$2B      object struct is $2B bytes wide
                     mul                 compute byte offset into object table
                     addd      <$0030    add base address of object table
                     tfr       d,u       transfer computed address to U
-                    lda       #$02      cycle mode 2 = reverse-loop
-                    sta       <$23,u    store cycle mode
-                    ldd       <$25,u    load animation flags (both bytes)
-                    ora       #$10      set single-advance flag in A
-                    orb       #$30      set loop-fix and cycling flags in B
-                    std       <$25,u    store updated animation flags
+                    OBJECT_CYCLE_STATE 2,u,1    store updated animation flags
                     lda       ,y+       load end-of-loop flag number
                     sta       <$27,u    store flag to set when reverse loop ends
                     lbsr      ClearFlag clear end-of-reverse-loop flag
@@ -1445,60 +1083,14 @@ CmdSetCycleTime     lda       ,y+       load object number from script
                     ldx       #$0431    point to variable table
                     abx                 index to the cycle-time variable
                     lda       ,x        load cycle time value from variable
-                    sta       <$1F,u    store as cycle time (delay preset)
-                    sta       <$20,u    store as current cycle counter
+                    OBJECT_RATE_STATE a,u,$1F,32
                     rts
-CmdStopCycling      lda       ,y+       load object number from script
-                    ldb       #$2B      object struct is $2B bytes wide
-                    mul                 compute byte offset into object table
-                    addd      <$0030    add base address of object table
-                    tfr       d,u       transfer computed address to U
-                    lda       <$26,u    load object state flags
-                    anda      #$DF      clear cycling-enabled flag
-                    sta       <$26,u    store updated flags
-                    rts
-CmdStartCycling     lda       ,y+       load object number from script
-                    ldb       #$2B      object struct is $2B bytes wide
-                    mul                 compute byte offset into object table
-                    addd      <$0030    add base address of object table
-                    tfr       d,u       transfer computed address to U
-                    lda       <$26,u    load object state flags
-                    ora       #$20      set cycling-enabled flag
-                    sta       <$26,u    store updated flags
-                    rts
+OBJECT_FLAG_OPCODE  set       70
+                    use       shared/object-flag-rules.asm
+OBJECT_FLAG_OPCODE  set       71
+                    use       shared/object-flag-rules.asm
 
-StrNormalCycle      fcc       /normal cycle/
-                    fcb       0
-StrEndOfLoop        fcc       /end of loop/
-                    fcb       0
-StrReverseLoop      fcc       /reverse loop/
-                    fcb       0
-StrReverseCycle     fcc       /reverse cycle/
-                    fcb       0
-StrNormalMotion     fcc       /normal motion/
-                    fcb       0
-StrWander           fcc       /wander/
-                    fcb       0
-StrFollow           fcc       /follow/
-                    fcb       0
-StrMoveTo           fcc       /move to (%d, %d)/
-                    fcb       0
-StrObjHeader        fcc       /Object %d:/
-                    fcb       $0a
-StrObjX             fcc       /x: %d  xsize: %d/
-                    fcb       $0a
-StrObjY             fcc       /y: %d  ysize: %d/
-                    fcb       $0a
-StrObjPri           fcc       /pri: %d/
-                    fcb       $0a
-StrObjStepSize      fcc       /stepsize: %d/
-                    fcb       $0a
-StrObjControl       fcc       /control: %x/
-                    fcb       $0a
-StrFmtNewline       fcc       /%s/
-                    fcb       $0a
-StrFmtNull          fcc       /%s/
-                    fcb       0
+                    OBJECT_EMIT_STATUS_STRINGS
 StrAgiVersion       fcc       /Adventure Game Interpreter/
                     fcb       $0a
                     fcc       /      Version 2.072/
@@ -1560,7 +1152,10 @@ ObjStatusStore      abx                 index to destination variable
                     leas      <$54,s    release local stack frame
                     rts
 * obj.status.v command
-CmdObjStatusV       leas      >-$0194,s allocate 404-byte local frame on stack
+OBJECT_STATUS_FRAME equ 404
+OBJECT_STATUS_OBJECT equ 402
+OBJECT_STATUS_CYCLE equ 400
+OBJECT_STATUS_SELECT macro
                     ldx       #$0431    point to variable table
                     ldb       ,y+       load variable number
                     abx                 index to variable
@@ -1569,81 +1164,25 @@ CmdObjStatusV       leas      >-$0194,s allocate 404-byte local frame on stack
                     mul                 compute byte offset into object table
                     addd      <$0030    add base address of object table
                     tfr       d,u       transfer object address to U
-                    std       >$0192,s  save object address on stack
-                    lda       <$23,u    load cycle type
-                    cmpa      #$00      check if normal cycling
-                    bne       CheckCycleType1 branch if not normal cycle
-                    leax      >StrNormalCycle,pcr normal cycle
-                    bra       GotCycleStr
-CheckCycleType1     cmpa      #$01      check if end-of-loop mode
-                    bne       CheckCycleType2 branch if not end-of-loop
-                    leax      >StrEndOfLoop,pcr end of loop
-                    bra       GotCycleStr
-CheckCycleType2     cmpa      #$02      check if reverse-loop mode
-                    bne       DefaultCycleStr branch if none of the above
-                    leax      >StrReverseLoop,pcr reverse loop
-                    bra       GotCycleStr
-DefaultCycleStr     leax      >StrReverseCycle,pcr reverse cycle
-GotCycleStr         stx       >$0190,s  save cycle type string pointer
-                    lda       <$22,u    load motion type
-                    cmpa      #$00      check if normal motion
-                    bne       CheckMotionType1 branch if not normal motion
-                    leax      >StrNormalMotion,pcr normal motion
-                    bra       GotMotionStr
-CheckMotionType1    cmpa      #$01      check if wander motion
-                    bne       CheckMotionType2 branch if not wander
-                    leax      >StrWander,pcr wander
-                    bra       GotMotionStr
-CheckMotionType2    cmpa      #$02      check if follow-ego motion
-                    bne       BuildMoveToStr branch if not follow (must be move-to)
-                    leax      >StrFollow,pcr follow
-                    bra       GotMotionStr
-BuildMoveToStr      clra                clear A for word construction
-                    ldb       <$28,u    load target Y position
-                    pshs      b,a       push Y arg for format
-                    ldb       <$27,u    load target X position
-                    pshs      b,a       push X arg for format
-                    leax      >StrMoveTo,pcr load "move to (%d, %d)" format string
-                    pshs      x         push format string pointer
-                    leax      >$0132,s  point to local string buffer
-                    pshs      x         push output buffer pointer
-                    lbra      stub1     format string into X
-MoveToFormatDone    leas      $08,s     release 4 pushed arguments
-GotMotionStr        pshs      x         push motion string pointer
-                    ldx       >$0192,s  load saved object address
-                    pshs      x         push object address for format
-                    ldu       >$0196,s  reload object address
-                    ldd       <$25,u    load animation flags (both bytes)
-                    pshs      b,a       push flags
-                    clra                clear A for word construction
-                    ldb       <$1E,u    load step size
-                    pshs      b,a       push step size
-                    ldb       <$24,u    load priority
-                    pshs      b,a       push priority
-                    ldb       <$1D,u    load Y size
-                    pshs      b,a       push Y size
-                    ldb       $04,u     load Y position
-                    pshs      b,a       push Y position
-                    ldb       <$1C,u    load X size
-                    pshs      b,a       push X size
-                    ldb       $03,u     load X position
-                    pshs      b,a       push X position
-                    ldb       $02,u     load object number
-                    pshs      b,a       push object number
-                    leau      >StrObjHeader,pcr load address of object header format string
-                    pshs      u         push format string pointer
-                    leax      <$16,s    point to local output buffer
-                    pshs      x         push output buffer pointer
-                    lbsr      PrintFmtStr
-                    leas      <$18,s    release all pushed arguments
+                    endm
+OBJECT_STATUS_MOTION_BUFFER macro
+                    leax      >$0132,s
+                    endm
+OBJECT_STATUS_MOTION_FORMAT macro
+                    lbra      stub1
+                    endm
+OBJECT_STATUS_OUTPUT_BUFFER macro
+                    leax      <$16,s
+                    endm
+OBJECT_STATUS_DISPLAY macro
                     lbsr      message_box
-                    leas      >$0194,s  release local stack frame
-                    rts
-CmdSaveGame         inc       >$0550    set save-game-in-progress flag
+                    endm
+                    OBJECT_EMIT_STATUS
+CmdSaveGame         inc       >GfxPicBufRotate enable in-place nibble swap for UI
                     lbsr      gfx_picbuff_update update graphics buffer before UI
                     lbsr      BooleanPoll run save/restore selection UI
                     lbsr      gfx_picbuff_update restore graphics after UI
-                    clr       >$0550    clear save-game-in-progress flag
+                    clr       >GfxPicBufRotate disable UI nibble swapping
                     rts
 CmdShowAgiInfo      leau      >StrAgiVersion,pcr load address of version string
                     lbsr      message_box
@@ -1652,7 +1191,7 @@ CmdShowMemInfo      leas      >-$00C8,s allocate 200-byte local frame on stack
                     ldd       <$0057    load max script size
                     pshs      b,a       push max script size
                     ldd       <$0053    load current heap top
-                    subd      #$0776    subtract heap base to get tables size
+                    subd      #SierraHeapBase    subtract heap base to get tables size
                     pshs      b,a       push tables size
                     ldd       <$0051    load heap pointer
                     subd      <$0053    subtract to get common size
@@ -1661,7 +1200,7 @@ CmdShowMemInfo      leas      >-$00C8,s allocate 200-byte local frame on stack
                     subd      <$0053    subtract to get rm.0 size
                     pshs      b,a       push rm.0 size
                     ldd       <0        load heap base (direct-page variable 0)
-                    subd      #$0776    subtract to get available heap size
+                    subd      #SierraHeapBase    subtract to get available heap size
                     pshs      b,a       push available heap size
                     ldd       <$004D    load heap max used
                     pshs      b,a       push max used
@@ -1684,25 +1223,12 @@ CmdShowMemInfo      leas      >-$00C8,s allocate 200-byte local frame on stack
                     leas      >$00C8,s  release local stack frame
                     rts
 
-eval_table          fdb       $0f6e,$0000
-                    fdb       $0dba,$280
-                    fdb       $0dcb,$2c0
-                    fdb       $0de2,$280
-                    fdb       $0df3,$2c0
-                    fdb       $0e0a,$280
-                    fdb       $0e1b,$2c0
-                    fdb       $0e32,$100
-                    fdb       $0e3e,$180
-                    fdb       $0e51,$100
-                    fdb       $0e63,$240
-                    fdb       $0f0a,$500
-                    fdb       $0e7b,$100
-                    fdb       $0e83,$0000
-                    fdb       $0e9f,$0000
-                    fdb       $0f02,$200
-                    fdb       $0f2e,$500
-                    fdb       $0f12,$500
-                    fdb       $0f22,$500
+AGI_TEST            macro
+                    fdb       \1,\2
+                    endm
+eval_table          equ       *
+                    use       shared/agi-test-table.asm
+
 
 *
 *======================================================================
@@ -1731,10 +1257,7 @@ EvalExpr            leax      -$01,y    back up one byte to point before operand
                     lsla                (each eval table entry is 4 bytes)
                     leax      >eval_table,pcr point X to eval dispatch table
                     jsr       [a,x]     indirect call to eval handler
-                    ldb       <$0068    check trace mode flag
-                    beq       EvalExprRet branch if not tracing
-                    cmpb      #$01      compare trace level
-                    bne       EvalExprRet branch if not single-step trace
+                    AGI_TRACE_STEP_GATE b,EvalExprRet,1
                     pshs      y         save Y across trace display
                     sta       <$006E    save eval result
                     ldu       <$006C    restore expression pointer
@@ -1746,95 +1269,24 @@ EvalExprUnknown     tfr       a,b       transfer unknown type code to B
                     lda       #$0F      load "unknown expression type" error code
                     lbsr      ReportError
 EvalExprRet         rts
-                    ldb       ,y+       load variable number (var==value test)
-                    ldx       #$0431    point to variable table
-                    abx                 index to the variable
-                    lda       ,x        load variable value
-                    cmpa      ,y+       compare to immediate operand
-                    lbne      RetFalse  branch if not equal
-                    lbra      RetTrue   var==value matched, return true
-                    ldb       ,y+       load first variable number (var==var test)
-                    ldx       #$0431    point to variable table
-                    abx                 index to first variable
-                    lda       ,x        load first variable value
-                    ldb       ,y+       load second variable number, advance Y
-                    ldx       #$0431    point to variable table
-                    abx                 index to second variable
-                    cmpa      ,x        compare first to second variable
-                    lbne      RetFalse  branch if not equal
-                    lbra      RetTrue   var==var matched, return true
-                    ldb       ,y+       load variable number (var<value test)
-                    ldx       #$0431    point to variable table
-                    abx                 index to the variable
-                    lda       ,x        load variable value
-                    cmpa      ,y+       compare to immediate operand
-                    lbcc      RetFalse  branch if var >= value
-                    lbra      RetTrue   var<value matched, return true
-                    ldb       ,y+       load first variable number (var<var test)
-                    ldx       #$0431    point to variable table
-                    abx                 index to first variable
-                    lda       ,x        load first variable value
-                    ldb       ,y+       load second variable number
-                    ldx       #$0431    point to variable table
-                    abx                 index to second variable
-                    cmpa      ,x        compare first to second variable
-                    lbcc      RetFalse  branch if first >= second
-                    lbra      RetTrue   var<var matched, return true
-                    ldb       ,y+       load variable number (var>value test)
-                    ldx       #$0431    point to variable table
-                    abx                 index to the variable
-                    lda       ,x        load variable value
-                    cmpa      ,y+       compare to immediate operand
-                    lbls      RetFalse  branch if var <= value
-                    lbra      RetTrue   var>value matched, return true
-                    ldb       ,y+       load first variable number (var>var test)
-                    ldx       #$0431    point to variable table
-                    abx                 index to first variable
-                    lda       ,x        load first variable value
-                    ldb       ,y+       load second variable number
-                    ldx       #$0431    point to variable table
-                    abx                 index to second variable
-                    cmpa      ,x        compare first to second variable
-                    lbls      RetFalse  branch if first <= second
-                    lbra      RetTrue   var>var matched, return true
-                    lda       ,y+       load flag number (isset test)
-                    lbsr      TestFlag  test if flag is set
-                    lbeq      RetFalse  branch if flag not set
-                    lbra      RetTrue   flag is set, return true
-                    ldb       ,y+       load variable number (isset.v test)
-                    ldx       #$0431    point to variable table for isset.v
-                    abx                 index to the flag-number variable
-                    lda       ,x        load flag result (from TestFlag above)
-                    lbsr      TestFlag  test flag for isset.v (flag in variable)
-                    lbeq      RetFalse  branch if flag not set
-                    lbra      RetTrue   isset.v matched, return true
+CONDITION_TRUE      equ       RetTrue
+CONDITION_FALSE     equ       RetFalse
+TEST_VARIABLE_TABLE macro
+                    ldx       #$0431
+                    endm
+                    use       shared/condition-tests.asm
                     rts
-                    ldb       ,y+       load object number (has-object test)
-                    ldx       <$0038    load pointer to object table
-                    abx                 add object offset
-                    abx                 (3 bytes per object entry)
-                    abx                 now pointing to object location
-                    lda       #$FF      load "in room" value
-                    cmpa      $02,x     compare to object's room byte
-                    lbne      RetFalse  branch if object not carried
-                    lbra      RetTrue   has-object matched, return true
-                    ldb       $01,y     load variable number (obj.in.room test)
-                    ldx       #$0431    point to variable table
-                    abx                 index to the variable
-                    lda       ,x        load room number from variable
-                    ldb       ,y++      load object number, advance Y by 2
-                    ldx       <$0038    load pointer to object table
-                    abx                 add object offset
-                    abx                 (3 bytes per object entry)
-                    abx                 now pointing to object location
-                    cmpa      $02,x     compare room# to object location
-                    lbne      RetFalse  branch if object not in that room
-                    lbra      RetTrue   obj.in.room matched, return true
-                    lda       ,y+       load string index (get-string test)
+                    ifndef PLATFORM_COCO_TEXT_UI_BINDINGS
+                    use platform/coco-text-ui-bindings.asm
+                    endc
+                    use       shared/inventory-commands.asm
+TestHasObject       INVENTORY_HAS_TEST
+TestObjectRoom      INVENTORY_ROOM_TEST
+TestController      lda       ,y+       load string index (get-string test)
                     ldx       #$05BA    point to string storage area
                     lda       a,x       load character from string slot
                     rts
-                    ldx       #$0431    point to variable table (have-key test)
+TestHaveKey         ldx       #$0431    point to variable table (have-key test)
                     lda       <$13,x    load key-pressed variable (var 19)
                     lbne      RetTrue   branch if key already pending
 *
@@ -1851,7 +1303,7 @@ HaveKeyPollLoop     lbsr      GetKeyEvent get next keyboard event
                     lbeq      RetFalse  branch if key was zero (no real key)
                     sta       <$13,x    store key in variable 19
                     lbra      RetTrue   have-key matched, return true
-                    lda       ,y+       load word count argument (said test)
+TestSaid            lda       ,y+       load word count argument (said test)
                     sta       <$0072    save number of words to match
                     lda       >$015A    load parsed-word count
                     beq       SaidCheckDone branch if no words parsed
@@ -1863,28 +1315,9 @@ HaveKeyPollLoop     lbsr      GetKeyEvent get next keyboard event
                     anda      #$20      test player-input flag
                     beq       SaidCheckDone branch if no input to check
                     ldx       #$0194    point to parsed-words buffer
-SaidMatchLoop       lda       <$0072    load remaining words to match
-                    beq       SaidCheckDone branch if all words matched (success)
-                    ldb       ,y+       load first byte of word ID
-                    lda       ,y+       load second byte of word ID
-                    dec       <$0072    decrement remaining word count
-                    cmpd      #$270F    check for "any word" wildcard ($270F)
-                    bne       SaidCheckWild branch if not wildcard
-                    lda       <$0072    load remaining count after wildcard
-                    beq       SaidSetMatch branch if at end of word list (match)
-                    lsla                multiply remaining count by 2
-                    leay      a,y       skip remaining word IDs in script
-                    lbra      SaidSetMatch signal match
-SaidCheckWild       tst       <$0073    check if any parsed words remain
-                    bne       SaidWordCompare branch if more parsed words to check
-                    inc       <$0073    indicate out of parsed words (no match)
-                    lbra      SaidCheckDone
-SaidWordCompare     cmpd      ,x++      compare word ID to parsed word (advance X)
-                    beq       SaidWordMatch branch if word matches
-                    cmpd      #$0001    check for "any/rest" wildcard ($0001)
-                    bne       SaidCheckDone branch if no match and not wildcard
-SaidWordMatch       dec       <$0073    decrement remaining parsed word count
-                    bra       SaidMatchLoop loop to match next word
+SaidExpected        equ       $0072
+SaidParsed          equ       $0073
+                    use       shared/said-match.asm
 SaidCheckDone       ldd       <$0072    load remaining words + remaining parsed words
                     bne       SaidNoMatch branch if unmatched words remain
 SaidSetMatch        lda       >$01AE    load game state flags
@@ -1894,15 +1327,15 @@ SaidSetMatch        lda       >$01AE    load game state flags
 SaidNoMatch         lsla                multiply remaining count by 2 for word IDs
                     leay      a,y       skip unmatched word IDs in script
                     lbra      RetFalse  said not matched, return false
-                    lda       ,y+       load first arg (match.word test)
+TestStrings         lda       ,y+       load first arg (match.word test)
                     ldb       ,y+       load second arg
                     lbsr      MatchWord test word against vocabulary
                     rts
-                    bsr       GetObjViewPtr get object X and Y (posn test)
+TestPosition        bsr       GetObjViewPtr get object X and Y (posn test)
                     sta       <$006F    save left edge X
                     sta       <$0071    save right edge X (same for point test)
                     bra       TestPosnX check the position
-                    bsr       GetObjViewPtr get object's X position (posn center test)
+TestCenter          bsr       GetObjViewPtr get object's X position (posn center test)
                     sta       <$006F    save left edge X
                     lda       <$1C,u    load object width
                     lsra                halve width
@@ -1910,13 +1343,13 @@ SaidNoMatch         lsla                multiply remaining count by 2 for word I
                     sta       <$006F    save center X as left edge
                     sta       <$0071    save center X as right edge
                     bra       TestPosnX check the position
-                    bsr       GetObjViewPtr get object's X position (posn right test)
+TestRight           bsr       GetObjViewPtr get object's X position (posn right test)
                     adda      <$1C,u    add object width to get right edge
                     deca                subtract 1 (right edge = left + width - 1)
                     sta       <$006F    save right edge as left edge
                     sta       <$0071    save right edge
                     bra       TestPosnX check the position
-                    bsr       GetObjViewPtr get object's X position (posn range test)
+TestBox             bsr       GetObjViewPtr get object's X position (posn range test)
                     sta       <$006F    save left edge X
                     adda      <$1C,u    add object width to get right edge
                     deca                subtract 1 (right edge = left + width - 1)
@@ -1930,23 +1363,9 @@ GetObjViewPtr       ldb       ,y+       load object number from script
                     ldd       $03,u     load object X (A) and Y (B) position
                     stb       <$0070    save Y position to temp
                     rts
-TestPosnX           ldd       <$006F    load left/right X edge values
-                    cmpa      ,y+       compare left edge to rect left boundary
-                    bcc       TestPosnY branch if left edge >= rect left (inside or right)
-                    leay      $03,y     skip remaining 3 boundary bytes
-                    bra       RetFalse  object is left of rect
-TestPosnY           cmpb      ,y+       compare Y to rect top boundary
-                    bcc       TestPosnXRight branch if Y >= rect top (inside or below)
-                    leay      $02,y     skip remaining 2 boundary bytes
-                    bra       RetFalse  object is above rect
-TestPosnXRight      lda       <$0071    load right X edge value
-                    cmpa      ,y+       compare right edge to rect right boundary
-                    bls       TestPosnYBot branch if right edge <= rect right (inside or left)
-                    leay      $01,y     skip remaining 1 boundary byte
-                    bra       RetFalse  object is right of rect
-TestPosnYBot        cmpb      ,y+       compare Y to rect bottom boundary
-                    bls       RetTrue   branch if Y <= rect bottom (inside)
-                    bra       RetFalse  object is below rect
+PositionLeftY       equ       $006F
+PositionRight       equ       $0071
+                    use       shared/object-position-test.asm
 RetTrue             lda       #$01      return 1 (condition true)
                     rts
 RetFalse            clra                return 0 (condition false)
@@ -2075,8 +1494,7 @@ EraseObjScan        lbsr      SetWaterRange classify objects by water terrain
 EraseObjDone        leas      $04,s     release local stack frame
                     rts
 
-XorKeyStr           fcc       /Avis Durgan/
-                    fcb       0
+                    use shared/agi-xor-key.asm
 
 *
 *======================================================================
@@ -2085,20 +1503,7 @@ XorKeyStr           fcc       /Avis Durgan/
 *   on load before execution.
 *======================================================================
 *
-XorDecrypt          leas      -$02,s    allocate 2-byte stack slot for pointer
-                    stu       ,s        save end-of-buffer pointer
-                    leau      >XorKeyStr,pcr point U to start of XOR key string
-XorDecryptLoop      cmpx      ,s        compare X (current pos) to end pointer
-                    bcc       XorDecryptDone branch if past end of buffer
-                    tst       ,u        check if key pointer at null terminator
-                    bne       XorDecryptWrap branch if not at end of key
-                    leau      >XorKeyStr,pcr wrap key pointer back to start
-XorDecryptWrap      lda       ,x        load current ciphertext byte
-                    eora      ,u+       XOR with key byte, advance key pointer
-                    sta       ,x+       store decrypted byte, advance data pointer
-                    bra       XorDecryptLoop loop until all bytes decrypted
-XorDecryptDone      leas      $02,s     release stack pointer slot
-                    rts
+                    use shared/xor-decrypt.asm
 
 StrBell             fcb       7,0
 StrQuitMsg2         fcb       $0a
@@ -2172,25 +1577,29 @@ NumZeroPad          fdb       $0000
 *   base row (used by the set_pri_base command).
 *======================================================================
 *
+                    use shared/priority-bands.asm
+PRIORITY_SCALE_BASE macro
+                    subb      $01,s
+                    endm
+PRIORITY_SCALE_DIVIDE macro
+                    ldu       #$000A
+                    lbsr      UIntDivide
+                    endm
+PRIORITY_SCALE_STORE macro
+                    stu       $02,s
+                    endm
 SetPriBase          leas      -$04,s    allocate 4-byte local frame on stack
                     clr       >PriBaseFlag,pcr clear priority-base-set flag
                     ldb       ,y+       load base row argument from script
                     stb       $01,s     save base row
-                    ldb       #$A8      168 = total screen rows
-                    subb      $01,s     compute (168 - base_row)
-                    lda       #$A8      168
-                    mul                 compute (168 - base_row) * 168
-                    ldu       #$000A    divide by 10 (number of priority bands)
-                    lbsr      UIntDivide divide A by U, quotient in U
-                    stu       $02,s     save the division result (rows per band)
+                    PRIORITY_BUILD_SCALE
                     clrb                start from row 0
                     stb       ,s        save current row counter
 SetPriBaseLoop      subb      $01,s     subtract base row from current row
                     bcc       SetPriBaseMul branch if current >= base (within active range)
                     ldb       #$04      default priority 4 for rows before base
                     bra       SetPriBaseStore store default priority
-SetPriBaseMul       lda       #$A8      168 rows
-                    mul                 multiply row offset by 168
+SetPriBaseMul       PRIORITY_MULTIPLY_OFFSET
                     ldu       $02,s     load saved rows-per-band divisor
                     lbsr      UIntDivideToD divide to get band index, return as D
                     addd      #$0005    add 5 (minimum priority = 5)
@@ -2223,33 +1632,30 @@ StrLenLoop          lda       ,x+       load byte from string, advance X
                     leas      $02,s     release 2-byte save slot
                     rts
 StrCopy             pshs      u         save destination pointer (return in X)
-StrCopyLoop         lda       ,x+       load source byte, advance X
-                    sta       ,u+       store to destination, advance U
-                    bne       StrCopyLoop loop until null terminator copied
+                    ifndef PLATFORM_COCO_TEXT_UI_BINDINGS
+                    use platform/coco-text-ui-bindings.asm
+                    endc
+                    use shared/nul-string-copy.asm
+                    NUL_STRING_COPY x,StrCopyLoop,1,NUL_COCO_WRITE,NUL_COPY_NOOP,NUL_COPY_NOOP
                     puls      x         restore start-of-dest as X (return value)
                     rts
+                    ifndef PLATFORM_COCO_TEXT_UI_BINDINGS
+                    use platform/coco-text-ui-bindings.asm
+                    endc
+                    use       shared/bounded-string-copy.asm
 MemCopyNull         leas      -$04,s    allocate 4-byte local frame on stack
                     std       ,s        save max-copy-count (D) on stack
                     stu       $02,s     save original destination pointer
-MemCopyLoop         lda       ,x+       load source byte, advance X
-                    sta       ,u+       store to destination, advance U
-                    beq       MemCopyDone branch if null terminator copied
-                    ldd       ,s        reload remaining count
-                    subd      #$0001    decrement count
-                    std       ,s        save updated count
-                    bne       MemCopyLoop loop if more bytes remain
-                    clr       ,u        force null terminator at destination
-MemCopyDone         ldx       $02,s     reload original destination pointer into X
+                    BOUNDED_STRING_COPY u,MemCopyLoop,MemCopyDone,BOUNDED_COCO_COUNT
+                    ldx       $02,s     reload original destination pointer into X
                     leas      $04,s     release local stack frame
                     rts
-StrAppend           pshs      u         save source pointer (return dest in X)
+StrAppend           pshs      u         save destination pointer (return dest in X)
 StrAppendFind       lda       ,u+       scan forward in destination for null
                     bne       StrAppendFind loop until null terminator found
                     leau      -$01,u    back up to point at null byte
-StrAppendCopy       lda       ,x+       load source byte, advance X
-                    sta       ,u+       store to destination (overwrites null), advance U
-                    bne       StrAppendCopy loop until null terminator copied
-                    puls      x         restore start-of-source as X (return value)
+                    NUL_STRING_COPY x,StrAppendCopy,1,NUL_COCO_WRITE,NUL_COPY_NOOP,NUL_COPY_NOOP
+                    puls      x         restore start-of-destination as X (return value)
                     rts
 StrCompare          pshs      u,x       save register state
 StrCompareLoop      lda       ,x        load byte from first string (no advance yet)
@@ -2259,71 +1665,19 @@ StrCompareLoop      lda       ,x        load byte from first string (no advance 
                     bne       StrCompareLoop loop if not at end of first string
 StrCompareRet       puls      u,x       restore saved registers
                     rts
-AtoI                leas      -$02,s    allocate 2-byte accumulator on stack
-                    clra                clear A for accumulator init
-                    sta       ,s        clear accumulated result
-                    sta       $01,s     clear digit temp
-AtoISkipSpace       ldb       ,x+       load byte from input, advance X
-                    cmpb      #$20      check for space character
-                    beq       AtoISkipSpace loop to skip leading spaces
-AtoIDigitLoop       cmpb      #$30      compare to '0'
-                    bcs       AtoIDone  branch if below '0' (not a digit)
-                    cmpb      #$39      compare to '9'
-                    bhi       AtoIDone  branch if above '9' (not a digit)
-                    subb      #$30      convert ASCII digit to binary
-                    stb       $01,s     save digit value
-                    lda       #$0A      multiply accumulated result by 10
-                    ldb       ,s        load current accumulator
-                    mul                 compute accumulator * 10
-                    addb      $01,s     add new digit to product
-                    stb       ,s        save updated accumulator
-                    ldb       ,x+       load next input byte, advance X
-                    bne       AtoIDigitLoop loop if not null terminator
-AtoIDone            lda       ,s        load final converted integer
-                    leas      $02,s     release 2-byte accumulator
-                    rts
-UIntToDecStr        leax      >NumConvEnd,pcr point X to end of numeric conversion buffer
-                    clr       ,x        null-terminate the buffer
-UIntToDecLoop       ldu       #$000A    divide by 10 for decimal conversion
-                    bsr       UIntDivide divide D by U for decimal digit
-                    addb      #$30      convert remainder to ASCII digit
-                    stb       ,-x       store digit left of current position
-                    tfr       u,d       transfer quotient to D
-                    cmpd      #$0000    check if quotient is zero
-                    bhi       UIntToDecLoop loop if more digits to convert
-                    rts
-UIntToHexStr        leax      >NumConvEnd,pcr point X to end of numeric conversion buffer
-                    clr       ,x        null-terminate the buffer
-UIntToHexLoop       ldu       #$0010    divide by 16 for hex conversion
-                    bsr       UIntDivide divide D by 16 for hex digit
-                    addb      #$30      convert remainder to ASCII
-                    cmpb      #$39      check if digit is 0-9
-                    ble       UIntToHexStore branch if in '0'-'9' range
-                    addb      #$07      adjust for 'A'-'F' range
-UIntToHexStore      stb       ,-x       store hex digit left of current position
-                    tfr       u,d       transfer quotient to D
-                    cmpd      #$0000    check if quotient is zero
-                    bhi       UIntToHexLoop loop if more digits to convert
-                    rts
-UIntDivide          leas      -$05,s    allocate 5-byte local frame on stack
-                    std       ,s        save dividend (D)
-                    stu       $02,s     save divisor (U)
-                    lda       #$10      16 iterations for 16-bit divide
-                    sta       $04,s     save iteration count
-                    ldd       #$0000    clear quotient accumulator
-UIntDivideLoop      lsl       $01,s     shift dividend left (LSB of dividend)
-                    rol       ,s        shift dividend MSB with carry
-                    rolb                roll bit into quotient LSB
-                    rola                roll quotient MSB
-                    cmpd      $02,s     compare partial remainder to divisor
-                    bcs       UIntDivideShift branch if remainder < divisor (no subtract)
-                    subd      $02,s     subtract divisor from partial remainder
-                    inc       $01,s     set quotient bit (LSB of dividend was 1)
-UIntDivideShift     dec       $04,s     decrement iteration count
-                    bne       UIntDivideLoop loop for all 16 bits
-                    ldu       ,s        load final quotient into U
-                    leas      $05,s     release local stack frame
-                    rts
+                    use       shared/decimal-byte.asm
+* Assembly-time decimal output storage/division interface.
+                    ifne      WILDBITS
+                    ifndef PLATFORM_WILDBITS_TEXT_UI_BINDINGS
+                    use platform/wildbits-text-ui-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_TEXT_UI_BINDINGS
+                    use platform/coco-text-ui-bindings.asm
+                    endc
+                    endc
+                    use       shared/unsigned-decimal.asm
+                    WORD_EMIT_HEX_DIVIDE
 StrZeroPad          leas      -$0B,s    allocate 11-byte local frame on stack
                     pshs      x,b       save X (dest) and B (desired width)
                     tfr       u,x       transfer source pointer to X
@@ -2346,12 +1700,9 @@ StrZeroPadDo        clr       b,u       null-terminate at the correct position
                     puls      x         restore original destination X
                     leas      $0B,s     release local stack frame
                     rts
-ToLower             cmpa      #$41      check if char is below 'A'
-                    bcs       ToLowerRet branch if below 'A' (not uppercase)
-                    cmpa      #$5A      check if char is above 'Z'
-                    bhi       ToLowerRet branch if above 'Z' (not uppercase)
-                    ora       #$20      set bit 5 to convert to lowercase
-ToLowerRet          rts
+ToLower             equ       LowercaseByte
+ToLowerRet          equ       LowercaseReturn
+                    use       shared/ascii-lower.asm
 *
 *======================================================================
 * RANDOM NUMBER COMMAND
@@ -2359,20 +1710,11 @@ ToLowerRet          rts
 *   and stores it in a variable within a caller-specified range.
 *======================================================================
 *
-CmdRandomImpl       lbsr      InitRandSeed get pseudo-random value into B
-                    lda       $01,y     load range max (second arg)
-                    suba      ,y++      subtract range min from max, advance Y by 2
-                    inca                add 1 to get range size
-                    bne       CmdRandomMod branch if range is non-zero
-                    tfr       b,a       range was zero, use raw random value
-                    bra       CmdRandomStore skip modulo
-CmdRandomMod        lbsr      Div8      divide: A=divisor, B=dividend → B=remainder
-                    adda      -$02,y    add range min to get result in range
-CmdRandomStore      ldx       #$0431    point to variable table
-                    ldb       ,y+       load destination variable number
-                    abx                 index to destination variable
-                    sta       ,x        store random result in variable
-                    rts
+                    ifndef PLATFORM_COCO_LOGIC_BINDINGS
+                    use platform/coco-logic-bindings.asm
+                    endc
+                    use       shared/random-command.asm
+
 *
 *======================================================================
 * BYTE SEARCH AND CASE HELPERS
@@ -2380,14 +1722,7 @@ CmdRandomStore      ldx       #$0431    point to variable table
 *   string to lowercase in place.
 *======================================================================
 *
-FindByte            tst       ,x        check for null terminator at current position
-                    bne       FindByteLoop branch if not null (search continues)
-                    ldx       #$0000    null found, return null pointer (not found)
-                    bra       FindByteRet
-FindByteLoop        cmpa      ,x+       compare search byte to current, advance X
-                    bne       FindByte  branch if not matching (retry from top)
-                    leax      -$01,x    back up to point at the matching byte
-FindByteRet         rts
+                    use       shared/find-byte.asm
 StrToLower          tfr       u,x       transfer string pointer to X
 StrToLowerLoop      lda       ,x        load current character
                     beq       StrToLowerDone branch if null terminator (end of string)
@@ -2843,63 +2178,32 @@ FindObjPosIter      lbsr      CheckObjBounds check if object fits within screen
                     ldu       ,s        reload object pointer
                     lda       <$005C    check placement result flag
                     bne       FindObjPosDone branch if placement succeeded
-FindObjPosDirNone   lda       $03,s     load current search direction
-                    bne       FindObjPosDirOne branch if trying non-zero direction
-                    dec       $03,u     shift object up by 1 (try above)
-                    dec       $04,s     decrement remaining step count
-                    bne       FindObjPosIter branch if more steps in this direction
-                    inc       $03,s     advance to next direction
-                    lda       $02,s     load step size
-                    sta       $04,s     reset step counter
-                    bra       FindObjPosIter try next position
-FindObjPosDirOne    cmpa      #$01      check if direction 1 (down)
-                    bne       FindObjPosDirTwo branch if not direction 1
-                    inc       $04,u     shift object down by 1
-                    dec       $04,s     decrement remaining step count
-                    bne       FindObjPosIter branch if more steps in this direction
-                    inc       $03,s     advance to next direction
-                    inc       $02,s     increase step size
-                    lda       $02,s     load new step size
-                    sta       $04,s     reset step counter
-                    bra       FindObjPosIter try next position
-FindObjPosDirTwo    cmpa      #$02      check if direction 2 (right)
-                    bne       FindObjPosDirThree branch if not direction 2
-                    inc       $03,u     shift object right by 1
-                    dec       $04,s     decrement remaining step count
-                    bne       FindObjPosIter branch if more steps in this direction
-                    inc       $03,s     advance to next direction
-                    lda       $02,s     load step size
-                    sta       $04,s     reset step counter
-                    bra       FindObjPosIter try next position
-FindObjPosDirThree  dec       $04,u     shift object left by 1
-                    dec       $04,s     decrement remaining step count
-                    bne       FindObjPosIter branch if more steps in this direction
-                    clr       $03,s     reset direction to 0
-                    inc       $02,s     increase step size for next spiral ring
-                    lda       $02,s     load new step size
-                    sta       $04,s     reset step counter
-                    bra       FindObjPosIter try next position
+FindObjPosDirNone   equ *
+                    ifne WILDBITS
+                    ifndef PLATFORM_WILDBITS_OBJECTS_BINDINGS
+                    use platform/wildbits-objects-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_OBJECTS_BINDINGS
+                    use platform/coco-objects-bindings.asm
+                    endc
+                    endc
+                    use shared/object-placement-step.asm
 FindObjPosDone      leas      $05,s     release local stack frame
                     rts
-CheckObjBounds      clra                assume out of bounds (return 0)
-                    ldb       $03,u     load object X position
-                    addb      <$1C,u    add object width to get right edge
-                    bcs       CheckObjBoundsRet branch if right edge overflowed (off-screen)
-                    cmpb      #$A0      compare right edge to screen right (160)
-                    bhi       CheckObjBoundsRet branch if right edge off screen
-                    ldb       $04,u     load object Y position
-                    cmpb      #$A7      compare to screen bottom (167)
-                    bhi       CheckObjBoundsRet branch if Y below screen
-                    incb                Y+1 for height check
-                    cmpb      <$1D,u    compare to object height
-                    bcs       CheckObjBoundsRet branch if Y+1 < height (object too tall)
-                    decb                restore Y
-                    cmpb      >$01D6    compare to horizon row
-                    bhi       CheckObjInBounds branch if below horizon (in bounds)
-                    ldb       <$26,u    load object state flags
-                    bitb      #$08      test ignore-horizon flag
-                    beq       CheckObjBoundsRet branch if must observe horizon (out of bounds)
-CheckObjInBounds    inca                object is in bounds: return 1
+                    ifne WILDBITS
+                    ifndef PLATFORM_WILDBITS_OBJECTS_BINDINGS
+                    use platform/wildbits-objects-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_OBJECTS_BINDINGS
+                    use platform/coco-objects-bindings.asm
+                    endc
+                    endc
+                    use shared/object-bounds.asm
+CheckObjBounds      clra
+                    OBJECT_CHECK_BOUNDS u,CheckObjBoundsRet,CheckObjInBounds
+                    inca
 CheckObjBoundsRet   rts
 FlagBitTable        fcb       $80,$40,$20,$10,8,4,2,1
 
@@ -2912,63 +2216,14 @@ FlagBitTable        fcb       $80,$40,$20,$10,8,4,2,1
 *   toggle_v AGI flag commands, plus the internal GetFlagBitAddr helper.
 *======================================================================
 *
-CmdSetImpl          lda       ,y+       load flag number from script
-                    bra       SetFlag   jump to SetFlag to set it
+FLAG_VARIABLE_TABLE macro
+                    ldx       #$0431
+                    endm
+                    use       shared/flag-commands.asm
 
-
-CmdResetImpl        lda       ,y+       load flag number from script
-                    bra       ClearFlag jump to ClearFlag to clear it
-
-
-CmdToggleImpl       lda       ,y+       load flag number from script
-                    bra       ToggleFlag jump to ToggleFlag to toggle it
-
-CmdSetVImpl         ldb       ,y+       load variable number from script
-                    ldx       #$0431    point to variable table
-                    abx                 index to the variable
-                    lda       ,x        load flag number from variable
-                    bra       SetFlag   jump to SetFlag with flag number in A
-
-CmdResetVImpl       ldb       ,y+       load variable number from script
-                    ldx       #$0431    point to variable table
-                    abx                 index to the variable
-                    lda       ,x        load flag number from variable
-                    bra       ClearFlag jump to ClearFlag with flag number
-
-CmdToggleVImpl      ldb       ,y+       load variable number from script
-                    ldx       #$431     point to variable table
-                    abx                 index to the variable
-                    lda       ,x        load flag number from variable
-                    bra       ToggleFlag jump to ToggleFlag with flag number
-
-SetFlag             bsr       GetFlagBitAddr get bit mask (A) and byte address (X)
-                    ora       ,x        OR bit mask into flag byte
-                    sta       ,x        store updated flag byte
-                    rts
-
-ClearFlag           bsr       GetFlagBitAddr get bit mask (A) and byte address (X)
-                    coma                invert bit mask to produce AND mask
-                    anda      ,x        AND inverted mask to clear the bit
-                    sta       ,x        store updated flag byte
-                    rts
-
-ToggleFlag          bsr       GetFlagBitAddr get bit mask (A) and byte address (X)
-                    eora      ,x        XOR to toggle the flag bit
-                    sta       ,x        store updated flag byte
-                    rts
-TestFlag            bsr       GetFlagBitAddr get bit mask (A) and byte address (X)
-                    anda      ,x        AND mask with flag byte (result: 0=clear, nonzero=set)
-                    rts
-GetFlagBitAddr      tfr       a,b       copy flag number to B
-                    leax      >FlagBitTable,pcr point X to bit-mask lookup table
-                    anda      #$07      flag number mod 8 → bit index within byte
-                    lda       a,x       load bit mask for this flag bit
-                    lsrb                shift flag number right 3 (÷8)
-                    lsrb                (second shift)
-                    lsrb                → byte offset into flag table
-                    ldx       #$01AE    base address of flag table
-                    abx                 index to the correct flag byte
-                    rts
+                    use platform/sections.d
+PLATFORM_SECTION    set PLATFORM_COCO_FLAG_STORAGE
+                    use platform/coco-logic.asm
 *
 *======================================================================
 * FOLLOW EGO MOTION CALCULATOR
@@ -2976,82 +2231,7 @@ GetFlagBitAddr      tfr       a,b       copy flag number to B
 *   fallback when blocked and random delay between steps.
 *======================================================================
 *
-CalcFollowDir       leas      -$05,s    allocate 5-byte local frame on stack
-                    ldb       <$27,u    load follow-object's step size
-                    pshs      b,a       save step size and A
-                    ldx       <$0030    load ego object pointer
-                    lda       <$1C,x    load ego width
-                    lsra                halve width to get center offset
-                    adda      $03,x     add X position to get ego center X
-                    ldb       $04,x     load ego Y position
-                    std       $03,s     save ego center position on stack
-                    pshs      b,a       push ego center as CalcMoveDir arg
-                    lda       <$1C,u    load follower width
-                    lsra                halve width to get center offset
-                    adda      $03,u     add X position to get follower center X
-                    sta       $07,s     save follower center X
-                    ldb       $04,u     load follower Y position
-                    pshs      b,a       push follower position as CalcMoveDir arg
-                    lbsr      CalcMoveDir compute direction toward ego
-                    leas      $06,s     release CalcMoveDir arguments
-                    sta       ,s        save computed direction
-                    bne       FollowCheckStop branch if direction is non-zero (not yet there)
-                    sta       <$21,u    arrived: stop follower (direction = 0)
-                    sta       <$22,u    clear motion type (no special motion)
-                    lda       <$28,u    load "follow complete" flag number
-                    lbsr      SetFlag   set the follow-complete flag
-                    bra       FollowRet
-FollowCheckStop     lda       <$29,u    load follow delay counter
-                    cmpa      #$FF      check for "wander first" sentinel
-                    bne       FollowCheckWander branch if not in wander mode
-                    clr       <$29,u    clear wander mode
-                    bra       FollowSetDir go set the follow direction
-FollowCheckWander   lda       <$25,u    load follower animation flags
-                    bita      #$40      test "wander allowed" flag
-                    beq       FollowDecTimer branch if not in wander mode
-FollowSetWander     lbsr      InitRandSeed get random value
-                    lda       #$09      random range 0-8 (9 directions)
-                    lbsr      Div8      compute random direction
-                    sta       <$21,u    store new random direction
-                    beq       FollowSetWander loop if direction was 0 (stopped)
-                    ldb       $03,s     load ego center X
-                    subb      $01,s     subtract follower X to get delta X
-                    bcc       FollowCalcDir branch if delta positive
-                    negb                negate to get absolute delta X
-FollowCalcDir       stb       $04,s     save absolute delta X
-                    ldb       $04,u     load follower Y
-                    subb      $02,s     subtract ego Y to get delta Y
-                    bcc       FollowCalcStep branch if delta positive
-                    negb                negate to get absolute delta Y
-FollowCalcStep      clra                clear A for word construction
-                    addb      $04,s     add delta X to delta Y (Manhattan distance)
-                    adca      #$00      propagate carry
-                    lsra                divide sum by 2 (A)
-                    rorb                shift into B
-                    incb                round up
-                    stb       $04,s     save computed step distance
-                    lda       <$1E,u    load follower step size
-                    sta       <$29,u    save as follow timer
-                    cmpa      $04,s     compare step size to distance
-                    bcc       FollowRet branch if step size >= distance (no random needed)
-FollowRandomStep    lbsr      InitRandSeed get random value for step delay
-                    lda       $04,s     load computed distance
-                    lbsr      Div8      compute random step within distance
-                    cmpa      <$1E,u    compare to minimum step size
-                    bcs       FollowRandomStep loop if random step too small
-                    sta       <$29,u    store random step delay
-                    bra       FollowRet
-FollowDecTimer      lda       <$29,u    load follow delay counter
-                    beq       FollowSetDir branch if counter is zero (time to move)
-                    clr       <$29,u    clear counter temporarily
-                    suba      <$1E,u    subtract step size from counter
-                    bcs       FollowRet branch if underflowed (past time)
-                    sta       <$29,u    store updated counter
-                    bra       FollowRet
-FollowSetDir        lda       ,s        load computed direction from stack
-                    sta       <$21,u    store as follower's movement direction
-FollowRet           leas      $05,s     release local stack frame
-                    rts
+                    use       shared/object-follow.asm
 DataSaveDiskFlag    fcb       1
 SaveDiskNameBuf     fcb       0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
                     fcb       0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
@@ -3884,25 +3064,15 @@ JoyPushEvent        ldb       #$02      event type = joystick direction
                     lbsr      EventPush push direction event to queue
 JoyPollEnd          bsr       PollJoyButton poll joystick button state
 JoyPollRet          rts
-ReadJoystick        pshs      y         save Y register across system call
-                    lda       #$00      path number 0
-                    ldb       #$13      GetStt code $13 = read joystick
-                    ldx       <$0096    load joystick path descriptor
-                    os9       I$GetStt  read joystick position
-                    tfr       x,d       transfer result X to D
-                    leax      >JoystickData,pcr point to joystick-data buffer
-                    sty       $01,x     store Y-axis value
-                    std       ,x        store X and button bytes
-                    puls      y         restore Y register
-                    rts
-ReadJoyButton       pshs      y         save Y register across system call
-                    lda       #$00      path number 0
-                    ldb       #$13      GetStt code $13 = read joystick
-                    ldx       <$0096    load joystick path descriptor
-                    os9       I$GetStt  read joystick button state
-                    sta       >$0541    store button-pressed flag
-                    puls      y         restore Y register
-                    rts
+* Platform implementation; selection emits no dispatch code.
+* Assembly-time platform selection.
+                    ifne      WILDBITS
+                    error     Wild Bits platform backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_JOYSTICK_INPUT
+                    use platform/coco-input.asm
+                    endc
+
 PollJoyButton       bsr       ReadJoyButton read raw joystick button state
                     lda       >$0542    load button state counter
                     cmpa      #$02      check if in debounce hold state
@@ -3955,36 +3125,13 @@ JoyBtnUp            lda       >$0541    load button state
                     ldb       #$01      event type = key event
                     lbsr      EventPush push button-release event
 PollJoyButtonRet    rts
-CheckJoyDirection   lda       $02,x     load Y-axis (vertical) value
-                    ldb       $01,x     load X-axis (horizontal) value
-                    cmpa      #$25      check if Y > center+threshold
-                    bls       JoyDirLow branch if not pointing up
-                    lda       #$08      assume up-left (direction 8)
-                    cmpb      #$16      check if X < left threshold
-                    bcs       JoyDirRet return up-left if X is left
-                    lda       #$02      assume up-right (direction 2)
-                    cmpb      #$25      check if X > right threshold
-                    bhi       JoyDirRet return up-right if X is right
-                    lda       #$01      up (direction 1, center X)
-                    bra       JoyDirRet return up direction
-JoyDirLow           cmpa      #$16      check if Y < center-threshold
-                    bcc       JoyDirHigh branch if Y in center band
-                    lda       #$06      assume down-left (direction 6)
-                    cmpb      #$16      check if X < left threshold
-                    bcs       JoyDirRet return down-left if X is left
-                    lda       #$04      assume down-right (direction 4)
-                    cmpb      #$25      check if X > right threshold
-                    bhi       JoyDirRet return down-right if X is right
-                    lda       #$05      down (direction 5, center X)
-                    bra       JoyDirRet return down direction
-JoyDirHigh          lda       #$07      assume left (direction 7)
-                    cmpb      #$16      check if X < left threshold
-                    bcs       JoyDirRet return left
-                    lda       #$03      assume right (direction 3)
-                    cmpb      #$25      check if X > right threshold
-                    bhi       JoyDirRet return right
-                    lda       #$00      center (no direction)
+                    use shared/object-move-direction.asm
+CheckJoyDirection   ldb       1,x
+                    pshs      b,x
+                    JOYSTICK_DIRECTION $16,$25,COCO_JOYSTICK_X,COCO_JOYSTICK_Y,JoystickDirections,cmpb
+                    puls      b,x
 JoyDirRet           rts
+JoystickDirections  JOYSTICK_DIRECTION_TABLE 1
 JoyKeyMapPrimary    fcb       $1c,$01
                     fcb       $10,$02
                     fcb       $19,$03
@@ -4208,12 +3355,7 @@ ExecLogicLoad       ldd       <$0064    load last-slot pointer
                     lbsr      CalcPriAddr compute priority address
                     stu       $08,s     save priority address
                     clr       $03,s     clear pre-loaded flag
-ExecLogicRun        lda       <$0068    load re-exec state flag
-                    beq       ExecLogicRetState branch if not re-executing
-                    cmpa      #$02      check for re-exec state 2
-                    bne       ExecLogicRetState branch if other state
-                    lda       #$01      reset to state 1
-                    sta       <$0068    store updated state
+ExecLogicRun        AGI_TRACE_LOGIC_ENTRY ExecLogicRetState,1
 ExecLogicRetState   lda       ,s        load logic number
                     bne       ExecLogicRetCheck branch if not logic 0
                     lda       #$01      set room-init flag
@@ -4354,46 +3496,24 @@ UpdateFreeSpace     ldd       #$FFFF    compute free space = $FFFF minus ptr
                     subd      <$004F    subtract current heap pointer
                     sta       >$0439    store high byte of free space
                     rts
-CalcPriAddr         suba      <$005F    subtract priority base row offset
-                    ldb       #$20      bytes per priority strip = 32
-                    mul                 A×32 = byte offset into strip
-                    exg       b,a       swap bytes (shift left 8)
-                    subd      #$2000    subtract $2000 for final addr
-                    leau      d,u       advance U by computed offset
-                    rts
-*
-*======================================================================
-* PRIORITY COORDINATE CALCULATION
-*   Converts a screen Y coordinate to a priority value and maps a view's
-*   logic page into the address space.
-*======================================================================
-*
-CalcPriCoord        tfr       u,d       transfer priority address to D
-                    anda      #$1F      isolate column within strip
-                    adda      #$20      add $20 base column
-                    exg       d,u       swap D and U
-                    lsra                shift right (divide by 2)
-                    lsra                shift right
-                    lsra                shift right
-                    lsra                shift right
-                    lsra                shift right (divide by 32)
-                    adda      <$005F    add priority base row to result
-                    tfr       a,b       copy row to B
-                    incb                increment for 1-based row
-                    rts
-SetLogicPage        cmpa      <$000A    check if page already set
-                    beq       SetLogicPageRet skip if no change needed
-                    orcc      #$50      disable interrupts during switch
-                    std       <$000A    save new page number
-                    lda       <$0042    load current MMU shadow byte
-                    sta       >$FFA9    write to MMU slot 9
-                    ldx       <$0043    load MMU control register ptr
-                    lda       <$000A    load new page high byte
-                    sta       ,x        set MMU slot high
-                    stb       $02,x     set MMU slot low
-                    std       >$FFA9    commit page change to MMU
-                    andcc     #$AF      re-enable interrupts
-SetLogicPageRet     rts
+* Platform implementation; selection emits no dispatch code.
+* Assembly-time platform selection.
+                    ifne      WILDBITS
+                    error     Wild Bits platform backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_PRIORITY_ADDRESS
+                    use platform/coco-graphics.asm
+                    endc
+
+* Platform mapping implementation; retained at its original location.
+* Assembly-time memory backend selection; no runtime dispatch.
+                    ifne      WILDBITS
+                    error     Wild Bits memory backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_LOGIC_MAP
+                    use platform/coco-logic.asm
+                    endc
+
 MenuExtraFlag       fcb       1
 MenuItemCurrent     fcb       0,0
 MenuCurrent         fcb       0,0
@@ -4577,12 +3697,16 @@ SetItemEnableNext   ldu       ,u        advance to next menu entry
 *   navigation.
 *======================================================================
 *
-cmd_menu_input      lda       >$01AF    load misc-flags byte
-                    anda      #$02      isolate menu-input-allowed bit
-                    beq       MenuInputRet branch if menu input disabled
-                    lda       #$01      enable flag = true
-                    sta       >$05AE    set menu-input-active flag
-MenuInputRet        rts
+MENU_REQUEST_ALLOWED macro
+                    lda       >$01AF
+                    anda      #$02
+                    endm
+MENU_REQUEST_STORE macro
+                    sta       >$05AE
+                    endm
+MENU_REQUEST_RETURN macro
+                    endm
+cmd_menu_input      AGI_MENU_REQUEST MenuInputRet
 cmd_show_menu       ldb       ,y+       load show-menu flag from script
                     stb       >MenuExtraFlag,pcr store as menu-extra flag
                     rts
@@ -4851,10 +3975,10 @@ CalcMenuItemGeometry leas      -$01,s    allocate one byte for item count
                     stb       >MenuItemHeight,pcr store dropdown pixel height
                     leas      $01,s     release one-byte local frame
                     rts
-JoySpeedTable       fcb       1,$ff
-                    fcb       3,$ff
-                    fcb       7,$ff
-                    fcb       $f,$ff
+                    ifndef SHARED_RESOURCE_CODECS_DEFINED
+                    use shared/resource-codecs.asm
+                    endc
+JoySpeedTable       RESOURCE_LZW_MASKS
 
 *
 *======================================================================
@@ -4863,36 +3987,15 @@ JoySpeedTable       fcb       1,$ff
 *   input into AGI key codes.
 *======================================================================
 *
-ReadStdinByte       leas      -$03,s    allocate three local bytes
-                    sty       ,s        save Y register
-                    lda       #$00      path 0 = stdin
-                    ldb       #$01      GetStt code 1 = check char avail
-                    os9       I$GetStt  check if char is available
-                    bcs       ReadStdinByteErr branch if error (no char)
-                    lda       #$00      path 0 = stdin
-                    ldy       #$0001    read 1 byte
-                    leax      $02,s     point X to local read buffer
-                    os9       I$Read    read one byte from stdin
-                    bcs       ReadStdinByteErr branch if read failed
-                    lda       $02,s     load the byte we just read
-                    bra       ReadStdinByteRet return with character in A
-                    cmpa      #$F4      (unreachable — dead code)
-                    bne       ReadStdinByteRet branch if not $F4
-                    lda       <$0068    load trace-mode flag
-                    bne       ReadStdinByteAlt branch if trace mode on
-                    lda       >$01AF    load misc-flags byte
-                    ora       #$20      set trace-active bit
-                    sta       >$01AF    store updated flags
-                    lbsr      TraceInit initialize trace display
-                    bra       ReadStdinByteErr return error
-ReadStdinByteAlt    lda       >$01AF    load misc-flags byte
-                    anda      #$DF      clear trace-active bit
-                    sta       >$01AF    store updated flags
-                    lbsr      TraceErase erase trace display
-ReadStdinByteErr    clra                return zero = no char / error
-ReadStdinByteRet    ldy       ,s        restore Y register
-                    leas      $03,s     release local frame
-                    rts
+* Platform implementation; selection emits no dispatch code.
+* Assembly-time platform selection.
+                    ifne      WILDBITS
+                    error     Wild Bits platform backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_KEYBOARD_INPUT
+                    use platform/coco-input.asm
+                    endc
+
 *
 *======================================================================
 * MEMORY FILL
@@ -4908,10 +4011,11 @@ FillMemLoop         stb       ,u+       store fill byte, advance pointer
                     rts
 *
 *======================================================================
-* PICTURE DECODING AND RENDERING
-*   Decodes the Sierra AGI picture format (nibble-packed commands) and
-*   renders visual and priority data into the screen buffer via the shdw
-*   module.
+* RESOURCE DECOMPRESSION
+*   PicRenderSetup is the legacy LZW decoder for logic/view/sound resources.
+*   RenderPicStrip expands nibble-packed picture commands. Neither routine
+*   draws the decoded picture. The mapped shadow block holds a 1-KiB input
+*   buffer at $6000 and the three-byte LZW dictionary entries at $6400.
 *======================================================================
 *
 PicRenderSetup      lda       $02,s     load picture file descriptor
@@ -4919,12 +4023,7 @@ PicRenderSetup      lda       $02,s     load picture file descriptor
                     ldd       $06,s     load remaining byte count
                     std       <$00A2    store bytes remaining in stream
                     lbsr      MapShdwPage map shadow page into MMU
-                    ldd       #$0009    initial bit depth / state = 9
-                    std       <$00A4    initialize pic decode state
-                    ldd       #$0102    initial base color pair
-                    std       <$00A9    store base color
-                    ldd       #$0200    initial max color range
-                    std       <$00B1    store max range
+                    RESOURCE_LZW_RESET $00A9,$00B1,$00A4,1,1
                     ldd       #$0000    clear to zero
                     std       <$00A6    clear current color accumulator
                     std       <$00B4    clear saved color accumulator
@@ -4944,12 +4043,7 @@ PicDecodeLoop       lbsr      ReadPicPixel read next encoded pixel value
                     lbeq      PicRenderDone branch if end-of-picture
                     cmpd      #$0100    check for color-reset code
                     bne       PicDataProcess branch if normal pixel data
-                    ldd       #$0009    reset bit depth to 9
-                    std       <$00A4    reset decode state
-                    ldd       #$0102    reset base color pair
-                    std       <$00A9    reset base color
-                    ldd       #$0200    reset max range
-                    std       <$00B1    reset color range
+                    RESOURCE_LZW_RESET $00A9,$00B1,$00A4,1,1
                     lbsr      ReadPicPixel read reset color value
                     tst       <$009F    check for stream end
                     lbne      PicRenderDone branch if stream ended
@@ -4968,18 +4062,7 @@ PicDataProcess      std       <$00A6    store current pixel data
                     inc       <$00B6    increment run count
                     ldd       <$00B4    load saved color
                     std       <$00A6    restore as current color
-PicDataCheck        cmpd      #$0100    check if color code >= $0100
-                    bcs       PicColorStore branch if simple color (< $0100)
-                    addd      <$00A6    add current to D
-                    addd      <$00A6    add again (×3 for table index)
-                    ldu       #$6400    point to color-decode table base
-                    leau      d,u       index into table
-                    ldb       $02,u     load color byte from table
-                    pshs      b         push color byte
-                    inc       <$00B6    increment run count
-                    ldd       ,u        load color entry word
-                    std       <$00A6    store as new current color
-                    bra       PicDataCheck check again (multi-step decode)
+                    RESOURCE_LZW_WALK PicDataCheck,PicColorStore,u
 PicColorStore       stb       <$00A8    store final color byte A
                     stb       <$00AD    store final color byte D
                     pshs      b         push final color byte
@@ -4991,17 +4074,7 @@ PicWriteLoop        puls      b         pop color byte from stack
                     bne       PicWriteLoop loop until all pixels written
                     sta       <$00B6    reset run count to zero
                     ldd       <$00A9    load current base color
-                    addd      <$00A9    multiply by 3 for table index
-                    addd      <$00A9    (×3 total)
-                    ldu       #$6400    point to color table base
-                    leau      d,u       index to this color's entry
-                    ldb       <$00AD    load current color byte D
-                    stb       $02,u     store back in table
-                    ldd       <$00B4    load saved color pair
-                    std       ,u        store back in table
-                    ldd       <$00A9    load base color index
-                    addd      #$0001    advance to next color index
-                    std       <$00A9    store new base color
+                    RESOURCE_LZW_INSERT u,$00A9,$00B4,$00AD,0,1
                     ldu       <$00AB    load run-color tracker
                     stu       <$00B4    save as next saved color
                     cmpd      <$00B1    compare index to max range
@@ -5082,18 +4155,15 @@ PicStorePixel       stb       ,x+       store pixel byte to output buffer
 PicStripDone        tfr       x,d       transfer output ptr to D
                     subd      $04,s     compute bytes written
                     rts
-MapShdwPage         orcc      #$50      disable interrupts for MMU access
-                    lda       >$FFA9    read current MMU slot 9
-                    ldb       <$0042    load shadow page number
-                    stb       >$FFA9    map shadow page to slot 9
-                    ldx       <$0043    load MMU control ptr
-                    ldb       <$005F    load base priority page
-                    addb      #$08      advance 8 pages into shadow
-                    stb       $04,x     update MMU slot 4
-                    stb       >$FFAB    write to MMU hardware
-                    sta       >$FFA9    restore original slot 9
-                    andcc     #$AF      re-enable interrupts
-                    rts
+* Platform mapping implementation; retained at its original location.
+* Assembly-time memory backend selection; no runtime dispatch.
+                    ifne      WILDBITS
+                    error     Wild Bits memory backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_PRIORITY_MAP
+                    use platform/coco-memory-resources.asm
+                    endc
+
 ReadPicPixel        stx       <$00B7    save X across buffer reads
                     ldd       <$00BA    load current bit position
                     cmpd      #$1FF0    check if near buffer end
@@ -5129,20 +4199,7 @@ ReadPicPixelInner   ldu       <$00A4    load decode state (color index offset)
                     ldb       <$00BB    load bit sub-position
                     stu       <$00BA    store bit position (from U)
                     andb      #$07      mask to 0-7
-                    beq       PicPixelMask branch if no shift needed
-PicShiftLoop        lsr       <$00B0    right-shift the three-byte window
-                    ror       <$00AE    rotate through middle byte
-                    ror       <$00AF    rotate into low byte
-                    decb                decrement shift count
-                    bne       PicShiftLoop loop until aligned
-PicPixelMask        ldb       <$00A5    load current bit-depth
-                    subb      #$09      subtract base depth (9)
-                    lslb                multiply by 2 for table index
-                    leax      >JoySpeedTable,pcr point to bit-mask table
-                    abx                 index to entry for this depth
-                    ldd       <$00AE    load extracted pixel word
-                    anda      ,x        mask high byte with table
-                    andb      $01,x     mask low byte with table
+                    RESOURCE_LZW_EXTRACT $00B0,$00AE,$00A5,JoySpeedTable,PicShiftLoop,PicPixelMask
 PicPixelRet         ldx       <$00B7    restore X
                     rts
 PicBufReadWord      ldu       #$6000    base of decode buffer
@@ -5172,29 +4229,19 @@ ReadPicChunkRead    tfr       d,y       transfer byte count to Y
                     lda       <$00B9    load file descriptor
                     lbsr      ReadFile  read D bytes from file into X
 ReadPicChunkRet     rts
-gfx_picbuff_update  tst       >$0550    check if gfx-update-needed flag set
-                    beq       GfxUpdateBlit branch if no shadow update needed
-                    lda       #$00      MMU twiddle opcode $00 = shadow copy
-                    sta       <$0021    store twiddle opcode
-                    ldx       <$0028    load shadow copy context ptr
-                    jsr       >$0701    execute shadow-page copy
-*
-*======================================================================
-* SCREEN BLIT
-*   Triggers a full-screen blit from the shadow buffer to the display by
-*   calling the scrn module's update routine.
-*======================================================================
-*
-GfxUpdateBlit       ldd       #$A8A0    blit destination row/col
-                    pshs      b,a       push destination argument
-                    ldd       #$00A7    blit source descriptor
-                    pshs      b,a       push source argument
-                    lda       #$00      MMU twiddle opcode $00 = blit
-                    sta       <$0019    store twiddle opcode
-                    ldx       <$0026    load blit context pointer
-                    jsr       >$0701    execute screen blit
-                    leas      $04,s     discard two arguments
-                    rts
+* Platform implementation; selection emits no dispatch code.
+* Assembly-time platform selection.
+* CoCo entry: gfx_picbuff_update, legacy module ABI.
+* Wild Bits entries: PresentPicture/PresentationRelease, native private ABI.
+* Callers must supply the selected state contract; these are not ABI aliases.
+                    ifne      WILDBITS
+PLATFORM_SECTION    set PLATFORM_WILDBITS_PRESENTATION
+                    use platform/wildbits-graphics.asm
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_PRESENTATION
+                    use platform/coco-graphics.asm
+                    endc
+
 *
 *======================================================================
 * OBJECT MOTION COMMANDS
@@ -5203,6 +4250,10 @@ GfxUpdateBlit       ldd       #$A8A0    blit destination row/col
 *   program_control, and player_control.
 *======================================================================
 *
+                    ifndef PLATFORM_COCO_OBJECTS_BINDINGS
+                    use platform/coco-objects-bindings.asm
+                    endc
+                    use       shared/object-motion-setup.asm
 cmd_move_obj        lda       ,y+       load object number from script
                     ldb       #$2B      view-object struct size = 43 bytes
                     mul                 compute object offset
@@ -5214,21 +4265,7 @@ cmd_move_obj        lda       ,y+       load object number from script
                     sta       <$27,u    store target X
                     lda       ,y+       load target Y position
                     sta       <$28,u    store target Y
-                    lda       <$1E,u    load current step size
-                    sta       <$29,u    save step size as move speed
-                    lda       ,y+       load optional step-size override
-                    beq       MoveObjDir branch if zero (no override)
-                    sta       <$1E,u    store new step size
-MoveObjDir          lda       ,y+       load completion-flag variable
-                    sta       <$2A,u    store flag variable index
-                    lbsr      ClearFlag clear the completion flag
-                    lda       <$26,u    load object control flags
-                    ora       #$10      set position-update-needed bit
-                    sta       <$26,u    store updated flags
-                    cmpu      <$0030    check if this is ego object
-                    bne       MoveObjDone branch if not ego
-                    clr       >$0250    hide ego during move
-MoveObjDone         lbsr      SetObjMotion recalculate initial direction
+                    OBJECT_MOVE_SETUP u,0,MoveObjDir,MoveObjDone
                     rts
 cmd_move_obj_v      lda       ,y+       load object number from script
                     ldb       #$2B      view-object struct size = 43
@@ -5247,78 +4284,35 @@ cmd_move_obj_v      lda       ,y+       load object number from script
                     abx                 index to Y-variable
                     lda       ,x        load target Y from variable
                     sta       <$28,u    store target Y
-                    lda       <$1E,u    load current step size
-                    sta       <$29,u    save as move speed
-                    ldb       ,y+       load step-size variable number
-                    ldx       #$0431    point to variable table
-                    abx                 index to step-size variable
-                    lda       ,x        load step size from variable
-                    beq       MoveObjVDir branch if zero (no override)
-                    sta       <$1E,u    store new step size
-MoveObjVDir         lda       ,y+       load completion-flag variable index
-                    sta       <$2A,u    store flag variable index
-                    lbsr      ClearFlag clear the completion flag
-                    lda       <$26,u    load object control flags
-                    ora       #$10      set position-update-needed bit
-                    sta       <$26,u    store updated flags
-                    cmpu      <$0030    check if this is ego object
-                    bne       MoveObjVDone branch if not ego
-                    clr       >$0250    hide ego during move
-MoveObjVDone        lbsr      SetObjMotion recalculate initial direction
+                    OBJECT_MOVE_SETUP u,1,MoveObjVDir,MoveObjVDone
                     rts
 cmd_follow_ego      lda       ,y+       load follower object number
                     ldb       #$2B      view-object struct size = 43
                     mul                 compute object offset
                     addd      <$0030    add view-object array base
                     tfr       d,u       point U to follower object
-                    lda       #$02      motion type = follow-ego
-                    sta       <$22,u    set object motion type
-                    lda       <$1E,u    load current step size
-                    sta       <$27,u    store as follow step (default)
-                    lda       ,y+       load optional step-size override
-                    cmpa      <$1E,u    compare to current step
-                    bls       FollowEgoSpeed branch if not larger
-                    sta       <$27,u    use larger value as step size
-FollowEgoSpeed      lda       ,y+       load completion-flag variable index
-                    sta       <$28,u    store flag variable index
-                    lbsr      ClearFlag clear the completion flag
-                    lda       #$FF      distance = $FF (always follow)
-                    sta       <$29,u    store initial distance marker
-                    lda       <$26,u    load object control flags
-                    ora       #$10      set position-update-needed bit
-                    sta       <$26,u    store updated flags
+                    OBJECT_FOLLOW_SETUP u,FollowEgoSpeed
                     rts
 cmd_wander          lda       ,y+       load object number from script
                     ldb       #$2B      view-object struct size = 43
                     mul                 compute object offset
                     addd      <$0030    add view-object array base
                     tfr       d,u       point U to object struct
-                    lda       #$01      motion type = wander
-                    sta       <$22,u    set wander motion type
-                    lda       <$26,u    load object control flags
-                    ora       #$10      set position-update-needed bit
-                    sta       <$26,u    store updated flags
-                    cmpu      <$0030    check if this is ego
-                    bne       WanderDone branch if not ego
-                    clr       >$0250    hide ego while wandering
-WanderDone          rts
+                    OBJECT_WANDER_SETUP u,WanderDone
+                    rts
 cmd_normal_motion   lda       ,y+       load object number from script
                     ldb       #$2B      view-object struct size = 43
                     mul                 compute object offset
                     addd      <$0030    add view-object array base
                     tfr       d,u       point U to object struct
-                    lda       #$00      motion type = normal (user-controlled)
-                    sta       <$22,u    clear motion type
+                    OBJECT_MOTION_STATE u,0    clear motion type
                     rts
 cmd_stop_motion     lda       ,y+       load object number from script
                     ldb       #$2B      view-object struct size = 43
                     mul                 compute object offset
                     addd      <$0030    add view-object array base
                     tfr       d,u       point U to object struct
-                    lda       #$00      motion type = stopped
-                    sta       <$22,u    clear motion type
-                    clra                zero direction
-                    sta       <$21,u    stop object movement direction
+                    OBJECT_MOTION_STATE u,1    stop object movement direction
                     cmpu      <$0030    check if this is ego
                     bne       StopMotionDone branch if not ego
                     sta       >$0437    clear ego-direction variable
@@ -5329,8 +4323,7 @@ cmd_start_motion    lda       ,y+       load object number from script
                     mul                 compute object offset
                     addd      <$0030    add view-object array base
                     tfr       d,u       point U to object struct
-                    lda       #$00      motion type = normal
-                    sta       <$22,u    clear motion type
+                    OBJECT_MOTION_STATE u,0    clear motion type
                     cmpu      <$0030    check if this is ego
                     bne       StartMotionDone branch if not ego
                     clr       >$0437    clear ego-direction variable
@@ -5347,7 +4340,7 @@ cmd_step_size_v     lda       ,y+       load object number from script
                     ldx       #$0431    point to variable table
                     abx                 index to variable
                     lda       ,x        load step size from variable
-                    sta       <$1E,u    store as object step size
+                    OBJECT_RATE_STATE a,u,$1E,-1
                     rts
 
 cmd_step_time       lda       ,y+       load object number from script
@@ -5359,33 +4352,32 @@ cmd_step_time       lda       ,y+       load object number from script
                     ldx       #$0431    point to variable table
                     abx                 index to variable
                     lda       ,x        load step time from variable
-                    sta       ,u        store as step-time counter
-                    sta       $01,u     store as step-time reset value
+                    OBJECT_RATE_STATE a,u,$00,1
                     rts
 
-cmd_set_dir         lda       ,y+       load object number from script
-                    ldb       #$2B      view-object struct size = 43
-                    mul                 compute object offset
-                    addd      <$0030    add view-object array base
-                    tfr       d,u       point U to object struct
-                    ldb       ,y+       load direction-variable number
-                    ldx       #$0431    point to variable table
-                    abx                 index to variable
-                    lda       ,x        load direction from variable
-                    sta       <$21,u    store as object motion direction
-                    rts
-
-cmd_get_dir         lda       ,y+       load object number from script
-                    ldb       #$2B      view-object struct size = 43
-                    mul                 compute object offset
-                    addd      <$0030    add view-object array base
-                    tfr       d,u       point U to object struct
-                    ldb       ,y+       load output-variable number
-                    ldx       #$0431    point to variable table
-                    abx                 index to variable
-                    lda       <$21,u    load current object direction
-                    sta       ,x        store direction in variable
-                    rts
+* Assembly-time object query operand/storage interface; no runtime dispatch.
+                    ifne      WILDBITS
+                    ifndef PLATFORM_WILDBITS_OBJECTS_BINDINGS
+                    use platform/wildbits-objects-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_OBJECTS_BINDINGS
+                    use platform/coco-objects-bindings.asm
+                    endc
+                    endc
+                    ifne WILDBITS
+                    ifndef PLATFORM_WILDBITS_OBJECTS_BINDINGS
+                    use platform/wildbits-objects-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_OBJECTS_BINDINGS
+                    use platform/coco-objects-bindings.asm
+                    endc
+                    endc
+cmd_set_dir         QUERY_OBJECT
+                    OBJECT_SET_DIRECTION u,a,ObjectDirectionDone
+ObjectDirectionDone rts
+                    OBJECT_FIELD_QUERY cmd_get_dir,$21,0
 
 cmd_program_control clr       >$0250    hide ego (program controls ego)
                     rts
@@ -5396,16 +4388,9 @@ cmd_player_control  lda       #$01      show ego (player controls ego)
                     lda       #$00      motion type = normal
                     sta       <$22,u    clear ego motion type
                     rts
-x_dir_mult          fcb       0,0
-                    fcb       1,1
-                    fcb       1,0
-                    fcb       $ff,$ff
-                    fcb       $ff
-y_dir_mult          fcb       0
-                    fcb       $ff,$ff
-                    fcb       0,1
-                    fcb       1,1
-                    fcb       0,$ff
+x_dir_mult          equ StepXDelta
+y_dir_mult          equ StepYDelta
+                    use shared/object-step-deltas.asm
 
 *
 *======================================================================
@@ -5448,104 +4433,19 @@ UpdateObjCycle      lda       ,u        load step-time reset value
                     lda       <$25,u    load object status flags
                     bita      #$04      check "ignore-blocks" flag
                     bne       ClampObjXLeft branch if ignoring blocks
-                    leax      >x_dir_mult,pcr point to X-direction table
-                    lda       <$21,u    load current motion direction
-                    lda       a,x       look up X delta for direction
-                    beq       UpdateObjY branch if X delta is zero
-                    bpl       UpdateObjXPlus branch if positive X delta
-                    ldd       $03,s     load current X (16-bit)
-                    subd      $09,s     subtract step size
-                    std       $03,s     store new X
-                    bra       UpdateObjY update Y too
-UpdateObjXPlus      ldd       $03,s     load current X
-                    addd      $09,s     add step size
-                    std       $03,s     store new X
-UpdateObjY          leax      >y_dir_mult,pcr point to Y-direction table
-                    lda       <$21,u    load current motion direction
-                    lda       a,x       look up Y delta for direction
-                    beq       ClampObjXLeft branch if Y delta is zero
-                    bpl       UpdateObjYPlus branch if positive Y delta
-                    ldd       $05,s     load current Y (16-bit)
-                    subd      $09,s     subtract step size
-                    std       $05,s     store new Y
-                    bra       ClampObjXLeft clamp to screen bounds
-UpdateObjYPlus      ldd       $05,s     load current Y
-                    addd      $09,s     add step size
-                    std       $05,s     store new Y
-ClampObjXLeft       ldd       #$0000    left boundary = X < 0
-                    cmpd      $03,s     compare new X to 0
-                    ble       ClampObjXRight branch if X >= 0 (no left clamp)
-                    std       $03,s     clamp X to 0
-                    lda       #$04      boundary code = left
-                    sta       $02,s     set left-boundary hit
-                    bra       ClampObjYTop check Y bounds
-ClampObjXRight      ldb       <$1C,u    load object width
-                    negb                negate width
-                    lda       #$FF      sign-extend to 16-bit
-                    addd      #$00A0    right limit = $A0 - width
-                    cmpd      $03,s     compare new X to limit
-                    bge       ClampObjYTop branch if X <= limit
-                    std       $03,s     clamp X to right limit
-                    lda       #$02      boundary code = right
-                    sta       $02,s     set right-boundary hit
-ClampObjYTop        clra                clear A for 16-bit Y check
-                    ldb       <$1D,u    load object height
-                    decb                height - 1
-                    cmpd      $05,s     compare new Y to top limit
-                    ble       ClampObjYBot branch if Y >= top
-                    std       $05,s     clamp Y to top
-                    lda       #$01      boundary code = top
-                    sta       $02,s     set top-boundary hit
-                    bra       ApplyObjPosition apply position
-ClampObjYBot        ldd       #$00A7    bottom boundary = Y > $A7
-                    cmpd      $05,s     compare new Y to bottom
-                    bge       CheckObjPriority branch if Y <= $A7
-                    std       $05,s     clamp Y to bottom
-                    lda       #$03      boundary code = bottom
-                    sta       $02,s     set bottom-boundary hit
-                    bra       ApplyObjPosition apply position
-CheckObjPriority    lda       <$26,u    load object control flags
-                    bita      #$08      check fixed-priority flag
-                    bne       ApplyObjPosition skip if priority is fixed
-                    lda       >$01D6    load priority-override value
-                    cmpa      $06,s     compare to saved priority
-                    bls       ApplyObjPosition branch if no change needed
-                    inca                increment priority
-                    sta       $06,s     store new priority
-                    lda       #$01      set boundary-hit code
-                    sta       $02,s     store boundary code
-ApplyObjPosition    lda       $04,s     load X high byte
-                    ldb       $06,s     load priority/Y
-                    std       $03,u     store new position in object
-                    lbsr      CheckObjCollision check for collision with others
-                    tsta                test collision result
-                    bne       ObjHitRestore branch if collision detected
-                    stu       ,s        save U for MMU call
-                    pshs      u         push U for restoration
-                    lda       #$03      MMU twiddle opcode $03 = update
-                    sta       <$0021    store twiddle code
-                    ldx       <$0028    load update context pointer
-                    jsr       >$0701    call Sierra update-position routine
-                    leas      $02,s     discard pushed U
-                    ldu       ,s        restore object pointer
-                    lda       <$005C    load position-accept flag
-                    bne       CheckObjBoundary branch if position accepted
-ObjHitRestore       ldd       $07,s     load saved original X+Y
-                    std       $03,u     restore original position
-                    clr       $02,s     clear boundary-hit code
-                    lbsr      FindObjPos reposition object safely
-CheckObjBoundary    lda       $02,s     load boundary-hit code
-                    beq       UpdateObjFlags branch if no boundary hit
-                    ldb       $02,u     load object number
-                    bne       ObjBoundaryHit branch if not ego
-                    sta       >$0433    store ego boundary direction
-                    bra       CheckMoveTarget check if move-target reached
-ObjBoundaryHit      stb       >$0435    store object number that hit
-                    sta       >$0436    store boundary direction
-CheckMoveTarget     lda       <$22,u    load motion type
-                    cmpa      #$03      check for move-to-position
-                    bne       UpdateObjFlags skip if not move-to
-                    lbsr      ObjMoveReached check if target position reached
+                    MOTION_EMIT_COORDINATE_STEP
+ClampObjXLeft       equ ClampCoordinates
+ClampObjXRight      equ ClampRightLimit
+ClampObjYTop        equ ClampTopLimit
+ClampObjYBot        equ ClampBottomLimit
+CheckObjPriority    equ ClampHorizon
+                    MOTION_EMIT_CLAMP
+ApplyObjPosition    equ PositionCommit
+ObjHitRestore       equ PositionRejected
+CheckObjBoundary    equ PositionAccepted
+ObjBoundaryHit      equ PositionOtherBoundary
+                    MOTION_EMIT_COMMIT
+CheckMoveTarget     MOTION_CHECK_DESTINATION UpdateObjFlags,0,ObjMoveReached
 UpdateObjFlags      lda       <$25,u    load status flags
                     anda      #$FB      clear collision-flags bit
                     sta       <$25,u    store cleaned status
@@ -5562,75 +4462,13 @@ MoveTableData       fcb       8,1,2,7,0,3,6,5,4
 *   the 8-way direction from delta X/Y.
 *======================================================================
 *
-SetObjMotion        ldb       $1e,u     load object step size
-                    pshs      b,a       push step size argument
-                    ldd       <$27,u    load move target X and Y
-                    pshs      b,a       push target position
-                    ldd       $03,u     load current position X and Y
-                    pshs      b,a       push current position
-                    lbsr      CalcMoveDir compute direction toward target
-                    leas      $06,s     discard three arguments
-                    cmpu      <$0030    check if this is ego object
-                    bne       SetObjMotionStore branch if not ego
-                    sta       >$0437    update ego direction variable
-SetObjMotionStore   sta       <$21,u    store computed direction in object
-                    bne       SetObjMotionRet branch if direction is non-zero
-                    bsr       ObjMoveReached target reached, signal completion
-SetObjMotionRet     rts
-ObjMoveReached      lda       <$29,u    load saved step size (from move setup)
-                    sta       <$1E,u    restore step size to object
-                    lda       <$2A,u    load completion-flag variable index
-                    lbsr      SetFlag   set the completion flag
-                    lda       #$00      motion type = stopped
-                    sta       <$22,u    clear motion type
-                    cmpu      <$0030    check if this is ego
-                    bne       ObjMoveReachedRet branch if not ego
-                    lda       #$01      visible flag = true
-                    sta       >$0250    show ego again
-                    clr       >$0437    clear ego direction variable
-ObjMoveReachedRet   rts
-CalcMoveDir         leas      -$03,s    allocate three local bytes
-                    clra                clear A = 0
-                    sta       $09,s     clear computed direction slot
-                    ldb       $05,s     load target Y from args
-                    std       ,s        save target Y
-                    ldb       $07,s     load current Y from args
-                    subd      ,s        compute Y delta (cur - target)
-                    pshs      b,a       push Y delta
-                    ldd       $0B,s     load step size
-                    pshs      b,a       push step size
-                    lbsr      CalcAxisDir compute Y-axis direction (0=same,1=pos,2=neg)
-                    leas      $04,s     discard two arguments
-                    sta       $02,s     save Y-axis direction (row index)
-                    clra                clear A for X calc
-                    sta       $05,s     clear X-comparison slot
-                    ldb       $08,s     load current X from args
-                    subd      $05,s     compute X delta
-                    pshs      b,a       push X delta
-                    ldd       $0B,s     load step size
-                    pshs      b,a       push step size
-                    lbsr      CalcAxisDir compute X-axis direction
-                    leas      $04,s     discard two arguments
-                    leax      >MoveTableData,pcr point to direction lookup table
-                    ldb       #$03      table stride = 3 (per Y-dir group)
-                    mul                 A × 3 = row offset
-                    addb      $02,s     add X-axis direction index
-                    lda       b,x       load final direction from table
-                    leas      $03,s     release local frame
-                    rts
-CalcAxisDir         ldd       #$0000    compute negative of arg: -delta
-                    subd      $02,s     subtract arg gives -arg in D
-                    cmpd      $04,s     compare -delta to step size
-                    blt       CalcAxisDirNeg branch if within negative range
-                    clra                direction = 0 (at target)
-                    bra       CalcAxisDirRet return zero direction
-CalcAxisDirNeg      ldd       $02,s     load delta again
-                    cmpd      $04,s     compare delta to step size
-                    bgt       CalcAxisDirPos branch if positive delta
-                    lda       #$02      direction = 2 (negative)
-                    bra       CalcAxisDirRet return negative direction
-CalcAxisDirPos      lda       #$01      direction = 1 (positive)
-CalcAxisDirRet      rts
+SetObjMotion        equ TargetDirection
+SetObjMotionStore   equ TargetStoreDirection
+SetObjMotionRet     equ TargetDirectionReturn
+ObjMoveReached      equ TargetReached
+ObjMoveReachedRet   equ TargetReachedReturn
+                    MOTION_EMIT_TARGET
+                    MOVE_DIRECTION_CODE
 *
 *======================================================================
 * NEW ROOM COMMAND
@@ -5658,21 +4496,7 @@ NewRoomSetup        leas      -$01,s    allocate one byte for room num
                     ldu       <$0030    load view-object array pointer
 NewRoomObjLoop      cmpu      <$0032    check if past end of array
                     bcc       NewRoomObjsDone branch when all objects done
-                    lda       <$26,u    load object control flags
-                    anda      #$BE      clear animated + cycling bits
-                    ora       #$10      set position-update bit
-                    sta       <$26,u    store updated flags
-                    ldd       #$0000    zero value
-                    sta       <$25,u    clear object status flags
-                    std       <$10,u    clear loop/cel fields
-                    std       $06,u     clear priority/position hi
-                    std       <$16,u    clear block/range fields
-                    inca                value = 1
-                    sta       <$1E,u    set step size = 1
-                    sta       <$1F,u    set step counter = 1
-                    sta       <$20,u    set cycle time = 1
-                    sta       $01,u     set cycle counter = 1
-                    sta       ,u        set step-time reset = 1
+                    OBJECT_ROOM_RESET u,0
                     leau      <$2B,u    advance to next object struct
                     bra       NewRoomObjLoop continue for all objects
 NewRoomObjsDone     lbsr      ResetGameTables reset all game tables
@@ -5684,10 +4508,7 @@ NewRoomObjsDone     lbsr      ResetGameTables reset all game tables
                     sta       >$0250    show ego
                     lda       #$24      default priority base = 36
                     sta       >$01D6    set priority-override
-                    lda       >$0431    load previous room number
-                    sta       >$0432    save as last-room variable
-                    ldb       ,s        load new room number
-                    stb       >$0431    store as current-room variable
+                    AGI_ROOM_VARIABLES
                     lbsr      LoadLogicNum load the new room's logic
                     ldb       <$006A    load init-logic flag
                     beq       NewRoomLoadView branch if no init logic
@@ -5695,29 +4516,8 @@ NewRoomObjsDone     lbsr      ResetGameTables reset all game tables
 NewRoomLoadView     ldu       <$0030    load ego object pointer
                     lda       $05,u     load ego's loop number
                     sta       >$0441    store for view setup
-                    lda       >$0433    load ego entry-side (from boundary)
-                    beq       NewRoomFlagSetup branch if entry side = 0 (top)
-                    cmpa      #$01      check entry from top
-                    bne       NewRoomEgoDir2 branch if not from top
-                    lda       #$A7      bottom of screen = $A7
-                    sta       $04,u     place ego at bottom
-                    bra       NewRoomEgoDirDone done positioning
-NewRoomEgoDir2      cmpa      #$02      check entry from right
-                    bne       NewRoomEgoDir3 branch if not from right
-                    lda       #$00      left edge = 0
-                    sta       $03,u     place ego at left
-                    bra       NewRoomEgoDirDone done positioning
-NewRoomEgoDir3      cmpa      #$03      check entry from bottom
-                    bne       NewRoomEgoDir4 branch if not from bottom
-                    lda       #$25      top of walking area
-                    sta       $04,u     place ego near top
-                    bra       NewRoomEgoDirDone done positioning
-NewRoomEgoDir4      cmpa      #$04      check entry from left
-                    bne       NewRoomEgoDirDone branch if unknown direction
-                    lda       #$A0      right edge = $A0
-                    suba      <$1C,u    subtract ego width
-                    sta       $03,u     place ego at right edge
-NewRoomEgoDirDone   clr       >$0433    clear boundary direction variable
+                    OBJECT_ROOM_ENTRY 0,u
+NewRoomEgoDirDone   equ RoomEntryDone
 NewRoomFlagSetup    lda       >$01AE    load initialized-flag byte
                     ora       #$04      set room-initialized bit
                     sta       >$01AE    store updated flags
@@ -5735,17 +4535,11 @@ NewRoomFlagSetup    lda       >$01AE    load initialized-flag byte
 *   inventory.
 *======================================================================
 *
-cmd_get             bsr       GetObjPtr get pointer to object struct
-                    lda       #$FF      room = $FF = carried by player
-                    sta       $02,u     set object room to $FF (in inventory)
+cmd_get             INVENTORY_SET_LOCATION 0,$FF
                     rts
-cmd_get_v           bsr       GetObjPtrV get pointer via variable number
-                    lda       #$FF      room = $FF = carried
-                    sta       $02,u     set object room to $FF
+cmd_get_v           INVENTORY_SET_LOCATION 1,$FF
                     rts
-cmd_drop            bsr       GetObjPtr get pointer to object struct
-                    lda       #$00      room = 0 = dropped (not carried)
-                    sta       $02,u     clear object room (drop)
+cmd_drop            INVENTORY_SET_LOCATION 0,$00
                     rts
 GetObjPtr           ldx       <$0038    load object-data base pointer
                     ldb       ,y+       load object number from script
@@ -5774,26 +4568,11 @@ GetObjPtrV          ldb       ,y+       load variable number from script
                     ldb       -$01,y    load object number for message
                     lbsr      ReportError report the error
 GetObjPtrVRet       rts
-cmd_put             bsr       GetObjPtr get pointer to object struct
-                    ldb       ,y+       load room-variable number from script
-                    ldx       #$0431    point to variable table
-                    abx                 index to variable
-                    lda       ,x        load destination room from variable
-                    sta       $02,u     store room number in object
+cmd_put             INVENTORY_PUT_LOCATION 0
                     rts
-cmd_put_v           bsr       GetObjPtrV get pointer via variable number
-                    ldb       ,y+       load room-variable number
-                    ldx       #$0431    point to variable table
-                    abx                 index to variable
-                    lda       ,x        load destination room from variable
-                    sta       $02,u     store room number in object
+cmd_put_v           INVENTORY_PUT_LOCATION 1
                     rts
-cmd_get_room_v      bsr       GetObjPtrV get pointer via variable number
-                    ldb       ,y+       load destination-variable number
-                    ldx       #$0431    point to variable table
-                    abx                 index to variable
-                    lda       $02,u     load object's current room
-                    sta       ,x        store room number in variable
+cmd_get_room_v      INVENTORY_GET_LOCATION
                     rts
 PriBaseFlag         fcb       1
 *
@@ -5850,11 +4629,7 @@ ScanViewObjsLoop    cmpu      <$0032    check if past end of array
                     beq       ScanViewObjsPriStore branch if priority is computed
                     lda       >PriBaseFlag,pcr load priority-base flag
                     beq       ScanViewObjsPriCalc branch if not base mode
-                    lda       <$24,u    load object Y position
-                    suba      #$05      subtract bottom margin
-                    ldb       #$0C      priority bands per strip
-                    mul                 compute priority band
-                    addb      #$30      add base priority offset
+                    PRIORITY_PROJECT_DEFAULT <$24,u
                     bra       ScanViewObjsPriStore store computed priority
 ScanViewObjsPriCalc clrb                start priority at 0
                     lda       <$24,u    load object Y position
@@ -5940,10 +4715,7 @@ SortObjsBuf         fcb       0,0
                     fcb       0,0
                     fcb       0
 SortObjsPtr         fcb       0,0
-PunctChars1         fcc       / ,.?!();:[]{}/
-                    fcb       0
-PunctChars2         fcc       /'`-"/
-                    fcb       0
+                    use       shared/parser-punctuation.asm
 
 *
 *======================================================================
@@ -6034,47 +4806,14 @@ cmd_parse           lda       >$01AE    load AGI flags byte
                     lbsr      ParseSentence parse the string as input
 CmdParseRet         rts
 
-TokenizeString      leas      -$02,s    allocate output-pointer slot
-                    leax      >SortObjsBuf,pcr point to tokenize output buffer
-                    stx       ,s        save output pointer on stack
-TokenizeLoop        lda       ,u+       load next input character
-                    beq       TokenizeDone done if null terminator
-                    leax      >PunctChars1,pcr point to punctuation set 1
-                    lbsr      FindByte  check if char is punctuation
-                    bne       TokenizeLoop skip if found (discard punct)
-                    leax      >PunctChars2,pcr point to punctuation set 2
-                    lbsr      FindByte  check second punct set
-                    bne       TokenizeLoop skip if found (discard)
-                    bra       TokenizeStoreChar non-punct: store it
-TokenizeCharLoop    leax      >PunctChars1,pcr point to punct set 1
-                    lbsr      FindByte  check if char is punctuation
-                    bne       TokenizeAddSpace if punct: insert space first
-                    leax      >PunctChars2,pcr point to punct set 2
-                    lbsr      FindByte  check second punct set
-                    bne       TokenizeNextChar if punct: skip char
-TokenizeStoreChar   ldx       ,s        load output pointer
-                    sta       ,x+       store character to output
-                    stx       ,s        update output pointer
-TokenizeNextChar    lda       ,u+       load next input character
-                    bne       TokenizeCharLoop loop if not null terminator
-                    bra       TokenizeDone null: finish up
-TokenizeAddSpace    lda       #$20      space character
-                    ldx       ,s        load output pointer
-                    sta       ,x+       write space to output
-                    stx       ,s        update output pointer
-                    bra       TokenizeLoop continue scanning
-TokenizeDone        leax      >SortObjsBuf,pcr point to output buffer start
-                    cmpx      ,s        compare to end-of-output ptr
-                    bcc       TokenizeTerminate skip trim if empty
-                    ldx       ,s        load end-of-output pointer
-                    lda       -$01,x    look at last character written
-                    cmpa      #$20      check if trailing space
-                    bne       TokenizeTerminate no trailing space: done
-                    leax      -$01,x    back up to overwrite space
-                    stx       ,s        update end-of-output pointer
-TokenizeTerminate   clr       [,s]      null-terminate the output
-                    leas      $02,s     release local frame
-                    rts
+TOKENIZE_OUTPUT     macro
+                    leax      >SortObjsBuf,pcr
+                    endm
+TOKENIZE_FOLD       macro
+                    endm
+TOKENIZE_FINISH     macro
+                    endm
+                    use       shared/tokenize-string.asm
 
 *
 *======================================================================
@@ -6084,94 +4823,16 @@ TokenizeTerminate   clr       [,s]      null-terminate the output
 *   list.
 *======================================================================
 *
-LookupWord          leas      -$06,s    ; allocate 6-byte local frame
-                    ldd       #$FFFF
-                    std       ,s        ; init word-ID slot to not-found
-                    ldd       #$0000
-                    std       $02,s     ; init post-word pointer to null
-                    lda       ,u        ; load first character of input word
-                    lbsr      ToLower   ; normalize to lowercase
-                    cmpa      #$61
-                    bcs       LookupNotAlpha ; branch if below 'a'
-                    cmpa      #$7A
-                    bls       LookupAlphaNext ; branch if 'a'..'z'
-LookupNotAlpha      lbsr      StripLastWord ; remove non-alpha word from input
-                    lbra      LookupWordRet
-LookupAlphaNext     ldb       $01,u     ; load second input character
-                    cmpb      #$20
-                    beq       LookupSingleWord ; branch if followed by space (single char word)
-                    cmpb      #$00
-                    bne       LookupAlphaSearch ; branch if more chars follow
-LookupSingleWord    cmpa      #$61
-                    beq       LookupSingleFound ; 'a' alone is a known word
-                    cmpa      #$69
-                    bne       LookupAlphaSearch ; 'i' alone is also a known word
-LookupSingleFound   clrb
-                    stb       ,s        ; store word-ID low byte (0)
-                    stb       $01,s     ; store word-ID high byte (0)
-                    leax      $01,u     ; point past first character
-                    stx       $02,s     ; save post-word pointer
-                    ldb       ,x+       ; fetch delimiter after single char
-                    cmpb      #$20
-                    bne       LookupAlphaSearch ; if not space, still search trie
-                    stx       $02,s     ; update pointer past delimiter
-LookupAlphaSearch   suba      #$61      ; convert 'a'..'z' to 0..25
-                    lsla                ; multiply by 2 for word table index
-                    ldx       >$01A8    ; load pointer to per-letter trie table
-                    ldd       a,x       ; fetch offset for this letter
-                    beq       LookupNotAlpha ; no entries for this letter
-                    leax      d,x       ; point X to trie node for letter
-                    clr       $04,s     ; clear input character position counter
-LookupWordOuter     lda       $04,s     ; load current input char index
-                    cmpa      ,x+       ; compare against trie node word index
-                    bhi       LookupWordNotFound ; past all candidates, no match
-                    bne       LookupCharMiss ; wrong position, skip this node
-LookupCharMatch     lda       ,x        ; load trie character (with flags)
-                    anda      #$7F      ; strip high bit (word-end flag)
-                    sta       $05,s     ; save masked char
-                    lda       ,u        ; load next input character
-                    lbsr      ToLower   ; normalize to lowercase
-                    eora      #$7F      ; XOR for inverted comparison
-                    cmpa      $05,s     ; compare against trie char
-                    bne       LookupCharMiss ; mismatch, skip node
-                    leau      $01,u     ; advance input pointer
-                    inc       $04,s     ; increment character position
-                    lda       ,x        ; reload trie char with flags
-                    anda      #$80      ; test word-end flag
-                    beq       LookupCharNext ; not end of trie word yet
-                    lda       ,u        ; check what follows in input
-                    cmpa      #$00
-                    beq       LookupWordFound ; end of input = complete match
-                    cmpa      #$20
-                    bne       LookupSkipWord ; not space/end, partial match only
-LookupWordFound     ldd       $01,x     ; load word ID from trie node
-                    std       ,s        ; store matched word ID
-                    stu       $02,s     ; save pointer at end of word
-                    lda       ,u        ; check character after matched word
-                    cmpa      #$00
-                    beq       LookupWordRet ; end of input, done
-                    tfr       u,d       ; copy pointer to D
-                    addd      #$0001    ; advance past delimiter
-                    std       $02,s     ; update post-word pointer
-                    bra       LookupSkipWord ; continue scanning
-LookupCharNext      leax      $01,x     ; advance to next trie byte
-                    bra       LookupCharMatch ; check next character
-LookupCharMiss      lda       ,u        ; check remaining input
-                    cmpa      #$00
-                    beq       LookupWordNotFound ; no more input, no match
-LookupSkipWord      lda       ,x+       ; read trie chars until end-of-word
-                    bpl       LookupSkipWord ; high bit clear = continue skipping
-                    leax      $02,x     ; skip word-ID bytes
-                    cmpa      #$00
-                    bne       LookupWordOuter ; more nodes at same level
-LookupWordNotFound  ldu       $02,s     ; restore best partial pointer
-                    lbeq      LookupNotAlpha ; if null, strip invalid word
-                    lda       ,u        ; check char at partial pointer
-                    beq       LookupWordRet ; end of input, return partial
-                    clr       -$01,u    ; null-terminate at boundary
-LookupWordRet       ldd       ,s        ; load word ID result
-                    leas      $06,s     ; release local frame
-                    rts
+                    ifne WILDBITS
+                    ifndef PLATFORM_WILDBITS_TEXT_UI_BINDINGS
+                    use platform/wildbits-text-ui-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_TEXT_UI_BINDINGS
+                    use platform/coco-text-ui-bindings.asm
+                    endc
+                    endc
+                    use       shared/dictionary-lookup.asm
 
 StripLastWord       ldu       >SortObjsPtr,pcr ; load pointer to current input string
                     tfr       u,x       ; copy to X for scanning
@@ -6491,9 +5152,7 @@ cmd_position        lda       ,y+       ; fetch object number from script
                     mul                 ; multiply A*$2B for object array offset
                     addd      <$0030    ; add object table base
                     tfr       d,u       ; U = pointer to object struct
-                    ldd       ,y++      ; fetch X,Y from script
-                    std       $03,u     ; set object position
-                    std       <$1A,u    ; set destination to same
+                    OBJECT_POSITION u,0,1
                     rts
 
 cmd_position_v      lda       ,y+       ; fetch object number from script
@@ -6501,16 +5160,7 @@ cmd_position_v      lda       ,y+       ; fetch object number from script
                     mul                 ; multiply A*$2B for object array offset
                     addd      <$0030    ; add object table base
                     tfr       d,u       ; U = pointer to object struct
-                    ldx       #$0431    ; point to variable table
-                    ldb       ,y+       ; fetch X var index
-                    abx                 ; index into variable table
-                    lda       ,x        ; dereference X variable
-                    ldx       #$0431    ; point to variable table
-                    ldb       ,y+       ; fetch Y var index
-                    abx                 ; index into variable table
-                    ldb       ,x        ; dereference Y variable
-                    std       $03,u     ; set object position X,Y
-                    std       <$1A,u    ; set destination to same
+                    OBJECT_POSITION u,1,1
                     rts
 
 cmd_get_position    lda       ,y+       ; fetch object number from script
@@ -6518,16 +5168,7 @@ cmd_get_position    lda       ,y+       ; fetch object number from script
                     mul                 ; multiply A*$2B for object array offset
                     addd      <$0030    ; add object table base
                     tfr       d,u       ; U = pointer to object struct
-                    ldx       #$0431    ; point to variable table
-                    ldb       ,y+       ; fetch X result var index
-                    abx                 ; index into variable table
-                    lda       $03,u     ; get object X position
-                    sta       ,x        ; store into X variable
-                    ldx       #$0431    ; point to variable table
-                    ldb       ,y+       ; fetch Y result var index
-                    abx                 ; index into variable table
-                    lda       $04,u     ; get object Y position
-                    sta       ,x        ; store into Y variable
+                    OBJECT_GET_POSITION u,x
                     rts
 
 cmd_reposition      leas      -$02,s    ; allocate 2-byte local frame
@@ -6543,26 +5184,12 @@ cmd_reposition      leas      -$02,s    ; allocate 2-byte local frame
                     ldb       ,y+       ; fetch dX var index
                     abx                 ; index into variable table
                     ldb       ,x        ; dereference dX variable (signed)
-                    sex                 ; sign-extend B to D
-                    std       ,s        ; save signed delta X
-                    clra                ; zero A for unsigned add
-                    ldb       $03,u     ; get current X position
-                    addd      ,s        ; add signed delta
-                    bpl       ReposXDone ; result positive, ok
-                    clrb                ; clamp to zero
-ReposXDone          stb       $03,u     ; store new X position
+                    OBJECT_SIGNED_DELTA u,$03,ReposXDone
                     ldx       #$0431    ; point to variable table
                     ldb       ,y+       ; fetch dY var index
                     abx                 ; index into variable table
                     ldb       ,x        ; dereference dY variable (signed)
-                    sex                 ; sign-extend B to D
-                    std       ,s        ; save signed delta Y
-                    clra                ; zero A for unsigned add
-                    ldb       $04,u     ; get current Y position
-                    addd      ,s        ; add signed delta
-                    bpl       ReposYDone ; result positive, ok
-                    clrb                ; clamp to zero
-ReposYDone          stb       $04,u     ; store new Y position
+                    OBJECT_SIGNED_DELTA u,$04,ReposYDone
                     lbsr      FindObjPos ; recalculate object bounds
                     leas      $02,s     ; release local frame
                     rts
@@ -6572,8 +5199,7 @@ cmd_reposition_to   lda       ,y+       ; fetch object number from script
                     mul                 ; multiply A*$2B for object array offset
                     addd      <$0030    ; add object table base
                     tfr       d,u       ; U = pointer to object struct
-                    ldd       ,y++      ; fetch absolute X,Y from script
-                    std       $03,u     ; set object position
+                    OBJECT_POSITION u,0,0
                     lda       <$25,u    ; load motion flags
                     ora       #$04      ; set reposition flag
                     sta       <$25,u    ; store updated flags
@@ -6585,15 +5211,7 @@ cmd_reposition_to_v lda       ,y+       ; fetch object number from script
                     mul                 ; multiply A*$2B for object array offset
                     addd      <$0030    ; add object table base
                     tfr       d,u       ; U = pointer to object struct
-                    ldx       #$0431    ; point to variable table
-                    ldb       ,y+       ; fetch X var index
-                    abx                 ; index into variable table
-                    lda       ,x        ; dereference X variable
-                    ldx       #$0431    ; point to variable table
-                    ldb       ,y+       ; fetch Y var index
-                    abx                 ; index into variable table
-                    ldb       ,x        ; dereference Y variable
-                    std       $03,u     ; set object position
+                    OBJECT_POSITION u,1,0
                     lda       <$25,u    ; load motion flags
                     ora       #$04      ; set reposition flag
                     sta       <$25,u    ; store updated flags
@@ -6607,35 +5225,14 @@ cmd_reposition_to_v lda       ,y+       ; fetch object number from script
 *   terrain constraints for an object.
 *======================================================================
 *
-cmd_obj_on_water    lda       ,y+       ; fetch object number from script
-                    ldb       #$2B
-                    mul                 ; multiply A*$2B for object array offset
-                    addd      <$0030    ; add object table base
-                    tfr       d,u       ; U = pointer to object struct
-                    lda       <$25,u    ; load constraint flags
-                    ora       #$01      ; set water-only flag
-                    sta       <$25,u    ; store updated flags
-                    rts
+OBJECT_FLAG_OPCODE  set       64
+                    use       shared/object-flag-rules.asm
 
-cmd_obj_on_land     lda       ,y+       ; fetch object number from script
-                    ldb       #$2B
-                    mul                 ; multiply A*$2B for object array offset
-                    addd      <$0030    ; add object table base
-                    tfr       d,u       ; U = pointer to object struct
-                    lda       <$25,u    ; load constraint flags
-                    ora       #$08      ; set land-only flag
-                    sta       <$25,u    ; store updated flags
-                    rts
+OBJECT_FLAG_OPCODE  set       65
+                    use       shared/object-flag-rules.asm
 
-cmd_obj_on_anything lda       ,y+       ; fetch object number from script
-                    ldb       #$2B
-                    mul                 ; multiply A*$2B for object array offset
-                    addd      <$0030    ; add object table base
-                    tfr       d,u       ; U = pointer to object struct
-                    lda       <$25,u    ; load constraint flags
-                    anda      #$F6      ; clear water/land constraint bits
-                    sta       <$25,u    ; store updated flags
-                    rts
+OBJECT_FLAG_OPCODE  set       66
+                    use       shared/object-flag-rules.asm
 
 *
 *======================================================================
@@ -6648,25 +5245,11 @@ cmd_set_horizon     lda       ,y+       ; fetch horizon value from script
                     sta       >$01D6    ; store as current horizon Y
                     rts
 
-cmd_ignore_horizon  lda       ,y+       ; fetch object number from script
-                    ldb       #$2B
-                    mul                 ; multiply A*$2B for object array offset
-                    addd      <$0030    ; add object table base
-                    tfr       d,u       ; U = pointer to object struct
-                    lda       <$26,u    ; load boundary flags
-                    ora       #$08      ; set ignore-horizon flag
-                    sta       <$26,u    ; store updated flags
-                    rts
+OBJECT_FLAG_OPCODE  set       61
+                    use       shared/object-flag-rules.asm
 
-cmd_observe_horizon lda       ,y+       ; fetch object number from script
-                    ldb       #$2B
-                    mul                 ; multiply A*$2B for object array offset
-                    addd      <$0030    ; add object table base
-                    tfr       d,u       ; U = pointer to object struct
-                    lda       <$26,u    ; load boundary flags
-                    anda      #$F7      ; clear ignore-horizon flag
-                    sta       <$26,u    ; store updated flags
-                    rts
+OBJECT_FLAG_OPCODE  set       62
+                    use       shared/object-flag-rules.asm
 
 StrMsgTooVerbose    fcc       /Message too verbose:/
                     fcb       $0a,$0a
@@ -6927,6 +5510,16 @@ MsgTextSetup        ldd       #$0000    ; zero
 MsgTextSetupNoStr   ldx       $02,s     ; return output buffer pointer
                     rts
 
+                    ifne WILDBITS
+                    ifndef PLATFORM_WILDBITS_TEXT_UI_BINDINGS
+                    use platform/wildbits-text-ui-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_TEXT_UI_BINDINGS
+                    use platform/coco-text-ui-bindings.asm
+                    endc
+                    endc
+                    use shared/formatter.asm
 FormatStr           leas      -$02,s    ; allocate 2-byte local frame
                     pshs      x         ; save X (output buffer pointer)
                     ldx       $06,s     ; get input string pointer
@@ -6936,41 +5529,9 @@ FormatStr           leas      -$02,s    ; allocate 2-byte local frame
                     lda       >$015B    ; check current line count
                     cmpa      #$13      ; max lines = 19
                     lbhi      FormatStrDone ; too many lines, stop
-FormatStrLoop       lda       >$0157    ; load current char count on line
-                    cmpa      >$0158    ; compare to max per line
-                    lbcc      FormatStrWordWrap ; overflow, do word wrap
-                    lda       ,x        ; load next character
-                    lbeq      FormatStrDone ; end of string
-                    cmpa      >$0101    ; check for literal-next prefix
-                    bne       FormatStrCheckEsc ; not literal, check for escape
-                    tst       ,x+       ; consume literal-next byte
-                    bra       FormatStrStoreChar ; store next char literally
-FormatStrCheckEsc   cmpa      #$25      ; check for '%' escape prefix
-                    beq       FormatStrEscape ; handle escape sequence
-                    cmpa      #$0A      ; check for newline
-                    bne       FormatStrCheckNl
-                    lbsr      IncrLineCount ; count this line
-                    bra       FormatStrCopyChar ; copy newline to output
-FormatStrCheckNl    cmpa      #$20      ; check for space (word break point)
-                    bne       FormatStrStoreChar
-                    stu       >$0155    ; save current output pointer as word-wrap point
-FormatStrStoreChar  inc       >$0157    ; increment char count on line
-FormatStrCopyChar   lda       ,x+       ; copy char from input
-                    sta       ,u+       ; to output buffer
-                    bra       FormatStrLoop
+                    FORMAT_EMIT_SCAN
 FormatStrEscape     ldd       ,x++      ; read format code byte and advance X
-                    cmpb      #$77
-                    beq       FormatStrEscapeW ; %w = window width
-                    cmpb      #$73
-                    beq       FormatStrEscapeS ; %s = save-game string
-                    cmpb      #$6D
-                    beq       FormatStrEscapeM ; %m = message reference
-                    cmpb      #$67
-                    beq       FormatStrEscapeG ; %g = global message
-                    cmpb      #$76
-                    lbeq      FormatStrEscapeV ; %v = variable value
-                    cmpb      #$6F
-                    bne       FormatStrLoop ; unknown escape, skip
+                    FORMAT_EMIT_DIRECTIVES
                     stu       $08,s     ; save output pointer
                     lbsr      ParseDecStr ; parse decimal index from input
                     clra                ; A = 0 (high byte of variable index)
@@ -6992,13 +5553,8 @@ FormatStrEscapeW    stu       $08,s     ; save output pointer
                     ldu       #$0180    ; point to window table
                     leau      [b,u]     ; indirect load window pointer
                     lbra      FormatStrEscapeRec ; copy window string to output
-FormatStrEscapeS    stu       $08,s     ; save output pointer
-                    lbsr      ParseDecStr ; parse save slot index
-                    lda       #$28      ; size of save name entry = 40
-                    mul                 ; A*40 = slot offset
-                    addd      #$0251    ; add save name table base
-                    tfr       d,u       ; U = pointer to save slot name
-                    bra       FormatStrEscapeRec ; copy name to output
+FormatStrEscapeS    equ *
+                    FORMAT_EMIT_STRING_SLOT
 FormatStrEscapeM    stu       $08,s     ; save output pointer
                     lbsr      ParseDecStr ; parse message number
                     lbsr      GetMsgPtr ; get pointer to message
@@ -7017,11 +5573,7 @@ FormatStrEscapeG    stu       $08,s     ; save output pointer
                     lbsr      GetMsgPtr ; get pointer to message
                     cmpu      #$0000
                     beq       FormatStrEscapeGRet ; message not found
-                    ldd       $08,s     ; reload output pointer
-                    pshs      b,a       ; push for recursive FormatStr
-                    pshs      u         ; push message pointer
-                    lbsr      FormatStr ; recursively format message
-                    leas      $04,s     ; pop recursive FormatStr args
+                    FORMAT_RECURSIVE_CALL
 FormatStrEscapeGRet ldu       $02,s     ; restore saved logic pointer
                     stu       <$0062
                     ldd       $04,u     ; get saved logic page
@@ -7043,13 +5595,8 @@ FormatStrEscapeV    stu       $08,s     ; save output pointer
                     leax      $01,x     ; skip '|'
                     lbsr      ParseDecStr ; parse pad width
                     lbsr      StrZeroPad ; zero-pad to width
-FormatStrEscapeRec  ldd       $08,s     ; reload output pointer
-                    pshs      b,a       ; push output pointer for FormatStr
-                    pshs      u         ; push string pointer
-                    lbsr      FormatStr ; recursively format substitution string
-                    leas      $04,s     ; pop FormatStr args
-                    stu       $08,s     ; update output pointer
-                    lbra      FormatStrLoop ; continue main format loop
+FormatStrEscapeRec  equ *
+                    FORMAT_EMIT_EXPANSION
 FormatStrWordWrap   ldd       >$0155    ; load saved word-wrap point
                     bne       FormatStrWordWrapMove ; have a wrap point, move word
                     lda       #$0A
@@ -7178,18 +5725,17 @@ cmd_display_v       leas      >-$03E8,s ; allocate 1000-byte text buffer
 *   %x, %c) used throughout the message and status display code.
 *======================================================================
 *
-ParseDecStr         clrb                ; start with value 0
-ParseDecStrLoop     lda       ,x        ; peek at next char
-                    cmpa      #$30
-                    bcs       ParseDecStrRet ; below '0', done
-                    cmpa      #$39
-                    bhi       ParseDecStrRet ; above '9', done
-                    lda       #$0A
-                    mul                 ; multiply current value by 10
-                    subb      #$30      ; subtract ASCII '0'
-                    addb      ,x+       ; add digit and advance X
-                    bra       ParseDecStrLoop ; continue
-ParseDecStrRet      rts
+* Assembly-time formatter index policy; no runtime dispatch.
+                    ifne      WILDBITS
+                    ifndef PLATFORM_WILDBITS_TEXT_UI_BINDINGS
+                    use platform/wildbits-text-ui-bindings.asm
+                    endc
+                    else
+                    ifndef PLATFORM_COCO_TEXT_UI_BINDINGS
+                    use platform/coco-text-ui-bindings.asm
+                    endc
+                    endc
+                    use       shared/decimal-index.asm
 IncrLineCount       inc       >$015B    ; increment line count
                     lda       >$0157    ; get current line's char count
                     clr       >$0157    ; reset char count for next line
@@ -7224,60 +5770,7 @@ PrintFmtStrToScr    leas      <-$2A,s   ; allocate 42-byte line buffer
                     leas      <$2A,s    ; release line buffer
                     rts
 
-PrintFmtLoop        lda       ,x+       ; load next format char
-                    beq       PrintFmtOutputChar ; null = end, flush it
-                    cmpa      #$25      ; check for '%' format specifier
-                    beq       PrintFmtEscS ; handle format escape
-                    bsr       PrintFmtOutputChar ; emit literal char
-                    bra       PrintFmtLoop
-PrintFmtEscS        lda       ,x+       ; load format type char
-                    cmpa      #$73
-                    bne       PrintFmtEscD ; not '%s'
-                    ldd       ,u++      ; fetch string pointer from args
-                    pshs      u,x       ; save U and X
-                    bra       PrintFmtStrEmit ; emit string
-PrintFmtEscD        cmpa      #$64
-                    bne       PrintFmtEscUX ; not '%d'
-                    tst       ,u        ; test sign of next arg
-                    bpl       PrintFmtEscU ; positive, treat as unsigned
-                    lda       #$2D
-                    bsr       PrintFmtOutputChar ; emit '-' for negative
-                    ldd       #$0000
-                    subd      ,u++      ; negate: 0 - arg
-                    pshs      u,x       ; save U and X
-                    lbsr      UIntToDecStr ; convert to decimal string
-                    tfr       x,d       ; D = pointer to decimal string
-                    bra       PrintFmtStrEmit
-PrintFmtEscUX       cmpa      #$75
-                    beq       PrintFmtEscU ; '%u' = unsigned decimal
-                    cmpa      #$78
-                    bne       PrintFmtEscC ; not '%x'
-                    ldd       ,u++      ; fetch unsigned arg
-                    pshs      u,x       ; save U and X
-                    lbsr      UIntToHexStr ; convert to hex string
-                    tfr       x,d       ; D = pointer to hex string
-                    bra       PrintFmtStrEmit
-PrintFmtEscU        ldd       ,u++      ; fetch unsigned arg
-                    pshs      u,x       ; save U and X
-                    lbsr      UIntToDecStr ; convert to decimal string
-                    tfr       x,d       ; D = pointer to decimal string
-                    bra       PrintFmtStrEmit
-PrintFmtEscC        cmpa      #$63
-                    bne       PrintFmtEscOther ; not '%c'
-                    ldd       ,u++      ; fetch character value from args
-                    bsr       PrintFmtOutputChar ; emit character
-                    bra       PrintFmtLoop
-PrintFmtEscOther    leax      -$01,x    ; back up to format type char
-                    lda       -$01,x    ; reload '%' char
-                    bsr       PrintFmtOutputChar ; emit '%' literally
-                    bra       PrintFmtLoop
-PrintFmtStrEmit     tfr       d,x       ; X = pointer to converted string
-PrintFmtStrEmitLoop lda       ,x+       ; load next char of converted string
-                    lbne      PrintFmtStrEmitChar ; non-null, emit it
-                    puls      u,x       ; restore U and X
-                    lbra      PrintFmtLoop ; continue format loop
-PrintFmtStrEmitChar bsr       PrintFmtOutputChar ; emit string character
-                    bra       PrintFmtStrEmitLoop
+                    FORMAT_EMIT_WORD_ARGUMENTS
 PrintFmtOutputChar  pshs      u,x       ; save U and X
                     ldu       >PrintFmtOutPtr,pcr ; load current output pointer
                     sta       ,u+       ; store character and advance
@@ -7322,53 +5815,17 @@ PrintFmtOutputCharRet puls      u,x       ; restore U and X
 *   set_priority_v to fix or release an object's draw priority.
 *======================================================================
 *
-cmd_set_priority    lda       ,y+       ; fetch object number from script
-                    ldb       #$2B
-                    mul                 ; multiply A*$2B for object array offset
-                    addd      <$0030    ; add object table base
-                    tfr       d,u       ; U = pointer to object struct
-                    lda       <$26,u    ; load priority flags
-                    ora       #$04      ; set fixed-priority flag
-                    sta       <$26,u    ; store updated flags
-                    lda       ,y+       ; fetch priority value from script
-                    sta       <$24,u    ; store object priority
+cmd_set_priority    QUERY_OBJECT
+                    OBJECT_SET_PRIORITY u,0
                     rts
 
-cmd_release_priority lda       ,y+       ; fetch object number from script
-                    ldb       #$2B
-                    mul                 ; multiply A*$2B for object array offset
-                    addd      <$0030    ; add object table base
-                    tfr       d,u       ; U = pointer to object struct
-                    lda       <$26,u    ; load priority flags
-                    anda      #$FB      ; clear fixed-priority flag
-                    sta       <$26,u    ; store updated flags
-                    rts
+OBJECT_FLAG_OPCODE  set       56
+                    use       shared/object-flag-rules.asm
 
-cmd_get_priority    lda       ,y+       ; fetch object number from script
-                    ldb       #$2B
-                    mul                 ; multiply A*$2B for object array offset
-                    addd      <$0030    ; add object table base
-                    tfr       d,u       ; U = pointer to object struct
-                    lda       <$24,u    ; get object's current priority
-                    ldx       #$0431    ; point to variable table
-                    ldb       ,y+       ; fetch result var index
-                    abx                 ; index into variable table
-                    sta       ,x        ; store priority into variable
-                    rts
+                    OBJECT_FIELD_QUERY cmd_get_priority,$24,0
 
-cmd_set_priority_v  lda       ,y+       ; fetch object number from script
-                    ldb       #$2B
-                    mul                 ; multiply A*$2B for object array offset
-                    addd      <$0030    ; add object table base
-                    tfr       d,u       ; U = pointer to object struct
-                    lda       <$26,u    ; load priority flags
-                    ora       #$04      ; set fixed-priority flag
-                    sta       <$26,u    ; store updated flags
-                    ldx       #$0431    ; point to variable table
-                    ldb       ,y+       ; fetch priority var index
-                    abx                 ; index into variable table
-                    lda       ,x        ; dereference priority variable
-                    sta       <$24,u    ; store object priority
+cmd_set_priority_v  QUERY_OBJECT
+                    OBJECT_SET_PRIORITY u,1
                     rts
 
 *
@@ -7809,15 +6266,19 @@ StrDiskFullMsg      fcc       /The disk is full./
                     fcc       /Press ENTER to continue./
                     fcb       0
 SaveFileHandle      fcb       0
-cmd_set_simple      lda       ,y+       ; fetch save slot index from script
-                    ldb       #$28      ; size of save name entry = 40
-                    mul                 ; A*40 = slot offset
-                    ldx       #$251     ; save name table base
-                    leax      d,x       ; X = pointer to this slot's name
-                    leau      >state_name_auto,pcr ; point to auto-save name
-                    ldd       #$001F    ; copy 31 bytes
-                    lbsr      MemCopyNull ; copy auto name to slot
-                    rts
+SIMPLE_SAVE_FETCH macro
+                    lda       ,y+
+                    endm
+SIMPLE_SAVE_STRING_TABLE macro
+                    ldx       #$251
+                    endm
+SIMPLE_SAVE_NAME_ADDRESS macro
+                    leau      >state_name_auto,pcr
+                    endm
+SIMPLE_SAVE_COPY macro
+                    lbsr      MemCopyNull
+                    endm
+cmd_set_simple      AGI_SIMPLE_SAVE_NAME
 
 cmd_save_game       leas      >-$00FE,s ; allocate 254-byte local frame
                     sty       ,s        ; save script instruction pointer
@@ -8028,120 +6489,22 @@ GetDiskInfoRet      sta       <$44,s    ; store result flag
 *   if/else blocks, jump offsets, and dispatching each command opcode.
 *======================================================================
 *
-ExecLogicScript     leas      -$02,s    ; allocate 2-byte local frame (if-state)
-                    ldy       <$0062    ; load current logic pointer
-                    ldd       $04,y     ; get logic page from logic slot
-                    lbsr      SetLogicPage ; switch to logic's page
-                    ldy       $08,y     ; load pointer to logic bytecode
-ExecScriptLoop      ldb       ,y+       ; fetch next opcode
-ExecScriptCheck     tstb                ; test opcode
-                    beq       ExecScriptDone ; opcode $00 = end of script
-                    cmpb      #$FF
-                    beq       ExecScriptIf ; opcode $FF = if block
-                    cmpb      #$FE
-                    bne       ExecScriptCmd ; not a jump
-ExecScriptJump      ldb       ,y+       ; fetch jump offset high byte
-                    lda       ,y+       ; fetch jump offset low byte
-                    leay      d,y       ; apply offset to Y
-                    bra       ExecScriptLoop
-ExecScriptCmd       lbsr      DispatchCmd ; dispatch command opcode
-                    leay      ,y        ; test Y (dispatch result)
-                    bne       ExecScriptCheck ; non-null = more to process
-ExecScriptDone      bra       ExecLogicScriptRet
-ExecScriptIf        ldd       #$0000
-                    std       ,s        ; clear if-state (not-flag, depth)
-ExecScriptIfLoop    lda       ,y+       ; fetch condition byte
-                    cmpa      #$FC
-                    bhi       ExecScriptIfHi ; $FD/$FE/$FF are control bytes
-                    bne       ExecScriptEvalExpr ; non-$FC = condition to evaluate
-                    lda       ,s        ; load not-flag
-                    bne       ExecScriptSkipBlock ; not-flag set = skip block
-                    inc       ,s        ; set not-flag
-                    bra       ExecScriptIfLoop
-ExecScriptIfHi      cmpa      #$FF
-                    bne       ExecScriptIfFD ; not $FF
-                    leay      $02,y     ; skip 2-byte jump target
-                    bra       ExecScriptLoop ; return to main loop
-ExecScriptIfFD      cmpa      #$FD
-                    bne       ExecScriptEvalExpr ; not $FD
-                    lda       $01,s     ; load NOT-accumulator
-                    eora      #$01      ; toggle NOT flag
-                    sta       $01,s     ; store updated NOT flag
-                    bra       ExecScriptIfLoop
-ExecScriptEvalExpr  lbsr      EvalExpr  ; evaluate condition expression
-                    eora      $01,s     ; XOR with NOT flag
-                    clr       $01,s     ; clear NOT flag for next use
-                    tsta                ; test result
-                    bne       ExecScriptTrueBlock ; condition true
-                    lda       ,s        ; load not-flag
-                    bne       ExecScriptIfLoop ; not-flag still set
-ExecScriptSkipBlock clr       ,s        ; clear not-flag
-ExecScriptSkipLoop  lda       ,y+       ; scan through skipped block
-                    cmpa      #$FF
-                    beq       ExecScriptJump ; $FF = end of if block (with jump)
-                    cmpa      #$FC
-                    bcc       ExecScriptSkipLoop ; $FC/$FD/$FE = control bytes, skip
-                    bsr       ExecScriptExecCmd ; execute command (to skip args)
-                    bra       ExecScriptSkipLoop
-ExecScriptTrueBlock lda       ,s        ; load not-flag
-                    beq       ExecScriptIfLoop ; not set, execute block
-                    clr       ,s        ; clear not-flag
-ExecScriptTrueLoop  lda       ,y+       ; fetch next byte in true block
-                    cmpa      #$FC
-                    bhi       ExecScriptTrueLoop ; $FD/$FE/$FF = skip
-                    beq       ExecScriptIfLoop ; $FC = end of if block
-                    bsr       ExecScriptExecCmd ; execute command
-                    bra       ExecScriptTrueLoop
-ExecScriptExecCmd   cmpa      #$0E
-                    bne       ExecScriptExecCmdImpl ; not cmd $0E (return)
-                    lda       ,y+       ; fetch return target offset
-                    lsla                ; multiply by 2
-                    leay      a,y       ; apply offset
-                    rts
+                    ifndef PLATFORM_COCO_LOGIC_BINDINGS
+                    use platform/coco-logic-bindings.asm
+                    endc
+                    ifndef PLATFORM_COCO_LOGIC_BINDINGS
+                    use platform/coco-logic-bindings.asm
+                    endc
+                    use       shared/logic-executor.asm
 
-ExecScriptExecCmdImpl lsla                ; multiply cmd by 2
-                    lsla                ; multiply by 2 again (*4)
-                    adda      #$02      ; add 2 for command dispatch table base
-                    leax      >eval_table,pcr ; point to command dispatch table
-                    lda       a,x       ; load relative offset for this command
-                    leay      a,y       ; advance Y past command arguments
-                    rts
-ExecLogicScriptRet  leas      $02,s     ; release if-state local frame
-                    rts
-
-PaletteData         fcb       $00       composite
-                    fcb       $0C
-                    fcb       $02
-                    fcb       $2E
-                    fcb       $06
-                    fcb       $09
-                    fcb       $04
-                    fcb       $20
-                    fcb       $10
-                    fcb       $1B
-                    fcb       $11
-                    fcb       $3D
-                    fcb       $17
-                    fcb       $29
-                    fcb       $33
-                    fcb       $3F
-
-                    fcb       $00       rgb
-                    fcb       $08
-                    fcb       $14
-                    fcb       $18
-                    fcb       $20
-                    fcb       $28
-                    fcb       $22
-                    fcb       $38
-                    fcb       $07
-                    fcb       $0B
-                    fcb       $16
-                    fcb       $1F
-                    fcb       $27
-                    fcb       $2D
-                    fcb       $37
-                    fcb       $3F
+* Platform screen implementation, selected during assembly.
+* Assembly-time screen backend selection; no runtime dispatch.
+                    ifne      WILDBITS
+                    error     Wild Bits screen backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_GAME_PALETTE_DATA
+                    use platform/coco-graphics.asm
+                    endc
 
 *
 *======================================================================
@@ -8194,23 +6557,14 @@ cmd_set_text_attribute ldd       ,y++      ; fetch foreground/background color p
                     bsr       text_color ; set text colors
                     rts
 
-text_color          anda      #$0F      ; isolate foreground color nibble
-                    sta       >$024C    ; store foreground color
-                    lsla                ; shift foreground to high nibble (bit 3)
-                    lsla                ; shift left (bit 2)
-                    lsla                ; shift left (bit 1)
-                    lsla                ; foreground now in high nibble of A
-                    ora       >$024C    ; OR with stored foreground (packed nibbles)
-                    sta       >$024C    ; store packed foreground color byte
-                    andb      #$0F      ; isolate background color nibble
-                    stb       >$024D    ; store background color
-                    lslb                ; shift background to high nibble (bit 3)
-                    lslb                ; shift left (bit 2)
-                    lslb                ; shift left (bit 1)
-                    lslb                ; background now in high nibble of B
-                    orb       >$024D    ; OR with stored background (packed nibbles)
-                    stb       >$024D    ; store packed background color byte
-                    rts
+* Platform renderer implementation, selected during assembly.
+* Assembly-time renderer selection; no per-pixel dispatch.
+                    ifne      WILDBITS
+                    error     Wild Bits renderer backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_TEXT_PACKING
+                    use platform/coco-text-ui.asm
+                    endc
 
 SetGraphicsMode     lda       #$00
                     sta       >$05EC    ; clear text-screen flag
@@ -8238,37 +6592,14 @@ cmd_config_screen   lda       ,y        ; fetch scroll-X offset (peek)
                     sta       >$0247    ; store display flags
                     rts
 
-cmd_toggle_monitor  leas      -$04,s    ; allocate 4-byte local frame
-                    pshs      y         ; save script pointer
-                    leax      >PaletteData,pcr ; point to palette table
-                    ldb       >$0553    ; get current monitor mode
-                    eorb      #$01      ; toggle between composite and RGB
-                    stb       >$0553    ; store new mode
-                    lda       #$10      ; 16 entries per palette
-                    mul                 ; A*16 = palette offset
-                    abx                 ; X = pointer to selected palette
-                    lda       #$1B
-                    sta       $02,s     ; ESC char for palette command
-                    lda       #$31
-                    sta       $03,s     ; '1' palette command byte
-                    clra                ; A = 0 (initial color index)
-                    sta       $04,s     ; color index start = 0
-                    ldy       #$0004    ; path number 4 (screen)
-PaletteWriteLoop    ldb       ,x+       ; fetch palette entry
-                    stb       $05,s     ; store for write
-                    pshs      x         ; save palette pointer
-                    lda       #$01      ; write 1 byte
-                    leax      $04,s     ; X = pointer to color byte
-                    os9       I$Write   ; write palette command byte
-                    bcs       PaletteWriteRet ; write failed
-                    puls      x         ; restore palette pointer
-                    inc       $04,s     ; increment color index
-                    lda       $04,s     ; load color index
-                    cmpa      #$10      ; compare to 16 (all colors)
-                    bcs       PaletteWriteLoop ; not done, continue
-PaletteWriteRet     puls      y         ; restore script pointer
-                    leas      $04,s     ; release local frame
-                    rts
+* Platform screen implementation, selected during assembly.
+* Assembly-time screen backend selection; no runtime dispatch.
+                    ifne      WILDBITS
+                    error     Wild Bits screen backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_GAME_PALETTE_SET
+                    use platform/coco-graphics.asm
+                    endc
 
 *
 *======================================================================
@@ -8663,11 +6994,7 @@ FindVol             leas      <-$12,s   ; allocate 18-byte local frame
                     lbsr      ShowInsertDiskMsg ; prompt user to insert disk 1
 FindVolLoadDisk     lbsr      ReadDiskVol ; open volume file from disk
 FindVolGotHandle    ldu       $02,s     ; reload resource index pointer
-                    lda       ,u        ; load resource type byte
-                    lsra                ; extract volume number from upper nibble
-                    lsra                ; shift right (bit 2)
-                    lsra                ; shift right (bit 3)
-                    lsra                ; upper nibble now in low nibble
+                    RESOURCE_DIRECTORY_VOLUME u
                     sta       $08,s     ; save target volume number
                     ldx       #$0531    ; point to volume handle table
                     ldb       a,x       ; load handle for target volume
@@ -8739,11 +7066,9 @@ FindVolWrongSide    lbsr      VolumesClose ; close wrong volume
                     jsr       >$0701    ; call MMU twiddle exit
 FindVolRetryDisk    lbsr      ReadDiskVol ; reload disk volume after user swap
                     lbra      FindVolFail
-FindVolGoodHdr      ldb       $0C,s     ; load resource size low word
-                    lda       $0D,s     ; (resource size high byte)
+FindVolGoodHdr      RESOURCE_HEADER_WORD $0C,s,ResourceDecodedLength
                     std       <$0066    ; store resource size
-                    ldb       $0E,s     ; load compressed size low word
-                    lda       $0F,s
+                    RESOURCE_HEADER_WORD $0E,s,ResourceStoredLength
                     std       <$12,s    ; store compressed size
                     ldu       $04,s     ; load allocated buffer pointer
                     bne       FindVolReadData ; already have buffer
@@ -9321,132 +7646,15 @@ ObjShowDone         lda       #$01      ; restore full-screen draw flag
 
 SoundScratch9       fcb       0,0,0,0,0,0,0,0,0
 SoundListPtr        fcb       0,0
-SoundPIA1Ctrl       fcb       0
-SoundPIA2Ctrl       fcb       0
-SoundEnableReg      fcb       0
-
-NoteFreqTable       fcb       $07,$78
-                    fcb       $07,$0C
-                    fcb       $06,$A8
-                    fcb       $06,$48
-                    fcb       $05,$EC
-                    fcb       $05,$98
-                    fcb       $05,$48
-                    fcb       $04,$FC
-                    fcb       $04,$B4
-                    fcb       $04,$70
-                    fcb       $04,$30
-                    fcb       $03,$F4
-                    fcb       $03,$BC
-                    fcb       $03,$86
-                    fcb       $03,$54
-                    fcb       $03,$24
-                    fcb       $02,$F6
-                    fcb       $02,$CC
-                    fcb       $02,$A4
-                    fcb       $02,$7E
-                    fcb       $02,$5A
-                    fcb       $02,$38
-                    fcb       $02,$18
-                    fcb       $01,$FA
-                    fcb       $01,$DE
-                    fcb       $01,$C2
-                    fcb       $01,$AA
-                    fcb       $01,$92
-                    fcb       $01,$7A
-                    fcb       $01,$66
-                    fcb       $01,$52
-                    fcb       $01,$3E
-                    fcb       $01,$2C
-                    fcb       $01,$1C
-                    fcb       $01,$0C
-                    fcb       $00,$FC
-                    fcb       $00,$EE
-                    fcb       $00,$E2
-                    fcb       $00,$D4
-                    fcb       $00,$C8
-                    fcb       $00,$BE
-                    fcb       $00,$B2
-                    fcb       $00,$A8
-                    fcb       $00,$9C
-                    fcb       $00,$96
-                    fcb       $00,$8E
-                    fcb       $00,$86
-                    fcb       $00,$7E
-                    fcb       $00,$78
-                    fcb       $00,$70
-                    fcb       $00,$6A
-                    fcb       $00,$64
-                    fcb       $00,$5E
-                    fcb       $00,$5A
-                    fcb       $00,$54
-                    fcb       $00,$50
-                    fcb       $00,$4C
-                    fcb       $00,$46
-                    fcb       $00,$42
-                    fcb       $00,$3E
-                    fcb       $00,$3C
-                    fcb       $00,$02
-                    fcb       $00,$02
-                    fcb       $00,$02
-                    fcb       $00,$03
-                    fcb       $00,$03
-                    fcb       $00,$03
-                    fcb       $00,$03
-                    fcb       $00,$03
-                    fcb       $00,$03
-                    fcb       $00,$04
-                    fcb       $00,$04
-                    fcb       $00,$04
-                    fcb       $00,$04
-                    fcb       $00,$05
-                    fcb       $00,$05
-                    fcb       $00,$05
-                    fcb       $00,$05
-                    fcb       $00,$06
-                    fcb       $00,$06
-                    fcb       $00,$06
-                    fcb       $00,$07
-                    fcb       $00,$07
-                    fcb       $00,$08
-                    fcb       $00,$08
-                    fcb       $00,$09
-                    fcb       $00,$09
-                    fcb       $00,$0A
-                    fcb       $00,$0A
-                    fcb       $00,$0B
-                    fcb       $00,$0C
-                    fcb       $00,$0C
-                    fcb       $00,$0D
-                    fcb       $00,$0E
-                    fcb       $00,$0E
-                    fcb       $00,$0F
-                    fcb       $00,$10
-                    fcb       $00,$11
-                    fcb       $00,$12
-                    fcb       $00,$13
-                    fcb       $00,$14
-                    fcb       $00,$15
-                    fcb       $00,$17
-                    fcb       $00,$19
-                    fcb       $00,$1A
-                    fcb       $00,$1B
-                    fcb       $00,$1D
-                    fcb       $00,$1E
-                    fcb       $00,$20
-                    fcb       $00,$22
-                    fcb       $00,$24
-                    fcb       $00,$26
-                    fcb       $00,$28
-                    fcb       $00,$2B
-                    fcb       $00,$2D
-                    fcb       $00,$30
-                    fcb       $00,$33
-                    fcb       $00,$35
-                    fcb       $00,$39
-                    fcb       $00,$3D
-                    fcb       $00,$40
-                    fcb       $00,$42
+* Platform-owned sound state and timing tables.
+* Assembly-time sound backend selection; emits no dispatch instructions.
+* WILDBITS is currently unsupported: never silently emit CoCo PIA access.
+                    ifne      WILDBITS
+                    error     Wild Bits sound backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_SOUND_DATA
+                    use platform/coco-audio.asm
+                    endc
 
 MonthDayTable       fcb       0
                     fcb       $1f,$1c
@@ -9460,9 +7668,8 @@ MonthDayTable       fcb       0
 *======================================================================
 * SOUND PLAYBACK
 *   Manages the sound list, implements cmd_load_sound and cmd_sound
-*   to schedule playback, drives the tone generator through PIA
-*   hardware (PlaySound), and saves/restores PIA state around sound
-*   output (SoundPIASave, SoundPIARestore).
+*   and completion flags. PlaySound is provided by the selected platform
+*   backend; hardware state and calibrated delay tables live there too.
 *======================================================================
 *
 SoundListClear      leau      SoundScratch9,pcr ; point to sound list head
@@ -9542,182 +7749,30 @@ SoundCheckFlags     lda       >$01AF    ; game flags byte
                     os9       F$Time    ; get current system time
                     ldu       $01,s     ; restore sound node pointer
                     lbsr      PlaySound ; play the sound (returns duration in D)
-                    cmpd      #$0000    ; any elapsed time returned?
-                    lbeq      TimeRestorePage ; skip time update if zero
-                    pshs      b,a       ; save elapsed time
-                    addb      $0C,s     ; add seconds field
-                    bcc       TimeSecCarry ; branch if no second overflow
-                    inca                ; carry into minutes
-TimeSecCarry        ldu       #$003C    ; 60 seconds per minute
-                    lbsr      UIntDivide ; divide to get minute carry
-                    stb       $0C,s     ; store updated seconds
-                    tfr       u,d       ; D = minute carry
-                    cmpd      #$0000    ; any minutes to add?
-                    beq       TimeSetSys ; skip if none
-                    addb      $0B,s     ; add to minutes field
-                    bcc       TimeMinCarry ; branch if no minute overflow
-                    inca                ; carry into hours
-TimeMinCarry        ldu       #$003C    ; 60 minutes per hour
-                    lbsr      UIntDivide ; divide to get hour carry
-                    stb       $0B,s     ; store updated minutes
-                    tfr       u,d       ; D = hour carry
-                    tstb                ; any hours to add?
-                    beq       TimeSetSys ; skip if none
-                    addb      $0A,s     ; add to hours field
-                    lda       #$17      ; 24 hours per day
-                    lbsr      Div8      ; divide to get day carry
-                    sta       $0A,s     ; store updated hours
-                    tstb                ; any days to add?
-                    beq       TimeSetSys ; skip if none
-                    inc       $09,s     ; increment day of month
-                    ldd       $08,s     ; load month and year
-                    leax      >MonthDayTable,pcr ; days-per-month table
-                    cmpb      a,x       ; past end of month?
-                    bls       TimeSetSys ; branch if still in month
-                    ldb       a,x       ; days in this month
-                    cmpa      #$02      ; is it February?
-                    bne       TimeDayIncr ; branch if not Feb
-                    ldb       $07,s     ; year value
-                    beq       TimeDayIncr ; not a leap year
-                    bitb      #$03      ; leap year check (divisible by 4)
-                    bne       TimeDayIncr ; not divisible by 4
-                    ldb       $09,s     ; current day
-                    cmpb      #$1D      ; day 29?
-                    beq       TimeSetSys ; allow Feb 29 on leap year
-TimeDayIncr         ldb       #$01      ; reset to day 1
-                    stb       $09,s     ; store day = 1
-                    inca                ; advance month
-                    cmpa      #$0C      ; past December?
-                    bls       TimeMonthAdv ; branch if still in year
-                    stb       $08,s     ; month = 1
-                    inc       $07,s     ; increment year
-                    bra       TimeSetSys ; apply to system
-TimeMonthAdv        sta       $08,s     ; store updated month
-TimeSetSys          leax      $07,s     ; point to updated time struct
-                    os9       F$STime   ; set system time
-                    puls      b,a       ; restore elapsed time
-                    addb      >$043C    ; add to timer seconds field
-                    bcc       TimeSec2Carry ; branch if no overflow
-                    inca                ; carry into timer minutes
-TimeSec2Carry       ldu       #$003C    ; 60 seconds per minute
-                    lbsr      UIntDivide ; divide to get carry
-                    stb       >$043C    ; store timer seconds
-                    tfr       u,d       ; D = minute carry
-                    cmpd      #$0000    ; any minutes?
-                    beq       TimeRestorePage ; skip if none
-                    addb      >$043D    ; add to timer minutes field
-                    bcc       TimeMin2Carry ; branch if no overflow
-                    inca                ; carry into hours
-TimeMin2Carry       ldu       #$003C    ; 60 minutes per hour
-                    lbsr      UIntDivide ; divide to get carry
-                    stb       >$043D    ; store timer minutes
-                    tfr       u,d       ; D = hour carry
-                    tstb                ; any hours?
-                    beq       TimeRestorePage ; skip if none
-                    addb      >$043E    ; add to timer hours
-                    lda       #$17      ; 24 hours per day
-                    lbsr      Div8      ; get day carry in B
-                    sta       >$043E    ; store timer hours
-                    tstb                ; any day overflow?
-                    beq       TimeRestorePage ; skip if none
-                    inc       >$043F    ; increment timer day counter
-TimeRestorePage     ldd       $03,s     ; saved logic page
-                    lbsr      SetLogicPage ; restore logic page
+* Platform implementation; selection emits no dispatch code.
+* Assembly-time platform selection.
+                    ifne      WILDBITS
+                    error     Wild Bits platform backend is not implemented
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_SOUND_ELAPSED
+                    use platform/coco-audio.asm
+                    endc
+
 SoundSetFlagDone    lda       ,y+       ; fetch flag number to set
                     lbsr      SetFlag   ; set the completion flag
                     leas      $0B,s     ; release local frame
                     rts
 
-PlaySound           pshs      y         ; save logic script pointer
-                    clrb                ; B = 0 (initial silence)
-                    ldu       $03,u     ; follow pointer to sound data
-                    bsr       SoundPIASave ; configure PIA for sound output
-PlaySoundLoop       ldb       ,u+       ; read note byte (0xFF = end)
-                    cmpb      #$FF      ; end of sound?
-                    beq       PlaySoundEnd ; branch to finish
-                    lslb                ; double B for freq table index
-                    lda       ,u+       ; read amplitude byte
-                    ora       #2        ; force RS-232 line high
-                    sta       >$FF20    ; write amplitude to PIA DAC
-                    ldy       ,u++      ; load duration in Y
-                    leax      >NoteFreqTable,pcr ; base of frequency table
-                    abx                 ; index to this note's frequency
-                    ldd       ,x        ; load half-period count
-                    std       <$008E    ; store half-period in DP
-                    leax      >$007A,x  ; offset to wave-count table
-                    ldd       ,x        ; load wave-count entry
-                    std       <$0090    ; store wave count in DP
-* The RS-232 line is now masked and forced high.
-* Therefore $FF20 can't be tested for $00 but we can test the actual
-* data stream. RG
-*         tst   $FF20	old
-                    tst       -3,u      new
-                    beq       PlaySoundWaveLow ; branch if low amplitude (silent)
-PlaySoundWaveHigh   ldx       <$0090    ; wave repetition count
-PlaySoundHighLoop   ldd       <$008E    ; half-period delay
-PlaySoundHighDelay  subd      #$0001    ; count down delay
-                    bne       PlaySoundHighDelay ; loop until delay elapsed
-*         com   $FF20
-                    lda       $ff20     patch RG
-                    coma                ; invert DAC output (toggle wave)
-                    ora       #2        ; keep RS-232 line high
-                    sta       $ff20     ; write toggled value
-                    leax      -1,x      ; decrement wave count
-                    bne       PlaySoundHighLoop ; loop for all waves
-                    leay      -$01,y    ; decrement duration counter
-                    bne       PlaySoundWaveHigh ; loop for full duration
-                    bra       PlaySoundLoop ; next note
-PlaySoundWaveLow    ldx       <$0090    ; wave repetition count
-PlaySoundLowLoop    ldd       <$008E    ; half-period delay
-PlaySoundLowDelay   subd      #$0001    ; count down delay
-                    bne       PlaySoundLowDelay ; loop until delay elapsed
-* This is a meaningless test and must be here to balance cycles. RG
-                    tst       >$FF20    ; cycle-balance test (no-op)
-                    leax      -$01,x    ; decrement wave count
-                    bne       PlaySoundLowLoop ; loop for all waves
-                    leay      -$01,y    ; decrement duration counter
-                    bne       PlaySoundWaveLow ; loop for full duration
-                    bra       PlaySoundLoop ; next note
-PlaySoundEnd        bsr       SoundPIARestore ; restore PIA to pre-sound state
-                    ldd       ,u        ; load elapsed time word
-                    puls      y         ; restore logic script pointer
-                    rts
-
-*Sound on
-* RS-232 toggle change. RG
-
-SoundPIASave        orcc      #IntMasks ; disable interrupts during sound
-*        clr   $FF20		this would trash the RS-232 line while zeroing the DAC
-                    lda       #2        patch RG
-                    sta       $ff20     ; set DAC to zero (RS-232 safe)
-                    lda       >$FF01    save PIA setting
-                    sta       >SoundPIA1Ctrl,pcr ; save PIA1 control byte
-                    anda      #$F7      set MUX to 0
-                    sta       >$FF01    ; write MUX=0 to PIA1
-                    lda       >$FF03    save PIA setting
-                    sta       >SoundPIA2Ctrl,pcr ; save PIA2 control byte
-                    anda      #$F7      set MUX to 0
-                    sta       >$FF03    DAC now selected
-                    lda       >$FF23    save Sound setting
-                    sta       >SoundEnableReg,pcr ; save sound-enable register
-                    ora       #$08      turn sound on
-                    sta       >$FF23    ; enable sound output
-                    rts
-
-*Sound off
-* RS-232 toggle change. RG
-SoundPIARestore     lda       >SoundPIA1Ctrl,pcr get saved PIA HSYNC setting
-                    sta       >$FF01    restore it
-                    lda       >SoundPIA2Ctrl,pcr get saved PIA VSYNC setting
-                    sta       >$FF03    restore it
-                    lda       >SoundEnableReg,pcr get Sound setting (presumably off)
-                    sta       >$FF23    restore it
-                    lda       #2        patch RG
-                    sta       $FF20     ; reset DAC to RS-232-safe value
-                    lda       $FF02     ; clear PIA1 interrupt latch
-                    lda       $FF22     ; clear PIA2 interrupt latch
-                    andcc     #$AF      ; re-enable interrupts
-                    rts
+* Platform playback entry point; selected at assembly time.
+* Assembly-time sound backend selection; emits no dispatch instructions.
+* Each owner supplies its backend state/entry-point contract.
+                    ifne      WILDBITS
+PLATFORM_SECTION    set PLATFORM_WILDBITS_SOUND_CODE
+                    use platform/wildbits-audio.asm
+                    else
+PLATFORM_SECTION    set PLATFORM_COCO_SOUND_CODE
+                    use platform/coco-audio.asm
+                    endc
 
 StrNothing          fcc       /nothing/
                     fcb       0
@@ -10025,8 +8080,7 @@ cmd_status_line_off clr       >$0246    ; disable status line
                     lbsr      ClearTextLine ; erase the status line
                     rts
 
-StrPunctuation      fcc       / .,;:'!-/
-                    fcb       0
+                    use       shared/string-punctuation.asm
 
 *
 *======================================================================
@@ -10093,7 +8147,7 @@ cmd_set_string      lda       ,y+       ; fetch destination string slot
                     ldb       ,y+       ; fetch source message number
                     lbsr      GetMsgPtr ; get message text pointer in U
                     exg       u,x       ; X=msg ptr, U=dest slot
-                    ldd       #$0028    ; max 40 chars
+                    ldd       #$0027    ; 39 chars plus in-slot NUL
                     lbsr      MemCopyNull ; copy message text into string slot
                     rts
 
@@ -10106,7 +8160,7 @@ cmd_word_to_string  lda       ,y+       ; fetch destination string slot
                     lslb                ; double B for 2-byte pointer index
                     ldx       #$0180    ; base of word-string pointer table
                     ldx       b,x       ; dereference to get word string
-                    ldd       #$0028    ; max 40 chars
+                    ldd       #$0027    ; 39 chars plus in-slot NUL
                     lbsr      MemCopyNull ; copy word into string slot
                     rts
 
@@ -10192,47 +8246,11 @@ cmd_set_game_id     ldb       ,y+       ; fetch message number
                     lbsr      MemCopyNull ; copy game ID string
                     rts
 
-MatchWord           leas      <-$53,s   ; allocate 83-byte local frame
-                    stb       ,s        ; save word index (1 = word2)
-                    leau      $01,s     ; first normalized word buffer
-                    bsr       NormWord  ; normalize first input word
-                    lda       ,s        ; second word index
-                    leau      <$2A,s    ; second normalized word buffer
-                    bsr       NormWord  ; normalize second input word
-                    leau      $01,s     ; start of first word
-                    leax      <$2A,s    ; start of second word
-MatchWordLoop       lda       ,u+       ; read char from first word
-                    beq       MatchWordFound ; null = end of first word
-                    cmpa      ,x+       ; compare with second word char
-                    beq       MatchWordLoop ; loop if chars match
-                    bra       MatchWordNoMatch ; mismatch
-MatchWordFound      lda       #$01      ; match result = true
-                    ldb       ,x        ; remaining char in second word
-                    beq       MatchWordRet ; both at null = full match
-MatchWordNoMatch    clra                ; match result = false
-MatchWordRet        leas      <$53,s    ; release local frame
-                    rts
-
-NormWord            leas      -$02,s    ; allocate 2-byte local frame
-                    stu       ,s        ; save output buffer pointer
-                    ldb       #$28      ; 40 chars per slot
-                    mul                 ; offset = slot index × 40
-                    ldu       #$0251    ; base of string table
-                    leau      d,u       ; point to input string slot
-NormWordLoop        lda       ,u+       ; read char from input
-                    beq       NormWordNull ; stop at null terminator
-                    leax      >StrPunctuation,pcr ; punctuation character set
-                    lbsr      FindByte  ; check if char is punctuation
-                    bne       NormWordLoop ; skip punctuation characters
-                    lbsr      ToLower   ; convert letter to lowercase
-                    ldx       ,s        ; output buffer pointer
-                    sta       ,x+       ; store normalized char
-                    stx       ,s        ; update output pointer
-                    bra       NormWordLoop ; process next char
-NormWordNull        ldx       ,s        ; output pointer at end
-                    clr       ,x        ; null-terminate normalized word
-                    leas      $02,s     ; release local frame
-                    rts
+NORMAL_STRING_TABLE macro
+                    ldu       #$0251
+                    endm
+NORMAL_STRING_FOLD  equ       ToLower
+                    use       shared/compare-strings.asm
 
 *
 *======================================================================
@@ -10277,13 +8295,7 @@ cmd_trace_on        lda       <$68      ; trace-active flag
                     bne       TraceOnRet ; skip if already active
                     bsr       TraceInit ; initialize trace window
 TraceOnRet          rts
-TraceInit           lda       <$0068    ; re-check trace flag
-TraceInitCheck      bne       TraceInitRet ; already initialized
-                    lda       >$01AF    ; game flags byte
-                    anda      #$20      ; test trace-permitted bit
-                    beq       TraceInitRet ; don't init if not permitted
-                    lda       #$01      ; set trace-active flag
-                    sta       <$0068    ; mark trace as running
+TraceInit           AGI_TRACE_ACTIVATE TraceInitRet,TraceInitCheck
                     lda       >$0241    ; current text screen height
                     inca                ; +1 for status line
                     adda      >TraceLineOff,pcr ; add configured line offset
@@ -10325,16 +8337,7 @@ TraceInitCheck      bne       TraceInitRet ; already initialized
                     leas      $06,s     ; discard pushed args
 TraceInitRet        rts
 
-cmd_trace_info      lda       ,y+       ; fetch logic number for trace
-                    sta       <$006A    ; save logic number to trace
-                    lda       ,y+       ; fetch line offset
-                    sta       >TraceLineOff,pcr ; save trace line offset
-                    lda       ,y+       ; fetch number of visible lines
-                    cmpa      #$02      ; minimum is 2
-                    bcc       TraceInfoSetLines ; branch if >= 2
-                    lda       #$02      ; clamp to minimum of 2
-TraceInfoSetLines   sta       >TraceNumLines,pcr ; store visible line count
-                    rts
+cmd_trace_info      AGI_TRACE_CONFIG TraceInfoSetLines
 TraceErase          lda       <$0068    ; trace-active flag
                     beq       TraceEraseRet ; skip if not active
                     clr       <$0068    ; clear trace-active flag
@@ -10477,11 +8480,7 @@ ScriptDisplayWaitKey ldd       $02,s     ; wait baseline
                     ldd       >$024A    ; capture new timestamp
                     std       $02,s     ; update baseline
                     bra       ScriptDisplayWait ; continue wait loop
-ScriptDisplayPlusKey lda       $01,x     ; keycode
-                    cmpa      #$2B      ; '+' key (step-through)?
-                    bne       ScriptDisplayDone ; other key = stop trace
-                    lda       #$02      ; trace mode = step
-                    sta       <$0068    ; update trace mode
+ScriptDisplayPlusKey AGI_TRACE_KEY_ADVANCE ScriptDisplayDone
 ScriptDisplayDone   lbsr      PopRowCol ; restore cursor position
                     lbsr      PopTextColor ; restore text color
                     leas      $04,s     ; release local frame
@@ -10815,171 +8814,19 @@ InputRedrawRet      leas      <$50,s    ; release local frame
 *   Div8 unsigned 8-bit divide helper.
 *======================================================================
 *
-cmd_increment       ldb       ,y+       ; fetch variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to variable
-                    lda       ,x        ; load current value
-                    inca                ; increment
-                    beq       IncrSkip  ; skip store if wrapped to 0 (255)
-                    sta       ,x        ; store incremented value
-IncrSkip            rts
+VARIABLE_TABLE      macro
+                    ldx       #$0431
+                    endm
+                    use       shared/variable-commands.asm
 
-cmd_decrement       ldb       ,y+       ; fetch variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to variable
-                    lda       ,x        ; load current value
-                    beq       DecrSkip  ; skip if already 0
-                    deca                ; decrement
-                    sta       ,x        ; store decremented value
-DecrSkip            rts
+MATH_DIVIDE         macro
+                    bsr       Div8
+                    endm
+                    use       shared/math-commands.asm
 
-cmd_assignn         ldb       ,y+       ; fetch destination variable index
-                    ldx       #$0431    ; variable table base
-                    lda       ,y+       ; fetch immediate value
-                    abx                 ; point to destination variable
-                    sta       ,x        ; store value into variable
-                    rts
-
-cmd_assignv         ldb       $01,y     ; fetch source variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to source variable
-                    lda       ,x        ; read source value
-                    ldb       ,y++      ; fetch destination variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to destination variable
-                    sta       ,x        ; store source value into destination
-                    rts
-
-cmd_addn            ldb       ,y+       ; fetch destination variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to variable
-                    lda       ,x        ; load current value
-                    adda      ,y+       ; add immediate value
-                    sta       ,x        ; store result
-                    rts
-
-cmd_addv            ldb       $01,y     ; fetch source variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to source variable
-                    lda       ,x        ; read source value
-                    ldb       ,y++      ; fetch destination variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to destination variable
-                    adda      ,x        ; add source to destination
-                    sta       ,x        ; store result
-                    rts
-
-cmd_subn            ldb       ,y+       ; fetch destination variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to variable
-                    lda       ,x        ; load current value
-                    suba      ,y+       ; subtract immediate
-                    sta       ,x        ; store result
-                    rts
-
-cmd_subv            ldb       $01,y     ; fetch source variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to source variable
-                    lda       ,x        ; read source value
-                    nega                ; negate source
-                    ldb       ,y++      ; fetch destination variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to destination variable
-                    adda      ,x        ; add negated source to destination
-                    sta       ,x        ; store result (destination - source)
-                    rts
-
-cmd_lindirectv      ldb       $01,y     ; fetch value variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to value variable
-                    lda       ,x        ; read value
-                    ldb       ,y++      ; fetch index variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to index variable
-                    ldb       ,x        ; dereference index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to indexed variable
-                    sta       ,x        ; store value via indirect
-                    rts
-
-cmd_lindirectn      lda       $01,y     ; fetch immediate value
-                    ldb       ,y++      ; fetch index variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to index variable
-                    ldb       ,x        ; dereference index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to indexed variable
-                    sta       ,x        ; store immediate via indirect
-                    rts
-
-cmd_rindirect       ldb       $01,y     ; fetch index variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to index variable
-                    ldb       ,x        ; dereference index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to indexed variable
-                    lda       ,x        ; read value via indirect
-                    ldb       ,y++      ; fetch destination variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to destination variable
-                    sta       ,x        ; store value into destination
-                    rts
-
-cmd_multn           ldx       #$0431    ; variable table base
-                    ldb       ,y+       ; fetch destination variable index
-                    abx                 ; point to variable
-                    lda       ,x        ; load variable value
-                    ldb       ,y+       ; fetch immediate multiplier
-                    mul                 ; multiply A × B → D
-                    stb       ,x        ; store low byte of result
-                    rts
-
-cmd_multv           ldb       $01,y     ; fetch multiplier variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to multiplier variable
-                    lda       ,x        ; read multiplier
-                    ldb       ,y++      ; fetch destination variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to destination variable
-                    ldb       ,x        ; read destination value
-                    mul                 ; multiply A × B → D
-                    stb       ,x        ; store low byte of result
-                    rts
-
-cmd_divn            ldx       #$0431    ; variable table base
-                    ldb       ,y+       ; fetch destination variable index
-                    abx                 ; point to variable
-                    ldb       ,x        ; load variable value (dividend)
-                    lda       ,y+       ; fetch immediate divisor
-                    bsr       Div8      ; divide B ÷ A → B (quotient)
-                    stb       ,x        ; store quotient
-                    rts
-
-cmd_divv            ldb       $01,y     ; fetch dividend variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to dividend variable
-                    lda       ,x        ; read dividend
-                    ldb       ,y++      ; fetch divisor variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to divisor variable
-                    ldb       ,x        ; read divisor
-                    bsr       Div8      ; divide B ÷ A → B (quotient)
-                    stb       ,x        ; store quotient
-                    rts
-
-Div8                sta       <$0088    ; save divisor
-                    lda       #$08      ; 8 bits to shift
-                    sta       <$008D    ; save bit counter
-                    clra                ; A = 0 (accumulator for quotient)
-Div8Loop            lslb                ; shift dividend left
-                    rola                ; rotate carry into accumulator
-                    cmpa      <$0088    ; accumulator >= divisor?
-                    bcs       Div8Next  ; branch if not
-                    suba      <$0088    ; subtract divisor
-                    incb                ; set quotient bit
-Div8Next            dec       <$008D    ; decrement bit counter
-                    bne       Div8Loop  ; loop for all 8 bits
-                    rts
+DivideDivisor       equ       $0088
+DivideBits          equ       $008D
+                    use       shared/divide-byte.asm
 
 *
 *======================================================================
@@ -11171,14 +9018,7 @@ SetLoopData         stb       $0A,u     ; store loop index in object
                     ldd       $08,u     ; view page info
                     lbsr      SetLogicPage ; switch to view page
                     ldb       $0A,u     ; loop index
-                    lslb                ; × 2 for pointer table index
-                    addb      #$06      ; offset past view header
-                    ldx       $06,u     ; view data pointer
-                    lda       b,x       ; high byte of loop entry pointer
-                    decb                ; previous byte
-                    ldb       b,x       ; low byte of loop entry pointer
-                    leax      d,x       ; X = loop entry pointer
-                    stx       $0C,u     ; store loop pointer in object
+                    OBJECT_VIEW_TABLE_ENTRY 0
                     lda       ,x        ; number of cels in loop
                     sta       $0F,u     ; store cel count
                     ldb       $0E,u     ; current cel index
@@ -11239,104 +9079,13 @@ SetCelData          stb       $0E,u     ; store cel index in object
                     ldd       $08,u     ; view page info
                     lbsr      SetLogicPage ; switch to view page
                     ldb       $0E,u     ; cel index
-                    lslb                ; × 2 for pointer table index
-                    addb      #$02      ; offset past loop header
-                    ldx       $0C,u     ; loop data pointer
-                    lda       b,x       ; high byte of cel pointer
-                    decb                ; previous byte
-                    ldb       b,x       ; low byte of cel pointer
-                    leax      d,x       ; X = cel data pointer
-                    stx       <$10,u    ; store cel pointer in object
+                    OBJECT_VIEW_TABLE_ENTRY 1
                     ldd       ,x        ; cel dimensions (width, height)
                     std       <$1C,u    ; store in object dimension fields
-                    adda      $03,u     ; add X position to check clip
-                    cmpa      #$A0      ; would exceed right edge?
-                    bls       SetCelWidthClip ; branch if fits
-                    lda       <$25,u    ; load object flags
-                    ora       #$04      ; set clip flag
-                    sta       <$25,u    ; store updated flags
-                    lda       #$A0      ; screen right edge
-                    suba      <$1C,u    ; compute clipped X position
-                    sta       $03,u     ; store clipped X
-SetCelWidthClip     decb                ; height - 1 (bottom row offset)
-                    cmpb      $04,u     ; would exceed bottom?
-                    bls       SetCelRet ; branch if fits
-                    lda       <$25,u    ; load object flags
-                    ora       #$04      ; set clip flag
-                    sta       <$25,u    ; store updated flags
-                    stb       $04,u     ; store clipped height
-                    cmpb      >$01D6    ; compare to global height limit
-                    bhi       SetCelRet ; branch if over limit
-                    lda       <$26,u    ; load more object flags
-                    bita      #$08      ; check height-locked flag
-                    bne       SetCelRet ; branch if locked
-                    ldb       >$01D6    ; global max height
-                    incb                ; +1 for inclusive
-                    stb       $04,u     ; store height-bounded value
-SetCelRet           leas      $01,s     ; release local frame
+SetCelClip          OBJECT_CEL_CLIP u,SetCelWidthClip,SetCelRet,SetCelRightClip
+                    leas      $01,s     ; release local frame
                     rts
-
-cmd_last_cel        lda       ,y+       ; fetch object number
-                    ldb       #$2B      ; 43 bytes per object struct
-                    mul                 ; offset = obj × 43
-                    addd      <$0030    ; add object array base
-                    tfr       d,u       ; U = object struct pointer
-                    lda       $0F,u     ; get cel count
-                    deca                ; last cel index = count - 1
-                    ldb       ,y+       ; fetch destination variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to variable
-                    sta       ,x        ; store last cel index
-                    rts
-
-cmd_current_cel     lda       ,y+       ; fetch object number
-                    ldb       #$2B      ; 43 bytes per object struct
-                    mul                 ; offset = obj × 43
-                    addd      <$0030    ; add object array base
-                    tfr       d,u       ; U = object struct pointer
-                    lda       $0E,u     ; get current cel index
-                    ldb       ,y+       ; fetch destination variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to variable
-                    sta       ,x        ; store current cel index
-                    rts
-
-cmd_current_loop    lda       ,y+       ; fetch object number
-                    ldb       #$2B      ; 43 bytes per object struct
-                    mul                 ; offset = obj × 43
-                    addd      <$0030    ; add object array base
-                    tfr       d,u       ; U = object struct pointer
-                    lda       $0A,u     ; get current loop index
-                    ldb       ,y+       ; fetch destination variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to variable
-                    sta       ,x        ; store current loop index
-                    rts
-
-cmd_current_view    lda       ,y+       ; fetch object number
-                    ldb       #$2B      ; 43 bytes per object struct
-                    mul                 ; offset = obj × 43
-                    addd      <$0030    ; add object array base
-                    tfr       d,u       ; U = object struct pointer
-                    lda       $05,u     ; get current view number
-                    ldb       ,y+       ; fetch destination variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to variable
-                    sta       ,x        ; store current view number
-                    rts
-
-cmd_number_of_loops lda       ,y+       ; fetch object number
-                    ldb       #$2B      ; 43 bytes per object struct
-                    mul                 ; offset = obj × 43
-                    addd      <$0030    ; add object array base
-                    tfr       d,u       ; U = object struct pointer
-                    lda       $0B,u     ; get total loop count
-                    ldb       ,y+       ; fetch destination variable index
-                    ldx       #$0431    ; variable table base
-                    abx                 ; point to variable
-                    sta       ,x        ; store loop count
-                    rts
-
+                    OBJECT_EMIT_VIEW_QUERIES
 cmd_discard_view    ldb       ,y+       ; fetch view number
                     bsr       DiscardViewHelper ; discard the view
                     rts
@@ -11388,28 +9137,7 @@ DiscardViewDoFree   stx       $01,s     ; save view node pointer
 *   reverse-loop) to update the object's loop/cel counters.
 *======================================================================
 *
-ObjAnimStep         lda       <$27,u    ; cel animation delay counter
-                    beq       AnimStepRoll ; zero = time to advance cel
-                    dec       <$27,u    ; decrement delay
-                    lda       <$25,u    ; object flags
-                    bita      #$40      ; random animation flag set?
-                    beq       AnimStepRet ; skip random if not set
-AnimStepRoll        lbsr      InitRandSeed ; seed/advance random generator
-                    lda       #$09      ; range: 0-8 (9 possible values)
-                    lbsr      Div8      ; random modulo: B = random % 9
-                    sta       <$21,u    ; store random direction in object
-                    cmpu      <$0030    ; is this the ego object?
-                    bne       AnimStepCheckDelay ; branch if not ego
-                    sta       >$0437    ; set ego direction variable
-AnimStepCheckDelay  lda       <$27,u    ; reload delay counter
-AnimStepDelayLoop   cmpa      #$06      ; delay >= 6?
-                    bcc       AnimStepRet ; return if delay is already high
-                    lbsr      InitRandSeed ; advance random state
-                    lda       #$33      ; range: 0-50 (51 values)
-                    lbsr      Div8      ; random modulo
-                    sta       <$27,u    ; store new random delay
-                    bra       AnimStepDelayLoop ; check if high enough
-AnimStepRet         rts
+                    use       shared/object-wander.asm
 
 SetPriBaseStub      ldx       #$05ee    * regX will now point to the priority table
                     lbra      SetPriBase * back to the original code
