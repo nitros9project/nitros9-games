@@ -16,18 +16,24 @@ from check_wbpic_mame import png_rgb
 ROOT=Path(__file__).resolve().parents[1]
 
 
-def fixture(base=80, identity=1, restore=False):
+def fixture(base=80, identity=1, restore=False, automatic=None):
     def when(test,body):return bytes([255,*test,255])+len(body).to_bytes(2,'little')+bytes(body)
     setup=[3,200,1,3,202,identity,143,1]
     for key,controller in zip(b'sbrqpomdeu',range(1,11)):setup += [121,key,0,controller]
+    if automatic is not None:setup += [114,11,4,170,11,121,ord("c"),0,11]
     setup += [126,0] if restore else [174,base]
     setup += [3,0,0,24,0,25,0,33,0,41,0,0,37,0,20,100,35,0,26,12,14,156,2,157,3,254,158]
     code=when([1,200,0],setup)
     for controller,body in ((1,[125]),(2,[174,40]),(3,[126]),(4,[134,1]),(5,[29]),(6,[133,255]),(7,[135]),(8,[177,0]),(9,[177,255]),(10,[161])):
         code+=when([12,controller],body)
+    if automatic is not None:code+=when([12,11],[114,11,5,170,11])
     code+=when([12,254],[1,205])
-    code+=b'\0';message=b'PRIO\0Menu\0Item\0';key=b'Avis Durgan'
-    logic=len(code).to_bytes(2,'little')+code+bytes([3,23,0,8,0,13,0,18,0])+bytes(c^key[i%11] for i,c in enumerate(message))
+    code+=b'\0';messages=[b'PRIO',b'Menu',b'Item']
+    if automatic is not None:messages += [automatic,b'']
+    message=b''.join(text+b'\0' for text in messages);key=b'Avis Durgan'
+    offset=2+2*len(messages);offsets=bytearray()
+    for text in messages:offsets+=offset.to_bytes(2,'little');offset+=len(text)+1
+    logic=len(code).to_bytes(2,'little')+code+bytes([len(messages)])+offset.to_bytes(2,'little')+offsets+bytes(c^key[i%11] for i,c in enumerate(message))
     picture=b'\xf2\x08\xf8\0\0\xf3\xff'
     view=bytes([0,0,1,0,0,7,0,1,3,0,1,1,15,0x11,0])
     volume=bytearray();files={}
@@ -80,7 +86,8 @@ def main():
     guard=f'w@{base:x}==87cd && w@{base+2:x}=={size:x}'
     fields=(('b',s['vmvariables']+202),('b',s['prioritybase']),('w',s['priorityscale']),
             ('b',s['vmobjects']+0x24),('w',s['screenentry']),
-            ('b',s['menuvisibility']),('b',s['menuvisibilityset']),('b',s['vmvariables']+205))
+            ('b',s['menuvisibility']),('b',s['menuvisibilityset']),('b',s['vmvariables']+205),
+            ('b',s['statesimplename']+9),('b',s['vmstrings']+440+9))
     state='printf "PRISTATE '+' '.join(['%d']*len(fields))+'",'+','.join(f'{kind}@(u+{off:x})' for kind,off in fields)+'; g'
     pre='printf "PRIPRE %d %d %d",'+','.join(f'{kind}@(u+{off:x})' for kind,off in (fields[0],fields[2],fields[4]))+'; g'
     def run(phase,events,shots,switches,end):
@@ -246,5 +253,57 @@ def main():
     assert b'MENU-DONE' in os9('list',f'{disk},menu-done')
     assert b'wbgame' not in os9('list',f'{disk},menu-procs-after').lower()
     print('PASS: menu visibility default/hide/show, selection, foreground retention, restore policy, independent terminals, scene restoration and exact memory recovery')
+
+    # Automatic names are process-private configuration, rather than a prompt
+    # answer or physical save slot. No filename keystrokes are posted here.
+    for directory,values in (('game',fixture(automatic=b'/s0/auto-first')),
+                             ('other',fixture(100,2,automatic=b'/s0/auto-other'))):
+        # A longer root changes every following volume offset. Install the
+        # matching directories as well as vol.0, rather than mixing fixtures.
+        for name,data in values.items():
+            source=out/(directory+'-automatic-'+name);source.write_bytes(data)
+            os9('copy','-r',source,f'{disk},{directory}/{name}')
+    events={500:'iniz /vt1\r',650:'shell i=/vt1&\r',800:'mfree >/s0/auto-free-before\r',
+            1000:'wbgame /s0/game 0\r',2200:'s',3200:'b',4000:'r',5200:'c',5500:'s',6000:'\x1b',
+            7000:'wbgame /s0/other 0\r',8200:'s',9200:'b',10000:'r',11500:'q',13000:'q',
+            14000:'mfree >/s0/auto-free-after\r',14500:'procs >/s0/auto-procs-after\r',
+            15000:'echo AUTONAME-DONE >/s0/autoname-done\r'}
+    shots={2000:'first',2800:'first-saved',3600:'first-mutated',4800:'first-restored',
+           5800:'manual-prompt',6300:'manual-cancelled',7800:'other',8800:'other-saved',
+           9600:'other-mutated',10800:'other-restored'}
+    folder,log,snap=run('automatic-names',events,shots,{6500:'Right',12200:'Left'},16000)
+    pixels={name:png_rgb(folder/(name+'.png')) for name in shots.values()}
+    assert pixels['first']==pixels['first-saved']==pixels['first-restored']==pixels['manual-cancelled']
+    assert pixels['first']!=pixels['first-mutated'] and pixels['first']!=pixels['manual-prompt']
+    assert pixels['other']==pixels['other-saved']==pixels['other-restored']
+    assert pixels['other']!=pixels['other-mutated']
+    for name,priority in (('first-restored',80),('other-restored',100)):
+        owner=1 if name.startswith('first') else 2
+        assert snap[name][owner][0]==priority,(name,snap)
+        assert snap[name][owner][7:9]==([102,102] if owner==1 else [111,111]),(name,snap)
+    for filename,base_value in (('auto-first',80),('auto-other',100)):
+        target=folder/(filename+'.bin');os9('copy',f'{disk},{filename}',target);data=target.read_bytes()
+        assert data[:3]==b'WS\1' and data[17]==base_value+1
+        assert binascii.crc_hqx(data[18:],0xffff)==int.from_bytes(data[6:8],'big')
+    assert re.findall(r'PRIEXIT (\d+)',log)==['0','0']
+    assert os9('list',f'{disk},auto-free-before')==os9('list',f'{disk},auto-free-after')
+    assert b'wbgame' not in os9('list',f'{disk},auto-procs-after').lower()
+    assert b'AUTONAME-DONE' in os9('list',f'{disk},autoname-done')
+    print('PASS: automatic named save/change/restore without filename input, independent per-terminal names, empty-string manual fallback/cancellation, exact scene/state/file checks and memory recovery')
+
+    os9('copy',f'{disk},auto-first',f'{disk},auto-alias')
+    for name,data in fixture(restore=True,automatic=b'/s0/auto-alias').items():
+        source=out/('auto-cold-'+name);source.write_bytes(data)
+        os9('copy','-r',source,f'{disk},game/{name}')
+    folder,log,snap=run('automatic-cold-restore',
+        {800:'mfree >/s0/auto-cold-free-before\r',1000:'wbgame /s0/game 0\r',2200:'s',
+         4500:'q',5200:'mfree >/s0/auto-cold-free-after\r'},
+        {3500:'restored'},{},6200)
+    assert snap['restored'][1][:3]==[80,1478,7],snap
+    assert snap['restored'][1][7:9]==[97,102],'restore overwrote current automatic name with the saved string slot'
+    assert png_rgb(folder/'restored.png')==pixels['first']
+    assert re.findall(r'PRIEXIT (\d+)',log)==['0']
+    assert os9('list',f'{disk},auto-cold-free-before')==os9('list',f'{disk},auto-cold-free-after')
+    print('PASS: fresh process selects its automatic filename before cold restore without keyboard input, restores exact state/pixels and recovers memory')
 
 if __name__=='__main__':main()

@@ -71,7 +71,7 @@ StateSaveNoPicture  lbsr StateCaptureCache
                     ldx StateFilename,pcr
                     lda #WRITE.
                     ldb #3
-                    os9 I$Create
+                    lbsr StateCreateFile
                     lbcs StateFail
                     sta StatePath,pcr
                     inc StateOpen,pcr
@@ -164,6 +164,14 @@ StateSaveHeader     ldd StateCRC,pcr
                     lbcs StateFail
                     clr StateCreated,pcr
                     clrb
+                    rts
+
+* Match CoCo CreateFile: replace a previous save, preserving mode/path across
+* I$Delete. A missing target is normal; I$Create supplies the final status.
+StateCreateFile     pshs d,x
+                    os9 I$Delete
+                    puls d,x
+                    os9 I$Create
                     rts
 
 * Read and check the entire file before changing any game state or cache.

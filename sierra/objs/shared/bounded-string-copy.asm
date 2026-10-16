@@ -35,4 +35,19 @@ COPY_WORD_SPAN      macro
                     clrb
                     puls      u,pc
                     endm
+
+* set.simple copies a string-table entry into the automatic save name.
+* Its operand is a string index, not a physical save-file slot. Owner bindings
+* provide operand validation, table/name addresses and the bounded copier.
+AGI_SIMPLE_SAVE_NAME macro
+                    SIMPLE_SAVE_FETCH
+                    ldb       #40
+                    mul
+                    SIMPLE_SAVE_STRING_TABLE
+                    leax      d,x
+                    SIMPLE_SAVE_NAME_ADDRESS
+                    ldd       #31
+                    SIMPLE_SAVE_COPY
+                    rts
+                    endm
                     endc

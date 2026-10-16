@@ -748,5 +748,11 @@ Opcode 177 now honors the reference menu visibility setting and independent
 AGI flag-14 input permission. See [ABI-11 lifetime and verification](WILDBITS-ENGINE.md#menu-visibility-and-input-permission-abi-11).
 
 Menu input now queues a request for the next event stage, matching CoCo's
-ordering. Install matching ABI-12 executables; see the
+ordering. Install matching ABI-13 executables; see the
 [implementation and verification record](WILDBITS-ENGINE.md#deferred-menu-requests-and-shared-ui-entry-abi-12).
+
+
+Opcode 170 selects an automatic save/restore filename from a string-table entry;
+an empty string returns to the manual File prompt. Repeated saves now replace
+an existing file using the CoCo delete/create policy. Install matching ABI-13
+executables. See the [mapping, bounds and actual-driver tests](WILDBITS-ENGINE.md#shared-automatic-save-naming-and-replacement-abi-13).

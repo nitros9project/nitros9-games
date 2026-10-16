@@ -1121,6 +1121,169 @@ def check_interpreter_information(d):
     print('PASS: interpreter information, blocking dismissal, preserved flags/timer and deep caller resume')
 
 
+def check_simple_save_staging(d):
+    """Test loaded command/name staging; actual file I/O is checked in MAME."""
+    from check_wbplay import fixture
+    cases=[('default cancellation',bytes([125]),b'\5',[]),
+           ('first string',bytes([114,0,2,170,0,125]),b'',[b'/alpha']),
+           ('last string',bytes([114,11,2,170,11,126]),b'',[b'/alpha']),
+           ('repeat then clear',bytes([114,11,2,170,11,125,114,11,3,170,11,126,
+                                      114,11,4,170,11,125]),b'\5',[b'/alpha',b'/beta']),
+           ('31 byte bound',bytes([114,11,5,170,11,125]),b'',[b'X'*31])]
+    for label,commands,keys,wanted in cases:
+        body=bytes([143,1])+commands+bytes([3,240,73,134,1,0])
+        files=fixture(body,message=[b'AUTO',b'/alpha',b'/beta',b'',b'X'*39]);seen=[]
+        def stage(cpu,regs,syms):
+            seen.append(cpu.read(syms['parserline'],40).split(b'\0')[0])
+            # Only the file transaction is substituted. Real provider loading,
+            # bounds validation, private copying and name staging ran above.
+            cpu.regs(pc=0xa000+syms['GameStateSuccess'])
+            return True
+        error,out,state=exercise(d,files,module='wbgame',base=0xa000,database=0,
+            window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,
+            keyboard=keys,os_call_limit=30000,breakpoint_hooks={'GameStateInvoke':stage})
+        assert error==0 and seen==wanted and state['vmvariables'][240]==73,(label,error,out,seen)
+        assert state['gamefont']==(ROOT/'objs/wbfont').read_bytes()
+        print('PASS: automatic filename staging:',label,flush=True)
+    directory=b'/'+b'a'*126;volume=bytearray();entries=[b'\xff'*3]
+    final=fixture(bytes([143,1,114,11,2,170,11,125,3,240,73,134,1,0]),
+                  message=[b'AUTO',b'/alpha'])['/game/vol.0']
+    for number in range(1,18):
+        entries.append(len(volume).to_bytes(3,'big'))
+        if number==17:volume+=final
+        else:
+            body=bytes([22,number+1,0]);logic=len(body).to_bytes(2,'little')+body
+            volume+=b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic
+    files={directory.decode()+'/logDir':b''.join(entries),directory.decode()+'/vol.0':bytes(volume)}
+    seen=[]
+    error,out,state=exercise(d,files,arguments=directory+b' 1\r',module='wbgame',base=0xa000,
+        database=0,window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,
+        os_call_limit=30000,breakpoint_hooks={'GameStateInvoke':stage})
+    assert error==0 and seen==[b'/alpha'] and state['vmvariables'][240]==73,(error,out,seen)
+    assert state['gamefont']==(ROOT/'objs/wbfont').read_bytes()
+    print('PASS: automatic name/provider staging at 16 nested calls and 127-byte directory, private font intact and ownership recovered')
+
+
+def check_simple_save_restart(d):
+    from check_wbplay import fixture
+    body=bytes([255,7,6,255,3,0,134,1,0,114,11,1,170,11,12,16,128,134,1,0])
+    seen=[]
+    def observe(cpu,regs,syms):seen.append(cpu.read(syms['statesimplename'],32).split(b'\0')[0])
+    error,out,state=exercise(d,fixture(body,message=b'/alpha'),module='wbgame',base=0xa000,
+        database=0,window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,
+        os_call_limit=30000,breakpoint_hooks={'GameQuitCommand':observe})
+    assert error==0 and seen==[b'/alpha'] and state['vmflags'][6]==1,(error,out,seen)
+    assert not any(state['vmstrings']) and state['gamefont']==(ROOT/'objs/wbfont').read_bytes()
+    print('PASS: automatic name survives actual restart while its old source string table is cleared, with balanced ownership and private-font guards')
+
+
+def check_save_replacement(d):
+    """Compare actual create/delete wrappers, including clobbers and errors."""
+    from check_logic_executor import compile_module
+    with tempfile.TemporaryDirectory(prefix='sierra-save-replace-') as name:
+        coco,cs=compile_module(ROOT/'objs/mnln.asm',Path(name)/'mnln')
+        native=(ROOT/'objs/wbstate').read_bytes();ns=symbols(ROOT/'objs/wbstate.map')
+        count=0
+        for owner,code,syms in [('CoCo',coco,cs),('native',native,ns)]:
+            entry='CreateFile' if owner=='CoCo' else 'StateCreateFile'
+            regions=[('CreateFile','OpenFile'),('DeleteFile','DeleteFileRet')] if owner=='CoCo' else [('StateCreateFile','StatePrepare')]
+            sites={}
+            for first,last in regions:
+                for service in ('I$Delete','I$Create'):
+                    needle=bytes([0x10,0x3f,syms[service]])
+                    begin,end=syms[first],syms[last]
+                    for offset in range(begin,end):
+                        if code[offset:offset+3]==needle:sites[offset]=service
+            assert sorted(sites.values())==['I$Create','I$Delete'],(owner,sites)
+            for base in (0x8000,0x9000):
+                d.write(base,code);d.breakpoint(0x7e00)
+                for address in sites:d.breakpoint(base+address)
+                if owner=='CoCo':d.breakpoint(base+cs['OsErrorHandler'])
+                try:
+                    for delete_error in (None,syms['E$PNNF'],syms['E$FNA'],syms['E$MemFul']):
+                        for create_error in (None,syms['E$CEF'],syms['E$Write'],syms['E$Full']):
+                            d.write(0x7000,b'/save\0');d.write(0x7ed0,b'G'*16);d.write(0x7ef0,b'\x7e\0STACK')
+                            d.regs(pc=base+syms[entry],s=0x7ef0,x=0x7000,y=0x7777,u=0x6666,a=2,b=3,dp=0,cc=0x50)
+                            seen=[]
+                            for _ in range(6):
+                                d.call('c');regs=d.regs()
+                                if regs['pc']==0x7e00:break
+                                if owner=='CoCo' and regs['pc']==base+cs['OsErrorHandler']:
+                                    d.regs(pc=int.from_bytes(d.read(regs['s'],2),'big'),s=regs['s']+2)
+                                    continue
+                                service=sites[regs['pc']-base];seen.append(service)
+                                assert regs['x']==0x7000,(owner,service,regs)
+                                if service=='I$Create':assert (regs['a'],regs['b'])==(2,3),regs
+                                error=delete_error if service=='I$Delete' else create_error
+                                d.regs(pc=regs['pc']+3,cc=(regs['cc']|1 if error is not None else regs['cc']&~1),
+                                       a=55 if service=='I$Delete' else 5,b=error or 0,x=0x4444 if service=='I$Delete' else 0x7005)
+                            else:raise AssertionError((owner,'wrapper did not return'))
+                            assert seen==['I$Delete','I$Create'] and regs['s']==0x7ef2
+                            assert bool(regs['cc']&1)==(create_error is not None)
+                            assert regs['b']==(create_error or 0) and regs['a']==5
+                            assert d.read(0x7ed0,16)==b'G'*16 and d.read(0x7ef2,5)==b'STACK'
+                            assert d.read(base,len(code))==code
+                            count+=1
+                finally:
+                    for address in sites:d.breakpoint(base+address,False)
+                    if owner=='CoCo':d.breakpoint(base+cs['OsErrorHandler'],False)
+                    d.breakpoint(0x7e00,False)
+    print(f'PASS: {count} actual CoCo/native save replacement cases; delete-before-create, missing/protected targets, register clobbers, final create/full-disk errors, exact status/stack/code guards')
+
+
+def check_simple_save_reference(d):
+    """Compare the actual string-index command and bounded automatic name."""
+    from check_logic_executor import compile_module
+    with tempfile.TemporaryDirectory(prefix='sierra-simple-reference-') as name:
+        coco,cs=compile_module(ROOT/'objs/mnln.asm',Path(name)/'mnln')
+        ui,ns=compile_module(ROOT/'objs/wbui.asm',Path(name)/'wbui')
+        d.breakpoint(0x7e00);calls=0
+        for base in (0x8000,0x9000):
+            for owner,code,syms in [('CoCo',coco,cs),('native',ui,ns)]:
+                assert base+len(code)<=0xfe00,(owner,base,len(code))
+                print('Checking simple save reference:',owner,hex(base),flush=True)
+                d.write(base,code)
+                for index in range(12):
+                    for length in (0,1,15,30,31,32,39):
+                        d.write(0,bytes(ns['size']))
+                        text=(bytes([65+index])*length+b'\0').ljust(40,b'.')
+                        table=0x251 if owner=='CoCo' else ns['vmstrings']
+                        target=base+cs['state_name_auto'] if owner=='CoCo' else ns['statesimplename']
+                        d.write(table+40*index,text);d.write(target,b'~'*32)
+                        d.write(0x7000,bytes([index]));d.write(ns['vmarguments'],bytes([index]))
+                        d.write(0x7ef0,b'\x7e\0STACK')
+                        private=d.read(0,ns['size']);image=d.read(base,len(code))
+                        entry='cmd_set_simple' if owner=='CoCo' else 'AuxSimpleSaveName'
+                        d.regs(pc=base+syms[entry],s=0x7ef0,y=0x7000,u=0,dp=0,cc=0x51)
+                        d.call('c');regs=d.regs()
+                        count=min(length,31);wanted=(text[:count]+b'\0').ljust(32,b'~')
+                        assert regs['pc']==0x7e00 and regs['s']==0x7ef2
+                        assert d.read(target,32)==wanted,(owner,index,length,d.read(target,32))
+                        assert d.read(table+40*index,40)==text
+                        assert d.read(0x7ef2,5)==b'STACK'
+                        if owner=='native':
+                            expected=bytearray(private);expected[target:target+32]=wanted
+                            assert d.read(0,ns['size'])==expected and not(regs['cc']&1)
+                            assert d.read(base,len(code))==image
+                        else:
+                            expected=bytearray(image);at=target-base;expected[at:at+32]=wanted
+                            assert d.read(base,len(code))==expected
+                            assert regs['y']==0x7001
+                        calls+=1
+                if owner=='native':
+                    for index in (12,127,128,255):
+                        d.write(0,bytes(ns['size']));d.write(ns['vmarguments'],bytes([index]))
+                        d.write(ns['statesimplename'],b'keep\0'+bytes(27))
+                        before=d.read(0,ns['size']);d.write(0x7ef0,b'\x7e\0STACK')
+                        d.regs(pc=base+ns['AuxSimpleSaveName'],s=0x7ef0,u=0,dp=0,cc=0x50)
+                        d.call('c');regs=d.regs()
+                        assert regs['pc']==0x7e00 and regs['b']==ns['E$BMode'] and regs['cc']&1
+                        assert d.read(0,ns['size'])==before and d.read(0x7ef2,5)==b'STACK'
+                        calls+=1
+        d.breakpoint(0x7e00,False)
+    print(f'PASS: {calls} actual CoCo/native simple-name calls; all 12 string indices, empty/30/31/32/39-byte sources, truncation/NUL, operand/stack/source/code/private guards and invalid-index preservation')
+
+
 def check_ui_command_cache(d):
     """Interleave diagnostic/shake/restart groups through one private cache."""
     body=bytes([255,7,6,255,3,0,134,1,0,12,15,135,110,1,177,0,12,15,135,
@@ -1217,6 +1380,7 @@ def check_menu_visibility_reference(d):
             d.breakpoint(yes);d.breakpoint(no)
             for value in range(256):
                 d.write(base+cs['MenuExtraFlag'],bytes([value]))
+                d.write(base+cs['state_name_auto'],b'/alpha\0')
                 d.write(0x7ef0,b'\x7e\x02STACK')
                 d.regs(pc=base+cs['DrawMenuBar'],s=0x7ef0,dp=0,cc=0x50)
                 d.call('c');regs=d.regs()
@@ -1283,6 +1447,7 @@ def check_menu_visibility_reference(d):
                 d.write(0x1b0,b'\x80');d.write(0x1af,b'\2')
                 d.write(0x4d,b'\x30\0');d.write(0x53,b'\x31\0')
                 d.write(base+cs['MenuExtraFlag'],bytes([value]))
+                d.write(base+cs['state_name_auto'],b'/alpha\0')
                 d.write(0x7ef0,b'\x7e\x02STACK')
                 d.regs(pc=base+cs['cmd_restart_game'],s=0x7ef0,dp=0,cc=0x50)
                 for _ in range(8):
@@ -1292,6 +1457,7 @@ def check_menu_visibility_reference(d):
                     d.regs(pc=int.from_bytes(d.read(regs['s'],2),'big'),s=regs['s']+2)
                 else:raise AssertionError('reference restart did not return')
                 assert regs['s']==0x7ef2 and d.read(base+cs['MenuExtraFlag'],1)==bytes([value])
+                assert d.read(base+cs['state_name_auto'],7)==b'/alpha\0'
             for address in hooks:d.breakpoint(address,False)
         # Execute the real save/write-block control flow and inspect every
         # write span; MenuExtraFlag is not among the serialized fields.
@@ -1303,6 +1469,7 @@ def check_menu_visibility_reference(d):
                 for address,word in [(0x30,0x2000),(0x34,64),(0x38,0x2100),(0x3a,16),(0x5af,0x2200)]:
                     d.write(address,word.to_bytes(2,'big'))
                 d.write(0x245,b'\1');d.write(base+cs['MenuExtraFlag'],bytes([value]))
+                d.write(base+cs['state_name_auto'],b'/alpha\0')
                 d.write(0x7d00,bytes(254));d.write(0x7c00,b'LOWGUARD')
                 writes=[]
                 d.regs(pc=base+cs['SaveGameWriteData'],s=0x7d00,a=3,dp=0,cc=0x50)
@@ -1318,12 +1485,16 @@ def check_menu_visibility_reference(d):
                 else:raise AssertionError('reference save did not reach success')
                 target=base+cs['MenuExtraFlag']
                 assert len(writes)==11 and all(not(start<=target<start+length) for start,length in writes),writes
+                auto_target=base+cs['state_name_auto']
+                assert all(not(start<=auto_target<start+length) for start,length in writes),writes
+                assert d.read(auto_target,7)==b'/alpha\0'
                 assert d.read(target,1)==bytes([value]) and d.read(0x7c00,8)==b'LOWGUARD'
                 current=bytearray(d.read(base,len(coco)))
                 for label in ('MenuExtraFlag','SaveFileHandle'):current[cs[label]]=coco[cs[label]]
+                at=cs['state_name_auto'];current[at:at+31]=coco[at:at+31]
                 assert current==coco,'reference save changed instructions'
             for address in hooks:d.breakpoint(address,False)
-        print('PASS: actual CoCo restart retains visibility and actual save write spans exclude the module-private visibility byte')
+        print('PASS: actual CoCo restart retains visibility/automatic name and actual save write spans exclude both module-private settings')
         d.breakpoint(0x7e02,False)
         print(f'PASS: {calls} actual CoCo/native menu visibility/input calls; all literal bytes, opaque zero/nonzero behavior, default visibility, independent flag14, operand/stack/private/code guards')
 
@@ -1924,6 +2095,10 @@ def main():
             check_state_validation(d)
             check_provider_loaders(d)
             check_ui_command_cache(d)
+            check_simple_save_reference(d)
+            check_simple_save_staging(d)
+            check_simple_save_restart(d)
+            check_save_replacement(d)
             error, frame = exercise(d, files, module='wbgame', base=0xa000,
                 database=0x0000, window=0x8000, blocks=None, multiple=True,
                 firstblock=0x10, frame_capture=True)

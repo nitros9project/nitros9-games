@@ -3278,3 +3278,97 @@ recorded; neither is a pass. The corrected complete target runs on frozen
 `/tmp/sierra-menu-queue-verified-complete-check-20261015.log`. A04 remains open
 until that target completes. Broader S06 interaction coverage, trace, simple
 save naming and the other unchecked parity gates remain open.
+
+## Shared automatic save naming and replacement (ABI 13)
+
+Opcode 170 takes a literal **string index**. The actual CoCo body computes
+$251 + 40 * index and copies at most 31 characters, followed by NUL, from that
+string into state_name_auto. Its comment incorrectly calls the operand a slot
+index. AGI_SIMPLE_SAVE_NAME now owns this rule in the existing
+shared/bounded-string-copy.asm; owner bindings supply operand validation,
+table/name addresses and the existing bounded copier. All CoCo images remain
+unchanged.
+
+An empty selected string disables automatic naming. The selected name is a
+copy, so later changes to the source string do not change it. CoCo keeps it in
+PCR module storage; native keeps a 32-byte process-private statesimplename
+before the font, outside the logical save schema and restart reset span.
+Startup clears it. Room changes, restore and restart preserve current
+configuration. Restore can restore the old source string while the current
+automatic name remains different.
+
+The platform mapping is explicit: CoCo locates a save-slot description using
+the name; native passes it as the filename/path to its existing persistence
+backend. Native does not have CoCo's disk slot directory or compatible save-file
+format. OS-9 validates actual path names; unsupported paths use the existing
+file-error behavior. Native accepts indices 0..11, matching its 12-entry string
+table; invalid indices return E$BMode and preserve the previous name. CoCo's
+unchecked indexing is not reproduced. Native provides 31 characters plus a
+terminator without overwriting adjacent data at the longest-copy boundary.
+
+Filename staging is now cold UI code. The resident owner still stops sound,
+validates/loads the state provider, copies its bounded prefix and invokes it
+through the existing persistence callback contract. A fourth catalog-derived UI
+class selects the ordinary File prompt or copies the automatic name into the
+existing parser buffer. Clearing the name restores manual input/cancellation.
+Tests that substitute the final transaction are explicitly staging tests;
+actual file creation/restoration and checksums are verified separately in MAME.
+
+Repeated saves exposed a preexisting replacement bug: native I$Create failed
+when the target existed. The native state provider now follows CoCo CreateFile:
+save mode/path, delete the target, restore mode/path, then create it. A missing
+target is normal; the final create status determines success. The existing
+StateCreated flag still distinguishes a partially written replacement owned by
+this transaction, so failure cleanup does not treat an uncreated path as owned.
+This matches the reference delete/create policy; it is not atomic replacement
+that preserves an old save after a later create/write failure.
+
+Install all three executable modules from one ABI-13 build. WS1 logical field
+order is unchanged. Budgets are 23,758/23,808 resident bytes, 6,689/8,192 UI bytes,
+3,193/8,192 state bytes, a 3,190/4,096 copied prefix, and 24,499/24,576 private bytes.
+Existing limits and reserved stack/parameter allowance are unchanged.
+
+
+Verification: 344 actual CoCo/native simple-name calls cover every string slot,
+empty and 30/31/32/39-byte sources, truncation/NUL, invalid-index preservation and
+operand/stack/source/private/code guards. Loaded staging covers first/last slots,
+repeated selection, clearing/manual cancellation and 31-byte names, plus 16
+nested calls and a 127-byte directory. These staging tests substitute only the
+final file transaction; actual file I/O is verified in the driver scenario.
+Actual native restart preserves the name while clearing its source table. Actual
+CoCo restart and all eleven save-write spans confirm both visibility and the
+automatic name are module-lifetime settings, alongside 2,580 reference/UI calls.
+All 64 actual reference/native create/delete cases pass, including register
+clobbers, missing/protected targets and final create/full-disk errors.
+
+All eight real-driver MAME phases pass in
+.wildbits-test/parity-simple-save-overwrite-mame-20261016. The two new phases
+verify automatic save/change/restore without filename keystrokes, independent
+terminal paths and file CRCs, empty-name manual fallback/cancellation, exact
+pixels/state/memory recovery, and a cold restore through an alias filename.
+The alias remains current even while restore reinstates the old source string;
+a subsequent save successfully replaces that existing file.
+
+All 64 owners compile. All 56 CoCo binaries and five native probes remain
+byte-identical to ABI 12; all three tested ABI-13 providers match the matrix.
+Audio, 1,024 dispatch checks, 46 loader cases, mixed UI cache/restart unwind,
+shake, preview and screen regressions pass. All 14 bundled-title audits pass;
+the manifest contains 180/182 routes, with only trace 149/150 unsupported.
+
+Evidence logs are /tmp/sierra-simple-save-reference-relocated.log,
+/tmp/sierra-simple-save-staging-deep.log, /tmp/sierra-simple-save-lifetime-seeded.log,
+/tmp/sierra-save-replacement-guards.log, /tmp/sierra-simple-save-audio.log,
+/tmp/sierra-simple-save-dispatch.log, /tmp/sierra-simple-save-ui-focused.log,
+/tmp/sierra-simple-save-overwrite-final-matrix.log and
+/tmp/sierra-simple-save-overwrite-final-audit.log. The initial MAME fixtures
+mixed volume/directory offsets and used a priority change with unchanged visible
+occlusion; these test errors were corrected. A later cold-restore/save scenario
+exposed the actual existing-file creation bug, fixed above. Failed runs are not
+counted as complete acceptance.
+
+The final 58-command target runs on frozen
+/tmp/sierra-workbench/simple-save-verified/sierra, logging to
+/tmp/sierra-simple-save-verified-complete-check-20261016.log. The preceding
+ABI-12 full target continues separately. A04 remains open until the final target
+finishes. C06 closes; trace and the other unchecked semantic, architecture and
+acceptance gates remain open.

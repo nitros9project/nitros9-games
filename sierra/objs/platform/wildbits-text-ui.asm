@@ -1,3 +1,4 @@
+                    use shared/bounded-string-copy.asm
 * Shared show/UI callback protocol. Keep priority wait callbacks contiguous.
                     ifndef WILDBITS_SHOW_API_LAYOUT
 WILDBITS_SHOW_API_LAYOUT equ 1
@@ -25,10 +26,13 @@ AuxUiCommand        ldu       <resourcebase
                     lbeq      AuxShakeScreen
                     cmpa      #2
                     lbeq      AuxRestart
+                    cmpa      #3
+                    lbeq      AuxStateName
                     lbra      AuxShowObject
 * Derive grouping from the common command catalog, not a second opcode list.
 UiClass_GameShakeCommand equ 1
 UiClass_GameRestartCommand equ 2
+UiClass_GameStateCommand equ 3
 AGI_COMMAND         macro
                     ifdef UiClass_\3
                     fcb UiClass_\3
@@ -38,6 +42,61 @@ AGI_COMMAND         macro
                     endm
 UiCommandClasses    equ *
                     use shared/agi-command-table.asm
+* File-name staging is cold; persistent name configuration is caller-private.
+AuxStateName        ldu       <resourcebase
+                    sty       coldapi,u
+                    tst       statesimplename,u
+                    bne       AuxStateAutoName
+                    lda       #1
+                    sta       dialoginputmode,u
+                    ldd       #$0A02
+                    std       inventoryrow,u
+                    lda       #39
+                    sta       inventorypaint,u
+                    UI_CALL   2
+                    leax      StatePrompt,pcr
+                    UI_CALL   0
+                    bcs       AuxStateNameReturn
+                    ldu       <resourcebase
+                    clr       dialoginputmode,u
+                    clrb
+AuxStateNameReturn  rts
+AuxStateAutoName    leax      statesimplename,u
+                    leay      parserline,u
+                    clrb
+AuxStateNameCopy    lda       b,x
+                    sta       b,y
+                    beq       AuxStateNameDone
+                    incb
+                    cmpb      #31
+                    blo       AuxStateNameCopy
+                    clr       b,y
+AuxStateNameDone    stb       parserlength,u
+                    clrb
+                    rts
+StatePrompt         fcc       /File:/
+                    fcb       0
+SIMPLE_SAVE_FETCH macro
+                    ldu       <resourcebase
+                    lda       vmarguments,u
+                    cmpa      #12
+                    lbhs      AuxSimpleSaveInvalid
+                    endm
+SIMPLE_SAVE_STRING_TABLE macro
+                    leax      vmstrings,u
+                    endm
+SIMPLE_SAVE_NAME_ADDRESS macro
+                    leau      statesimplename,u
+                    endm
+SIMPLE_SAVE_COPY macro
+                    BOUNDED_STRING_COPY u,AuxSimpleCopy,AuxSimpleDone,BOUNDED_BYTE_COUNT
+                    ldu       <resourcebase
+                    clrb
+                    endm
+AuxSimpleSaveName   AGI_SIMPLE_SAVE_NAME
+AuxSimpleSaveInvalid ldb      #E$BMode
+                    orcc      #1
+                    rts
 * Diagnostics use private text storage, not CoCo's 404-byte stack frame.
 OBJECT_STATUS_FRAME equ 4
 OBJECT_STATUS_OBJECT equ 2
@@ -526,6 +585,8 @@ UI_CALL           macro
 AuxShowObject       ldu       <resourcebase
                     sty       coldapi,u
                     lda       <vmopcode
+                    cmpa      #170
+                    lbeq      AuxSimpleSaveName
                     cmpa      #161
                     lbeq      AuxMenuRequest
                     cmpa      #177
@@ -1020,6 +1081,8 @@ GameUiCommand       ldu       <resourcebase
 UiCommandCallbacks  fdb       ShowCallbacks-UiCommandCallbacks
                     fdb       ShakeCallbacks-UiCommandCallbacks
                     fdb       RestartCallbacks-UiCommandCallbacks
+                    fdb       StateNameCallbacks-UiCommandCallbacks
+StateNameCallbacks  fdb       GamePrintText-StateNameCallbacks,ParserClearLine-StateNameCallbacks
 ShowCallbacks       fdb       ViewSelect-ShowCallbacks,GameSaveBackground-ShowCallbacks
                     fdb       SpriteRenderObject-ShowCallbacks,PresentPicture-ShowCallbacks
                     fdb       VmLoadResource-ShowCallbacks,VmRestoreAsset-ShowCallbacks
@@ -1089,19 +1152,9 @@ RestartCallbacks          fdb       GamePrintText-RestartCallbacks,GameSoundStop
                     fdb       MenuInitialize-RestartCallbacks,ScreenInitialize-RestartCallbacks
 GameStateCommand    lbsr      GameSoundStop
                     lbcs      GameStateReturn
+                    lbsr      GameUiCommand
+                    lbcs      GameStateReturn
                     ldu       <resourcebase
-                    lda       #1
-                    sta       dialoginputmode,u
-                    ldd       #$0A02
-                    std       inventoryrow,u
-                    lda       #39
-                    sta       inventorypaint,u
-                    lbsr      ParserClearLine
-                    leax      StatePrompt,pcr
-                    lbsr      GamePrintText
-                    bcs      GameStateReturn
-                    ldu       <resourcebase
-                    clr       dialoginputmode,u
                     tst       parserlength,u
                     beq      GameStateSuccess
                     lbsr      PictureUnmap
@@ -1156,8 +1209,6 @@ GameStateFailure    ldu       <resourcebase
                     lbsr      GamePrintText
                     bcc       GameStateSuccess
                     rts
-StatePrompt         fcc       /File:/
-                    fcb       0
 StateFailure        fcc       /File error./
                     fcb       0
 * Shared, bounded cold-image loader. Success leaves U=module, X=metadata

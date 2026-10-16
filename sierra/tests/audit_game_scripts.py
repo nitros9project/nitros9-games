@@ -222,6 +222,7 @@ def coverage_manifest():
         'C01':['check_priority_view.py','check_priority_mame.py','check_native_dispatch.py'],
         'C02':['check_decimal_output.py','check_wbgame.py','check_priority_mame.py','check_native_dispatch.py'],
         'C03':['check_decimal_output.py','check_wbgame.py','check_priority_mame.py','check_native_dispatch.py'],
+        'C06':['check_wbgame.py','check_priority_mame.py','check_native_dispatch.py'],
         'C07':['check_wbgame.py','check_priority_mame.py','check_native_dispatch.py'],
         'S01':['check_logic_executor.py','check_condition_flow.py','check_math_commands.py','check_random_command.py','check_coco_conditions.py'],
         'S02':['check_resource_lifetime.py','check_resource_format.py','check_wbasset.py','check_packed_pictures.py','check_lzw.py','check_wbgame.py'],
@@ -298,7 +299,7 @@ def main():
         assert {commands[n]['coco_handler'] for n in ignored}<={'NoopCmdsRet','cmd_shake_screen','cmd_set_upper_left','cmd_hide_mouse'}
         manifest=coverage_manifest()
         assert len(manifest['commands'])==182 and len(manifest['predicates'])==19
-        assert {row['opcode'] for row in manifest['commands'] if row['route_status']=='unsupported'}=={149,150,170}
+        assert {row['opcode'] for row in manifest['commands'] if row['route_status']=='unsupported'}=={149,150}
         assert all((ROOT/'tests'/name).exists() for row in manifest['commands'] for name in row['candidate_regressions'])
         zero_instructions,zero_predicates=analyze(bytes.fromhex('ff 00 ff 00 00 00'),commands,tests)
         assert {i['offset'] for i in zero_instructions}=={0,5} and zero_predicates==[0]

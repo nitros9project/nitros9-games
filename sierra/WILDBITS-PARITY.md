@@ -37,7 +37,7 @@ unchecked equivalence gates below.
 At the recorded baseline the catalog contained 182 commands: 171 had native
 routes, including eight success-only routes; eleven were explicitly unsupported.
 The C08–C11 correction gave 175 routed commands and seven unsupported
-commands. C01–C03 and C07 raise that to 179 routed commands and three unsupported routes. Four added success-only routes reproduce actual CoCo stubs, rather
+commands. C01–C03, C06 and C07 raise that to 180 routed commands and two unsupported routes. Four added success-only routes reproduce actual CoCo stubs, rather
 than suppressing unimplemented CoCo behavior. Commands 0..17 execute
 in the VM before platform dispatch and are included in both totals. These numbers
 measure routing, not behavioral equivalence.
@@ -53,7 +53,7 @@ Compare the actual bodies and caller contracts, not symbol names alone.
 | C03 | 135: memory information | `CmdShowMemInfo` | Provide equivalent diagnostic information using native memory categories; document differences and restore the scene/input. |
 | C04 | 149: trace on | `cmd_trace_on` | Reference enable/step/input behavior matches; normal execution resumes and no trace state leaks between instances. |
 | C05 | 150: trace configuration | `cmd_trace_info` | Three operands, trace selection/display and invalid bounds match the reference; test with C04. |
-| C06 | 170: simple save naming | `cmd_set_simple` | Slot/name selection has an explicit native mapping; test subsequent save/restore, repeated selection, bounds and cancellation. |
+| C06 | 170: automatic save naming | `cmd_set_simple` | Copy the selected string into the automatic name; document native path mapping and verify subsequent save/restore, repeated selection, clearing, bounds and cancellation. |
 | C07 | 177: menu visibility | `cmd_show_menu` | Flag changes produce equivalent menu visibility and input behavior; test toggling, room change and restore. |
 | C08 | 144: log | `cmd_shake_screen` stub | Consume one literal operand, return successfully like CoCo, preserve state and execute the next command. |
 | C09 | 175: discard sound | Same CoCo stub | Consume one variable operand using the correct decoding contract; match CoCo's no-op, preserve active sound/state and continue. |
@@ -67,7 +67,10 @@ Compare the actual bodies and caller contracts, not symbol names alone.
 - [x] **C03 — Memory information:** Documented native category mapping, actual
   module headers/owned pages, guarded calculations and two-terminal modal/scene
   restoration checks pass.
-- [ ] **C04–C06:** Close each remaining trace/simple-save behavior individually.
+- [ ] **C04–C05:** Close each remaining trace behavior individually.
+- [x] **C06 — Automatic save naming:** Shared string-index copy, explicit native
+  path mapping, bounds/clearing/lifetime, repeated selection, actual save/restore
+  and existing-file replacement, cancellation and independent terminals pass.
 - [x] **C07 — Menu visibility:** Literal values, request-time flag-14 permission,
   event-time visibility, deferred ordering, duplicate requests, controller
   delivery, default/module lifetime, room/restore behavior, two terminals and
@@ -177,8 +180,8 @@ versions without treating a game-directory name as sufficient provenance.
   resident instructions. Baseline limits: game 23,807/23,808 bytes; helper
   8,190/8,192; writable prefix 3,191/4,096; private data 24,465/24,576.
   Short branches, arithmetic delegation and common copies made C01 fit. Current
-  budgets are game 23,805, UI helper 6,265, state helper 3,180, copied prefix
-  3,177 and private 24,470 bytes. All 64 owners compile; CoCo stays unchanged.
+  budgets are game 23,758, UI helper 6,689, state helper 3,193, copied prefix
+  3,190 and private 24,499 bytes. All 64 owners compile; CoCo stays unchanged.
   This is initial capacity recovery, not enough evidence to close A01 for all
   remaining features.
   Record before/after budgets and preserve stack headroom and ABI checks.
@@ -200,7 +203,8 @@ versions without treating a game-directory name as sufficient provenance.
   now passes the former 57-command target uninterrupted; the promoted
   priority/arithmetic/copy revision `a9a889a` passes all 58 commands. The
   ABI-8 capacity run now passes all 58 checks with exit status 0; the latest
-  ABI-12 deferred-menu run remains in progress. The ABI-11 run stopped on a
+  ABI-13 automatic-name/overwrite run remains in progress; the preceding ABI-12
+  run continues separately. The ABI-11 run stopped on a
   debugger disconnect in static painting; its isolated rerun passes. The ABI-10
   run stopped on a missing
   prebuilt CoCo fixture; the test now compiles that reference itself. The
@@ -426,3 +430,21 @@ The ABI-11 complete run stopped on a debugger disconnect in static painting;
 its isolated 52-case rerun passes. The first ABI-12 full run failed a stale
 independent dispatch-test expectation. The corrected frozen complete run is in
 progress; A04 stays open. C04–C06, C13 and the other unchecked gates remain open.
+
+
+## Automatic save naming and overwrite correction (ABI 13)
+
+C06 is verified. The actual CoCo command takes a string index, despite its
+misleading slot-index comment; the command rule and bounded copy are shared.
+Native maps the selected name to its filename/path interface, with an explicit
+12-string bound and 31-character-plus-NUL buffer. Empty names restore manual
+input. The setting persists independently of source strings and logical saves.
+
+344 actual command comparisons, loaded/deep staging, actual restart/save-write
+scope, 64 create/delete/error comparisons and all eight real-driver MAME phases
+pass. The new cold alias-restore/subsequent-save test found and fixed a real
+existing-file creation bug: native now follows CoCo delete-before-create.
+All 64 builds pass, with 56 CoCo/five probe images unchanged, and all 14 title
+audits pass. Only 149/150 remain unsupported. The matching full target is still
+running; A04 and broader S08 coverage remain open. See the
+[ABI-13 contracts and evidence](WILDBITS-ENGINE.md#shared-automatic-save-naming-and-replacement-abi-13).

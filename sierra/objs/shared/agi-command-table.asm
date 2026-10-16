@@ -172,7 +172,7 @@
                     AGI_COMMAND cmd_divn,$280,GameMathCommand,1 *div n
                     AGI_COMMAND cmd_divv,$2c0,GameMathCommand,1 *div v
                     AGI_COMMAND cmd_close_window,$0000,GameCloseWindow,1 *close window
-                    AGI_COMMAND cmd_set_simple,$100,VmPlatformUnsupported,0 *set simple
+                    AGI_COMMAND cmd_set_simple,$100,GameShowObjectCommand,1 *set simple
                     AGI_COMMAND cmd_push_script,$0000,ReplaySaveCheckpoint,0 *push script
                     AGI_COMMAND cmd_pop_script,$0000,ReplayRestore,0 *pop script
                     AGI_COMMAND NoopCmdsRet,$0000,VmSuccess,0 *hold key

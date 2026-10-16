@@ -6247,15 +6247,19 @@ StrDiskFullMsg      fcc       /The disk is full./
                     fcc       /Press ENTER to continue./
                     fcb       0
 SaveFileHandle      fcb       0
-cmd_set_simple      lda       ,y+       ; fetch save slot index from script
-                    ldb       #$28      ; size of save name entry = 40
-                    mul                 ; A*40 = slot offset
-                    ldx       #$251     ; save name table base
-                    leax      d,x       ; X = pointer to this slot's name
-                    leau      >state_name_auto,pcr ; point to auto-save name
-                    ldd       #$001F    ; copy 31 bytes
-                    lbsr      MemCopyNull ; copy auto name to slot
-                    rts
+SIMPLE_SAVE_FETCH macro
+                    lda       ,y+
+                    endm
+SIMPLE_SAVE_STRING_TABLE macro
+                    ldx       #$251
+                    endm
+SIMPLE_SAVE_NAME_ADDRESS macro
+                    leau      >state_name_auto,pcr
+                    endm
+SIMPLE_SAVE_COPY macro
+                    lbsr      MemCopyNull
+                    endm
+cmd_set_simple      AGI_SIMPLE_SAVE_NAME
 
 cmd_save_game       leas      >-$00FE,s ; allocate 254-byte local frame
                     sty       ,s        ; save script instruction pointer
