@@ -48,7 +48,18 @@ class Debugger:
         def more():
             chunk = self.s.recv(4096)
             if not chunk:
-                raise ConnectionError('debugger disconnected')
+                emulator=getattr(self,'emulator',None)
+                detail=''
+                if emulator is not None:
+                    status=emulator.poll()
+                    if status is None:
+                        try:status=emulator.wait(timeout=.1)
+                        except subprocess.TimeoutExpired:pass
+                    elapsed=time.monotonic()-self.emulator_started
+                    detail=(f' (XRoar status={status}, host elapsed={elapsed:.2f}s, '
+                            f'host limit={self.emulator_limit}s, watchdog='
+                            f'{getattr(emulator,"wall_timeout_reached",False)}; log={self.emulator_log})')
+                raise ConnectionError('debugger disconnected'+detail)
             self.received.extend(chunk)
 
         # Keep bytes beyond this packet for the next reply. TCP can split a

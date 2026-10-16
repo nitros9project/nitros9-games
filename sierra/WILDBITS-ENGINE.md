@@ -3372,3 +3372,34 @@ The final 58-command target runs on frozen
 ABI-12 full target continues separately. A04 remains open until the final target
 finishes. C06 closes; trace and the other unchecked semantic, architecture and
 acceptance gates remain open.
+
+
+## CPU fixture deadlines and disconnect evidence
+
+The recurring debugger disconnect was reproduced with XRoar 1.12.1 returning
+status 0 after 50.50 host seconds while configured with a 900-second emulated
+limit. Its [-timeout option measures guest time](https://www.6809.org.uk/xroar/doc/xroar.shtml),
+so a successful batch of CPU cases can exhaust it before the script finishes.
+This was a fixture deadline failure, not a successful regression result.
+
+start_cpu now interprets its timeout argument as a real-time deadline, enforced
+by a daemon watchdog independently of guest execution. A paused GDB target may
+not service SIGTERM, so the expired watchdog kills only its own child process.
+Debugger response timeouts and per-exercise call/loop bounds remain active;
+actual test failures are not retried. Startup still has its existing bounded
+fresh-process attachment attempts. Emulator output is retained in a unique
+sierra-xroar-*.log, and EOF reports exit status, host elapsed/limit, watchdog state
+and that path instead of discarding the cause.
+
+The transport packet tests pass. A real paused-emulator negative check confirms
+that a two-second host deadline reports watchdog=True/status -9 and leaves no
+child. The formerly failing complete gameplay batch passes three consecutive
+runs with the corrected host deadline. Product binaries and ABI are unchanged.
+
+The ABI-12 full run stopped in gameplay after 42 checks were started. The initial
+ABI-13 run was superseded after the guest-time defect was confirmed; its partial
+log is retained and is not a pass. The corrected complete target runs on frozen
+/tmp/sierra-workbench/host-watchdog-verified/sierra, logging to
+/tmp/sierra-host-watchdog-verified-complete-check-20261016.log. A04 stays open until
+that final target finishes. The confirmed reproduction used emulator log
+/var/folders/qq/d73w3j8x5gx3b9q2bsncq3mr0000gp/T/sierra-xroar-5fhogf1r.log.

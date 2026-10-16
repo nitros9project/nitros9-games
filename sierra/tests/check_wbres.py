@@ -6,6 +6,7 @@ import socket
 import subprocess
 import time
 import tempfile
+import threading
 from check_instances import Debugger, symbols
 
 ROOT = Path(__file__).resolve().parents[1] / 'objs'
@@ -23,25 +24,45 @@ def idle_rom(path):
 
 
 def start_cpu(bootrom, timeout=300):
+    """Start a CPU fixture with a host-time deadline and retained diagnostics."""
     for attempt in range(4):
         with socket.socket() as reservation:
             reservation.bind(('127.0.0.1', 0))
             port = reservation.getsockname()[1]
-        emulator = subprocess.Popen(['xroar', '-machine', 'coco3', '-ui', 'null', '-ao', 'null',
-            '-ram', '2048', '-no-ratelimit', '-gdb', '-gdb-port', str(port), '-timeout', str(timeout),
-            '-no-bas', '-extbas', str(bootrom), '-no-altbas'],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        # Keep evidence when a debugger disconnects instead of discarding the
+        # emulator's timeout/crash diagnostics. This does not retry a test.
+        with tempfile.NamedTemporaryFile(prefix='sierra-xroar-',suffix='.log',delete=False) as log:
+            started=time.monotonic()
+            emulator = subprocess.Popen(['xroar', '-machine', 'coco3', '-ui', 'null', '-ao', 'null',
+                '-ram', '2048', '-no-ratelimit', '-gdb', '-gdb-port', str(port),
+                '-debug-gdb','1','-no-bas', '-extbas', str(bootrom), '-no-altbas'],
+                stdout=log, stderr=subprocess.STDOUT)
+        # XRoar -timeout counts guest seconds, so aggregate CPU tests can
+        # exhaust it despite making progress. Bound real time independently.
+        def expire(process=emulator):
+            process.wall_timeout_reached=True
+            # A paused GDB target may not service a cooperative SIGTERM.
+            process.kill()
+        watchdog=threading.Timer(timeout,expire)
+        watchdog.daemon=True
+        watchdog.start()
         # Let the emulator complete its queued power-on reset before attaching.
         # An early debugger connection can otherwise reset DP after register setup.
         time.sleep(.1)
         try:
             for _ in range(100):
                 try:
-                    return Debugger(port), emulator
+                    debugger=Debugger(port)
+                    debugger.emulator=emulator
+                    debugger.emulator_started=started
+                    debugger.emulator_limit=timeout
+                    debugger.emulator_log=log.name
+                    return debugger, emulator
                 except ConnectionRefusedError:
                     time.sleep(.005)
-        except socket.timeout:
+        except (socket.timeout,ConnectionError):
             pass
+        watchdog.cancel()
         emulator.terminate()
         try:
             emulator.wait(timeout=2)

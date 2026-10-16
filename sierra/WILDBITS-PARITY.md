@@ -203,8 +203,10 @@ versions without treating a game-directory name as sufficient provenance.
   now passes the former 57-command target uninterrupted; the promoted
   priority/arithmetic/copy revision `a9a889a` passes all 58 commands. The
   ABI-8 capacity run now passes all 58 checks with exit status 0; the latest
-  ABI-13 automatic-name/overwrite run remains in progress; the preceding ABI-12
-  run continues separately. The ABI-11 run stopped on a
+  ABI-13 run with corrected host-time watchdog remains in progress. The ABI-12
+  run stopped with a debugger disconnect; a guest-time cutoff was then
+  reproduced. The original ABI-13 partial run was superseded after that
+  fixture defect was identified. The ABI-11 run stopped on a
   debugger disconnect in static painting; its isolated rerun passes. The ABI-10
   run stopped on a missing
   prebuilt CoCo fixture; the test now compiles that reference itself. The
@@ -448,3 +450,14 @@ All 64 builds pass, with 56 CoCo/five probe images unchanged, and all 14 title
 audits pass. Only 149/150 remain unsupported. The matching full target is still
 running; A04 and broader S08 coverage remain open. See the
 [ABI-13 contracts and evidence](WILDBITS-ENGINE.md#shared-automatic-save-naming-and-replacement-abi-13).
+
+
+## CPU deadline correction
+
+The recurring debugger EOF was reproduced as a normal XRoar exit at its
+emulated-time cutoff. start_cpu now uses a real-time watchdog, retaining emulator diagnostics and
+all response/call/loop bounds. The paused-target watchdog check and three
+consecutive gameplay batches pass. No product code or ABI changes.
+The ABI-12 failed run and superseded initial ABI-13 run are not complete passes.
+The corrected frozen full target is running; A04 remains open. See
+[the cause and verification record](WILDBITS-ENGINE.md#cpu-fixture-deadlines-and-disconnect-evidence).
