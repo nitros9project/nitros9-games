@@ -2910,3 +2910,51 @@ and the remaining six unsupported routes explicitly inventoried. Main production
 modules and all five integration probes match the final matrix byte-for-byte.
 The manifest's conservative per-command results still require C13 reconciliation;
 route counts do not establish complete interpreter equivalence.
+
+
+## Separate UI and persistence providers (ABI 8)
+
+The current production package is `wbgame`, `wbui`, `wbstate` and `wbfont`.
+Install the three executable modules from the same build; their private ABI is
+8. Earlier entries describing a combined `wbstate` UI helper are historical.
+The WS1 logical save payload is unchanged.
+
+`wbstate` now contains only the persistence dispatcher and its complete
+3,177-byte writable prefix. Loading it temporarily supplies the code copied
+into the caller's existing private workspace; the shared module is unlinked
+before resource reconstruction needs the mapping window. `wbui` contains the
+existing grouped UI/audio implementations, executed read-only while linked.
+Its audio installer separately copies the bounded interrupt adapter into
+private storage. No game variables or text cells move into shared module data.
+The source remains grouped in the existing platform feature files; the new
+`wbui.asm` is an assembly owner, not another interpreter or per-command layer.
+
+Both helpers use OS-returned addresses, rather than assuming a fixed window.
+The loader distinguishes the requested provider role, preserves that role and
+filename across unmapping, and validates module size, entry extent and ABI.
+For persistence, the advertised prefix must equal the complete module length
+minus its three-byte CRC and fit the existing 4 KiB workspace. A shorter prefix
+previously passed the lower-bound check; it now fails before copying. UI's
+reserved prefix word is ignored by UI consumers and cannot authorize a state
+copy. Invalid loaded modules are unlinked, and failure restores the caller's
+stack and private base. The focused suite covers 46 loader cases, including
+register clobbers, wrong providers, truncated prefixes and cleanup.
+
+Current budgets: resident game 23,803/23,808 bytes, `wbstate` 3,180/8,192,
+`wbui` 5,084/8,192, private data 24,468/24,576, copied prefix 3,177/4,096.
+This frees 3,108 bytes in the UI provider without raising any existing limit.
+A state operation can temporarily require another physical 8 KiB module page
+while UI remains linked. There is no additional permanent private allocation.
+Resident capacity is still tight; this does not close A01 or implement the six
+remaining unsupported routes.
+
+Verification: all 64 owner builds pass, all 56 CoCo modules remain byte-for-byte
+identical, and the main production/integration binaries match the tested
+matrix. Evidence is in `.wildbits-test/parity-capacity-typed-final-matrix-20261015`.
+The three phases in `.wildbits-test/parity-capacity-typed-final-mame-20261015`
+pass: two-terminal custom priority/save/restore, fresh-process restoration,
+and repeated priority diagnostics with key filtering and exact memory recovery.
+Focused audio and 14 affected UI/state test families also pass. The complete
+58-command target for the preceding ABI-7 build passed; the matching ABI-8
+complete target is running. A04 remains open pending its result. Physical
+hardware remains unavailable and its acceptance gate is unverified.

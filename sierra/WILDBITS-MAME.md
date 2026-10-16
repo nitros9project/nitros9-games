@@ -22,7 +22,7 @@ python3 sierra/tests/check_wbgame_mame.py --prepare-play \
 
 Run this from the games repository after `make -C sierra/objs -f wildbits.mk all`.
 The output directory must be new. The runner copies the source disk, matching
-current `wbgame`, `wbstate`, and `wbfont`, and converted game resources into the
+current `wbgame`, `wbui`, `wbstate`, and `wbfont`, and converted game resources into the
 private image. Optional `--sol-driver` and `--expanded-krnp2` have the same meaning
 as in acceptance tests. Neither the source disk nor an existing emulator is
 changed. The launcher uses normal display, sound and throttling, with the MAME

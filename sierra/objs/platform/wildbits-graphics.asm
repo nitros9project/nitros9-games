@@ -1,3 +1,29 @@
+* Native private-field priority binding is shared by copied state and UI owners.
+                    ifndef WILDBITS_PRIORITY_SCALE_BINDINGS
+WILDBITS_PRIORITY_SCALE_BINDINGS equ 1
+                    use shared/priority-bands.asm
+PRIORITY_SCALE_BASE macro
+                    subb prioritybase,u
+                    endm
+PRIORITY_SCALE_DIVIDE macro
+                    ldy #0
+PriorityScaleLoop   subd #10
+                    bcs PriorityScaleDone
+                    leay 1,y
+                    bra PriorityScaleLoop
+PriorityScaleDone   tfr y,d
+                    endm
+PRIORITY_SCALE_STORE macro
+                    std priorityscale,u
+                    endm
+* Pure private-field operation, valid in the linked image and copied prefix.
+WILDBITS_PRIORITY_SCALE macro
+StatePriorityScale  PRIORITY_BUILD_SCALE
+                    andcc #$FE
+                    rts
+                    endm
+                    endc
+
 * wildbits-graphics feature: code and related private state.
 * Named layout sections preserve existing module and private-data addresses.
 

@@ -1,7 +1,5 @@
-* Native auxiliary module: writable state operations execute in a private
-* copy; immutable text/dialog code executes linked, using private cells.
-* The audio installer also exports immutable code for a permanent private copy.
-* Only the bounded state prefix is copied, excluding the immutable linked tail.
+* Wild Bits persistence provider: writable operations execute in a private copy.
+* Only this bounded prefix is copied; UI/audio code lives in immutable wbui.
 * No formatter or flood-fill runs during the copied state operations.
 AUDIO_USER_COPY     equ 1
 WILDBITS            equ 1
@@ -13,7 +11,7 @@ StateName           fcs /wbstate/
                     fcb 1
 StateEntry          bra StateBegin
                     STATE_ABI
-                    fdb AudioBlobEnd-AudioBlobStart,AudioInstall,AuxTextStore,AuxPrintWait,StateCopyEnd,AuxClearTextRect,AuxRestart,AuxScreenCommand,AuxShowObject,AuxShakeScreen,AuxMenuInput,AuxFormatExpansion
+                    fdb 0,0,0,0,StateCopyEnd,0,0,0,0,0,0,0
 * A=0 save, 1 validate/stage restore, 2 apply after nested logic unwinds.
 * X=filename, Y=engine callback table, U=the game's private base.
 StateBegin          stu StateBase,pcr
@@ -846,24 +844,7 @@ STATE_COPY_FIELD    macro
 StateFieldOffset    set StateFieldOffset+\3
                     endm
                     use shared/priority-bands.asm
-PRIORITY_SCALE_BASE macro
-                    subb prioritybase,u
-                    endm
-PRIORITY_SCALE_DIVIDE macro
-                    ldy #0
-PriorityScaleLoop   subd #10
-                    bcs PriorityScaleDone
-                    leay 1,y
-                    bra PriorityScaleLoop
-PriorityScaleDone   tfr y,d
-                    endm
-PRIORITY_SCALE_STORE macro
-                    std priorityscale,u
-                    endm
-* Pure private-field operation, valid in the linked image and copied prefix.
-StatePriorityScale  PRIORITY_BUILD_SCALE
-                    andcc #$FE
-                    rts
+                    WILDBITS_PRIORITY_SCALE
 StateRanges         equ *
                     STATE_SCHEMA STATE_COPY_FIELD
 StateCoreBytes      equ StateFieldOffset
@@ -904,36 +885,11 @@ StateHeader         zmb 18
 StateCache          zmb 160
 StateBuffer         zmb 512
 StateCopyEnd        equ *
-PLATFORM_SECTION    set PLATFORM_WILDBITS_SOUND_CODE
-                    use platform/wildbits-audio.asm
-PLATFORM_SECTION    set PLATFORM_WILDBITS_TEXT_STORE_CODE
-                    use platform/wildbits-text-ui.asm
-PLATFORM_SECTION    set PLATFORM_WILDBITS_DIALOG_WAIT_CODE
-                    use platform/wildbits-text-ui.asm
-PLATFORM_SECTION    set PLATFORM_WILDBITS_TEXT_RECT_CODE
-                    use platform/wildbits-text-ui.asm
-PLATFORM_SECTION    set PLATFORM_WILDBITS_RESTART_CODE
-                    use platform/wildbits-text-ui.asm
-PLATFORM_SECTION    set PLATFORM_WILDBITS_SHOW_OBJECT_CODE
-                    use platform/wildbits-text-ui.asm
-PLATFORM_SECTION    set PLATFORM_WILDBITS_SCREEN_COLD_CODE
-                    use platform/wildbits-graphics.asm
-PLATFORM_SECTION    set PLATFORM_WILDBITS_SHAKE_CODE
-                    use platform/wildbits-graphics.asm
-PLATFORM_SECTION    set PLATFORM_WILDBITS_MENU_COLD_CODE
-                    use platform/wildbits-text-ui.asm
-PLATFORM_SECTION    set PLATFORM_WILDBITS_FORMAT_COLD_CODE
-                    use platform/wildbits-text-ui.asm
                     emod
 StateEnd            equ *
-                    ifp2
-                    ifgt AudioBlobEnd-AudioBlobStart-512
-                    error Private audio adapter exceeds its reserved workspace
-                    endc
-                    ifgt StateEnd-8192
-                    error Cold helper exceeds its code window
-                    endc
                     ifgt StateCopyEnd-4096
                     error Writable state prefix exceeds its private workspace
                     endc
+                    ifgt StateEnd-8192
+                    error State provider exceeds its code window
                     endc

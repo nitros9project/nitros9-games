@@ -5,7 +5,7 @@ AFLAGS = --6809 --format=os9 --pragma=pcaspcr,nosymbolcase,condundefzero \
 
 .PHONY: all probes budget probe-budget clean
 # Production build; probes are optional test executables.
-all: wbgame wbstate budget
+all: wbgame wbstate wbui budget
 probes: wbpic wbres wbdecode wbrun wbasset wbexec probe-budget
 # Each owner retains its entry point as the first prerequisite ($<).
 wbpic: ../tests/probes/wbpic.asm
@@ -20,6 +20,8 @@ wbasset: ../tests/probes/wbasset.asm
 	$(LWASM) $(AFLAGS) --list=wbasset.list --map=wbasset.map --symbols -o $@ $<
 wbexec: ../tests/probes/wbexec.asm
 	$(LWASM) $(AFLAGS) --list=wbexec.list --map=wbexec.map --symbols -o $@ $<
+wbui: wbui.asm
+	$(LWASM) $(AFLAGS) --list=wbui.list --map=wbui.map --symbols -o $@ $<
 wbstate: wbstate.asm
 	$(LWASM) $(AFLAGS) --list=wbstate.list --map=wbstate.map --symbols -o $@ $<
 wbgame: sierra.asm wbfont font-data.asm
@@ -27,7 +29,7 @@ wbgame: sierra.asm wbfont font-data.asm
 
 # Keep every owner current when a grouped feature or shared body changes.
 # This deliberately includes all common bodies for the optional probes too.
-wbstate wbgame wbexec wbpic wbdecode wbrun wbasset wbres: \
+wbui wbstate wbgame wbexec wbpic wbdecode wbrun wbasset wbres: \
 	$(wildcard platform/wildbits-*.asm) $(wildcard shared/*.asm) \
 	$(wildcard *.d) $(wildcard platform/*.d) \
 	platform/sections.d platform/wildbits-defsfile \
@@ -42,11 +44,12 @@ probe-budget: wbpic wbres wbdecode wbrun wbasset wbexec
 	@python3 -c 'from pathlib import Path; b=Path("wbrun").read_bytes(); data=int.from_bytes(b[11:13], "big"); limit=(7-(data+8191)//8192-1)*8192-768; assert len(b) <= limit, (len(b),limit); print("wbrun integration: %d / %d code bytes; private data: %d bytes; sequential source/frame mapping" % (len(b),limit,data))'
 	@python3 -c 'from pathlib import Path; b=Path("wbasset").read_bytes(); data=int.from_bytes(b[11:13], "big"); limit=(7-(data+8191)//8192-1)*8192-768; assert len(b) <= limit, (len(b),limit); print("wbasset: %d / %d code bytes; private data: %d bytes; one mapping window" % (len(b),limit,data))'
 	@python3 -c 'from pathlib import Path; b=Path("wbexec").read_bytes(); data=int.from_bytes(b[11:13], "big"); limit=(7-(data+8191)//8192-1)*8192-768; assert len(b) <= limit, (len(b),limit); print("wbexec: %d / %d code bytes; private data: %d bytes; one mapping window" % (len(b),limit,data))'
-budget: wbgame wbstate
+budget: wbgame wbstate wbui
 	@python3 -c 'from pathlib import Path; b=Path("wbstate").read_bytes(); entry=int.from_bytes(b[9:11],"big"); prefix=int.from_bytes(b[entry+18:entry+20],"big"); assert len(b)<=8192; assert int.from_bytes(b[11:13],"big")==0; assert entry+37<=prefix<=4096 and prefix<=len(b)-3, (entry,prefix,len(b)); print("wbstate: %d / 8192 linked bytes; writable prefix: %d / 4096 bytes; no separate private allocation" % (len(b),prefix))'
+	@python3 -c 'from pathlib import Path; b=Path("wbui").read_bytes(); assert len(b)<=8192 and int.from_bytes(b[11:13],"big")==0; print("wbui: %d / 8192 linked bytes; no separate private allocation" % len(b))'
 	@python3 -c 'from pathlib import Path; b=Path("wbgame").read_bytes(); data=int.from_bytes(b[11:13], "big"); limit=(7-(data+8191)//8192-1)*8192-768; assert len(b) <= limit, (len(b),limit); print("wbgame: %d / %d code bytes; private data: %d bytes; sequential resource/picture/frame mapping" % (len(b),limit,data))'
 clean:
-	rm -f wbgame wbgame.list wbgame.map wbfont wbstate wbstate.list wbstate.map
+	rm -f wbgame wbgame.list wbgame.map wbfont wbstate wbstate.list wbstate.map wbui wbui.list wbui.map
 	rm -f wbexec wbexec.list wbexec.map
 	rm -f wbasset wbasset.list wbasset.map
 	rm -f wbpic wbpic.list wbpic.map wbres wbres.list wbres.map

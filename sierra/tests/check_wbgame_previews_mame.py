@@ -32,7 +32,7 @@ def main():
     def install(name,data,target=None,text=False):
         p=out/name;p.write_bytes(data);os9('copy','-r',*(['-l'] if text else []),p,f'{disk},{target or name}')
     os9('makdir',f'{disk},preview')
-    for name in ('wbgame','wbstate','wbfont'):
+    for name in ('wbgame','wbstate','wbui','wbfont'):
         install(name,(root/'objs'/name).read_bytes(),'CMDS/'+name);os9('attr',f'{disk},CMDS/{name}','-e','-pe')
     install('startup',b'load utilpak1\nlink shell\nload wbgame\nload grfdrv256\n',text=True)
     install('feu.startup',b'bootos9 /s0/OS9Boot\n','FEU/startup',text=True)
@@ -88,7 +88,7 @@ def main():
         action=f'printf "JOYSTICK QUIT %d %d",b@(u+{syms["vmvariables"]+240:x}),b@(u+{syms["joystickenabled"]:x}); g'
         lines.append(f'  cpu.debug:bpset({base+syms["GameQuitCommand"]},{json.dumps(condition)},{json.dumps(action)})')
     elif a.shake:
-        helper=symbols(root/'objs/wbstate.map')
+        helper=symbols(root/'objs/wbui.map')
         wait=f'printf "SHAKE WAIT %d %d %d",totalcycles,b@(w@{syms["resourcebase"]:x}+{syms["shakeshifted"]:x}),b@(w@{syms["resourcebase"]:x}+{syms["gameclockpath"]:x}); g'
         end=f'printf "SHAKE NEXT %d %d",totalcycles,b@(w@{syms["resourcebase"]:x}+{syms["shakeshifted"]:x}); g'
         shifted='snap "shake-shifted"; g'

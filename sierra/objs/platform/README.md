@@ -99,3 +99,13 @@ and foreground services; ordinary game cycles have no additional helper calls.
 Joystick handling belongs to grouped Wild Bits input, calls the terminal's
 `SS.Joy` interface and leaves hardware access to its driver. Its private
 movement ownership and button edges stay separate from shared code and saves.
+
+
+## Separate UI and persistence providers (ABI 8)
+
+The current package is `wbgame`, `wbui`, `wbstate` and `wbfont`. Install the
+three executable modules from the same ABI-8 build. UI/audio code now belongs
+to the immutable `wbui` provider; `wbstate` supplies the bounded private copy
+used for save/restore. Existing source feature groups are unchanged.
+See [provider ownership, loader contracts, budgets and verification](../../WILDBITS-ENGINE.md#separate-ui-and-persistence-providers-abi-8).
+Earlier combined-helper descriptions above document preceding revisions.

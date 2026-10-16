@@ -26,7 +26,7 @@ def main():
     def install(name,data,target=None,text=False):
         p=out/name;p.write_bytes(data);os9('copy','-r',*(['-l'] if text else []),p,f'{disk},{target or name}')
     os9('makdir',f'{disk},timed')
-    for name in ('wbgame','wbstate','wbfont'):
+    for name in ('wbgame','wbstate','wbui','wbfont'):
         install(name,(root/'objs'/name).read_bytes(),'CMDS/'+name);os9('attr',f'{disk},CMDS/{name}','-e','-pe')
     install('startup',b'load utilpak1\nlink shell\nload wbgame\nload grfdrv256\n',text=True)
     install('feu.startup',b'bootos9 /s0/OS9Boot\n','FEU/startup',text=True)

@@ -42,7 +42,7 @@ def main():
         tmp = Path(name)
         if not args.sort_only: coco, cs = compile_module(ROOT/'objs/mnln.asm',tmp/'mnln')
         game = (ROOT/'objs/wbgame').read_bytes(); gs = symbols(ROOT/'objs/wbgame.map')
-        helper = (ROOT/'objs/wbstate').read_bytes(); hs = symbols(ROOT/'objs/wbstate.map')
+        helper = (ROOT/'objs/wbui').read_bytes(); hs = symbols(ROOT/'objs/wbui.map')
         d,proc = start_cpu(idle_rom(tmp/'idle.rom'),timeout=1800)
         try:
             d.write(0xffdf,b'\0'); d.write(0xff90,b'\x4c')

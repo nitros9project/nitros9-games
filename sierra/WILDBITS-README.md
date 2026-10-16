@@ -11,9 +11,9 @@ algorithms live in `objs/shared`. See
 [the platform layout](objs/platform/README.md) for the feature map. The older `objs/wildbits_engine.asm` scaffold is not built.
 
 Build with `make -C sierra/objs -f wildbits.mk all` from the games repository. Install
-`wbgame`, `wbfont`, and the matching `wbstate` auxiliary helper in the OS-9
+`wbgame`, `wbfont`, and the matching `wbui` and `wbstate` auxiliary helpers in the OS-9
 execution directory, with read/execute access. The current private helper ABI
-is version 7; install both modules together when upgrading.
+is version 8; install all three executable modules together when upgrading.
 Keep the original game resources together in a readable directory, then run:
 
 ```text
@@ -29,10 +29,10 @@ The game's Save and Restore commands ask for a filename (for example,
 `/s0/my-save`). Save creates a new file; choose a new name for each save rather
 than overwriting an existing file. Restore checks the complete file before
 replacing game resources. Files belong to this native port and must match the
-current game's ID. The `wbstate` helper supplies immutable text code as well as these commands
-and the private audio adapter. It is required for text output. Its first text
-request retains a shared code mapping until exit; normal movement does not
-reload it. Always install it from the same build as `wbgame`. A pictured snapshot needs
+current game's ID. The `wbstate` helper supplies save/restore code, copied into the caller's private workspace for each state operation. The `wbui` helper supplies
+immutable text/UI code and the private audio adapter. It is required for text
+output. Its first text request retains a shared code mapping until exit; normal
+movement does not reload it. Install both helpers from the same build as `wbgame`. A pictured snapshot needs
 five temporary 8 KiB blocks during validation, so available OS-9 memory matters
 when several games are running. A read/validation error leaves the game running;
 a resource reconstruction failure exits through cleanup.

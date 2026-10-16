@@ -52,9 +52,13 @@ def start_cpu(bootrom, timeout=300):
 
 
 def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zero_read=False, seek_error=False, write_error=False, module='wbres', map_failure=0, allocation_error=False, unmap_error=False, window=0x8000, terminal=True, blocks=4, capture=False, multiple=False, firstblock=0x30, frame_capture=False, keyboard=b'', clock=(0,), bitmap_error=False, key_sense=0, cycle_limit=None, os_call_limit=20000, keyboard_by_cycle=None, option_set_error=False, resource_kind=None, module_root=None, breakpoint_hooks=None, psg=None, sol=None, joystick=None, palette_error=0):
-    if module == 'wbgame':
-        files = {'wbfont': (ROOT / 'wbfont').read_bytes(), 'wbstate': (ROOT / 'wbstate').read_bytes(), **files}
     module_root = Path(module_root) if module_root is not None else ROOT
+    ui_owner='wbui' if (module_root/'wbui').exists() else 'wbstate'
+    if module == 'wbgame':
+        defaults={'wbfont':(ROOT/'wbfont').read_bytes(),
+                  'wbstate':(module_root/'wbstate').read_bytes()}
+        if ui_owner=='wbui':defaults['wbui']=(module_root/'wbui').read_bytes()
+        files={**defaults,**files}
     syms = symbols(module_root / (module + '.map'))
     calls = {base + int(m[1], 16): int(m[2], 16) for m in re.finditer(
         r'^([0-9A-F]{4}) 103F([0-9A-F]{2}).*os9', (module_root / (module + '.list')).read_text(), re.M)}
@@ -102,7 +106,8 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
     options=original_options[:]
     options_failed=False
     cold_loaded=0
-    cold_ever_loaded=False
+    cold_modules={}
+    provider_sites={}
     sol_path=None
     sol_ticks=sol.get("start",0) if sol else 0
     audio_ever_installed=False
@@ -116,22 +121,24 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
     audio_queues=[[] for _ in range(4)]
     audio_played_ends=[False]*4
     private_calls={}
-    if module=='wbgame' and files.get('wbstate'):
-        assert private_end<=0x6000, 'native private data overlaps the helper code window'
-        cold_syms=symbols(module_root/'wbstate.map')
-        blob_start=cold_syms['AudioBlobStart']; blob_end=cold_syms['AudioBlobEnd']
-        private_calls={database+syms['soundcode']+int(m[1],16)-blob_start:int(m[2],16)
-            for m in re.finditer(r'^([0-9A-F]{4}) 103F([0-9A-F]{2}).*os9',
-                (module_root/'wbstate.list').read_text(),re.M)
-            if blob_start<=int(m[1],16)<blob_end}
-        cold_calls={0x6000+int(m[1],16):int(m[2],16)
-            for m in re.finditer(r'^([0-9A-F]{4}) 103F([0-9A-F]{2}).*os9',
-                (module_root/'wbstate.list').read_text(),re.M)
-            if cold_syms['AuxPrintWait']<=int(m[1],16)<cold_syms['StateEnd']}
-        calls.update(cold_calls)
-        for address in cold_calls:d.breakpoint(address)
-        calls.update(private_calls)
-        for address in private_calls:d.breakpoint(address)
+    if module=='wbgame':
+        assert private_end<=0x6000, 'native private data overlaps provider windows'
+        def sites(owner):
+            return {int(m[1],16):int(m[2],16) for m in re.finditer(
+                r'^([0-9A-F]{4}) 103F([0-9A-F]{2}).*os9',
+                (module_root/(owner+'.list')).read_text(),re.M)}
+        ui_syms=symbols(module_root/(ui_owner+'.map'))
+        blob_start=ui_syms['AudioBlobStart'];blob_end=ui_syms['AudioBlobEnd']
+        provider_sites[ui_owner]=sites(ui_owner)
+        private_calls={database+syms['soundcode']+offset-blob_start:service
+                       for offset,service in provider_sites[ui_owner].items()
+                       if blob_start<=offset<blob_end}
+        state_syms=symbols(module_root/'wbstate.map')
+        state_calls={database+syms['fillstack']+offset:service
+                     for offset,service in sites('wbstate').items()
+                     if offset<state_syms['StateCopyEnd']}
+        calls.update(state_calls);calls.update(private_calls)
+        for address in [*state_calls,*private_calls]:d.breakpoint(address)
 
     for _ in range(os_call_limit):
         d.call('c')
@@ -154,10 +161,8 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
         if service == syms['F$Exit']:
             assert not paths, f'leaked file paths: {paths}'
             assert not cold_loaded and not audio_claimed, 'leaked cold module/audio ownership'
-            if cold_ever_loaded:
-                assert d.read(0x6000,len(files['wbstate']))==files['wbstate'], 'shared cold backend modified its module image'
             if private_calls and (audio_ever_installed or d.read(database+syms['soundinstalled'],1)==b'\x01'):
-                expected=files['wbstate'][blob_start:blob_end]
+                expected=files[ui_owner][blob_start:blob_end]
                 assert d.read(database+syms['soundcode'],len(expected))==expected, 'private audio code overwritten by the game stack or buffers'
             assert options==original_options, 'terminal options were not restored'
             assert not mapped and not owned, 'leaked picture allocation/mapping'
@@ -193,15 +198,32 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
             if name not in files or files[name] is None:
                 updates.update(cc=r['cc']|1,b=syms['E$PNNF'])
             else:
-                image=files[name];cold_base=0x6000
-                if not cold_loaded:d.write(cold_base,image)
+                image=files[name]
+                if name not in cold_modules:
+                    occupied={item['base'] for item in cold_modules.values()}
+                    cold_base=next((address for address in (0x6000,0x8000) if address not in occupied),None)
+                    assert cold_base is not None, 'no free provider code window'
+                    assert len(image)<=8192, 'provider fixture exceeds its code window'
+                    d.write(cold_base,image)
+                    cold_modules[name]={'base':cold_base,'refs':0,'image':image,'sites':{}}
+                    for offset,number in provider_sites.get(name,{}).items():
+                        address=cold_base+offset
+                        cold_modules[name]['sites'][address]=number
+                        calls[address]=number;d.breakpoint(address)
+                item=cold_modules[name];cold_base=item['base']
+                assert d.read(cold_base,len(image))==image, 'shared provider changed while linked'
                 entry=int.from_bytes(image[9:11],'big')
                 updates.update(u=cold_base,y=cold_base+entry)
-                cold_loaded+=1
-                cold_ever_loaded=True
+                item['refs']+=1;cold_loaded+=1
         elif service == syms.get('F$UnLink'):
-            assert cold_loaded and r['u']==0x6000
-            cold_loaded-=1
+            matches=[name for name,item in cold_modules.items() if item['base']==r['u']]
+            assert len(matches)==1 and cold_loaded, ('unowned provider unlink',r)
+            name=matches[0];item=cold_modules[name]
+            assert d.read(item['base'],len(item['image']))==item['image'], 'shared provider code/data modified'
+            item['refs']-=1;cold_loaded-=1
+            if not item['refs']:
+                for address in item['sites']:calls.pop(address);d.breakpoint(address,False)
+                del cold_modules[name]
         elif service == syms['I$GetStt'] and r['b']==0xc3:
             assert sol is not None and r['a']==sol_path and not mapped
             updates.update(x=7,y=sol_ticks)

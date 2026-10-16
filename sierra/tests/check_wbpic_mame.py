@@ -109,6 +109,8 @@ def main():
         os9('attr', f'{disk},CMDS/wbfont', '-e', '-pe')
         install('wbstate',(VIEWER/'wbstate').read_bytes(),'CMDS/wbstate')
         os9('attr',f'{disk},CMDS/wbstate','-e','-pe')
+        install('wbui',(VIEWER/'wbui').read_bytes(),'CMDS/wbui')
+        os9('attr',f'{disk},CMDS/wbui','-e','-pe')
     bars = bytes((((4 + y // 14) & 15) << 4) | (x // 10) for y in range(168) for x in range(160))
     picture = args.picture.read_bytes() if args.picture else bytes(
         ((y // 14) << 4) | ((x // 10 + y // 7) & 15) for y in range(168) for x in range(160))

@@ -33,6 +33,104 @@ def check_state_transfers(d):
     print('PASS: cold snapshot transfers reject zero/oversized counts and advance partial reads regardless of the incoming zero flag')
 
 
+def check_provider_loaders(d):
+    """Exercise both real directory loaders, including their distinct error stacks."""
+    root=ROOT/'objs';gs=symbols(root/'wbgame.map');code=(root/'wbgame').read_bytes()
+    offsets={int(m[1],16):int(m[2],16) for m in re.finditer(
+        r'^([0-9A-F]{4}) 103F([0-9A-F]{2}).*os9',(root/'wbgame.list').read_text(),re.M)}
+    common_cases=('valid','mapped valid','unmap failure','load failure','bad ABI','short header',
+                  'large module','small entry','overflow entry')
+    count=0
+    for base in (0x9000,0xa000):
+        d.write(base,code);sites={base+offset:number for offset,number in offsets.items()}
+        for address in [*sites,0x7e00]:d.breakpoint(address)
+        try:
+            for role,entry_label in (('wbstate','StateLoadModule'),('wbui','UiLoadModule')):
+                original=(root/role).read_bytes();entry=int.from_bytes(original[9:11],'big')
+                module_base=0x6000 if base==0x9000 else 0x8000
+                cases=common_cases+(('short prefix','large prefix','prefix past module','wrong state role') if role=='wbstate' else ('reserved UI word',))
+                for case in cases:
+                    image=bytearray((root/'wbui').read_bytes() if case=='wrong state role' else original)
+                    image_entry=int.from_bytes(image[9:11],'big')
+                    edits={'bad ABI':(entry+2,0),'short header':(2,entry+36),
+                           'large module':(2,8193),'small entry':(9,12),'overflow entry':(9,65535),
+                           'short prefix':(entry+18,entry+37),'large prefix':(entry+18,4097),
+                           'prefix past module':(2,int.from_bytes(image[entry+18:entry+20],'big')-1),
+                           'reserved UI word':(entry+18,4097)}
+                    if case in edits:
+                        at,value=edits[case];image[at:at+2]=value.to_bytes(2,'big')
+                    d.write(0,bytes(gs['size'])+b'PRIVATE')
+                    mapped=case in ('mapped valid','unmap failure')
+                    d.write(gs['assetmapped'],bytes([mapped]))
+                    d.write(gs['assetmapbase'],b'\x80\0')
+                    d.write(0x7ee0,b'L'*16+b'\x7e\0STACK')
+                    d.regs(pc=base+gs[entry_label],s=0x7ef0,u=0,x=0x5555,y=0x4444,dp=0,cc=0x50)
+                    loaded=0;loads=0;unlinks=0;unmaps=0
+                    for _ in range(8):
+                        d.call('c');r=d.regs()
+                        if r['pc']==0x7e00:break
+                        service=sites[r['pc']];updates={'pc':r['pc']+3,'cc':r['cc']&~1}
+                        if service==gs['F$ClrBlk']:
+                            assert mapped and r['u']==0x8000 and r['b']==1
+                            unmaps+=1
+                            updates.update(x=0xdead,y=0xbeef,u=0x8000)
+                            if case=='unmap failure':updates.update(b=gs['E$MemFul'],cc=r['cc']|1)
+                        elif service==gs['F$Load']:
+                            assert d.read(r['x'],16).split(b'\r')[0].decode()==role,'filename lost across unmap'
+                            loads+=1
+                            if case=='load failure':updates.update(b=gs['E$PNNF'],cc=r['cc']|1)
+                            else:
+                                d.write(module_base,image);loaded+=1
+                                updates.update(u=module_base,y=(module_base+int.from_bytes(image[9:11],'big'))&65535)
+                        elif service==gs['F$UnLink']:
+                            assert loaded==1 and r['u']==module_base
+                            assert d.read(module_base,len(image))==image
+                            loaded-=1;unlinks+=1
+                            updates.update(x=0xdead,y=0xbeef,u=0x1234)
+                        else:raise AssertionError(('unexpected loader service',role,case,service))
+                        d.regs(**updates)
+                    else:raise AssertionError(('loader did not return',role,case))
+                    error=0 if case in ('valid','mapped valid','reserved UI word') else gs['E$MemFul'] if case=='unmap failure' else gs['E$PNNF'] if case=='load failure' else gs['E$BMode']
+                    assert r['s']==0x7ef2 and bool(r['cc']&1)==bool(error) and r['b']==error,(role,case,r)
+                    assert unmaps==int(mapped) and loads==int(case!='unmap failure')
+                    assert d.read(0x7ee0,8)==b'L'*8 and d.read(0x7ef2,5)==b'STACK'
+                    assert d.read(gs['size'],7)==b'PRIVATE'
+                    if not error:
+                        assert r['u']==module_base and r['x']==module_base+entry+10
+                        assert r['y']==int.from_bytes(image[entry+18:entry+20],'big')
+                        assert loaded==1 and unlinks==0 # the caller owns the successful reference
+                    else:
+                        assert r['u']==0 and loaded==0
+                        assert unlinks==int(case not in ('unmap failure','load failure'))
+                    assert d.read(base,len(code))==code
+                    count+=1
+        finally:
+            for address in [*sites,0x7e00]:d.breakpoint(address,False)
+    state=(root/'wbstate').read_bytes();state_entry=int.from_bytes(state[9:11],'big')
+    directory=[int.from_bytes(state[state_entry+10+n:state_entry+12+n],'big') for n in range(0,24,2)]
+    assert all(value==0 for n,value in enumerate(directory) if n!=4), 'persistence module exported a UI entry'
+    ui=(root/'wbui').read_bytes();ui_entry=int.from_bytes(ui[9:11],'big')
+    assert int.from_bytes(ui[ui_entry+18:ui_entry+20],'big')==0, 'UI advertised copied code'
+    d.write(0,bytes(gs['size']));copy=0x8000;d.write(copy,ui)
+    private=d.read(0,gs['size']);d.breakpoint(0x7e00)
+    try:
+        for operation in (0,1,2,255):
+            d.write(0x7ee0,b'L'*16+b'\x7e\0STACK')
+            d.regs(pc=copy+ui_entry,s=0x7ef0,a=operation,u=0,x=0x5555,y=0x4444,dp=0,cc=0x50)
+            d.call('c');r=d.regs()
+            assert (r['pc'],r['s'],r['u'],r['b'])==(0x7e00,0x7ef2,0,gs['E$BMode']) and r['cc']&1
+            assert d.read(0,gs['size'])==private
+            assert d.read(0x7ee0,16)==b'L'*16 and d.read(0x7ef2,5)==b'STACK'
+    finally:d.breakpoint(0x7e00,False)
+    from check_wbplay import fixture as logic_fixture
+    files=logic_fixture(bytes([154,0,0,24,39,0,134,1,0]));files['wbui']=state
+    error,_,_=exercise(d,files,module='wbgame',base=0xa000,database=0,
+        window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True)
+    assert error==gs['E$BMode'],'persistence image accepted as UI code'
+    print('PASS: wrong provider roles fail safely: state loader rejects a UI image; UI entry rejects persistence operations; state directory cannot execute UI callbacks; unchanged private state and ownership cleanup')
+    print(f'PASS: {count} actual UI/state loader cases at two code/provider addresses; saved filename across unmap clobbers, ABI/header/prefix bounds, load/unmap failures, exact reference ownership, original U, balanced error stacks and immutable code')
+
+
 def check_reused_private_state(d):
     """A newly allocated process may inherit nonzero restore staging bytes."""
     game=ROOT/'kingsquest1'
@@ -239,12 +337,12 @@ def check_positioned_messages(d):
         if label in ('bad text entry','oversized text entry','CRC text entry'):
             # Mock F$Load has already accepted the module; exercise our own
             # executable-entry bounds independently of the kernel CRC check.
-            helper=bytearray((ROOT/'objs/wbstate').read_bytes())
+            helper=bytearray((ROOT/'objs/wbui').read_bytes())
             entry=int.from_bytes(helper[9:11],'big')
             offset=0 if label=='bad text entry' else len(helper)-(1 if label=='CRC text entry' else 0)
             helper[entry+14:entry+16]=offset.to_bytes(2,'big')
-            files['wbstate']=bytes(helper)
-        elif label=='missing helper':files['wbstate']=None
+            files['wbui']=bytes(helper)
+        elif label=='missing helper':files['wbui']=None
         captured=[]
         def capture(debug,registers,syms):
             captured.append(debug.read(0x0000+syms['textcharacters'],2000))
@@ -290,9 +388,9 @@ def check_text_screen_key_wait(d):
     assert state['cycles']==5,('stale submitting key dismissed the king text screen',state['cycles'])
     assert state['vmvariables'][19]==ord('p') and seen['graphics']==b'\x01'
     assert seen['parser']==b'abc\0','dialog key changed the command line'
-    helper=bytearray((ROOT/'objs/wbstate').read_bytes());entry=int.from_bytes(helper[9:11],'big')
+    helper=bytearray((ROOT/'objs/wbui').read_bytes());entry=int.from_bytes(helper[9:11],'big')
     helper[entry+16:entry+18]=bytes(2)
-    error,output,state=exercise(d,{**files,'wbstate':bytes(helper)},
+    error,output,state=exercise(d,{**files,'wbui':bytes(helper)},
         arguments=b'/game 0\r',module='wbgame',base=0xa000,database=0,window=0x8000,blocks=None,
         multiple=True,firstblock=0x10,capture=True)
     assert error==203,'invalid have.key wait entry did not unwind safely'
@@ -751,11 +849,11 @@ def check_timed_messages(d):
         assert not error and state['cycles']==wanted_cycles,(label,error,state['cycles'])
         assert state['vmvariables'][21]==wanted_timer,(label,state['vmvariables'][21])
     for offset_name in ('zero','size','CRC'):
-        helper=bytearray((ROOT/'objs/wbstate').read_bytes())
+        helper=bytearray((ROOT/'objs/wbui').read_bytes())
         entry=int.from_bytes(helper[9:11],'big')
         offset=0 if offset_name=='zero' else len(helper)-(1 if offset_name=='CRC' else 0)
         helper[entry+16:entry+18]=offset.to_bytes(2,'big')
-        files['wbstate']=bytes(helper)
+        files['wbui']=bytes(helper)
         error,output,state=exercise(d,files,module='wbgame',base=0xa000,
             database=0x0000,window=0x8000,blocks=None,multiple=True,
             firstblock=0x10,capture=True,keyboard=b'\r',os_call_limit=20000)
@@ -765,7 +863,7 @@ def check_timed_messages(d):
 
 def check_screen_shakes(d):
     """Compare full owned bitmaps, including reserved dialog storage."""
-    helper=symbols(ROOT/'objs/wbstate.map')
+    helper=symbols(ROOT/'objs/wbui.map')
     original=bytes(1+((x*3+y*5)%16) for y in range(200) for x in range(320))+bytes([1])*12800+bytes(1+i%16 for i in range(5120))
     shifted=bytes([1])*1280+b''.join(bytes([1])*8+original[y*320:y*320+312] for y in range(200))+bytes([1])*(76800-65280)+original[76800:]
     def bitmap(cpu,syms,data=None):
@@ -817,10 +915,10 @@ def check_screen_shakes(d):
         assert state['gamefont']==(ROOT/'objs/wbfont').read_bytes(),(label,'font overwritten')
         if not depth:assert state['vmflags'][15]==1 and state['vmvariables'][21]==2
         if count and picture:assert seen
-    original_helper=(ROOT/'objs/wbstate').read_bytes();entry=int.from_bytes(original_helper[9:11],'big')
+    original_helper=(ROOT/'objs/wbui').read_bytes();entry=int.from_bytes(original_helper[9:11],'big')
     for offset in (0,len(original_helper),len(original_helper)-1):
         helper_data=bytearray(original_helper);helper_data[entry+28:entry+30]=offset.to_bytes(2,'big')
-        files=fixture(1);files['wbstate']=bytes(helper_data)
+        files=fixture(1);files['wbui']=bytes(helper_data)
         error,output,state=exercise(d,files,module='wbgame',base=0xa000,database=0,
             window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,os_call_limit=60000)
         assert error==203,(offset,error)
@@ -902,10 +1000,10 @@ def check_object_previews(d):
             database=0,window=0x8000,blocks=None,multiple=True,firstblock=0x10,
             capture=True,keyboard=b'\r',os_call_limit=60000)
         assert error==expected_error,(label,error)
-    original=(ROOT/'objs/wbstate').read_bytes();entry=int.from_bytes(original[9:11],'big')
+    original=(ROOT/'objs/wbui').read_bytes();entry=int.from_bytes(original[9:11],'big')
     for offset in (0,len(original),len(original)-1):
         helper=bytearray(original);helper[entry+26:entry+28]=offset.to_bytes(2,'big')
-        files=fixture(bytes([129,0]));files['wbstate']=bytes(helper)
+        files=fixture(bytes([129,0]));files['wbui']=bytes(helper)
         error,output,state=exercise(d,files,module='wbgame',base=0xa000,database=0,
             window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,
             keyboard=b'\r',os_call_limit=60000)
@@ -974,10 +1072,10 @@ def check_cold_menus(d):
             if controller is not None:wanted[controller//8]=1<<(controller%8)
             assert state['vmcontrollers']==wanted,(label,state['vmcontrollers'],wanted)
         assert state['gamefont']==(ROOT/'objs/wbfont').read_bytes(),(label,'font overwritten')
-    original=(ROOT/'objs/wbstate').read_bytes();entry=int.from_bytes(original[9:11],'big')
+    original=(ROOT/'objs/wbui').read_bytes();entry=int.from_bytes(original[9:11],'big')
     for offset in (0,len(original),len(original)-1):
         files=fixture(bytes([156,1,157,2,1,158,161]));helper=bytearray(original)
-        helper[entry+30:entry+32]=offset.to_bytes(2,'big');files['wbstate']=bytes(helper)
+        helper[entry+30:entry+32]=offset.to_bytes(2,'big');files['wbui']=bytes(helper)
         error,output,state=exercise(d,files,module='wbgame',base=0xa000,database=0,
             window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,keyboard=b'\r',os_call_limit=30000)
         assert error==203,(offset,error)
@@ -1188,8 +1286,8 @@ def check_monitor_profiles(d):
 
 def check_monitor_instances(d):
     """The shared cold configuration body keeps each palette preference private."""
-    root=ROOT/'objs';syms=symbols(root/'wbgame.map');hs=symbols(root/'wbstate.map')
-    base=0xa000;helperbase=0x6000;code=(root/'wbgame').read_bytes();helper=(root/'wbstate').read_bytes()
+    root=ROOT/'objs';syms=symbols(root/'wbgame.map');hs=symbols(root/'wbui.map')
+    base=0xa000;helperbase=0x6000;code=(root/'wbgame').read_bytes();helper=(root/'wbui').read_bytes()
     d.write(base,code);d.write(helperbase,helper)
     saved=d.read(0xffa8,3);banks={0:bytes([0x20,0x21,0x22]),1:bytes([0x23,0x24,0x25])};expected={}
     stop=helperbase+hs['ScreenReturn'];callback=base+syms['ScreenCallbacks']
@@ -1230,7 +1328,7 @@ def check_screen_backend(d):
            ('bad input row',bytes([111,1,25,0]),187,{}),
            ('bad status row',bytes([111,1,23,25]),187,{}),
            ('bad cursor message',bytes([108,2]),203,{})]
-    original=(ROOT/'objs/wbstate').read_bytes();entry=int.from_bytes(original[9:11],'big')
+    original=(ROOT/'objs/wbui').read_bytes();entry=int.from_bytes(original[9:11],'big')
     for label,command,error_expected,expected in cases:
         print('Checking screen backend:',label,flush=True)
         script=command+bytes([134,1,0])
@@ -1241,7 +1339,7 @@ def check_screen_backend(d):
         for name,value in expected.items():assert state[name]==bytes([value]),(label,name,state[name])
     for offset in (0,len(original),len(original)-1):
         helper=bytearray(original);helper[entry+24:entry+26]=offset.to_bytes(2,'big')
-        files['wbstate']=bytes(helper)
+        files['wbui']=bytes(helper)
         script=bytes([112,134,1,0]);logic=len(script).to_bytes(2,'little')+script
         files['/game/vol.0']=b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic
         error,output,state=exercise(d,files,module='wbgame',base=0xa000,database=0,window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,os_call_limit=20000)
@@ -1321,32 +1419,30 @@ def check_status_line(d):
 
 
 def check_cold_prefix_bounds(d):
-    """Bound writable copies independently of the larger linked code image."""
-    original=(ROOT/'objs/wbstate').read_bytes()
+    """Validate the immutable UI directory and linked-code entry bounds."""
+    original=(ROOT/'objs/wbui').read_bytes()
     entry=int.from_bytes(original[9:11],'big')
     script=bytes([154,0,0,24,39,0,134,1,0])
     logic=len(script).to_bytes(2,'little')+script
     cases=[('valid',None,None),
            ('old screen ABI',entry+2,2),
-           ('short prefix',entry+18,entry+24),
-           ('incomplete current metadata',entry+18,entry+34),
-           ('oversized prefix',entry+18,4097),
-           ('prefix beyond module',2,int.from_bytes(original[entry+18:entry+20],'big')-1),
+           ('incomplete current metadata',2,entry+36),
+           ('entry outside module',9,len(original)),
            ('oversized module',2,8193),
            ('zero rectangle entry',entry+20,0),
            ('oversized rectangle entry',entry+20,len(original)),
            ('CRC rectangle entry',entry+20,len(original)-1)]
     for label,offset,value in cases:
-        print('Checking cold prefix:',label,flush=True)
+        print('Checking UI directory:',label,flush=True)
         helper=bytearray(original)
         if offset is not None:helper[offset:offset+2]=value.to_bytes(2,'big')
-        files={'wbstate':bytes(helper),'/game/logDir':b'\xff'*3+bytes(3),
+        files={'wbui':bytes(helper),'/game/logDir':b'\xff'*3+bytes(3),
                '/game/vol.0':b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic}
         error,output,state=exercise(d,files,module='wbgame',base=0xa000,
             database=0x0000,window=0x8000,blocks=None,multiple=True,
             firstblock=0x10,capture=True,os_call_limit=20000)
         assert error==(0 if offset is None else 203),(label,error)
-    print('PASS: writable-prefix bounds, one-window module bounds and cold rectangle entry validation/cleanup')
+    print('PASS: immutable UI directory, one-window module bounds and cold rectangle entry validation/cleanup')
 
 
 def restart_fixture(automatic=False,depth=0):
@@ -1399,10 +1495,10 @@ def check_restarts(d):
             assert not any(state['vmstrings']) and state['vmobjects'][3:5]==bytes(2)
         assert state['audio_packets'],(label,'active sound was not exercised')
     for name in ('zero','size','CRC'):
-        helper=bytearray((ROOT/'objs/wbstate').read_bytes());entry=int.from_bytes(helper[9:11],'big')
+        helper=bytearray((ROOT/'objs/wbui').read_bytes());entry=int.from_bytes(helper[9:11],'big')
         offset=0 if name=='zero' else len(helper)-(1 if name=='CRC' else 0)
         helper[entry+22:entry+24]=offset.to_bytes(2,'big')
-        files=restart_fixture();files['wbstate']=bytes(helper)
+        files=restart_fixture();files['wbui']=bytes(helper)
         error,output,state=exercise(d,files,module='wbgame',base=0xa000,
             database=0x0000,window=0x8000,blocks=None,multiple=True,
             firstblock=0x10,capture=True,keyboard=b'\r',os_call_limit=20000)
@@ -1466,6 +1562,7 @@ def main():
             check_state_cache_bounds(d)
             check_state_transfers(d)
             check_state_validation(d)
+            check_provider_loaders(d)
             error, frame = exercise(d, files, module='wbgame', base=0xa000,
                 database=0x0000, window=0x8000, blocks=None, multiple=True,
                 firstblock=0x10, frame_capture=True)

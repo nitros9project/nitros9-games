@@ -610,7 +610,7 @@ GamePrintText       ldu       <resourcebase
                     leay      resourcecommands,u
                     ldd       #1000
 GamePrintSave equ *
-                    jsr       [copywordentry,u]
+                    lbsr      GameCopyWords
                     lda       <vmtextforeground
                     ldb       <vmtextbackground
                     pshs      d
@@ -721,7 +721,7 @@ GamePrintRestore    pshs      cc,b
                     leay      textcharacters,u
                     ldd       #1000
 GamePrintCopyBack equ *
-                    jsr       [copywordentry,u]
+                    lbsr      GameCopyWords
                     puls      cc,b
                     puls      a
                     sta       <vmtextforeground
@@ -889,12 +889,18 @@ StatePrompt         fcc       /File:/
 StateFailure        fcc       /File error./
                     fcb       0
 * Shared, bounded cold-image loader. Success leaves U=module, X=metadata
-* after the eight-byte private ABI, Y=bounded writable-prefix length.
+* after the eight-byte private ABI. Y is the checked copy length for state;
+* UI metadata reserves that word as zero and never uses a copied prefix.
 * No image is copied here.
-StateLoadModule     pshs      u
+StateLoadModule     clra
+                    leax      StateModule,pcr
+                    bra       ColdLoadModule
+UiLoadModule        lda       #1
+                    leax      UiModule,pcr
+ColdLoadModule      pshs      a,x,u
                     lbsr      AssetUnmap
                     bcs       StateModuleFailure
-                    leax      StateModule,pcr
+                    ldx       1,s
                     lda       #Sbrtn+Objct
                     os9       F$Load
                     bcs       StateModuleFailure
@@ -917,23 +923,26 @@ StateCheckABI       lda       ,x+
                     decb
                     bne       StateCheckABI
                     tfr       y,x       validated metadata follows the ABI
-* Only the writable state prefix is copied; linked cold code stays shared.
-                    ldd       M$Exec,u
-                    addd      #37
+* Only the state role copies code. Its prefix must cover the whole image,
+* excluding CRC, and fit the existing private workspace. UI never copies code.
+                    tst       ,s
+                    bne       ColdDirectoryReady
+                    ldd       M$Size,u
+                    subd      #3
                     cmpd      8,x
+                    bne       StateLoadBad
+                    cmpd      #4096
                     bhi       StateLoadBad
-                    ldy       8,x
-                    cmpy      #4096
-                    bhi       StateLoadBad
-                    cmpy      M$Size,u
-                    bhi       StateLoadBad
-                    leas      2,s
+ColdDirectoryReady  ldy       8,x
+                    leas      5,s
                     clrb
                     rts
 StateLoadBad        os9       F$UnLink
                     ldb       #E$BMode
                     orcc      #1
-StateModuleFailure  puls      u,pc
+StateModuleFailure  puls      a,x,u,pc
+UiModule            fcc       /wbui/
+                    fcb       C$CR
 StateModule         fcc       /wbstate/
                     fcb       C$CR
 StateSignature      STATE_ABI
@@ -1044,12 +1053,8 @@ GameWindowCloseReady equ      *
                     leax      3072,u
                     ldy       <resourcebase
                     leay      textcharacters,y
-                    ldu       #1000
-GameWindowRestore   ldd       ,x++
-                    std       ,y++
-                    leau      -1,u
-                    cmpu      #0
-                    bne       GameWindowRestore
+                    ldd       #1000
+GameWindowRestore   lbsr      GameCopyWords
                     lbsr      unmap
                     bcs       GameWindowReturn
                     ldu       <resourcebase
@@ -1130,7 +1135,7 @@ GameColdLoad         pshs      b,x,y
                     ldu       textstoremodule,u
                     bne       GameColdLinked
                     ldu       <resourcebase
-                    lbsr      StateLoadModule
+                    lbsr      UiLoadModule
                     bcs       GameColdFailure
                     ldy       <resourcebase
                     stu       textstoremodule,y
@@ -1529,7 +1534,7 @@ InventoryStatus     lbsr      InventoryLoadNames
                     leay      resourcecommands,u
                     ldd       #1000
 InventorySaveText equ *
-                    jsr       [copywordentry,u]
+                    lbsr      GameCopyWords
                     clr       inventoryvisible,u
                     clr       inventoryvisible+1,u
                     clr       inventoryselected,u
@@ -1715,7 +1720,7 @@ InventoryRestoreError pshs    cc,b
                     leay      textcharacters,u
                     ldd       #1000
 InventoryRestoreText equ *
-                    jsr       [copywordentry,u]
+                    lbsr      GameCopyWords
                     puls      cc,b
                     lbcs      InventoryReturn
                     lbsr      GameComposeScene

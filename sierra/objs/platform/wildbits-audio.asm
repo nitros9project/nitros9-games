@@ -256,7 +256,7 @@ GameSoundTick       ldu <resourcebase
                     leax soundcode+AUDIO_TICK_OFFSET,u
                     jmp ,x
 GameSoundStop       equ SoundStopBody
-GameSoundLoad       lbsr StateLoadModule
+GameSoundLoad       lbsr UiLoadModule
                     bcs SoundLoadReturn
                     ldd 2,x
                     cmpd #13

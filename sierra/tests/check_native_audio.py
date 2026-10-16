@@ -25,7 +25,7 @@ def fixture(sound, requests=1, modal=False, discard_stub=False):
 
 def main():
     sound=bytes([28,63,0,2,29,0,0,3,255,0,48])
-    helper=(ROOT/'objs/wbstate').read_bytes()
+    helper=(ROOT/'objs/wbui').read_bytes()
     stale=bytearray(helper);entry=int.from_bytes(stale[9:11],'big');stale[entry+8]^=1
     with tempfile.TemporaryDirectory(prefix='sierra-native-audio-') as name:
         d,e=start_cpu(idle_rom(Path(name)/'idle.rom'),timeout=1800)
@@ -42,16 +42,16 @@ def main():
                 firstblock=0x10,capture=True,breakpoint_hooks={'start':dirty_audio_path})
             assert error==211,error
             for label,files,driver in (
-                ('converted notes',{**fixture(sound),'wbstate':helper},{}),
-                ('CoCo discard-sound stub during playback',{**fixture(sound,discard_stub=True),'wbstate':helper},{}),
-                ('missing helper',{**fixture(sound),'wbstate':None},None),
-                ('missing driver',{**fixture(sound),'wbstate':helper},None),
-                ('older driver',{**fixture(sound),'wbstate':helper},{'version':3}),
-                ('stale helper',{**fixture(sound),'wbstate':bytes(stale)},{}),
-                ('invalid amplitude',{**fixture(bytes([28,64,0,2,255,0,48])),'wbstate':helper},{}),
-                ('busy driver',{**fixture(sound),'wbstate':helper},{'busy':True}),
-                ('busy then available',{**fixture(sound,2),'wbstate':helper},{'busy_attempts':1}),
-                ('truncated note',{**fixture(sound[:-3]),'wbstate':helper},{})):
+                ('converted notes',{**fixture(sound),'wbui':helper},{}),
+                ('CoCo discard-sound stub during playback',{**fixture(sound,discard_stub=True),'wbui':helper},{}),
+                ('missing helper',{**fixture(sound),'wbui':None},None),
+                ('missing driver',{**fixture(sound),'wbui':helper},None),
+                ('older driver',{**fixture(sound),'wbui':helper},{'version':3}),
+                ('stale helper',{**fixture(sound),'wbui':bytes(stale)},{}),
+                ('invalid amplitude',{**fixture(bytes([28,64,0,2,255,0,48])),'wbui':helper},{}),
+                ('busy driver',{**fixture(sound),'wbui':helper},{'busy':True}),
+                ('busy then available',{**fixture(sound,2),'wbui':helper},{'busy_attempts':1}),
+                ('truncated note',{**fixture(sound[:-3]),'wbui':helper},{})):
                 print('Checking native audio:',label,flush=True)
                 error,output,state=exercise(d,files,module='wbgame',base=0xa000,
                     database=0x0000,window=0x8000,blocks=None,multiple=True,
@@ -75,7 +75,7 @@ def main():
             def modal_restoring(debug,registers,syms):
                 completed.append(debug.read(0x0000+syms['vmflags']+200,1)==b'\x01')
             print('Checking native audio: bounded queue refill during a long modal wait',flush=True)
-            error,output,state=exercise(d,{**fixture(long_sound,modal=True),'wbstate':helper},
+            error,output,state=exercise(d,{**fixture(long_sound,modal=True),'wbui':helper},
                 module='wbgame',base=0xa000,database=0x0000,window=0x8000,
                 blocks=None,multiple=True,firstblock=0x10,capture=True,
                 psg={'queue_capacity':8},keyboard_by_cycle={25:(b'\r',0)},
@@ -98,7 +98,7 @@ def main():
             files={directory.decode()+'/logDir':b''.join(entries),
                    directory.decode()+'/sndDir':offset.to_bytes(3,'big'),
                    directory.decode()+'/vol.0':b''.join(records)+b'\x12\x34\0'+size*2+sound,
-                   'wbstate':helper}
+                   'wbui':helper}
             print('Checking native audio: 16 nested logic calls and 127-byte directory',flush=True)
             error,output,state=exercise(d,files,arguments=directory+b' 1\r',
                 module='wbgame',base=0xa000,database=0x0000,window=0x8000,

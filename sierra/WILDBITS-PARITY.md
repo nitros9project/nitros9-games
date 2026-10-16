@@ -168,8 +168,8 @@ versions without treating a game-directory name as sufficient provenance.
   resident instructions. Baseline limits: game 23,807/23,808 bytes; helper
   8,190/8,192; writable prefix 3,191/4,096; private data 24,465/24,576.
   Short branches, arithmetic delegation and common copies made C01 fit. Current
-  budgets are game 23,801, helper 8,173, prefix 3,177 and private 24,468 bytes;
-  all 63 owners compile and CoCo stays unchanged.
+  budgets are game 23,803, UI helper 5,084, state helper 3,180, copied prefix
+  3,177 and private 24,468 bytes. All 64 owners compile; CoCo stays unchanged.
   This is initial capacity recovery, not enough evidence to close A01 for all
   remaining features.
   Record before/after budgets and preserve stack headroom and ABI checks.
@@ -183,13 +183,14 @@ versions without treating a game-directory name as sufficient provenance.
   error/ownership and reentrancy contracts for remaining platform interfaces.
   Keep hardware/driver access in backends and common behavior in shared code.
   Identical module packaging is not required: CoCo's four modules and native
-  `wbgame`/`wbstate` may remain different when behavior and ownership match.
+  `wbgame`/`wbui`/`wbstate` may remain different when behavior and ownership match.
 - [ ] **A04 — Run the complete standard target:** All 58 current check commands
   pass on one revision, with reproducible logs; any debugger/test infrastructure
   failure is fixed or explicitly isolated and rerun. The older segmented
   baseline is useful evidence but does not satisfy this gate. Revision `78893f7`
   now passes the former 57-command target uninterrupted; the promoted
-  priority/arithmetic/copy revision has its 58-command run in progress.
+  priority/arithmetic/copy revision `a9a889a` passes all 58 commands. The
+  matching ABI-8 capacity revision has its complete target running.
 
 ## 4. Acceptance across games, terminals and hardware
 
@@ -335,3 +336,13 @@ empty; recursion and malformed-resource policies still require final decisions.
 
 The user confirmed emulator-only availability. V06 physical-hardware acceptance
 remains unchecked and has not been waived. Independent software work continues.
+
+
+### Capacity-provider evidence, 2026-10-15
+
+The ABI-8 UI/persistence split, byte budgets, loader safety checks and matching
+64-owner/MAME evidence are recorded in
+[engine validation](WILDBITS-ENGINE.md#separate-ui-and-persistence-providers-abi-8).
+It creates 3,108 UI bytes of headroom; A01 remains open for the complete
+remaining feature set. The preceding ABI-7 complete 58-command target passed.
+The matching ABI-8 complete target is running, so A04 remains open.
