@@ -36,8 +36,8 @@ unchecked equivalence gates below.
 
 At the recorded baseline the catalog contained 182 commands: 171 had native
 routes, including eight success-only routes; eleven were explicitly unsupported.
-The C08–C11 correction now gives 175 routed commands and seven unsupported
-commands. Four added success-only routes reproduce actual CoCo stubs, rather
+The C08–C11 correction gave 175 routed commands and seven unsupported
+commands. C01 now raises that to 176 routed commands and six unsupported routes. Four added success-only routes reproduce actual CoCo stubs, rather
 than suppressing unimplemented CoCo behavior. Commands 0..17 execute
 in the VM before platform dispatch and are included in both totals. These numbers
 measure routing, not behavioral equivalence.
@@ -46,7 +46,7 @@ The catalog's CoCo symbol names are sometimes misleading: opcode 29 is labeled
 `show pri` but calls `CmdSaveGame`; 144 and 175 both call `cmd_shake_screen`.
 Compare the actual bodies and caller contracts, not symbol names alone.
 
-| ID | Open route | CoCo reference | Acceptance required |
+| ID | Command route | CoCo reference | Acceptance required |
 | --- | --- | --- | --- |
 | C01 | 29: show-priority/debug UI | `CmdSaveGame` | Establish its actual visible behavior; match display/dismissal and restoration, without invoking native save accidentally. |
 | C02 | 133: object status | `CmdObjStatusV` | Selected object's fields, variable argument, dismissal and unchanged game state match the reference. |
@@ -60,7 +60,9 @@ Compare the actual bodies and caller contracts, not symbol names alone.
 | C10 | 179: hide mouse | `cmd_hide_mouse` stub | Consume all four catalog operands, match CoCo's ignored operation, and leave the next instruction aligned. |
 | C11 | 180: allow menu | `cmd_set_upper_left` stub | Consume both variable operands, match CoCo's ignored operation, and leave state/instruction alignment intact. |
 
-- [ ] **C01–C07:** Close each real diagnostic/UI/save behavior above individually.
+- [x] **C01 — Priority diagnostic:** Actual CoCo/native conversion and control
+  comparisons, loaded logic and real-driver MAME acceptance pass (evidence below).
+- [ ] **C02–C07:** Close each remaining diagnostic/UI/save behavior individually.
 - [x] **C08–C11:** Close each CoCo-stub compatibility case above individually.
 - [x] **C12 — Existing success-only routes:** Verify all of 127, 155, 163, 164,
   173, 176, 178 and 181 against their actual CoCo bodies. Record argument
@@ -72,6 +74,18 @@ Compare the actual bodies and caller contracts, not symbol names alone.
   component/backend boundary, meaningful test and result. Every unsupported or
   intentionally different result must link to its decision. Do not implement
   omitted PC behavior that CoCo does not implement merely to improve a count.
+
+Evidence for C01: `check_priority_view.py` executes the actual CoCo control
+body and nibble swap, compares all combined byte values, and verifies visible
+native priority pixels, fresh Enter/Escape dismissal, ignored ordinary keys,
+repeated cached calls, preserved gameplay/combined buffers, first-picture setup
+and show/restore/unmap failures. `check_priority_mame.py` verifies physical
+Escape (native byte 5), Enter, repeated views, two terminals, foreground
+retention, unchanged save bytes, no remaining game process and exact memory
+recovery after cleanup. Install matching ABI-7 modules. Reference/platform
+mapping, negative tests, budgets and artifact paths are recorded in
+[engine validation](WILDBITS-ENGINE.md#priority-diagnostic-arithmetic-edges-and-common-text-plane-copy).
+S06's other modal/menu/input combinations remain open.
 
 Evidence for C08–C12: `check_logic_executor.py` executes 43 controlled scripts
 in both actual interpreters at two load addresses (172 executions). Tests use
@@ -153,8 +167,9 @@ versions without treating a game-directory name as sufficient provenance.
 - [ ] **A01 — Reclaim code capacity:** Establish space for C01–C07 before adding
   resident instructions. Baseline limits: game 23,807/23,808 bytes; helper
   8,190/8,192; writable prefix 3,191/4,096; private data 24,465/24,576.
-  Checked short branches now reduce the game to 23,779 and helper
-  to 8,111 bytes, with all 63 owners compiling and CoCo unchanged.
+  Short branches, arithmetic delegation and common copies made C01 fit. Current
+  budgets are game 23,801, helper 8,173, prefix 3,177 and private 24,468 bytes;
+  all 63 owners compile and CoCo stays unchanged.
   This is initial capacity recovery, not enough evidence to close A01 for all
   remaining features.
   Record before/after budgets and preserve stack headroom and ABI checks.
@@ -169,10 +184,12 @@ versions without treating a game-directory name as sufficient provenance.
   Keep hardware/driver access in backends and common behavior in shared code.
   Identical module packaging is not required: CoCo's four modules and native
   `wbgame`/`wbstate` may remain different when behavior and ownership match.
-- [ ] **A04 — Run the complete standard target:** All 57 current check commands
+- [ ] **A04 — Run the complete standard target:** All 58 current check commands
   pass on one revision, with reproducible logs; any debugger/test infrastructure
   failure is fixed or explicitly isolated and rerun. The older segmented
-  baseline is useful evidence but does not satisfy this gate.
+  baseline is useful evidence but does not satisfy this gate. Revision `78893f7`
+  now passes the former 57-command target uninterrupted; the promoted
+  priority/arithmetic/copy revision has its 58-command run in progress.
 
 ## 4. Acceptance across games, terminals and hardware
 

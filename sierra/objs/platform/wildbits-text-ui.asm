@@ -268,6 +268,8 @@ UI_CALL           macro
 AuxShowObject       ldu       <resourcebase
                     sty       coldapi,u
                     lda       <vmopcode
+                    cmpa      #29
+                    lbeq      AuxPriorityView
                     cmpa      #141
                     lbeq      AuxInterpreterInfo
                     cmpa      #139
@@ -403,6 +405,30 @@ AuxShowDone         clrb
                     rts
 AuxShowInvalid      ldb       #E$BMode
                     orcc      #1
+                    rts
+* Priority diagnostic uses its own modal callbacks and never enters save UI.
+AuxPriorityView     UI_CALL   34
+                    bcs       AuxShowReturn
+                    tst       <pictureowned
+                    bne       AuxPriorityHavePicture
+                    UI_CALL   26
+                    bcs       AuxShowReturn
+AuxPriorityHavePicture inc    <gamepriorityview
+                    lda       #4
+                    sta       dialoginputmode,u
+                    UI_CALL   32
+                    bcs       AuxPriorityRestore
+                    ldy       coldapi,u
+                    leay      36,y
+                    lbsr      AuxPrintWait
+AuxPriorityRestore  pshs      cc,b
+                    ldu       <resourcebase
+                    clr       <gamepriorityview
+                    clr       dialoginputmode,u
+                    UI_CALL   32
+                    bcs       AuxPriorityRestoreError
+                    puls      cc,b,pc
+AuxPriorityRestoreError leas   2,s
                     rts
 * Interpreter information shares the existing text callback and cold entry.
 AuxJoystickInfo     leax      JoystickInfo,pcr
@@ -583,14 +609,8 @@ GamePrintText       ldu       <resourcebase
                     leax      textcharacters,u
                     leay      resourcecommands,u
                     ldd       #1000
-                    pshs      d
-GamePrintSave       ldd       ,x++
-                    std       ,y++
-                    ldd       ,s
-                    subd      #1
-                    std       ,s
-                    bne       GamePrintSave
-                    leas      2,s
+GamePrintSave equ *
+                    jsr       [copywordentry,u]
                     lda       <vmtextforeground
                     ldb       <vmtextbackground
                     pshs      d
@@ -700,14 +720,8 @@ GamePrintRestore    pshs      cc,b
                     leax      resourcecommands,u
                     leay      textcharacters,u
                     ldd       #1000
-                    pshs      d
-GamePrintCopyBack   ldd       ,x++
-                    std       ,y++
-                    ldd       ,s
-                    subd      #1
-                    std       ,s
-                    bne       GamePrintCopyBack
-                    leas      2,s
+GamePrintCopyBack equ *
+                    jsr       [copywordentry,u]
                     puls      cc,b
                     puls      a
                     sta       <vmtextforeground
@@ -729,6 +743,7 @@ GameShakeCommand    ldu       <resourcebase
                     lbra      GameColdInvoke
 ShakeCallbacks      fdb       GameFramePointer-ShakeCallbacks,unmap-ShakeCallbacks
                     fdb       GameModalForeground-ShakeCallbacks,GameClockSample-ShakeCallbacks
+GameShowPriorityCommand equ   *
 GameVersionCommand  equ       *
 GameShowObjectCommand ldu     <resourcebase
                     leax      showentry,u
@@ -744,6 +759,52 @@ ShowCallbacks       fdb       ViewSelect-ShowCallbacks,GameSaveBackground-ShowCa
                     fdb       GameCloseWindow-ShowCallbacks,GameCreateScreen-ShowCallbacks
                     fdb       GameCopyBackground-ShowCallbacks,GameComposeScene-ShowCallbacks
                     fdb       RefreshPicture-ShowCallbacks
+                    fdb       GamePriorityPrepare-ShowCallbacks
+PriorityWaitCallbacks fdb     GameModalForeground-PriorityWaitCallbacks
+                    fdb       GamePriorityKey-PriorityWaitCallbacks
+                    fdb       GameStateReturn-PriorityWaitCallbacks
+                    fdb       GameClockSample-PriorityWaitCallbacks
+* Discard queued input before displaying the diagnostic, like events_clear.
+* Private VT input queues are small; stop after 256 reads rather than spinning
+* indefinitely if an input source continuously replenishes the queue.
+GamePriorityPrepare lbsr      AssetUnmap
+                    bcs       GamePriorityDrainError
+                    lbsr      PictureUnmap
+                    bcs       GamePriorityDrainError
+                    clra
+                    pshs      d
+GamePriorityDrain   clra
+                    ldb       #SS.Ready
+                    os9       I$GetStt
+                    bcs       GamePriorityDrainDone
+                    leax      1,s
+                    ldy       #1
+                    clra
+                    os9       I$Read
+                    bcs       GamePriorityDrainDone
+                    dec       ,s
+                    bne       GamePriorityDrain
+                    ldb       #E$BMode
+                    orcc      #1
+GamePriorityDrainDone leas    2,s
+                    cmpb      #E$NotRdy
+                    bne       GamePriorityDrainError
+                    clrb
+                    rts
+GamePriorityDrainError orcc   #1
+                    rts
+GamePriorityKey     lda       parsercharacter,u
+                    cmpa      #13
+                    beq       GamePriorityAccepted
+                    cmpa      #5         Wild Bits physical Escape
+                    beq       GamePriorityAccepted
+                    cmpa      #27
+                    beq       GamePriorityAccepted
+                    clra
+                    rts
+GamePriorityAccepted lda      #1
+                    clrb
+                    rts
 GameRestartCommand  ldu       <resourcebase
                     leax      restartentry,u
                     ldb       #12
@@ -1467,14 +1528,8 @@ InventoryStatus     lbsr      InventoryLoadNames
                     leax      textcharacters,u
                     leay      resourcecommands,u
                     ldd       #1000
-                    pshs      d
-InventorySaveText   ldd       ,x++
-                    std       ,y++
-                    ldd       ,s
-                    subd      #1
-                    std       ,s
-                    bne       InventorySaveText
-                    leas      2,s
+InventorySaveText equ *
+                    jsr       [copywordentry,u]
                     clr       inventoryvisible,u
                     clr       inventoryvisible+1,u
                     clr       inventoryselected,u
@@ -1659,14 +1714,8 @@ InventoryRestoreError pshs    cc,b
                     leax      resourcecommands,u
                     leay      textcharacters,u
                     ldd       #1000
-                    pshs      d
-InventoryRestoreText ldd      ,x++
-                    std       ,y++
-                    ldd       ,s
-                    subd      #1
-                    std       ,s
-                    bne       InventoryRestoreText
-                    leas      2,s
+InventoryRestoreText equ *
+                    jsr       [copywordentry,u]
                     puls      cc,b
                     lbcs      InventoryReturn
                     lbsr      GameComposeScene
@@ -1916,14 +1965,8 @@ AuxMenuInput        ldu       <resourcebase
                     leax      textcharacters,u
                     leay      resourcecommands,u
                     ldd       #1000
-                    pshs      d
-GameMenuSave        ldd       ,x++
-                    std       ,y++
-                    ldd       ,s
-                    subd      #1
-                    std       ,s
-                    bne       GameMenuSave
-                    leas      2,s
+GameMenuSave equ *
+                    jsr       [copywordentry,u]
                     clr       inventoryselected,u
                     clr       inventoryselected+1,u
 GameMenuDraw        ldu       <resourcebase
@@ -2081,14 +2124,8 @@ GameMenuRestore     pshs      cc,b
                     leax      resourcecommands,u
                     leay      textcharacters,u
                     ldd       #1000
-                    pshs      d
-GameMenuCopyBack    ldd       ,x++
-                    std       ,y++
-                    ldd       ,s
-                    subd      #1
-                    std       ,s
-                    bne       GameMenuCopyBack
-                    leas      2,s
+GameMenuCopyBack equ *
+                    jsr       [copywordentry,u]
                     puls      cc,b
                     bcs      AuxMenuReturn
                     UI_CALL   12

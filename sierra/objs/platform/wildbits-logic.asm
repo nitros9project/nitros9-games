@@ -735,22 +735,10 @@ VmConditionScanInvalid lbra   VmInvalid
                     ifndef PLATFORM_WILDBITS_LOGIC_BINDINGS
                     use platform/wildbits-logic-bindings.asm
                     endc
-* Native argument/validation adapter; byte arithmetic belongs to the common engine.
+* Native argument adapter; all byte arithmetic belongs to the common engine.
 GameMathCommand     ldu       <resourcebase
                     leay      vmarguments,u
                     ldb       <vmopcode
-                    cmpb      #167
-                    blo       GameMathReady
-                    ldb       vmarguments+1,u
-                    lda       <vmopcode
-                    cmpa      #168
-                    bne       GameMathDivisor
-                    VARIABLE_TABLE
-                    abx
-                    ldb       ,x
-GameMathDivisor     tstb
-                    lbeq      ObjectBadIndex
-GameMathReady       ldb       <vmopcode
                     subb      #165
                     lslb
                     leax      GameMathHandlers,pcr
@@ -766,9 +754,6 @@ GameMathHandlers    fdb       cmd_multn-GameMathHandlers
                     use       shared/math-commands.asm
 
 GameRandomCommand   ldu       <resourcebase
-                    lda       vmarguments,u
-                    cmpa      vmarguments+1,u
-                    lbhi      ObjectBadIndex
                     leay      vmarguments,u
                     bsr      CmdRandomImpl
                     clrb

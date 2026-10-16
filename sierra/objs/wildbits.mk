@@ -103,6 +103,7 @@ check: all probes
 	python3 ../tests/check_wbasset.py
 	python3 ../tests/check_packed_pictures.py
 	python3 ../tests/check_priority_bands.py
+	python3 ../tests/check_priority_view.py
 	python3 ../tests/check_add_to_picture.py
 	python3 ../tests/check_cancel_line.py
 	python3 ../tests/check_persistent_window.py

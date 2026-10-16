@@ -13,7 +13,7 @@ algorithms live in `objs/shared`. See
 Build with `make -C sierra/objs -f wildbits.mk all` from the games repository. Install
 `wbgame`, `wbfont`, and the matching `wbstate` auxiliary helper in the OS-9
 execution directory, with read/execute access. The current private helper ABI
-is version 6; install both modules together when upgrading.
+is version 7; install both modules together when upgrading.
 Keep the original game resources together in a readable directory, then run:
 
 ```text
@@ -582,9 +582,14 @@ and restores the three changed options on normal, error and interrupt exits.
 `get.string`, `get.num` and `word.to.string` work with bounded private editors
 and string slots. A modal editor saves any pending ordinary input line and
 restores it afterward. Numeric results follow byte-variable arithmetic.
-The formatter supports `%vN`, `%sN`, `%wN`, `%mN` and `%%`; expansion is bounded
-to 2,047 output bytes and four message frames. Other directives remain explicit
-errors. Modal responses wrap whole words and retain a two-column margin.
+The formatter supports `%vN`, `%sN`, `%wN`, `%mN`, `%gN` and `%oN`, with
+recursive string/message expansion, byte-wrapped indices and numeric widths.
+Like CoCo, unknown two-byte escapes (including `%%`) disappear, missing numeric
+operands default to zero, and out-of-range words/messages expand to empty.
+Expansion is bounded to 2,047 output bytes and four copied frames; corrupt or
+missing resources remain errors. Message zero safely expands to empty. Final
+recursion/malformed-input policy acceptance remains open in WILDBITS-PARITY.md.
+Modal responses wrap whole words and retain a two-column margin.
 
 The native menu is a paged list of `title: item` entries. Arrow keys navigate,
 ENTER sends the item's controller, disabled entries cannot activate, and
@@ -594,7 +599,8 @@ foreign mappings. Immediate and confirmed quit are supported.
 Commands `random`, `mul.n/v`, `div.n/v`, `follow.ego` and all three reposition
 forms are integrated. Reposition uses bounded left/down/right/up placement
 search with screen, horizon, object-collision and picture-control checks.
-Division by zero and exhausted searches fail explicitly.
+Division by zero returns 255 like CoCo; random bounds use CoCo byte wrapping,
+including reversed ranges. Exhausted placement searches fail explicitly.
 
 `check_wbparser.py` verifies typed/multiword matching, ignored words,
 normalization, editing and unknown indexes. `check_wbplay.py` verifies following,
@@ -722,3 +728,9 @@ explain that fix and the original KQ1 castle/lake round-trip check.
 Entering the castle hall now restores arrow control after the door script stops
 Graham. Room transitions also release the previous movement block. See
 [the hall-control regression](WILDBITS-ENGINE.md#castle-hall-arrow-controls--2026-10-07).
+
+
+The game's priority diagnostic (`show.pri`, opcode 29) displays the priority
+plane until a fresh Enter or Escape, then restores the color scene. Ordinary
+keys do not dismiss it. Each terminal owns its mode, including across foreground
+switches. See the parity checklist for comparison and failure-path evidence.

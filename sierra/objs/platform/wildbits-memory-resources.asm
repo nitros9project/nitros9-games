@@ -600,6 +600,10 @@ lzwerror            rmb       1
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_RESOURCE_CLI
 * ===== wildbits-resource-cli =====
 * Shared probe argument/output body. Owning module supplies state and help.
+                    ifne      GAME_PRESENTATION
+                    use       shared/bounded-string-copy.asm
+                    COPY_WORD_SPAN GameCopyWords
+                    endc
 start               equ       *
                     ifne      GAME_PRESENTATION
 * OS allocations can contain a previous process or restore staging stream.
@@ -612,6 +616,8 @@ start               equ       *
 GameClearPrivate    sta       ,x+
                     leay      -1,y
                     bne       GameClearPrivate
+                    leax      GameCopyWords,pcr
+                    stx       copywordentry,u
                     puls      x
                     endc
                     stu       <resourcebase

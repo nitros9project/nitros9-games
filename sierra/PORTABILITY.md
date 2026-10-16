@@ -3044,3 +3044,26 @@ feature compatibility or continuous full-adventure traversal.
 The local release package contains the matched `wbgame`, `wbstate`, and
 `wbfont`, the port documentation, and a SHA-256 manifest. Original game
 resources are supplied separately by the player.
+
+
+## Arithmetic edge-contract correction
+
+The earlier extraction sections above recorded native-only rejection of zero
+divisors and reversed random ranges. Direct comparison now establishes that
+these guards diverged from CoCo and were unnecessary for bounded execution.
+Both owners use the common eight-iteration `Div8`: a zero divisor returns
+quotient 255 and the original dividend as remainder. The native command adapter
+now delegates directly, preserving operand advancement and continuation.
+
+Random range selection uses an eight-bit width `(max - min + 1) & 255`. A zero
+width stores the raw generator byte; otherwise it stores the byte-wrapped sum
+of the minimum and the generator byte modulo the width. This includes reversed
+bounds. The platform-specific random sources are unchanged.
+
+The focused comparison executes 4,544 math calls and all 256 controlled random
+bytes across eleven normal/wrapping ranges in both actual owners at two load
+addresses. Guards cover operands, variable tables, stack and immutable code.
+Loaded native logic verifies both zero-divisor commands, a following assignment
+and cleanup. Removing the differing guards recovers 40 resident bytes without
+changing the private ABI or any CoCo executable instructions. This closes
+these edge differences, not the complete S01 acceptance family.

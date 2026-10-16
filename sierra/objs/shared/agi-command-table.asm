@@ -31,7 +31,7 @@
                     AGI_COMMAND cmd_show_pic,$0000,GameShowPicture,1 *show pic
                     AGI_COMMAND cmd_discard_pic,$180,GameDiscardPicture,1 *discard overlay
                     AGI_COMMAND cmd_overlay_pic,$180,GameDrawPicture,1 *animate obj
-                    AGI_COMMAND CmdSaveGame,$0000,VmPlatformUnsupported,0 *show pri
+                    AGI_COMMAND CmdSaveGame,$0000,GameShowPriorityCommand,1 *show pri
                     AGI_COMMAND cmd_load_view,$100,VmCommandLoadView,0 *load view
                     AGI_COMMAND cmd_load_view_v,$180,VmCommandLoadViewVariable,0 *load view v
                     AGI_COMMAND cmd_discard_view,$100,VmCommandDiscardView,0 *discard view

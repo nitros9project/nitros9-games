@@ -10,7 +10,8 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def main():
-    ranges = [(0, 255), (0, 0), (255, 255), (37, 193), (128, 255), (250, 255)]
+    ranges = [(0, 255), (0, 0), (255, 255), (37, 193), (128, 255), (250, 255),
+              (250, 5), (200, 10), (128, 127), (1, 0), (255, 0)]
     with tempfile.TemporaryDirectory(prefix='sierra-random-') as name:
         tmp = Path(name)
         coco, cs = compile_module(ROOT / 'objs/mnln.asm', tmp / 'mnln')
@@ -43,14 +44,15 @@ def main():
                             d.regs(pc=entry, s=0x7ef0, y=args, u=private,
                                    dp=private >> 8, cc=0x50)
                             d.call('c'); r = d.regs()
-                            assert r['pc'] == generator
+                            assert r['pc'] == generator, (owner, minimum, maximum, random_byte, r['pc'])
                             # Substitute only the random source, retaining the
                             # real divisor, stream reads and variable store.
                             ret = int.from_bytes(d.read(r['s'], 2), 'big')
                             d.regs(pc=ret, s=r['s'] + 2, b=random_byte)
                             d.call('c'); r = d.regs()
                             expected = bytearray(b'\xa5' * 256)
-                            expected[destination] = minimum + random_byte % (maximum - minimum + 1)
+                            width = (maximum - minimum + 1) & 255
+                            expected[destination] = ((minimum + random_byte % width) & 255) if width else random_byte
                             assert r['pc'] == 0x7e00 and r['s'] == 0x7ef2
                             assert d.read(0x7ef2, 5) == b'STACK'
                             assert d.read(table, 256) == expected, (owner, minimum, maximum, random_byte)
@@ -60,19 +62,9 @@ def main():
                                 assert d.read(private + syms['size'], 5) == b'GUARD'
                             else:
                                 assert r['y'] == args + 3
-                    if private:
-                        # Native validation must reject a reversed range
-                        # before requesting a random byte or storing a value.
-                        d.write(args, bytes([200, 10, 255]))
-                        d.write(table, b'\xa5' * 256)
-                        d.write(0x7ef0, b'\x7e\x00STACK')
-                        d.regs(pc=entry, s=0x7ef0, dp=private >> 8, u=private, cc=0x50)
-                        d.call('c'); r = d.regs()
-                        assert r['pc'] == 0x7e00 and r['cc'] & 1
-                        assert r['s'] == 0x7ef2 and d.read(table, 256) == b'\xa5' * 256
                     assert d.read(base, len(code)) == code
                     d.breakpoint(generator, False); d.breakpoint(0x7e00, False)
-            print('PASS: both real random handlers at two load addresses; all 256 generator bytes across six inclusive ranges, destination variables 0/255, whole-byte and singleton edges, native reversed-range rejection, stack/buffer guards and immutable code')
+            print('PASS: both real random handlers at two load addresses; all 256 generator bytes across eleven inclusive/wrapping ranges, destination variables 0/255, whole-byte and singleton edges, CoCo byte-wrapped range behavior, stack/buffer guards and immutable code')
         finally:
             d.s.close(); emulator.terminate()
             try:

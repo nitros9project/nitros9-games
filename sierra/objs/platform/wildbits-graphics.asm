@@ -1547,6 +1547,7 @@ gamepresentright    rmb       1
 gamepresentwidth    rmb       1
 presentband         rmb       1
 presentationconfigured rmb   1
+gamepriorityview    rmb       1
                     endc
 aborted             rmb       1
 errorcode           rmb       1
@@ -1582,6 +1583,8 @@ unmapret            rts
 ConvertRow          equ       *
                     ifne      GAME_PRESENTATION
                     ldb       <gamepresentwidth
+                    tst       <gamepriorityview
+                    bne       convertpriority
                     else
                     ldb       #PictureWidth
                     endc
@@ -1593,6 +1596,20 @@ convertpixel        lda       ,x+
                     decb
                     bne       convertpixel
                     rts
+                    ifne      GAME_PRESENTATION
+* Priority display reads the high nibble without modifying the combined buffer.
+convertpriority     lda       ,x+
+                    lsra
+                    lsra
+                    lsra
+                    lsra
+                    inca
+                    sta       ,y+
+                    sta       ,y+
+                    decb
+                    bne       convertpriority
+                    rts
+                    endc
 * Visibility handling uses intercepted U, never the interrupted DP.
 intercept           equ       *
                     cmpb      #SignalBg

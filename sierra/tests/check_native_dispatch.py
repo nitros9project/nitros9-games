@@ -11,6 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # Independent behavioral contract for game-only and shared probe commands.
 # Unsupported opcodes must retain the explicit error handler.
 GAME = {
+    'GameShowPriorityCommand': (29,),
     'GamePriorityBaseCommand': (174,),
     'GameStateCommand': (125,126),
     'GameForceUpdate': (60,), 'GameCloseWindow': (169,), 'GameAddToPicture': (122,123), 'GameCancelLine': (138,), 'GameEchoLine': (137,),

@@ -67,6 +67,22 @@ def main():
                                 assert d.read(0x3fff,capacity+2)==b'G'+prefix+source+b'H'
                                 assert d.read(0x1fff,len(source)+2)==b'S'+source+b'T'
                                 assert d.read(0x7ef2,5)==b'STACK'
+                    if owner=='native':
+                        for words in (0,1,2,127,255,256,999,1000,1001):
+                            source=bytes((i*73+19)&255 for i in range(words*2))
+                            d.write(0x1000,b'P'*3840)
+                            d.write(0x1fff,b'S'+source+b'T')
+                            d.write(0x3fff,b'G'+b'?'*len(source)+b'H')
+                            d.write(0x7ee0,b'L'*16+b'\x7e\0STACK')
+                            d.regs(pc=base+syms['GameCopyWords'],x=0x2000,y=0x4000,
+                                   a=words>>8,b=words&255,u=0x1234,s=0x7ef0,dp=0,cc=0x51)
+                            d.call('c');r=d.regs()
+                            assert (r['pc'],r['s'],r['x'],r['y'],r['u'])==(0x7e00,0x7ef2,0x2000+2*words,0x4000+2*words,0x1234)
+                            assert (r['a'],r['b'])==(0,0) and not r['cc']&1
+                            assert d.read(0x1fff,len(source)+2)==b'S'+source+b'T'
+                            assert d.read(0x3fff,len(source)+2)==b'G'+source+b'H'
+                            assert d.read(0x1000,3840)==b'P'*3840
+                            assert d.read(0x7ee0,14)==b'L'*14 and d.read(0x7ef2,5)==b'STACK'
                     cases=[str(value).encode() for value in range(256)]
                     cases += [b'',b' ',b'   ',b'000',b'256',b'511',b'999',b'1234567890',
                               b'9'*39,b'  255x',b'12 34',b'-1',b'+2',b'x99',b'\xff123']
@@ -87,7 +103,7 @@ def main():
                         assert d.read(0x1fff,len(source)+2)==b'S'+source+b'T'
                     assert d.read(base,len(code))==code
                     d.breakpoint(0x7e00,False)
-            print('PASS: real CoCo/native bounded-copy and decimal routines at two code bases; copy termination/truncation, append empty/nonempty prefixes and sources, all nonzero byte values, 8/16-bit count edges, guards/register conventions, every byte value 0–255, decimal overflow/leading spaces/invalid prefixes, all nondigit byte classes, source cursors, stack balance and immutable code')
+            print('PASS: real CoCo/native bounded-copy and decimal routines at two code bases; zero/byte/word/full-plane counted-word copies, copy termination/truncation, append empty/nonempty prefixes and sources, all nonzero byte values, 8/16-bit count edges, guards/register conventions, every byte value 0–255, decimal overflow/leading spaces/invalid prefixes, all nondigit byte classes, source cursors, stack balance and immutable code')
         finally:
             d.s.close();emulator.terminate()
             try:emulator.wait(timeout=5)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise real CoCo/native math handlers, including variable aliasing and rejection."""
+"""Exercise real CoCo/native math handlers, including variable aliasing and zero divisors."""
 from itertools import product
 from pathlib import Path
 import subprocess
@@ -39,13 +39,11 @@ def main():
                         variable = opcode in (166, 168)
                         division = opcode >= 167
                         cases = [(a, b, False) for a, b in vectors]
+                        if division:
+                            cases += [(n, 0, False) for n in range(256)]
                         if variable:
                             cases += [(n, n, True) for n in EDGES]
                         for left, right, alias in cases:
-                            if division and right == 0 and not private:
-                                # CoCo's existing zero-divisor behavior is outside
-                                # the nonzero arithmetic contract; native rejects it.
-                                continue
                             dest = 255 if left & 1 else 0
                             source = dest if alias else 255-dest
                             values = bytearray(b'\xa5' * 256)
@@ -64,21 +62,17 @@ def main():
                             assert regs['pc'] == 0x7e00 and regs['s'] == 0x7ef2
                             assert regs['u'] == private
                             assert d.read(0x7ef2, 5) == b'STACK'
-                            rejected = division and right == 0
                             expected = bytearray(values)
-                            if not rejected:
-                                expected[dest] = left // right if division else left*right & 255
+                            expected[dest] = (255 if right == 0 else left // right) if division else left*right & 255
                             assert d.read(table-1, 258) == b'G'+expected+b'H', (owner, opcode, left, right, alias)
                             assert d.read(args, 6) == operands + b'ARGS'
                             if private:
-                                assert bool(regs['cc'] & 1) == rejected
-                                assert regs['b'] == (syms['E$IllArg'] if rejected else 0)
+                                assert not regs['cc'] & 1 and regs['b'] == 0
                                 assert d.read(private+syms['size'], 5) == b'GUARD'
-                            if not rejected:
-                                assert regs['y'] == args+2
+                            assert regs['y'] == args+2
                             count += 1
                     assert d.read(base, len(code)) == code
-            print(f'PASS: {count} real CoCo/native math calls; every byte dividend, boundary products/quotients, variable indices 0/255 and aliasing, two load addresses, native zero-divisor rejection, stack/table/operand guards and immutable code')
+            print(f'PASS: {count} real CoCo/native math calls; every byte dividend, boundary products/quotients, variable indices 0/255 and aliasing, two load addresses, all byte dividends with zero divisor yielding 255, stack/table/operand guards and immutable code')
         finally:
             d.s.close(); emulator.terminate()
             try: emulator.wait(timeout=5)

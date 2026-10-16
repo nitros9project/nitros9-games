@@ -12,7 +12,7 @@ for retry. Sprite visibility now uses the same shared per-cel rule for both
 owners; native publishes AGI flag 1 only for ego. Selected-cel positioning is also shared, including right-edge and
 height/horizon adjustment. Native platform commands now use an immutable relative dispatch table
 from the shared AGI catalog. Both decoders also expand the shared LZW
-window-alignment/mask and dictionary-walk core. The game is 23,757 bytes, with 51 resident code bytes free;
+window-alignment/mask and dictionary-walk core. The game is 23,801 bytes, with 7 resident code bytes free;
 process data is 24,465 bytes (111 bytes below its three-page limit).
 The per-cel visibility byte reuses the sort key after collection completes.
 
@@ -2821,3 +2821,92 @@ native modules match the matrix in
 23,757/23,808 bytes; helper code remains 8,111/8,192, writable prefix
 3,177/4,096, and private data 24,465 bytes (ABI 6). Reclaimed space is not a
 capacity-gate completion claim.
+
+Original KQ3/KQ1 real-driver MAME acceptance passes again with this promoted
+revision, including visible clock, movement, room description, save/change/restore,
+independent terminal input and exact memory recovery. Controlled custom-priority
+acceptance also passes both terminal-isolation and fresh-instance cold-restore
+phases. Artifacts are `.wildbits-test/parity-formatter-main-kq3-kq1-20261015` and
+`.wildbits-test/parity-formatter-main-priority-20261015`; logs are
+`/tmp/sierra-parity-formatter-main-mame.log` and
+`/tmp/sierra-parity-formatter-main-priority.log`. The promoted all-title audit
+passes in `.wildbits-test/parity-formatter-main-audit-20261015`.
+
+
+## Priority diagnostic, arithmetic edges and common text-plane copy
+
+Opcode 29 now implements CoCo's actual `CmdSaveGame` behavior: show the priority
+plane, accept Enter/Escape and restore the scene. It never enters the save
+command. Conversion reads the high nibble without modifying combined pixels;
+the normal color loop stays unchanged, with mode selection once per row. The
+mode is private to each process and survives foreground changes. A default
+canvas supports execution before the first picture. Every error path clears
+modal mode; failed show/restore operations retain their error and release owned
+resources. Cached calls explicitly unmap VM and picture resources before waiting.
+
+`check_priority_view.py` compares the actual CoCo control body and BooleanPoll
+with controlled event providers, and executes CoCo's actual whole-buffer nibble
+swap against native conversion for all 256 combined byte values. Loaded native
+logic verifies live framebuffer pixels, stale Enter rejection, ignored ordinary
+keys, Enter and both Escape bytes, repeated cached calls, unchanged combined
+pixels/variables/flags/objects/strings/text/menus, continued execution, blank
+canvas creation and show/restore/cached-unmap failures. Input draining is bounded
+to 256 reads and retains readiness/read errors. The driver reports physical
+Escape as byte 5; byte 27 remains accepted, matching the existing editor/menu
+platform mapping. The initial tests reject both the unsupported baseline and
+the prototype's stale-input and cached-mapping defects.
+
+All three real-driver MAME acceptance phases pass in
+`.wildbits-test/parity-priority-view-final-mame-20261015`: custom priority
+save/change/restore across two terminals; fresh-instance cold restore; and
+priority-view pixels, physical Escape, ignored ordinary keys, repeated views,
+Enter restoration, inactive-terminal retention and independent views. The last
+phase checks that no game process remains, free memory exactly matches baseline
+after cleanup settles, and the prior save file is unchanged. Earlier experiments
+identified a Lua Escape encoding error, unsupported natural-keyboard Escape
+posting, the native missing byte-5 mapping and an early memory sample. The final
+runner uses physical Escape and measures after cleanup; the equality assertion
+remains strict. Its complete log is `/tmp/sierra-parity-priority-view-final-mame.log`.
+
+Six duplicate native 2,000-byte text-plane loops now call one counted-word copy
+emitted from `shared/bounded-string-copy.asm`. The routine accepts D=word count,
+X=source and Y=destination, returns D=0/C=0 with advanced X/Y, and preserves U.
+Zero count is safe. A private code pointer initialized at startup lets the
+immutable helper call the resident routine. Direct tests cover zero, byte/word
+count boundaries and full planes at two code addresses, with source/destination,
+state, stack and code guards. Gameplay tests exercise actual modal, inventory
+and menu restoration. This recovers 21 resident and 26 helper bytes.
+
+Arithmetic adapters now delegate zero divisors and reversed random bounds to
+the shared CoCo routines. The eight-iteration divide returns quotient 255 for
+zero; random width and the result wrap as bytes, including reversed bounds.
+4,544 actual math calls and all 256 controlled random bytes across eleven ranges
+pass in both owners at two addresses. Loaded logic verifies results, continuation
+and cleanup. The platform random sources remain unchanged. See the correction
+in `PORTABILITY.md`; earlier extraction notes described the superseded rejection
+policy. The redundant guards recover another 40 resident bytes.
+
+All 63 owners build, all 56 CoCo images stay byte-identical, and the tested
+production pair matches `.wildbits-test/parity-priority-view-final-matrix-20261015`.
+Final budgets are game 23,801/23,808, helper 8,173/8,192, writable prefix
+3,177/4,096 and private data 24,468/24,576. The private ABI is 7; install the
+matching game/helper together. New transient mode and copy pointers are not
+serialized, so the logical WS version-1 save layout stays unchanged. These tight
+budgets do not close A01 for the six remaining command routes.
+
+The committed formatter revision `78893f7` completes all 57 standard checks in
+one uninterrupted run (`/tmp/sierra-parity-complete-check-20261015.log`, exit 0).
+The promoted candidate adds the priority test for a 58-command target; its
+complete run remains in progress at
+`/tmp/sierra-parity-priority-complete-check-20261015.log`. The arithmetic-only
+intermediate full run was explicitly superseded and interrupted, not reported
+as a pass. C01's command evidence does not close S06's remaining cross-feature
+input/modal combinations, or the full VM, formatter, acceptance and hardware
+gates. Physical hardware remains unavailable.
+
+The promoted all-title audit passes in
+`.wildbits-test/parity-priority-final-audit-20261015`, with opcode 29 now routed
+and the remaining six unsupported routes explicitly inventoried. Main production
+modules and all five integration probes match the final matrix byte-for-byte.
+The manifest's conservative per-command results still require C13 reconciliation;
+route counts do not establish complete interpreter equivalence.

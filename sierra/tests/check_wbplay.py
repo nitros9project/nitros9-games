@@ -49,8 +49,10 @@ def main():
                         167,220,5,168,220,221,130,255,255,222,130,0,255,223,134,1,0])
             error,_,s=run(fixture(body))
             assert not error and s['vmvariables'][220]==6 and s['vmvariables'][222]==255, (error,s['vmvariables'][220:224])
-            error,_,_=run(fixture(bytes([167,0,0,0])))
-            assert error, 'division by zero accepted'
+            body=bytes([3,220,7,167,220,0,3,221,0,168,220,221,
+                        3,222,42,134,1,0])
+            error,_,s=run(fixture(body))
+            assert not error and s['vmvariables'][220:223]==bytes([255,0,42]), ('zero-divisor continuation',error,s['vmvariables'][220:223])
             # One-pixel native view and empty walkable picture.
             view=bytes([0,0,1,0,0,7,0,1,3,0,1,1,15,0x11,0])
             setup=bytes([3,0,1,24,0,25,0,33,0,41,0,0,37,0,20,60,35,0,
@@ -295,7 +297,7 @@ def main():
             for malformed in (b'%m1',b'%s12',b'%v220|255'*9):
                 error,_,_=run(fixture(bytes([101,1,134,1,0]),message=malformed))
                 assert error, ('malformed format accepted',malformed)
-            print('PASS: byte math, zero-divisor rejection, random range edges, follow completion/high flag, signed/absolute placement and blocked-position search, stop/start/force update and retained sprites, pause/resume clock freezing, modal restoration, formatted variables/strings/words/object names/global messages, nested global/local contexts, lazy plain/LZW root loads, original Larry %g176 pixels and error restoration, high item indices, repeated cold calls, 511/512-byte name bounds and rejection bounds, and ownership cleanup')
+            print('PASS: byte math, CoCo zero-divisor results and continuation, random range edges, follow completion/high flag, signed/absolute placement and blocked-position search, stop/start/force update and retained sprites, pause/resume clock freezing, modal restoration, formatted variables/strings/words/object names/global messages, nested global/local contexts, lazy plain/LZW root loads, original Larry %g176 pixels and error restoration, high item indices, repeated cold calls, 511/512-byte name bounds and rejection bounds, and ownership cleanup')
         finally:
             d.s.close()
             emu.terminate()

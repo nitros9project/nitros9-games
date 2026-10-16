@@ -1,7 +1,6 @@
 * Shared AGI commands 165..168; Y addresses two decoded byte operands.
 * VARIABLE_TABLE supplies X=variable[0], preserving A/B/Y/U.
-* MATH_DIVIDE implements B / A for nonzero A, preserving X/Y/U.
-* Owners retain their existing zero-divisor policy outside this interface.
+* MATH_DIVIDE implements B / A, preserving X/Y/U; zero gives quotient 255.
 cmd_multn           VARIABLE_TABLE      ; variable table base
                     ldb       ,y+       ; fetch destination variable index
                     abx                 ; point to variable
@@ -28,7 +27,7 @@ cmd_divn            VARIABLE_TABLE      ; variable table base
                     abx                 ; point to variable
                     ldb       ,x        ; load variable value (dividend)
                     lda       ,y+       ; fetch immediate divisor
-                    MATH_DIVIDE         ; divide B by nonzero A, quotient in B
+                    MATH_DIVIDE         ; divide B by A, quotient in B
                     stb       ,x        ; store quotient
                     rts
 
@@ -40,6 +39,6 @@ cmd_divv            ldb       $01,y     ; fetch divisor variable index
                     VARIABLE_TABLE      ; variable table base
                     abx                 ; point to destination variable
                     ldb       ,x        ; read dividend
-                    MATH_DIVIDE         ; divide B by nonzero A, quotient in B
+                    MATH_DIVIDE         ; divide B by A, quotient in B
                     stb       ,x        ; store quotient
                     rts

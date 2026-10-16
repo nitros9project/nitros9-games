@@ -1,4 +1,5 @@
-* A=nonzero divisor, B=dividend; returns A=remainder, B=quotient.
+* A=divisor, B=dividend; returns A=remainder, B=quotient.
+* Zero divisor completes eight iterations: quotient 255, remainder dividend.
 Div8                sta       <DivideDivisor    ; save divisor
                     lda       #$08      ; 8 bits to shift
                     sta       <DivideBits    ; save bit counter
