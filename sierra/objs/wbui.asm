@@ -49,8 +49,8 @@ PLATFORM_SECTION    set PLATFORM_WILDBITS_DIAGNOSTIC_CODE
                     use platform/wildbits-text-ui.asm
                     emod
 UiEnd               equ *
-                    ifgt AudioBlobEnd-AudioBlobStart-512
-                    error Private audio adapter exceeds its reserved workspace
+                    ifgt AudioBlobEnd-AudioBlobStart-SOUND_PRIVATE_CODE_BYTES
+                    error Private audio adapter exceeds its reserved 448-byte workspace
                     endc
                     ifgt UiEnd-8192
                     error Immutable UI provider exceeds its code window

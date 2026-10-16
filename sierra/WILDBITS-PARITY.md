@@ -180,8 +180,12 @@ versions without treating a game-directory name as sufficient provenance.
   resident instructions. Baseline limits: game 23,807/23,808 bytes; helper
   8,190/8,192; writable prefix 3,191/4,096; private data 24,465/24,576.
   Short branches, arithmetic delegation and common copies made C01 fit. Current
-  budgets are game 23,758, UI helper 6,689, state helper 3,193, copied prefix
-  3,190 and private 24,499 bytes. All 64 owners compile; CoCo stays unchanged.
+  budgets are game 23,758, UI helper 6,612, state helper 3,193, copied prefix
+  3,190 and private 24,435 bytes. The private reduction comes from
+  right-sizing the 443-byte audio adapter's 512-byte workspace to 448 bytes.
+  The previously verified matrix compiled all 64 owners; the new standard
+  target rebuilds the Wild Bits modules and probes. CoCo sources are untouched.
+  A01 remains open for capacity needed by the remaining parity work.
   This is initial capacity recovery, not enough evidence to close A01 for all
   remaining features.
   Record before/after budgets and preserve stack headroom and ABI checks.

@@ -104,7 +104,7 @@ movement ownership and button edges stay separate from shared code and saves.
 ## Separate UI and persistence providers (ABI 8)
 
 The current package is `wbgame`, `wbui`, `wbstate` and `wbfont`. Install the
-three executable modules from the same ABI-13 build. UI/audio code now belongs
+three executable modules from the same ABI-14 build. UI/audio code now belongs
 to the immutable `wbui` provider; `wbstate` supplies the bounded private copy
 used for save/restore. Existing source feature groups are unchanged.
 See [provider ownership, loader contracts, budgets and verification](../../WILDBITS-ENGINE.md#separate-ui-and-persistence-providers-abi-8).

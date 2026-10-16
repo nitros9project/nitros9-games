@@ -3489,3 +3489,34 @@ at `.wildbits-test/trace-catalog-full-20261016/checkout/sierra`, with its log at
 `.wildbits-test/trace-catalog-full-20261016/check.log`. All 59 check commands finished uninterrupted with terminal exit status 0.
 This establishes the current playable baseline; A04 remains a gate for the
 final product revision after the remaining migration work. These paths are relative to the workspace root and survive loss of `/tmp`.
+
+
+## Bounded per-instance audio adapter storage (ABI-14)
+
+The installed native audio adapter spans 443 bytes (`AudioBlobStart` through
+`AudioBlobEnd`). Each `wbgame` instance previously reserved 512 bytes for its
+private copy even though the code emitter is bounded and the actual blob is
+known at assembly time. `SOUND_PRIVATE_CODE_BYTES` now sets that reservation to
+448 bytes, leaving a five-byte build-verified margin. `wbui` fails to assemble
+if the adapter ever grows beyond the per-instance reservation. The private
+instance extent falls from 24,499 to 24,435 bytes; executable code, the 197-byte
+stack reserve, audio behavior, and shared provider code are unchanged.
+
+Because the private layout and state-layout hash change, the game, UI provider
+and persistence provider now identify themselves as ABI-14. Install all three
+from one build. The current package guidance in `WILDBITS-README.md` and
+`objs/platform/README.md` names ABI-14.
+
+The complete `make check` target passes all 59 commands with exit status 0,
+including actual instance/audio integration, full game interaction, rendering,
+resource, and trace-reference tests. Build and test output is retained in
+`.wildbits-test/audio-reserve-20261016`. The real-driver KQ1 menu test passes
+with ABI-14 modules, including modal input/restoration, interrupt exit and
+unchanged free memory (`mame-kq1-menu.log`).
+
+The two-game Larry/KQ1 MAME acceptance attempt fails at the second game's
+inventory-font checkpoint. Repeating the same command with the verified ABI-13
+module set produces the same failure and the same shell/error screen, so this
+does not isolate a regression from the reservation reduction. Retained logs and
+captures document both attempts. V04 remains open; this control result does
+not close two-terminal acceptance.
