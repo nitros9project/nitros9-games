@@ -3484,7 +3484,8 @@ Each phase checks the relevant terminal independence, scene/state restoration
 and exact ownership recovery. Artifacts are in
 `.wildbits-test/trace-catalog-mame-20261016`; the retained log is
 `.wildbits-test/trace-catalog-resume-20261016/evidence/catalog-mame.log`.
-The matching complete 59-check target is running from frozen revision `f1a52a3`
+The matching complete 59-check target passed on frozen revision `f1a52a3`
 at `.wildbits-test/trace-catalog-full-20261016/checkout/sierra`, with its log at
-`.wildbits-test/trace-catalog-full-20261016/check.log`. It is not yet a complete
-pass. These paths are relative to the workspace root and survive loss of `/tmp`.
+`.wildbits-test/trace-catalog-full-20261016/check.log`. All 59 check commands finished uninterrupted with terminal exit status 0.
+This establishes the current playable baseline; A04 remains a gate for the
+final product revision after the remaining migration work. These paths are relative to the workspace root and survive loss of `/tmp`.

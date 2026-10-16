@@ -205,7 +205,9 @@ versions without treating a game-directory name as sufficient provenance.
   ABI-8 capacity run now passes all 58 checks with exit status 0; the latest
   ABI-13 revision `33c079d` with the corrected host-time watchdog passes
   all 58 check commands uninterrupted with exit status 0. A04 remains open
-  for the final product revision after the remaining feature gates. The ABI-12
+  for the final product revision after the remaining feature gates. The newer
+  catalog revision `f1a52a3` passes all 59 checks uninterrupted with exit status
+  0, including the trace reference and expanded UI routing checks. The ABI-12
   run stopped with a debugger disconnect; a guest-time cutoff was then
   reproduced. The original ABI-13 partial run was superseded after that
   fixture defect was identified. The ABI-11 run stopped on a
@@ -493,5 +495,6 @@ CoCo images while reducing `wbui` by 77 bytes. All 364 actual UI selections,
 1,024 VM routes, targeted loaded-provider/cache/shake/preview/save-name checks,
 and 128 before/after builds pass. C04/C05 remain open; this does not enable the
 trace commands. All eight matching MAME phases pass. The complete 59-check
-target is running on frozen `f1a52a3`; A04 remains open. See the
+target passes all 59 commands uninterrupted on frozen `f1a52a3` with exit
+status 0; A04 remains open for the final product revision. See the
 [catalog contract and evidence](WILDBITS-ENGINE.md#shared-packed-catalog-emission).
