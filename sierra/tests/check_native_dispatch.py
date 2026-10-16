@@ -67,6 +67,7 @@ def main():
         for field in direct:
             assert field in gs and gs[field]<=255, ('forced direct-page field',field,gs.get(field))
         probe, ps = compile_module(ROOT/'tests/probes/wbexec.asm', tmp/'wbexec')
+        ui, us = compile_module(ROOT/'objs/wbui.asm', tmp/'wbui')
         counts = [int(value[1:],16)//256 for value in re.findall(
             r'^\s*AGI_COMMAND\s+[^,]+,(\$[0-9A-Fa-f]+),',
             (ROOT/'objs/shared/agi-command-table.asm').read_text(),re.M)]
@@ -121,6 +122,45 @@ def main():
                         calls += 1
                     for address in destinations: d.breakpoint(address,False)
                     assert d.read(base,len(code)) == code
+            # Independent UI-group contract: execute the packed selector up
+            # to each actual backend entry, without substituting its decoder.
+            expected = {110:1,128:2,125:3,126:3}
+            labels = ('AuxShowObject','AuxShakeScreen','AuxRestart','AuxStateName')
+            classes = bytes(expected.get(opcode,0) for opcode in range(182))
+            packed = ui[us['UiCommandClasses']:us['UiCommandClasses']+91]
+            assert bytes((packed[i//2] >> (4 if i%2==0 else 0)) & 15
+                         for i in range(182)) == classes
+            ui_calls = 0
+            for base in (0x9000,0xa000):
+                d.write(base,ui)
+                state = bytearray(us['size'])
+                state[us['resourcebase']:us['resourcebase']+2] = b'\x10\0'
+                d.write(0x1000,state+b'GUARD')
+                offsets = (0x20,0x40,0x60,0x80)
+                d.write(0x7000,b''.join(v.to_bytes(2,'big') for v in offsets))
+                destinations = [base+us[label] for label in labels]
+                for address in destinations: d.breakpoint(address)
+                for opcode in range(182):
+                    group = expected.get(opcode,0)
+                    d.write(0x1000+us['vmopcode'],bytes([opcode]))
+                    d.write(0x7ee0,b'GUARD');d.write(0x7ef0,b'\x7e\0STACK')
+                    d.regs(pc=base+us['AuxUiCommand'],s=0x7ef0,y=0x7000,
+                           u=0x1000,dp=0x10,cc=0x50)
+                    d.call('c');regs=d.regs()
+                    assert regs['pc']==destinations[group],(opcode,group,regs)
+                    assert regs['a']==group and regs['y']==0x7000+offsets[group]
+                    assert regs['u']==0x1000 and regs['s']==0x7ef0
+                    assert d.read(0x7ee0,5)==b'GUARD'
+                    assert d.read(0x7ef0,7)==b'\x7e\0STACK'
+                    state[us['vmopcode']]=opcode
+                    assert d.read(0x1000,len(state))==state
+                    assert d.read(0x1000+len(state),5)==b'GUARD'
+                    ui_calls += 1
+                for address in destinations: d.breakpoint(address,False)
+                assert d.read(base,len(ui))==ui
+            print(f'PASS: {ui_calls} actual packed UI selections; all 182 opcodes '
+                  'at two load addresses, independent backend groups, relative '
+                  'callback directories, private/stack guards and immutable code')
             print(f'PASS: {calls} native platform dispatches; all 256 opcodes in '
                   'game/probe at two addresses, exact destinations, unsupported '
                   'and presentation-only policy, preserved registers/stack, '

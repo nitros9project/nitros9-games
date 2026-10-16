@@ -1,3 +1,16 @@
+* Two catalog values share a byte. Owners initialize AGI_NIBBLE_PAIR=0.
+                    ifndef SHARED_AGI_NIBBLE_DEFINED
+SHARED_AGI_NIBBLE_DEFINED equ 1
+AGI_EMIT_NIBBLE macro
+                    ifeq AGI_NIBBLE_PAIR
+AGI_NIBBLE_HIGH      set (\1)&15
+AGI_NIBBLE_PAIR      set 1
+                    else
+                    fcb AGI_NIBBLE_HIGH*16+((\1)&15)
+AGI_NIBBLE_PAIR      set 0
+                    endc
+                    endm
+                    endc
 * One AGI command catalog for CoCo dispatch and native decoding/dispatch.
 * Fields: CoCo handler, operand descriptor, native platform handler, game-only.
 * Owners expand their fields at assembly time; unsupported native commands

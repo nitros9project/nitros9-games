@@ -3447,3 +3447,34 @@ The promoted test passes with log
 `.wildbits-test/parity-trace-contract-matrix-20261016`.
 The standard target now includes 59 checks; the preceding 58-check baseline
 completed successfully. The next complete target must include the trace check.
+
+
+## Shared packed catalog emission
+
+The common command catalog now defines `AGI_EMIT_NIBBLE`, used by the native
+operand-count table and UI dispatch groups. Owners initialize the pair state to
+zero; even indexes occupy the high nibble and odd indexes the low nibble.
+The UI reader retains opcode parity in carry while loading the pair, then
+selects its nibble. Normal VM decoding remains byte-identical.
+
+The 182-entry UI grouping table shrinks from 182 to 91 bytes. Including the
+reader and selector change, `wbui` shrinks from 6,689 to 6,612 bytes, freeing 77
+bytes for the pending trace backend. Game code remains 23,758 bytes and declared
+private storage 24,499 bytes. The provider ABI, save schema and stack reservation
+are unchanged; commands 149/150 remain unsupported until their complete trace
+backend passes acceptance.
+
+`check_native_dispatch.py` now executes all 182 UI selections at two load
+addresses against independent expected groups, checking relative callback
+directories, backend destinations, unchanged private data, stack guards and
+immutable code. All 364 selections and the existing 1,024 VM route checks pass.
+The targeted loaded-provider/mixed-cache/shake/preview/save-name tests also pass,
+including deep calls, long paths and injected loader failures. The first ad hoc
+integration invocation omitted all-RAM CPU initialization; its loader failure
+was reproduced and corrected in the fixture, without changing product code.
+
+The before/after matrix compiles 64 owners on each side. All 56 CoCo images,
+five probes and native game/state images match byte for byte; only `wbui`
+changes. Artifacts and the manifest are in
+`.wildbits-test/trace-catalog-resume-20261016` under the workspace root.
+MAME acceptance and the matching complete standard target remain pending.

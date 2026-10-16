@@ -484,3 +484,13 @@ All 64 owner images match the verified ABI-13 baseline. C04/C05 remain open:
 this establishes the reference contract without enabling an incomplete native
 backend. The standard target grows from 58 to 59 checks. See the
 [trace reference evidence](WILDBITS-ENGINE.md#trace-reference-contract-and-shared-scheduling).
+
+
+## Packed catalog groundwork
+
+Shared paired-nibble emission preserves the native VM decoding bytes and all
+CoCo images while reducing `wbui` by 77 bytes. All 364 actual UI selections,
+1,024 VM routes, targeted loaded-provider/cache/shake/preview/save-name checks,
+and 128 before/after builds pass. C04/C05 remain open; this does not enable the
+trace commands. MAME and the matching complete target are pending. See the
+[catalog contract and evidence](WILDBITS-ENGINE.md#shared-packed-catalog-emission).

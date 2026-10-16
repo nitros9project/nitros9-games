@@ -9,6 +9,7 @@ labels, branches and instruction order are preserved without runtime calls.
 
 | Shared component | Contents | Platform interface |
 | --- | --- | --- |
+| `agi-command-table.asm` | Command catalog and paired-nibble table emission | Owner-selected operand counts or UI groups; readers select even/high and odd/low nibbles |
 | `game-cycle.asm` | Logical clock rollover, transient flag resets, room-number publication and trace scheduling/configuration | Timing, flag storage, room variables and trace state/input bindings |
 | `object-commands.asm` | Position, room-entry placement, animation, cycle/rate/motion state, flags, blocking and field queries | CoCo/Wild Bits `objects-bindings.asm` |
 | `formatter.asm` | Character scan, directive selection, string slots, recursive calls and expansion | CoCo/Wild Bits `text-ui-bindings.asm` |

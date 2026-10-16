@@ -143,8 +143,7 @@ AGI_TEST            macro
                     fcb       (\2)/256
                     endm
 NATIVE_COMMAND_TABLE_MODE set 0
-NATIVE_COUNT_PAIR    set 0
-NATIVE_COUNT_HIGH    set 0
+AGI_NIBBLE_PAIR      set 0
 NATIVE_ROUTE        macro
                     ifeq NATIVE_COMMAND_TABLE_MODE-3
 NativeRoute\1       set -1
@@ -177,13 +176,7 @@ AGI_COMMAND         macro
                     NATIVE_ROUTE \3
                     endc
                     else
-                    ifeq NATIVE_COUNT_PAIR
-NATIVE_COUNT_HIGH    set (\2)/256
-NATIVE_COUNT_PAIR    set 1
-                    else
-                    fcb       NATIVE_COUNT_HIGH*16+(\2)/256
-NATIVE_COUNT_PAIR    set 0
-                    endc
+                    AGI_EMIT_NIBBLE (\2)/256
                     endc
                     endm
 

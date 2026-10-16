@@ -13,10 +13,10 @@ AuxUiCommand        ldu       <resourcebase
                     lda       <vmroompending
                     cmpa      #3
                     lbeq      AuxRestart
-                    clra
                     ldb       <vmopcode
                     leax      UiCommandClasses,pcr
-                    lda       d,x
+                    lbsr      UiCatalogNibble
+                    tfr       b,a
                     pshs      a
                     lsla
                     ldd       a,y
@@ -29,17 +29,28 @@ AuxUiCommand        ldu       <resourcebase
                     cmpa      #3
                     lbeq      AuxStateName
                     lbra      AuxShowObject
+* X=packed table, B=index. Opcode parity selects the high or low nibble.
+UiCatalogNibble     lsrb
+                    ldb       b,x
+                    bcs       UiCatalogLow
+                    lsrb
+                    lsrb
+                    lsrb
+                    lsrb
+UiCatalogLow        andb      #15
+                    rts
 * Derive grouping from the common command catalog, not a second opcode list.
 UiClass_GameShakeCommand equ 1
 UiClass_GameRestartCommand equ 2
 UiClass_GameStateCommand equ 3
 AGI_COMMAND         macro
                     ifdef UiClass_\3
-                    fcb UiClass_\3
+                    AGI_EMIT_NIBBLE UiClass_\3
                     else
-                    fcb 0
+                    AGI_EMIT_NIBBLE 0
                     endc
                     endm
+AGI_NIBBLE_PAIR     set 0
 UiCommandClasses    equ *
                     use shared/agi-command-table.asm
 * File-name staging is cold; persistent name configuration is caller-private.
