@@ -179,7 +179,7 @@
                     AGI_COMMAND SetPriBaseStub,$100,GamePriorityBaseCommand,1 *set pri base, via patch stub
                     AGI_COMMAND cmd_shake_screen,$180,VmSuccess,0 *discard sound
                     AGI_COMMAND NoopCmdsRet,$0000,VmSuccess,0 *do nothing
-                    AGI_COMMAND cmd_show_menu,$100,VmPlatformUnsupported,0
+                    AGI_COMMAND cmd_show_menu,$100,GameShowObjectCommand,1
                     AGI_COMMAND NoopCmdsRet,$0000,VmSuccess,0 *do nothing
                     AGI_COMMAND cmd_hide_mouse,$400,VmSuccess,0 *hide mouse
                     AGI_COMMAND cmd_set_upper_left,$2c0,VmSuccess,0 *allow menu

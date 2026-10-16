@@ -5,7 +5,7 @@ import argparse
 import subprocess
 import tempfile
 from export_picture import unpack_picture
-from check_instances import symbols
+from check_logic_executor import compile_module
 from check_lzw import exercise_coco
 from check_wbres import exercise, fixture, idle_rom, start_cpu
 
@@ -18,9 +18,8 @@ def main():
     parser=argparse.ArgumentParser()
     parser.add_argument('--fixtures-only',action='store_true')
     args=parser.parse_args()
-    coco = (ROOT/'kingsquest1/mnln').read_bytes()
-    syms = symbols(ROOT/'kingsquest1/mnln.map')
     with tempfile.TemporaryDirectory(prefix='sierra-packed-') as temp:
+        coco, syms = compile_module(ROOT/'objs/mnln.asm', Path(temp)/'mnln')
         d, proc = start_cpu(idle_rom(Path(temp)/'idle.rom'),timeout=1800)
         try:
             d.write(0xffdf,b'\0'); d.write(0xff90,b'\x4c')

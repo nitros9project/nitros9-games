@@ -3123,3 +3123,69 @@ The older ABI-8 complete target passes all 58 checks with exit status 0
 (`/tmp/sierra-capacity-complete-check-20261015.log`); the latest ABI-10 target
 remains in progress.
 A04 and broader semantic/driver/hardware gates remain open.
+
+
+## Menu visibility and input permission (ABI 11)
+
+Opcode 177 is now implemented in the existing grouped text/UI backend. The
+actual CoCo `cmd_show_menu` consumes one literal byte and stores it unchanged
+in `MenuExtraFlag`, initially 1. Only zero suppresses drawing; every nonzero
+byte enables it. This is separate from AGI flag 14, which gates `menu_input`.
+The native menu previously omitted that second gate; it now returns without
+input or drawing when flag 14 is clear. Navigation fixtures explicitly enable
+flag 14 when they intend to open a menu.
+
+Native storage uses two process-private bytes: the raw visibility value and
+an explicit-set marker. An unset marker means the reference's initial visible
+state; a set marker uses the raw byte's zero/nonzero meaning. These fields are
+cleared during fresh-process initialization, survive menu rebuilding and room
+changes, and stay outside the save schema. Like CoCo's module-private flag,
+visibility retains its current setting during restore and restart; it is not
+restored from a saved game's progress. Direct execution of the CoCo restart
+body and its save/write-block control flow verifies that lifetime and exclusion
+from serialized write spans. External object-file I/O and unrelated item-list
+reenabling are stubbed in that controlled reference test.
+
+For example, saving while hidden, enabling the menu, and restoring that save
+leaves the menu enabled while restoring the AGI game state. A fresh second
+process starts visible even if the first process is hidden. MAME verifies both
+cases, foreground retention, selection/cancellation, restored pixels and exact
+memory recovery. Invalid unsubmitted menu records retain the existing bounded
+native error policy when input is actually enabled; S06 remains open.
+
+No new source fragments, resident wrappers or per-frame abstraction calls are
+added. The new state belongs to the caller, not shared `wbui` code. Its offsets
+are included in the private layout hash. Install matching ABI-11 `wbgame`,
+`wbui`, `wbstate` and `wbfont`. Two bytes move the existing private font/audio
+storage; relocation, audio, restart and maximum-depth/path guards pass. The WS1
+logical payload remains unchanged because these controls are not save fields.
+Budgets are resident 23,805/23,808, UI 6,265/8,192, state 3,180/8,192, copied
+prefix 3,177/4,096 and private data 24,470/24,576. Existing limits are unchanged.
+
+Evidence: all 64 owners build in
+`.wildbits-test/parity-menu-visibility-final-matrix-20261015`. All 56 CoCo
+images and five integration probes remain byte-identical to C03; main binaries
+match the final matrix. Reference tests pass 2,570 actual CoCo/native calls,
+all literal byte values, input gating, default behavior and private/code/stack
+guards. Loaded scripts cover toggles, disabled input, room transitions, physical
+Escape, 16 nested calls and a 127-byte directory. Existing menu navigation,
+paging, disabled-item, audio, provider-role, state-validation, restart, dispatch
+and gameplay regressions also pass. All six real-driver phases pass in
+`.wildbits-test/parity-menu-visibility-final-fields-mame-20261015`, including
+live visibility fields and restored AGI selection state. An earlier test's
+snapshot format omitted the extra fields; its failed assertion is retained
+separately and not counted as a pass.
+
+The complete ABI-10 run reached the packed-picture check, then stopped because
+that test assumed a prebuilt `kingsquest1/mnln` and map existed. It now compiles
+its CoCo reference from source in its own temporary directory. All 443 actual
+packed pictures pass against CoCo and the independent oracle without leaving
+a prebuilt game module. The final ABI-11 58-command target is running on frozen
+sources; A04 remains open until it completes. The earlier ABI-8 complete target
+still provides a verified 58-command baseline, not proof of newer features.
+
+C07 is verified. The all-title audit now records 179/182 native routes; 149,
+150 and 170 remain unsupported. Reports are in
+`.wildbits-test/parity-menu-visibility-final-audit-20261015`. Trace control,
+simple naming, broader semantic/interface gates and physical acceptance remain
+open.

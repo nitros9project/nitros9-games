@@ -19,14 +19,15 @@ ROOT=Path(__file__).resolve().parents[1]
 def fixture(base=80, identity=1, restore=False):
     def when(test,body):return bytes([255,*test,255])+len(body).to_bytes(2,'little')+bytes(body)
     setup=[3,200,1,3,202,identity,143,1]
-    for key,controller in zip(b'sbrqpom',range(1,8)):setup += [121,key,0,controller]
+    for key,controller in zip(b'sbrqpomdeu',range(1,11)):setup += [121,key,0,controller]
     setup += [126,0] if restore else [174,base]
-    setup += [3,0,0,24,0,25,0,33,0,41,0,0,37,0,20,100,35,0,26]
+    setup += [3,0,0,24,0,25,0,33,0,41,0,0,37,0,20,100,35,0,26,12,14,156,2,157,3,254,158]
     code=when([1,200,0],setup)
-    for controller,body in ((1,[125]),(2,[174,40]),(3,[126]),(4,[134,1]),(5,[29]),(6,[133,255]),(7,[135])):
+    for controller,body in ((1,[125]),(2,[174,40]),(3,[126]),(4,[134,1]),(5,[29]),(6,[133,255]),(7,[135]),(8,[177,0]),(9,[177,255]),(10,[161])):
         code+=when([12,controller],body)
-    code+=b'\0';message=b'PRIO\0';key=b'Avis Durgan'
-    logic=len(code).to_bytes(2,'little')+code+b'\x01\x09\0\x04\0'+bytes(c^key[i%11] for i,c in enumerate(message))
+    code+=when([12,254],[1,205])
+    code+=b'\0';message=b'PRIO\0Menu\0Item\0';key=b'Avis Durgan'
+    logic=len(code).to_bytes(2,'little')+code+bytes([3,23,0,8,0,13,0,18,0])+bytes(c^key[i%11] for i,c in enumerate(message))
     picture=b'\xf2\x08\xf8\0\0\xf3\xff'
     view=bytes([0,0,1,0,0,7,0,1,3,0,1,1,15,0x11,0])
     volume=bytearray();files={}
@@ -78,8 +79,9 @@ def main():
     s=symbols(ROOT/'objs/wbgame.map');size=(ROOT/'objs/wbgame').stat().st_size;base=0xa000
     guard=f'w@{base:x}==87cd && w@{base+2:x}=={size:x}'
     fields=(('b',s['vmvariables']+202),('b',s['prioritybase']),('w',s['priorityscale']),
-            ('b',s['vmobjects']+0x24),('w',s['screenentry']))
-    state='printf "PRISTATE %d %d %d %d %d",'+','.join(f'{kind}@(u+{off:x})' for kind,off in fields)+'; g'
+            ('b',s['vmobjects']+0x24),('w',s['screenentry']),
+            ('b',s['menuvisibility']),('b',s['menuvisibilityset']),('b',s['vmvariables']+205))
+    state='printf "PRISTATE '+' '.join(['%d']*len(fields))+'",'+','.join(f'{kind}@(u+{off:x})' for kind,off in fields)+'; g'
     pre='printf "PRIPRE %d %d %d",'+','.join(f'{kind}@(u+{off:x})' for kind,off in (fields[0],fields[2],fields[4]))+'; g'
     def run(phase,events,shots,switches,end):
         folder=out/phase;folder.mkdir()
@@ -211,5 +213,38 @@ def main():
     assert b'MEMORY-DONE' in os9('list',f'{disk},memory-done')
     assert b'wbgame' not in os9('list',f'{disk},memory-procs-after').lower()
     print('PASS: memory-info pixels, ordinary-key rejection, Enter/Escape restoration, foreground retention, repeated calls, independent terminals and exact memory recovery')
+
+
+    events={500:'iniz /vt1\r',650:'shell i=/vt1&\r',800:'mfree >/s0/menu-free-before\r',
+            1000:'wbgame /s0/game 0\r',2200:'u',2900:'wbgame /s0/other 0\r',
+            3900:'u',4300:'\r',5100:'\r',5600:'d',5900:'u',6400:'s',6900:'/s0/menu-save\r',
+            7600:'e',7900:'u',8400:'\r',8600:'r',9100:'/s0/menu-save\r',10300:'u',10900:'\x1b',
+            11400:'d',11700:'u',12500:'u',13000:'\r',13800:'u',14300:'q',15000:'q',
+            15600:'mfree >/s0/menu-free-after\r',15800:'procs >/s0/menu-procs-after\r',
+            16300:'echo MENU-DONE >/s0/menu-done\r'}
+    shots={2000:'normal',2600:'default-menu',3800:'other-normal',4200:'other-menu',
+           4500:'other-restored',4900:'menu-resumed',5400:'default-restored',6200:'hidden',
+           8200:'enabled',10700:'after-restore',11200:'restore-dismissed',12000:'hidden-again',
+           12800:'other-menu-again',13300:'other-restored-again',14100:'first-still-hidden'}
+    folder,log,snap=run('menu-visibility',events,shots,{2700:'Right',4600:'Left',12200:'Right',13500:'Left',14700:'Right'},17500)
+    pixels={name:png_rgb(folder/(name+'.png')) for name in shots.values()}
+    assert pixels['normal']!=pixels['default-menu'],'default menu is not visible'
+    assert pixels['default-menu']==pixels['menu-resumed'],'foreground switch lost the menu'
+    assert pixels['normal']==pixels['default-restored'],'select did not restore the first scene'
+    assert pixels['normal']==pixels['hidden']==pixels['hidden-again']==pixels['first-still-hidden'],'hidden menu took over the scene'
+    assert pixels['default-menu']==pixels['enabled']==pixels['after-restore'],'nonzero menu visibility or restore policy differs'
+    assert pixels['normal']==pixels['restore-dismissed'],'Escape failed after restoring'
+    assert pixels['other-normal']!=pixels['other-menu'],'first terminal hid the other terminal menu'
+    assert pixels['other-menu']==pixels['other-menu-again'],'other terminal menu changed'
+    assert pixels['other-normal']==pixels['other-restored']==pixels['other-restored-again']
+    assert snap['hidden'][1][4:6]==[0,1] and snap['hidden-again'][1][4:6]==[0,1]
+    assert snap['after-restore'][1][4:6]==[255,1],'restore overwrote module-lifetime menu visibility'
+    assert snap['other-menu'][2][4:6]==[0,0],'visibility leaked into the fresh second process'
+    assert snap['after-restore'][1][6]==1,'restore did not restore AGI selection state'
+    assert re.findall(r'PRIEXIT (\d+)',log)==['0','0']
+    assert os9('list',f'{disk},menu-free-before')==os9('list',f'{disk},menu-free-after'),'menu visibility leaked memory'
+    assert b'MENU-DONE' in os9('list',f'{disk},menu-done')
+    assert b'wbgame' not in os9('list',f'{disk},menu-procs-after').lower()
+    print('PASS: menu visibility default/hide/show, selection, foreground retention, restore policy, independent terminals, scene restoration and exact memory recovery')
 
 if __name__=='__main__':main()

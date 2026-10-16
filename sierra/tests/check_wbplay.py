@@ -92,7 +92,7 @@ def main():
             error,frame,s=run(fixture(body,message=b'A modal response.'),keyboard=b'\r',frame_capture=True)
             assert not error and s['vmflags'][200]==1 and frame==bytes([1])*76800, 'modal dismissal failed to restore blank frame'
             for keys, selected in [(b'\n\r',True),(b'\x1b',False),(b'\x05',False),(b'\r\n\r',True)]:
-                body=bytes([3,0,1,24,0,25,0,26,156,1,157,2,254,157,3,255,158,160,254,161,
+                body=bytes([12,14,3,0,1,24,0,25,0,26,156,1,157,2,254,157,3,255,158,160,254,161,
                             255,12,255,255,2,0,12,200,134,1,0])
                 error,frame,s=run(fixture(body,b'\xff',message=[b'File',b'Disabled',b'Pick me']),
                                   keyboard=keys,frame_capture=True)

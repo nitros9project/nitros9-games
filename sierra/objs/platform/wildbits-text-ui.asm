@@ -494,6 +494,8 @@ UI_CALL           macro
 AuxShowObject       ldu       <resourcebase
                     sty       coldapi,u
                     lda       <vmopcode
+                    cmpa      #177
+                    lbeq      AuxMenuVisibility
                     cmpa      #135
                     lbeq      AuxMemoryInfo
                     cmpa      #133
@@ -2193,9 +2195,23 @@ MenuCallbacks       fdb       AssetUnmap-MenuCallbacks,PictureUnmap-MenuCallback
 * ===== wildbits-menu-code =====
 * Process-private modal menu. Existing labels/controllers retain their ABI.
 * Display a paged list of titled items; disabled entries cannot be selected.
+* Retain the raw literal like CoCo MenuExtraFlag; only zero hides it.
+AuxMenuVisibility   ldu       <resourcebase
+                    ldb       vmarguments,u
+                    stb       menuvisibility,u
+                    lda       #1
+                    sta       menuvisibilityset,u
+                    clrb
+                    rts
 AuxMenuInput        ldu       <resourcebase
                     sty       coldapi,u
-                    tst       <menuready
+                    tst       vmflags+14,u
+                    lbeq      AuxMenuSuccess
+                    tst       menuvisibilityset,u
+                    beq       AuxMenuVisible
+                    tst       menuvisibility,u
+                    lbeq      AuxMenuSuccess
+AuxMenuVisible      tst       <menuready
                     lbeq      AuxMenuInvalid
                     tst       <menuitems
                     lbeq      AuxMenuSuccess

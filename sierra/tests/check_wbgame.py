@@ -1120,10 +1120,217 @@ def check_interpreter_information(d):
     print('PASS: interpreter information, blocking dismissal, preserved flags/timer and deep caller resume')
 
 
+def check_menu_visibility_reference(d):
+    """Compare actual CoCo byte setters/input gates with private native controls."""
+    from check_logic_executor import compile_module
+    with tempfile.TemporaryDirectory(prefix='sierra-menu-reference-') as name:
+        coco,cs=compile_module(ROOT/'objs/mnln.asm',Path(name)/'mnln')
+        native,ns=compile_module(ROOT/'objs/wbui.asm',Path(name)/'wbui')
+        d.breakpoint(0x7e02);d.write(0x7e00,b'\x39')
+        calls=0
+        for owner,code,syms,bases in [('CoCo',coco,cs,(0x8000,0x9000)),
+                                     ('native',native,ns,(0x8000,0xa000))]:
+            for base in bases:
+                d.write(base,code)
+                for value in range(256):
+                    d.write(0,bytes(ns['size']));d.write(0x7000,bytes([value]))
+                    d.write(ns['vmarguments'],bytes([value]))
+                    before=d.read(0,ns['size']) if owner=='native' and value in (0,1,2,127,128,255) else None
+                    d.write(0x7ef0,b'\x7e\x02STACK');d.write(0x7c00,b'LOWGUARD')
+                    entry='cmd_show_menu' if owner=='CoCo' else 'AuxMenuVisibility'
+                    d.regs(pc=base+syms[entry],s=0x7ef0,y=0x7000,u=0,dp=0,cc=0x50)
+                    d.call('c');regs=d.regs()
+                    assert regs['pc']==0x7e02 and regs['s']==0x7ef2
+                    if owner=='CoCo':
+                        assert regs['y']==0x7001 and d.read(base+syms['MenuExtraFlag'],1)==bytes([value])
+                    else:
+                        assert regs['u']==0 and not(regs['cc']&1) and regs['b']==0
+                        assert d.read(syms['menuvisibility'],2)==bytes([value,1])
+                        if before is not None:
+                            after=bytearray(d.read(0,ns['size']))
+                            p=syms['menuvisibility'];after[p:p+2]=before[p:p+2]
+                            assert after==before,'visibility setter altered unrelated private state'
+                    assert d.read(0x7c00,8)==b'LOWGUARD' and d.read(0x7ef2,5)==b'STACK'
+                    calls+=1
+                actual=bytearray(d.read(base,len(code)))
+                if owner=='CoCo':actual[syms['MenuExtraFlag']]=code[syms['MenuExtraFlag']]
+                assert actual==code,'visibility setter modified instructions'
+        # Compare the actual CoCo draw-entry gate for every literal byte.
+        for base in (0x8000,0x9000):
+            d.write(base,coco)
+            yes=base+cs['PushRowCol'];no=base+cs['MenuInputExit']
+            d.breakpoint(yes);d.breakpoint(no)
+            for value in range(256):
+                d.write(base+cs['MenuExtraFlag'],bytes([value]))
+                d.write(0x7ef0,b'\x7e\x02STACK')
+                d.regs(pc=base+cs['DrawMenuBar'],s=0x7ef0,dp=0,cc=0x50)
+                d.call('c');regs=d.regs()
+                assert regs['pc']==(yes if value else no),(value,regs)
+                calls+=1
+            d.breakpoint(yes,False);d.breakpoint(no,False)
+        for base in (0x8000,0xa000):
+            d.write(base,native)
+            for value in range(256):
+                d.write(0,bytes(ns['size']))
+                d.write(ns['menuvisibility'],bytes([value,1]))
+                d.write(ns['vmflags']+14,b'\x01')
+                d.write(ns['menuready'],b'\x01');d.write(ns['menuitems'],b'\x01')
+                d.write(ns['coldapi'],b'\x72\0');d.write(0x7200,(0x7e00-0x7200).to_bytes(2,'big'))
+                d.write(0x7ef0,b'\x7e\x02STACK');d.breakpoint(0x7e00)
+                d.regs(pc=base+ns['AuxMenuInput'],s=0x7ef0,y=0x7200,u=0,dp=0,cc=0x50)
+                d.call('c');regs=d.regs()
+                assert regs['pc']==(0x7e00 if value else 0x7e02),(value,regs)
+                if not value:assert regs['s']==0x7ef2 and not(regs['cc']&1)
+                d.breakpoint(0x7e00,False)
+                calls+=1
+            assert d.read(base,len(native))==native
+        # CoCo menu requests are independently gated by packed AGI flag 14.
+        for base in (0x8000,0x9000):
+            d.write(base,coco)
+            for packed in range(256):
+                d.write(0x1af,bytes([packed]));d.write(0x5ae,b'\0')
+                d.write(0x7ef0,b'\x7e\x02STACK')
+                d.regs(pc=base+cs['cmd_menu_input'],s=0x7ef0,dp=0,cc=0x50)
+                d.call('c');regs=d.regs()
+                assert regs['pc']==0x7e02 and regs['s']==0x7ef2
+                assert d.read(0x5ae,1)==bytes([bool(packed&2)])
+                calls+=1
+        for base in (0x8000,0xa000):
+            d.write(base,native)
+            for enabled,known,visible in [(0,0,0),(0,1,0),(0,1,255),(1,0,0),(1,1,255)]:
+                d.write(0,bytes(ns['size']))
+                d.write(ns['vmflags']+14,bytes([enabled]))
+                d.write(ns['menuvisibility'],bytes([visible,known]))
+                d.write(ns['menuready'],b'\x01');d.write(ns['menuitems'],b'\x01')
+                d.write(ns['coldapi'],b'\x72\0');d.write(0x7200,(0x7e00-0x7200).to_bytes(2,'big'))
+                d.write(0x7ef0,b'\x7e\x02STACK');d.breakpoint(0x7e00)
+                d.regs(pc=base+ns['AuxMenuInput'],s=0x7ef0,y=0x7200,u=0,dp=0,cc=0x50)
+                d.call('c');regs=d.regs();wanted=bool(enabled and (not known or visible))
+                assert regs['pc']==(0x7e00 if wanted else 0x7e02),(enabled,known,visible,regs)
+                d.breakpoint(0x7e00,False);calls+=1
+            assert d.read(base,len(native))==native
+        # Actual restart preserves the module's visibility byte. Stub only
+        # object-file I/O and unrelated linked-list item re-enabling.
+        d.write(0xff92,b'\0');d.write(0xff93,b'\0')
+        for base in (0x8000,0x9000):
+            d.write(base,coco)
+            hooks={base+cs[n]:n for n in ('LoadObjectData','EnableItemLoop')}
+            for address in hooks:d.breakpoint(address)
+            for value in (0,255):
+                d.write(0,bytes(0x6000));d.write(0x531,b'\xff'*16)
+                d.write(0x1b0,b'\x80');d.write(0x1af,b'\2')
+                d.write(0x4d,b'\x30\0');d.write(0x53,b'\x31\0')
+                d.write(base+cs['MenuExtraFlag'],bytes([value]))
+                d.write(0x7ef0,b'\x7e\x02STACK')
+                d.regs(pc=base+cs['cmd_restart_game'],s=0x7ef0,dp=0,cc=0x50)
+                for _ in range(8):
+                    d.call('c');regs=d.regs()
+                    if regs['pc']==0x7e02:break
+                    assert regs['pc'] in hooks,regs
+                    d.regs(pc=int.from_bytes(d.read(regs['s'],2),'big'),s=regs['s']+2)
+                else:raise AssertionError('reference restart did not return')
+                assert regs['s']==0x7ef2 and d.read(base+cs['MenuExtraFlag'],1)==bytes([value])
+            for address in hooks:d.breakpoint(address,False)
+        # Execute the real save/write-block control flow and inspect every
+        # write span; MenuExtraFlag is not among the serialized fields.
+        for base in (0x8000,0x9000):
+            hooks={base+cs[n]:n for n in ('WriteFile','XorDecrypt','BuildLogicList','SaveGameWriteOk')}
+            for address in hooks:d.breakpoint(address)
+            for value in (0,255):
+                d.write(base,coco);d.write(0,bytes(0x6000))
+                for address,word in [(0x30,0x2000),(0x34,64),(0x38,0x2100),(0x3a,16),(0x5af,0x2200)]:
+                    d.write(address,word.to_bytes(2,'big'))
+                d.write(0x245,b'\1');d.write(base+cs['MenuExtraFlag'],bytes([value]))
+                d.write(0x7d00,bytes(254));d.write(0x7c00,b'LOWGUARD')
+                writes=[]
+                d.regs(pc=base+cs['SaveGameWriteData'],s=0x7d00,a=3,dp=0,cc=0x50)
+                for _ in range(24):
+                    d.call('c');regs=d.regs();kind=hooks[regs['pc']]
+                    if kind=='SaveGameWriteOk':break
+                    update={'pc':int.from_bytes(d.read(regs['s'],2),'big'),'s':regs['s']+2}
+                    if kind=='WriteFile':
+                        writes.append((regs['x'],regs['y']))
+                        update.update(a=regs['y']>>8,b=regs['y']&255,cc=regs['cc']&~1)
+                    elif kind=='BuildLogicList':update['x']=16
+                    d.regs(**update)
+                else:raise AssertionError('reference save did not reach success')
+                target=base+cs['MenuExtraFlag']
+                assert len(writes)==11 and all(not(start<=target<start+length) for start,length in writes),writes
+                assert d.read(target,1)==bytes([value]) and d.read(0x7c00,8)==b'LOWGUARD'
+                current=bytearray(d.read(base,len(coco)))
+                for label in ('MenuExtraFlag','SaveFileHandle'):current[cs[label]]=coco[cs[label]]
+                assert current==coco,'reference save changed instructions'
+            for address in hooks:d.breakpoint(address,False)
+        print('PASS: actual CoCo restart retains visibility and actual save write spans exclude the module-private visibility byte')
+        d.breakpoint(0x7e02,False)
+        print(f'PASS: {calls} actual CoCo/native menu visibility/input calls; all literal bytes, opaque zero/nonzero behavior, default visibility, independent flag14, operand/stack/private/code guards')
+
+
+def check_menu_visibility_commands(d):
+    """Exercise menu input gates through actual loaded AGI commands."""
+    def record(code,messages=False):
+        logic=len(code).to_bytes(2,'little')+code
+        if messages:
+            text=b'Title\0Item\0';key=b'Avis Durgan'
+            logic+=bytes([2,17,0,6,0,12,0])+bytes(c^key[i%11] for i,c in enumerate(text))
+        return b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic
+    build=bytes([156,1,157,2,255,158])
+    cases=[('default visible',bytes([12,14])+build+bytes([161]),b'\r',True,b'\0\0'),
+           ('hidden before build',bytes([12,14,177,0])+build+bytes([161]),b'',False,b'\0\1'),
+           ('hidden after build',bytes([12,14])+build+bytes([177,0,161]),b'',False,b'\0\1'),
+           ('noncanonical visible',bytes([12,14])+build+bytes([177,2,161]),b'\r',True,b'\2\1'),
+           ('high byte visible',bytes([12,14])+build+bytes([177,255,161]),b'\r',True,b'\xff\1'),
+           ('hide then show',bytes([12,14])+build+bytes([177,0,161,177,255,161]),b'\r',True,b'\xff\1'),
+           ('flag14 disabled',build+bytes([13,14,177,255,161]),b'',False,b'\xff\1'),
+           ('flag14 disabled unsubmitted',bytes([13,14,161]),b'',False,b'\0\0'),
+           ('physical Escape',bytes([12,14])+build+bytes([161]),b'\5',False,b'\0\0')]
+    for label,body,keys,selected,visibility in cases:
+        body+=bytes([3,240,73,134,1,0]);files={'/game/logDir':b'\xff'*3+bytes(3),'/game/vol.0':record(body,True)}
+        seen=[]
+        def observe(cpu,regs,syms):seen.append(cpu.read(syms['menuvisibility'],2))
+        error,out,state=exercise(d,files,module='wbgame',base=0xa000,database=0,window=0x8000,
+            blocks=None,multiple=True,firstblock=0x10,capture=True,keyboard=keys,os_call_limit=30000,
+            breakpoint_hooks={'GameQuitCommand':observe})
+        expected=bytearray(32)
+        if selected:expected[31]=128
+        assert error==0 and state['vmvariables'][240]==73,(label,error,out)
+        assert state['vmcontrollers']==expected,(label,state['vmcontrollers'])
+        assert seen==[visibility],(label,seen,visibility)
+        assert state['gamefont']==(ROOT/'objs/wbfont').read_bytes()
+        print('PASS: menu visibility:',label,flush=True)
+    # The room changes resource ownership, not the module-lifetime visibility.
+    def when(test,code):return bytes([255,*test,255])+len(code).to_bytes(2,'little')+code
+    root=when([1,0,0],bytes([3,0,1]))+bytes([23,0,0])
+    first=bytes([12,14,177,0])+build+bytes([18,2,0])
+    second=bytes([12,14,161,3,240,73,134,1,0])
+    volume=bytearray();entries=[]
+    for code,messages in [(root,False),(first,True),(second,False)]:
+        entries.append(len(volume).to_bytes(3,'big'));volume+=record(code,messages)
+    seen=[]
+    error,out,state=exercise(d,{'/game/logDir':b''.join(entries),'/game/vol.0':bytes(volume)},
+        arguments=b'/game 0\r',module='wbgame',base=0xa000,database=0,window=0x8000,
+        blocks=None,multiple=True,firstblock=0x10,capture=True,os_call_limit=30000,
+        breakpoint_hooks={'GameQuitCommand':lambda cpu,regs,syms:seen.append(cpu.read(syms['menuvisibility'],2))})
+    assert error==0 and state['vmvariables'][240]==73 and seen==[b'\0\1'],(error,out,seen)
+    assert not any(state['vmcontrollers']) and state['gamefont']==(ROOT/'objs/wbfont').read_bytes()
+    print('PASS: hidden menu survives room/resource transition without taking input or changing the private font')
+    directory=b'/'+b'a'*126;volume=bytearray();entries=[b'\xff'*3]
+    for number in range(1,18):
+        body=bytes([22,number+1,0]) if number<17 else bytes([12,14,177,0,177,255])+build+bytes([161,3,240,73,134,1,0])
+        entries.append(len(volume).to_bytes(3,'big'));volume+=record(body,number==17)
+    files={directory.decode()+'/logDir':b''.join(entries),directory.decode()+'/vol.0':bytes(volume)}
+    error,out,state=exercise(d,files,arguments=directory+b' 1\r',module='wbgame',base=0xa000,
+        database=0,window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,
+        keyboard=b'\r',os_call_limit=30000)
+    assert error==0 and state['vmvariables'][240]==73 and state['vmcontrollers'][31]==128,(error,out)
+    assert state['gamefont']==(ROOT/'objs/wbfont').read_bytes(),'deep menu damaged the private font'
+    print('PASS: menu visibility/selection at 16 nested calls and a 127-byte directory, private font intact and owned cleanup')
+
+
 def check_cold_menus(d):
     """Cold navigation must retain labels, selection policy and ownership."""
     def fixture(command,picture=True):
-        script=(bytes([3,0,1,24,0,25,0,26]) if picture else b'')+command+bytes([3,240,73,134,1,0])
+        script=bytes([12,14])+(bytes([3,0,1,24,0,25,0,26]) if picture else b'')+command+bytes([3,240,73,134,1,0])
         plain=b'Title\0Item\0';key=b'Avis Durgan'
         messages=bytes([2,17,0,6,0,12,0])+bytes(v^key[i%11] for i,v in enumerate(plain))
         logic=len(script).to_bytes(2,'little')+script+messages
@@ -1625,6 +1832,8 @@ def main():
             check_screen_shakes(d)
             check_object_previews(d)
             check_interpreter_information(d)
+            check_menu_visibility_reference(d)
+            check_menu_visibility_commands(d)
             check_cold_menus(d)
             check_room_controls(d)
             check_room_input_sound(d)
