@@ -196,14 +196,16 @@ versions without treating a game-directory name as sufficient provenance.
   Keep hardware/driver access in backends and common behavior in shared code.
   Identical module packaging is not required: CoCo's four modules and native
   `wbgame`/`wbui`/`wbstate` may remain different when behavior and ownership match.
-- [ ] **A04 — Run the complete standard target:** All 58 current check commands
+- [ ] **A04 — Run the complete standard target:** All 59 current check commands
   pass on one revision, with reproducible logs; any debugger/test infrastructure
   failure is fixed or explicitly isolated and rerun. The older segmented
   baseline is useful evidence but does not satisfy this gate. Revision `78893f7`
   now passes the former 57-command target uninterrupted; the promoted
   priority/arithmetic/copy revision `a9a889a` passes all 58 commands. The
   ABI-8 capacity run now passes all 58 checks with exit status 0; the latest
-  ABI-13 run with corrected host-time watchdog remains in progress. The ABI-12
+  ABI-13 revision `33c079d` with the corrected host-time watchdog passes
+  all 58 check commands uninterrupted with exit status 0. A04 remains open
+  for the final product revision after the remaining feature gates. The ABI-12
   run stopped with a debugger disconnect; a guest-time cutoff was then
   reproduced. The original ABI-13 partial run was superseded after that
   fixture defect was identified. The ABI-11 run stopped on a
@@ -459,5 +461,26 @@ emulated-time cutoff. start_cpu now uses a real-time watchdog, retaining emulato
 all response/call/loop bounds. The paused-target watchdog check and three
 consecutive gameplay batches pass. No product code or ABI changes.
 The ABI-12 failed run and superseded initial ABI-13 run are not complete passes.
-The corrected frozen full target is running; A04 remains open. See
+The corrected frozen revision `33c079d` completed all 58 check commands with
+exit status 0. This verifies the current baseline; A04 remains open for the
+final product revision after the remaining feature gates. See
 [the cause and verification record](WILDBITS-ENGINE.md#cpu-fixture-deadlines-and-disconnect-evidence).
+
+
+## Available verification target
+
+The user confirmed that testing is emulator-only for now. Continue CPU and
+MAME verification independently; V06 remains unverified because no physical
+Wild Bits board is available. This is a testing constraint, not a waiver or
+a claim of hardware parity.
+
+
+## Trace reference established; native gates remain open
+
+The shared trace scheduling/configuration rules now preserve every CoCo image
+byte for byte. `check_trace.py` verifies actual relocated CoCo controls, dispatch,
+input transitions and formatted transcripts, including cached name lookup.
+All 64 owner images match the verified ABI-13 baseline. C04/C05 remain open:
+this establishes the reference contract without enabling an incomplete native
+backend. The standard target grows from 58 to 59 checks. See the
+[trace reference evidence](WILDBITS-ENGINE.md#trace-reference-contract-and-shared-scheduling).

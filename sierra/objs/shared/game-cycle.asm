@@ -63,3 +63,54 @@ AGI_MENU_REQUEST macro
 \1                 MENU_REQUEST_RETURN
                     rts
                     endm
+
+* Shared debug configuration and scheduling rules; all storage is owner-bound.
+AGI_TRACE_CONFIG macro
+                    TRACE_CONFIG_FETCH
+                    TRACE_CONFIG_LOGIC
+                    TRACE_CONFIG_FETCH
+                    TRACE_CONFIG_LINE
+                    TRACE_CONFIG_FETCH
+                    cmpa      #2
+                    bcc       \1
+                    lda       #2
+\1                  TRACE_CONFIG_ROWS
+                    TRACE_SUCCESS
+                    rts
+                    endm
+* Activation is permitted only once; the owner supplies its flag representation.
+AGI_TRACE_ACTIVATE macro
+                    TRACE_MODE_READ a
+\2                  bne       \1
+                    TRACE_PERMISSION
+                    beq       \1
+                    lda       #1
+                    TRACE_MODE_STORE
+                    endm
+* CoCo retains its redundant zero check for exact existing output.
+AGI_TRACE_STEP_GATE macro
+                    TRACE_MODE_READ \1
+                    ifne      \3
+                    beq       \2
+                    endc
+                    TRACE_MODE_COMPARE \1
+                    bne       \2
+                    endm
+AGI_TRACE_LOGIC_ENTRY macro
+                    TRACE_MODE_READ a
+                    ifne      \2
+                    beq       \1
+                    endc
+                    cmpa      #2
+                    bne       \1
+                    lda       #1
+                    TRACE_MODE_STORE
+                    endm
+* Every keyboard event advances; '+' skips the rest of this logic invocation.
+AGI_TRACE_KEY_ADVANCE macro
+                    TRACE_KEY_READ
+                    cmpa      #$2B
+                    bne       \1
+                    lda       #2
+                    TRACE_MODE_STORE
+                    endm

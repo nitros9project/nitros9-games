@@ -68,6 +68,7 @@ check: all probes
 	python3 ../tests/check_math_commands.py
 	python3 ../tests/check_view_queries.py
 	python3 ../tests/check_game_clock.py
+	python3 ../tests/check_trace.py
 	python3 ../tests/check_decimal_index.py
 	python3 ../tests/check_decimal_output.py
 	python3 ../tests/check_condition_flow.py

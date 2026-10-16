@@ -519,10 +519,37 @@ DispatchCmd         cmpb      #$B5      check if command index in range
                     bls       CheckTraceFlag branch if valid command number
                     lda       #$10      load error code for bad command
                     lbsr      ReportError
-CheckTraceFlag      lda       <$0068    check if trace/debug mode active
-                    beq       CallCmdHandler branch if trace disabled
-                    cmpa      #$01      compare trace mode level
-                    bne       CallCmdHandler branch if not single-step mode
+TRACE_MODE_READ macro
+                    ld\1      <$0068
+                    endm
+TRACE_MODE_COMPARE macro
+                    cmp\1     #1
+                    endm
+TRACE_MODE_STORE macro
+                    sta       <$0068
+                    endm
+TRACE_PERMISSION macro
+                    lda       >$01AF
+                    anda      #$20
+                    endm
+TRACE_CONFIG_FETCH macro
+                    lda       ,y+
+                    endm
+TRACE_CONFIG_LOGIC macro
+                    sta       <$006A
+                    endm
+TRACE_CONFIG_LINE macro
+                    sta       >TraceLineOff,pcr
+                    endm
+TRACE_CONFIG_ROWS macro
+                    sta       >TraceNumLines,pcr
+                    endm
+TRACE_SUCCESS macro
+                    endm
+TRACE_KEY_READ macro
+                    lda       $01,x
+                    endm
+CheckTraceFlag      AGI_TRACE_STEP_GATE a,CallCmdHandler,1
                     pshs      y         save Y (script pointer) for trace
                     lbsr      ScriptDispatch
                     puls      y         restore Y after trace display
@@ -1230,10 +1257,7 @@ EvalExpr            leax      -$01,y    back up one byte to point before operand
                     lsla                (each eval table entry is 4 bytes)
                     leax      >eval_table,pcr point X to eval dispatch table
                     jsr       [a,x]     indirect call to eval handler
-                    ldb       <$0068    check trace mode flag
-                    beq       EvalExprRet branch if not tracing
-                    cmpb      #$01      compare trace level
-                    bne       EvalExprRet branch if not single-step trace
+                    AGI_TRACE_STEP_GATE b,EvalExprRet,1
                     pshs      y         save Y across trace display
                     sta       <$006E    save eval result
                     ldu       <$006C    restore expression pointer
@@ -3331,12 +3355,7 @@ ExecLogicLoad       ldd       <$0064    load last-slot pointer
                     lbsr      CalcPriAddr compute priority address
                     stu       $08,s     save priority address
                     clr       $03,s     clear pre-loaded flag
-ExecLogicRun        lda       <$0068    load re-exec state flag
-                    beq       ExecLogicRetState branch if not re-executing
-                    cmpa      #$02      check for re-exec state 2
-                    bne       ExecLogicRetState branch if other state
-                    lda       #$01      reset to state 1
-                    sta       <$0068    store updated state
+ExecLogicRun        AGI_TRACE_LOGIC_ENTRY ExecLogicRetState,1
 ExecLogicRetState   lda       ,s        load logic number
                     bne       ExecLogicRetCheck branch if not logic 0
                     lda       #$01      set room-init flag
@@ -8276,13 +8295,7 @@ cmd_trace_on        lda       <$68      ; trace-active flag
                     bne       TraceOnRet ; skip if already active
                     bsr       TraceInit ; initialize trace window
 TraceOnRet          rts
-TraceInit           lda       <$0068    ; re-check trace flag
-TraceInitCheck      bne       TraceInitRet ; already initialized
-                    lda       >$01AF    ; game flags byte
-                    anda      #$20      ; test trace-permitted bit
-                    beq       TraceInitRet ; don't init if not permitted
-                    lda       #$01      ; set trace-active flag
-                    sta       <$0068    ; mark trace as running
+TraceInit           AGI_TRACE_ACTIVATE TraceInitRet,TraceInitCheck
                     lda       >$0241    ; current text screen height
                     inca                ; +1 for status line
                     adda      >TraceLineOff,pcr ; add configured line offset
@@ -8324,16 +8337,7 @@ TraceInitCheck      bne       TraceInitRet ; already initialized
                     leas      $06,s     ; discard pushed args
 TraceInitRet        rts
 
-cmd_trace_info      lda       ,y+       ; fetch logic number for trace
-                    sta       <$006A    ; save logic number to trace
-                    lda       ,y+       ; fetch line offset
-                    sta       >TraceLineOff,pcr ; save trace line offset
-                    lda       ,y+       ; fetch number of visible lines
-                    cmpa      #$02      ; minimum is 2
-                    bcc       TraceInfoSetLines ; branch if >= 2
-                    lda       #$02      ; clamp to minimum of 2
-TraceInfoSetLines   sta       >TraceNumLines,pcr ; store visible line count
-                    rts
+cmd_trace_info      AGI_TRACE_CONFIG TraceInfoSetLines
 TraceErase          lda       <$0068    ; trace-active flag
                     beq       TraceEraseRet ; skip if not active
                     clr       <$0068    ; clear trace-active flag
@@ -8476,11 +8480,7 @@ ScriptDisplayWaitKey ldd       $02,s     ; wait baseline
                     ldd       >$024A    ; capture new timestamp
                     std       $02,s     ; update baseline
                     bra       ScriptDisplayWait ; continue wait loop
-ScriptDisplayPlusKey lda       $01,x     ; keycode
-                    cmpa      #$2B      ; '+' key (step-through)?
-                    bne       ScriptDisplayDone ; other key = stop trace
-                    lda       #$02      ; trace mode = step
-                    sta       <$0068    ; update trace mode
+ScriptDisplayPlusKey AGI_TRACE_KEY_ADVANCE ScriptDisplayDone
 ScriptDisplayDone   lbsr      PopRowCol ; restore cursor position
                     lbsr      PopTextColor ; restore text color
                     leas      $04,s     ; release local frame

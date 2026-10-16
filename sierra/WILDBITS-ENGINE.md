@@ -3273,7 +3273,7 @@ and `/tmp/sierra-menu-queue-shake-final-matrix.log`.
 The earlier ABI-11 complete target stopped on a debugger disconnect during
 static painting; its isolated 52-case rerun passes. An initial ABI-12 full run
 caught a stale dispatch-test expectation for opcode 161. Both failed logs remain
-recorded; neither is a pass. The corrected complete target runs on frozen
+recorded; neither is a pass. The corrected complete target passed on frozen revision `33c079d` at
 `/tmp/sierra-workbench/menu-queue-verified/sierra`, with log
 `/tmp/sierra-menu-queue-verified-complete-check-20261015.log`. A04 remains open
 until that target completes. Broader S06 interaction coverage, trace, simple
@@ -3398,8 +3398,52 @@ runs with the corrected host deadline. Product binaries and ABI are unchanged.
 
 The ABI-12 full run stopped in gameplay after 42 checks were started. The initial
 ABI-13 run was superseded after the guest-time defect was confirmed; its partial
-log is retained and is not a pass. The corrected complete target runs on frozen
+log is retained and is not a pass. The corrected complete target passed on frozen revision `33c079d` at
 /tmp/sierra-workbench/host-watchdog-verified/sierra, logging to
-/tmp/sierra-host-watchdog-verified-complete-check-20261016.log. A04 stays open until
-that final target finishes. The confirmed reproduction used emulator log
+/tmp/sierra-host-watchdog-verified-complete-check-20261016.log. All 58 check
+commands completed uninterrupted with terminal exit status 0. The log also
+contains the font-export build prerequisite, which is not a check command.
+A04 remains open for the final product revision after the remaining feature
+gates; this completed run establishes the current ABI-13 baseline. The confirmed reproduction used emulator log
 /var/folders/qq/d73w3j8x5gx3b9q2bsncq3mr0000gp/T/sierra-xroar-5fhogf1r.log.
+
+
+## Trace reference contract and shared scheduling
+
+The shared `game-cycle.asm` component now owns trace configuration, activation
+permission, the single-step gate, logic-entry reset and `+` key state transition.
+CoCo binds these rules to its existing storage and flag representation. Native
+trace display is still under development; commands 149/150 remain explicitly
+unsupported until the complete backend is verified.
+
+`check_trace.py` executes the actual CoCo routines at $8000 and $9000. Its 3,648
+configuration/activation calls cover every byte value for each operand, all
+permission-byte values and modes 0/1/2/255, plus individually setting flags
+0..31. The test proves that only flag 10 permits initial activation. Configuration
+consumes three literal operands and clamps rows to at least two, without
+activating the display. Repeated activation preserves the existing mode and
+creates no second window. The tested default geometry is top 2/bottom 16 with
+the exact six window-creation argument bytes 03 85 82 9A 04 0F.
+
+Actual command and predicate dispatch both trace only in mode 1. Every keyboard
+event advances one step; `+` changes mode to 2 and skips further trace events
+until the next logic invocation resets it to 1. Other keys do not disable trace.
+The tests also cover all 256 mode values at logic entry, ignored non-key events
+and joystick polling on timestamp changes.
+
+The formatter checks intercept output/drawing services while executing real
+cached logic selection and message lookup. Numeric headers contain logic ID and
+opcode. Cached command names use message ID equal to the opcode; predicate names
+use 220 plus predicate ID. Missing cached names fall back to numeric output.
+Tests compare raw and variable-resolved arguments, true/false markers, and SAID
+words FFFF/8000 formatted as signed -1/-32768. These are semantic reference tests,
+not a claim of native trace rendering or physical hardware verification.
+
+The promoted test passes with log
+`/tmp/sierra-trace-reference-promoted-20261016.log`. All 64 owners build and all
+64 images remain byte-identical to the verified ABI-13 matrix, including all
+56 CoCo images, three native owners and five probes:
+`/tmp/sierra-trace-contract-matrix-20261016.log`, artifacts in
+`.wildbits-test/parity-trace-contract-matrix-20261016`.
+The standard target now includes 59 checks; the preceding 58-check baseline
+completed successfully. The next complete target must include the trace check.
