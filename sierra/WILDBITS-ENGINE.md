@@ -3184,8 +3184,27 @@ a prebuilt game module. The final ABI-11 58-command target is running on frozen
 sources; A04 remains open until it completes. The earlier ABI-8 complete target
 still provides a verified 58-command baseline, not proof of newer features.
 
-C07 is verified. The all-title audit now records 179/182 native routes; 149,
+C07 setter/lifetime cases are verified, but the ordering gap below keeps the
+full gate open. The all-title audit records 179/182 native routes; 149,
 150 and 170 remain unsupported. Reports are in
 `.wildbits-test/parity-menu-visibility-final-audit-20261015`. Trace control,
 simple naming, broader semantic/interface gates and physical acceptance remain
 open.
+
+
+## Remaining deferred-menu ordering gap
+
+Further inspection and actual assembled execution show that CoCo's
+`cmd_menu_input` sets `MenuInputActive`; `EventLoop` draws it at the next cycle
+boundary. The common executor continues intervening commands. Native currently
+enters its modal UI synchronously inside opcode 161. A valid sequence requesting
+a menu and then hiding it therefore differs: CoCo completes a following
+assignment and clears the hidden request without selection, whereas native
+paints before the assignment and sets a controller on Enter.
+
+`/tmp/sierra-menu-queue-counterexample.log` records both actual engines; the
+native assertion fails on `721ba7d`. The earlier six MAME phases and byte-value
+checks remain scoped evidence for visibility/lifetime, not ordering equivalence.
+C07 is reopened along with the already-open S06 scope. Queueing and cycle-stage
+placement must be corrected before claiming that gate complete; the remaining
+trace/simple-name work does not supersede this requirement.

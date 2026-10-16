@@ -68,9 +68,10 @@ Compare the actual bodies and caller contracts, not symbol names alone.
   module headers/owned pages, guarded calculations and two-terminal modal/scene
   restoration checks pass.
 - [ ] **C04–C06:** Close each remaining trace/simple-save behavior individually.
-- [x] **C07 — Menu visibility:** All literal values, independent flag-14 input
-  permission, default/module lifetime, room/restore behavior, two terminals and
-  exact scene/memory recovery are verified.
+- [ ] **C07 — Menu visibility:** Literal values, flag-14 permission and module
+  lifetime are verified, but request/display ordering remains different: CoCo
+  queues `menu_input` for the next event loop; native still blocks inside it.
+  Close request-then-hide/show interactions before checking this gate.
 - [x] **C08–C11:** Close each CoCo-stub compatibility case above individually.
 - [x] **C12 — Existing success-only routes:** Verify all of 127, 155, 163, 164,
   173, 176, 178 and 181 against their actual CoCo bodies. Record argument
@@ -392,3 +393,16 @@ restored-game-state snapshots. See [the complete lifetime/input contract](WILDBI
 Current ABI is 11, UI size 6,265 and private extent 24,470 bytes. The latest
 complete 58-command run remains pending. The packed-picture test now compiles
 its own CoCo reference and passes all 443 pictures from a clean workbench.
+
+
+### Reopened menu ordering gap, 2026-10-15
+
+The earlier setter/lifetime/MAME cases pass, but do not prove full C07 input
+ordering. An actual-executor counterexample now establishes the remaining gap:
+CoCo executes `menu_input`, then hide-menu and a following assignment, before
+its next event loop clears the hidden request without selecting anything.
+Native displays the menu before that hide/assignment and publishes a selection.
+Evidence: `/tmp/sierra-menu-queue-counterexample.log` and the controlled runner
+`/tmp/sierra-menu-queue-counterexample.py`. C07 is reopened; S06 remains open.
+The next migration must share the request policy and queue native menu display
+at the corresponding cycle boundary, preserving controller/input ownership.
