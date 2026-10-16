@@ -37,7 +37,7 @@ unchecked equivalence gates below.
 At the recorded baseline the catalog contained 182 commands: 171 had native
 routes, including eight success-only routes; eleven were explicitly unsupported.
 The C08–C11 correction gave 175 routed commands and seven unsupported
-commands. C01 and C02 raise that to 177 routed commands and five unsupported routes. Four added success-only routes reproduce actual CoCo stubs, rather
+commands. C01–C03 raise that to 178 routed commands and four unsupported routes. Four added success-only routes reproduce actual CoCo stubs, rather
 than suppressing unimplemented CoCo behavior. Commands 0..17 execute
 in the VM before platform dispatch and are included in both totals. These numbers
 measure routing, not behavioral equivalence.
@@ -64,7 +64,10 @@ Compare the actual bodies and caller contracts, not symbol names alone.
   comparisons, loaded logic and real-driver MAME acceptance pass (evidence below).
 - [x] **C02 — Object status:** Shared command/strings/word formatter; direct
   reference comparisons and loaded-script/MAME modal and restoration checks pass.
-- [ ] **C03–C07:** Close each remaining diagnostic/UI/save behavior individually.
+- [x] **C03 — Memory information:** Documented native category mapping, actual
+  module headers/owned pages, guarded calculations and two-terminal modal/scene
+  restoration checks pass.
+- [ ] **C04–C07:** Close each remaining trace/UI/save behavior individually.
 - [x] **C08–C11:** Close each CoCo-stub compatibility case above individually.
 - [x] **C12 — Existing success-only routes:** Verify all of 127, 155, 163, 164,
   173, 176, 178 and 181 against their actual CoCo bodies. Record argument
@@ -170,7 +173,7 @@ versions without treating a game-directory name as sufficient provenance.
   resident instructions. Baseline limits: game 23,807/23,808 bytes; helper
   8,190/8,192; writable prefix 3,191/4,096; private data 24,465/24,576.
   Short branches, arithmetic delegation and common copies made C01 fit. Current
-  budgets are game 23,803, UI helper 5,897, state helper 3,180, copied prefix
+  budgets are game 23,805, UI helper 6,219, state helper 3,180, copied prefix
   3,177 and private 24,468 bytes. All 64 owners compile; CoCo stays unchanged.
   This is initial capacity recovery, not enough evidence to close A01 for all
   remaining features.
@@ -192,7 +195,9 @@ versions without treating a game-directory name as sufficient provenance.
   baseline is useful evidence but does not satisfy this gate. Revision `78893f7`
   now passes the former 57-command target uninterrupted; the promoted
   priority/arithmetic/copy revision `a9a889a` passes all 58 commands. The
-  ABI-8 capacity run and latest ABI-9 C02 run remain in progress.
+  ABI-8 capacity run now passes all 58 checks with exit status 0; the latest
+  ABI-10 C03 run remains in progress. The ABI-9 partial run was superseded
+  and is not a pass.
 
 ## 4. Acceptance across games, terminals and hardware
 
@@ -358,3 +363,17 @@ and maximum-nesting tests, and two-terminal real-driver MAME acceptance.
 See [the complete interface and evidence record](WILDBITS-ENGINE.md#shared-object-status-diagnostic-abi-9).
 Current package ABI is 9; current UI size is 5,897 bytes. C03–C07 and the
 matching complete-regression gate remain open.
+
+
+### Native memory evidence, 2026-10-15
+
+C03 is verified using explicit native memory categories, 32 guarded direct
+reports, four failure cases, loaded-script/deep-nesting tests and all five
+real-driver MAME phases. The callback extension preserves priority-wait layout
+with assembly-time checks. See [the mapping and complete evidence](WILDBITS-ENGINE.md#native-memory-diagnostic-and-callback-layout-contract-abi-10).
+Current package ABI is 10; UI size is 6,219 bytes and resident size is 23,805.
+C04–C07, the latest complete-regression target and physical acceptance remain open.
+
+The frozen ABI-8 capacity revision `63679fa` has also completed all 58 standard
+checks with exit status 0 (`/tmp/sierra-capacity-complete-check-20261015.log`).
+This is baseline evidence; A04 still requires the latest revision to finish.

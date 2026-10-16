@@ -48,6 +48,45 @@ def check_object_status_commands(d):
     print('PASS: real loaded object-status dispatch, held text, variable255, object0/63, invalid64/255 cleanup')
 
 
+def check_memory_info_commands(d):
+    """Read real module/cache extents through loaded zero-operand commands."""
+    root=ROOT/'objs'
+    for label,setup,keys,future,wanted_sleeps,bitmap in [
+            ('held',bytes([12,15]),b'',None,0,0),
+            ('cached repeat',bytes([12,15,135,12,15]),b'',None,0,10),
+            ('fresh Enter',b'',b'old\r',{1:b'x',2:b'\r'},2,0),
+            ('fresh physical Escape',b'',b'old\r',{1:b'x',2:b'\x05'},2,0),
+            ('timed ordinary key rejected',bytes([3,21,1]),b'x\r',None,0,0),
+            ('timed expiry',bytes([3,21,1]),b'',None,30,0)]:
+        body=setup+bytes([135,134,1,0]);logic=len(body).to_bytes(2,'little')+body
+        files={'/game/logDir':b'\xff'*3+bytes(3),
+               '/game/vol.0':b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic}
+        error,out,state=exercise(d,files,module='wbgame',base=0xa000,database=0,window=0x8000,
+            blocks=None,multiple=True,firstblock=0x10,capture=True,keyboard=keys,
+            keyboard_by_sleep=future,module_root=root,os_call_limit=20000)
+        expected=(f'room: 0\ncode bytes: {(root/"wbgame").stat().st_size}\n'
+                  f'private bytes: {symbols(root/"wbgame.map")["size"]}\nUI bytes: {(root/"wbui").stat().st_size}\n'
+                  f'owned 8K pages:\ncache: 1  picture: 4\nbackground: 0  bitmap: {bitmap}\nmax logic bytes: {len(logic)}').encode()
+        assert error==0 and state['messagebuffer'].split(b'\0')[0]==expected,(label,error,state['messagebuffer'],expected)
+        assert state['sleeps']==wanted_sleeps and state['vmvariables'][21]==0,(label,state['sleeps'])
+        assert state['vmflags'][15]==0 and state['gamefont']==(root/'wbfont').read_bytes()
+        print('PASS: loaded memory info:',label,flush=True)
+    directory=b'/'+b'a'*126;volume=bytearray();entries=[b'\xff'*3]
+    for number in range(1,18):
+        body=bytes([22,number+1,0]) if number<17 else bytes([12,15,135,134,1,0])
+        logic=len(body).to_bytes(2,'little')+body
+        entries.append(len(volume).to_bytes(3,'big'))
+        volume+=b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic
+    files={directory.decode()+'/logDir':b''.join(entries),directory.decode()+'/vol.0':bytes(volume)}
+    error,out,state=exercise(d,files,arguments=directory+b' 1\r',module='wbgame',base=0xa000,
+        database=0,window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,
+        module_root=root,os_call_limit=30000)
+    assert error==0 and b'cache: 17  picture: 4' in state['messagebuffer'],(error,out,state['messagebuffer'])
+    assert b'max logic bytes: 8\0' in state['messagebuffer']
+    assert state['gamefont']==(root/'wbfont').read_bytes()
+    print('PASS: memory info at 16 nested calls and a 127-byte directory; cache accounting, private font and cleanup')
+
+
 def check_state_transfers(d):
     """File counts must be checked independently of the service's Z flag."""
     root=ROOT/'objs'; syms=symbols(root/'wbstate.map'); base=0x9000
@@ -1567,6 +1606,7 @@ def main():
             check_reused_private_state(d)
             check_compatibility_noops(d)
             check_object_status_commands(d)
+            check_memory_info_commands(d)
             check_positioned_messages(d)
             check_text_screen_key_wait(d)
             check_original_help(d)

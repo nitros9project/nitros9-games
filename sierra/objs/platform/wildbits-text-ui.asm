@@ -1,3 +1,9 @@
+* Shared show/UI callback protocol. Keep priority wait callbacks contiguous.
+                    ifndef WILDBITS_SHOW_API_LAYOUT
+WILDBITS_SHOW_API_LAYOUT equ 1
+ShowApiPriorityWait equ 36
+ShowApiModuleHeader equ 44
+                    endc
 * Grouped diagnostic backend; owner-specific buffers stay private.
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_DIAGNOSTIC_CODE
 * Diagnostics use private text storage, not CoCo's 404-byte stack frame.
@@ -18,13 +24,9 @@ OBJECT_STATUS_SELECT macro
                     leau      d,u
                     tfr       u,d
                     pshs      d
-                    UI_CALL 18
+                    lbsr      AuxDiagnosticPrepare
                     lbcs      AuxStatusSetupError
-                    tst       <pictureowned
-                    bne       AuxStatusCanvasReady
-                    UI_CALL 26
-                    lbcs      AuxStatusSetupError
-AuxStatusCanvasReady puls      d
+                    puls      d
                     tfr       d,u
                     endm
 OBJECT_STATUS_MOTION_BUFFER macro
@@ -46,6 +48,13 @@ OBJECT_STATUS_DISPLAY macro
                     endm
                     OBJECT_EMIT_STATUS_STRINGS
                     OBJECT_EMIT_STATUS
+* Release cached root mapping before allocating/drawing through another window.
+AuxDiagnosticPrepare UI_CALL 18
+                    bcs       AuxDiagnosticPrepareReturn
+                    tst       <pictureowned
+                    bne       AuxDiagnosticPrepareReturn
+                    UI_CALL 26
+AuxDiagnosticPrepareReturn rts
 AuxStatusSetupError leas      2+OBJECT_STATUS_FRAME,s
                     ldu       <resourcebase
                     orcc      #1
@@ -55,6 +64,91 @@ AuxStatusBadObject  leas      OBJECT_STATUS_FRAME,s
                     ldb       #E$IllArg
                     orcc      #1
                     rts
+* Segmented native memory has no CoCo flat-heap "free" byte category.
+* Report actual owned pages and module/private extents without double counting.
+AuxMemoryInfo       ldu       <resourcebase
+                    lbsr      AuxDiagnosticPrepare
+                    lbcs      AuxMemoryReturn
+                    leas      -4,s
+                    ldd       #0
+                    std       ,s          total owned cache pages
+                    std       2,s         largest loaded logic resource
+                    leax      vmcache,u
+                    ldy       #32
+AuxMemoryCache      tst       1,x
+                    beq       AuxMemoryNext
+                    clra
+                    ldb       4,x
+                    addd      ,s
+                    std       ,s
+                    tst       5,x
+                    bne       AuxMemoryNext
+                    ldd       6,x
+                    cmpd      2,s
+                    bls       AuxMemoryNext
+                    std       2,s
+AuxMemoryNext       leax      VM_CACHE_ENTRY_BYTES,x
+                    leay      -1,y
+                    bne       AuxMemoryCache
+                    ldd       2,s
+                    pshs      d           maximum logic resource bytes
+                    clra
+                    clrb
+                    tst       <bitmapowned
+                    beq       AuxMemoryBitmap
+                    ldb       #10
+AuxMemoryBitmap     pshs      d
+                    clrb
+                    tst       gamebackgroundowned,u
+                    beq       AuxMemoryBackground
+                    ldb       #4
+AuxMemoryBackground pshs      d
+                    clrb
+                    tst       <pictureowned
+                    beq       AuxMemoryPicture
+                    ldb       #4
+AuxMemoryPicture    pshs      d
+                    ldd       8,s         cache pages (four pushed words)
+                    pshs      d
+                    ldd       >UiName-13+M$Size,pcr
+                    pshs      d           immutable UI module bytes
+                    ldd       #size
+                    pshs      d           declared process-private bytes
+                    ldy       coldapi,u
+                    ldd       ShowApiModuleHeader,y * relative resident module header
+                    leax      d,y
+                    ldd       M$Size,x
+                    pshs      d
+                    clra
+                    ldb       vmvariables,u
+                    pshs      d           current room
+                    leax      AuxMemoryFormat,pcr
+                    pshs      x
+                    leax      messagebuffer,u
+                    pshs      x
+                    lbsr      PrintFmtStr
+                    leas      22,s        output, format and nine word args
+                    tfr       u,x
+                    ldu       <resourcebase
+                    UI_CALL 16
+                    leas      4,s
+AuxMemoryReturn     rts
+AuxMemoryFormat     fcc       /room: %u/
+                    fcb       10
+                    fcc       /code bytes: %u/
+                    fcb       10
+                    fcc       /private bytes: %u/
+                    fcb       10
+                    fcc       /UI bytes: %u/
+                    fcb       10
+                    fcc       /owned 8K pages:/
+                    fcb       10
+                    fcc       /cache: %u  picture: %u/
+                    fcb       10
+                    fcc       /background: %u  bitmap: %u/
+                    fcb       10
+                    fcc       /max logic bytes: %u/
+                    fcb       0
 PrintFmtStr         ldu       <resourcebase
                     ldd       2,s
                     std       textpointer,u
@@ -178,6 +272,8 @@ AuxPrintWait        pshs      y
                     tst       dialoginputmode,u
                     bne       AuxWaitUntimed
                     lda       <vmopcode
+                    cmpa      #135
+                    beq       AuxWaitTimer
                     cmpa      #133
                     beq       AuxWaitTimer
                     cmpa      #101
@@ -207,8 +303,10 @@ AuxWaitTimer        ldb       vmvariables+21,u
 AuxWaitUntimed      clr       dialogtimed,u
                     lda       <vmopcode
                     cmpa      #133
+                    beq       AuxDiagnosticFresh
+                    cmpa      #135
                     bne       AuxWaitLoop
-                    lbsr      AuxDiagnosticDrain
+AuxDiagnosticFresh  lbsr      AuxDiagnosticDrain
                     lbcs      AuxWaitRestore
 AuxWaitLoop         ldy       ,s
                     ldd       ,y
@@ -280,8 +378,10 @@ AuxWaitInputMode
                     bne       AuxWaitEditor
                     lda       <vmopcode
                     cmpa      #133
+                    beq       AuxDiagnosticKey
+                    cmpa      #135
                     bne       AuxWaitKeyDone
-                    lda       parsercharacter,u
+AuxDiagnosticKey    lda       parsercharacter,u
                     cmpa      #13
                     beq       AuxWaitKeyDone
                     cmpa      #5
@@ -299,7 +399,7 @@ AuxWaitEditor       tst       dialoginputmode,u
                     tsta
                     lbeq      AuxWaitLoop
 AuxWaitKeyDone      clrb
-                    bra      AuxWaitRestore
+                    lbra     AuxWaitRestore
 * CoCo BooleanPoll clears queued events after an untimed box is visible.
 AuxDiagnosticDrain  clra
                     ldb       #SS.Ready
@@ -394,6 +494,8 @@ UI_CALL           macro
 AuxShowObject       ldu       <resourcebase
                     sty       coldapi,u
                     lda       <vmopcode
+                    cmpa      #135
+                    lbeq      AuxMemoryInfo
                     cmpa      #133
                     lbeq      CmdObjStatusV
                     cmpa      #29
@@ -547,7 +649,7 @@ AuxPriorityHavePicture inc    <gamepriorityview
                     UI_CALL   32
                     bcs       AuxPriorityRestore
                     ldy       coldapi,u
-                    leay      36,y
+                    leay      ShowApiPriorityWait,y
                     lbsr      AuxPrintWait
 AuxPriorityRestore  pshs      cc,b
                     ldu       <resourcebase
@@ -892,6 +994,13 @@ PriorityWaitCallbacks fdb     GameModalForeground-PriorityWaitCallbacks
                     fdb       GamePriorityKey-PriorityWaitCallbacks
                     fdb       GameStateReturn-PriorityWaitCallbacks
                     fdb       GameClockSample-PriorityWaitCallbacks
+ShowModuleHeader    fdb       name-13-ShowCallbacks * ABI-10: read-only header metadata
+                    ifne PriorityWaitCallbacks-ShowCallbacks-ShowApiPriorityWait
+                    error Show API priority-wait directory moved
+                    endc
+                    ifne ShowModuleHeader-ShowCallbacks-ShowApiModuleHeader
+                    error Show API resident-header metadata moved
+                    endc
 * Discard queued input before displaying the diagnostic, like events_clear.
 * Private VT input queues are small; stop after 256 reads rather than spinning
 * indefinitely if an input source continuously replenishes the queue.

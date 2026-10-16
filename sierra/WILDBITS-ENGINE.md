@@ -2956,7 +2956,8 @@ pass: two-terminal custom priority/save/restore, fresh-process restoration,
 and repeated priority diagnostics with key filtering and exact memory recovery.
 Focused audio and 14 affected UI/state test families also pass. The complete
 58-command target for the preceding ABI-7 build passed; the matching ABI-8
-complete target is running. A04 remains open pending its result. Physical
+complete target now passes all 58 checks with exit status 0. The latest
+ABI-10 complete target remains pending, so A04 stays open. Physical
 hardware remains unavailable and its acceptance gate is unverified.
 
 
@@ -3033,6 +3034,92 @@ The all-title audit now records 177/182 native routes and five unsupported
 commands: 135, 149, 150, 170 and 177. Reports are in
 `.wildbits-test/parity-diagnostics-c02-final-audit-20261015`. A stale auditor
 self-test still expected 133 to be unsupported; the explicit expected set and
-C02 regression references are updated. The matching complete 58-command run
-has restarted on the frozen final sources and remains pending. C02 is verified;
+C02 regression references are updated. The matching ABI-9 complete run was superseded by the newer ABI-10 target;
+its partial log is not a pass. C02 is verified;
 C03–C07, broader semantic gates and hardware acceptance remain open.
+
+
+## Native memory diagnostic and callback-layout contract (ABI 10)
+
+Opcode 135 now reports native memory information through the existing immutable
+UI provider and common word formatter. It consumes no operands. Native storage
+is segmented, so the report uses explicit categories rather than relabeling
+CoCo's flat-heap fields:
+
+| Report | Meaning |
+| --- | --- |
+| room | AGI variable 0 |
+| code bytes | Actual resident module `M$Size`, including its header and CRC |
+| private bytes | Declared process-private extent, before bank rounding |
+| UI bytes | Actual linked `wbui` module extent |
+| cache | Sum of pages in owned entries of the 32-slot resource cache |
+| picture | Four pages when the combined picture buffer is owned, otherwise zero |
+| background | Four pages when the scene background buffer is owned, otherwise zero |
+| bitmap | Ten pages when the presentation bitmap is owned, otherwise zero |
+| max logic bytes | Largest decompressed resource length among owned logic-cache entries |
+
+The page categories use 8 KiB pages. Cache ownership includes the current logic;
+its borrowed asset view is not counted again. Inactive entries are skipped even
+when their old lengths/counts remain in memory. The maximum logic length includes
+the resource's bytecode-length field and messages, not the disk volume header.
+The snapshot is taken after ensuring a canvas and before drawing this report;
+its first draw can subsequently allocate a bitmap. These are owned allocations,
+not a claim about global free memory or a sum of CoCo heap categories.
+
+The actual CoCo `CmdShowMemInfo` argument order is tested independently. It
+includes the legacy fixed `$FFFF` word; variable meanings are not inferred from
+old decompiler comments. CoCo code and output remain unchanged. Native output
+instead identifies its actual allocation model above, as permitted by C03.
+
+C02 and C03 share `AuxDiagnosticPrepare`: release the mapped room resource,
+retain an existing picture, and create a blank canvas only when needed. Both
+use the same fresh untimed Enter/Escape policy and existing held/timed print
+policy. The calculation uses a four-byte local frame and bounded cache scan;
+all report output stays in the existing private workspace. Normal execution
+acquires no new per-frame abstraction calls.
+
+The show-object callback contract now explicitly reserves offsets 0..35 for
+its existing calls and 36..43 for the four priority-wait calls, whose offsets
+are relative to their own subtable. Offset 44 holds a read-only resident-header
+offset relative to the original show table; it is **not callable**. The helper
+adds that offset to the caller's table address and reads the real module header,
+so it works at different load addresses. Assembly-time assertions pin both
+subtable/metadata positions. A first candidate inserted the header at 36;
+the priority MAME regression caught the displaced callback table before promotion.
+The corrected build preserves that table and passes the combined run.
+
+Install matching ABI-10 `wbgame`, `wbui`, `wbstate` and `wbfont`. Private layout
+and WS1 logical save payload are unchanged. Current budgets are resident
+23,805/23,808 bytes, UI 6,219/8,192, state 3,180/8,192, copied prefix
+3,177/4,096 and private data 24,468/24,576. Resident and UI headroom remain
+limited; this does not close A01.
+
+Evidence in `.wildbits-test/parity-memory-diagnostic-layout-final-matrix-20261015`
+builds all 64 owners. All 56 CoCo images and five integration probes remain
+byte-identical to C02. Main production/probes match this matrix. Final direct
+checks pass 32 native report cases with positive/negative header offsets,
+empty/sparse/full caches, wide totals and whole-private-state guards, four
+unmap/canvas failures, and the existing object-status/word/decimal regressions.
+Loaded zero-operand scripts verify held/timed/fresh/cached reports, precise
+accounting, 16 nested calls, a 127-byte directory and intact private font data.
+All native dispatch/operand-count cases pass.
+
+All five real-driver MAME phases pass in
+`.wildbits-test/parity-memory-diagnostic-layout-final-mame-20261015`, including
+priority persistence/cold restore, priority display, object status and memory
+information. The diagnostic phases verify visible pixels, ordinary-key rejection,
+Enter/Escape dismissal, foreground retention, repeated calls, independent
+terminals, exact scene restoration and exact memory recovery. A CPU priority
+reference test timed out on its debugger connection; its separate isolated retry
+passes all reference/pixel/cleanup assertions. The failing log is retained and
+is not counted as a pass.
+
+The all-title audit in
+`.wildbits-test/parity-memory-diagnostic-layout-final-audit-20261015` records
+178/182 routes; 149, 150, 170 and 177 remain unsupported. C03 is verified within
+the category mapping above. The ABI-9 complete-suite run was intentionally
+superseded by the final ABI-10 58-command run; its partial log is not a pass.
+The older ABI-8 complete target passes all 58 checks with exit status 0
+(`/tmp/sierra-capacity-complete-check-20261015.log`); the latest ABI-10 target
+remains in progress.
+A04 and broader semantic/driver/hardware gates remain open.

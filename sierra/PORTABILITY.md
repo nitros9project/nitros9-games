@@ -3072,7 +3072,7 @@ these edge differences, not the complete S01 acceptance family.
 ## Separate UI and persistence providers (ABI 8)
 
 The current package is `wbgame`, `wbui`, `wbstate` and `wbfont`. Install the
-three executable modules from the same ABI-9 build. UI/audio code now belongs
+three executable modules from the same ABI-10 build. UI/audio code now belongs
 to the immutable `wbui` provider; `wbstate` supplies the bounded private copy
 used for save/restore. Existing source feature groups are unchanged.
 See [provider ownership, loader contracts, budgets and verification](WILDBITS-ENGINE.md#separate-ui-and-persistence-providers-abi-8).
@@ -3082,3 +3082,9 @@ Earlier combined-helper descriptions above document preceding revisions.
 Object-status behavior and word formatting now share CoCo source, with native
 private-buffer bindings in the grouped text UI backend. See the
 [ABI-9 interface and verification record](WILDBITS-ENGINE.md#shared-object-status-diagnostic-abi-9).
+
+
+Memory reporting uses native owned-page categories and the common word formatter.
+The show callback interface preserves priority callbacks at 36 and adds a
+read-only resident-header offset at 44, with assembly-time guards. See the
+[ABI-10 interface and verification](WILDBITS-ENGINE.md#native-memory-diagnostic-and-callback-layout-contract-abi-10).

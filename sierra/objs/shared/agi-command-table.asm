@@ -137,7 +137,7 @@
                     AGI_COMMAND cmd_player_control,$0000,VmSetPlayerControl,0 *player control
                     AGI_COMMAND CmdObjStatusV,$180,GameShowObjectCommand,1 *obj status v
                     AGI_COMMAND CmdQuitImpl,$100,GameQuitCommand,1 *quit
-                    AGI_COMMAND CmdShowMemInfo,$0000,VmPlatformUnsupported,0 *show mem
+                    AGI_COMMAND CmdShowMemInfo,$0000,GameShowObjectCommand,1 *show mem
                     AGI_COMMAND CmdPauseImpl,$0000,GamePauseCommand,1 *pause
                     AGI_COMMAND cmd_echo_line,$0000,GameEchoLine,1 *echo line
                     AGI_COMMAND cmd_cancel_line,$0000,GameCancelLine,1 *cancel line
