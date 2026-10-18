@@ -6,6 +6,7 @@ This repository contains games, game data, and bootable disk-image builds for
 ## Contents
 
 - `arcadepak` — Smash, Shanghai, and Thexder
+- `bayou-bootleggers` — Bayou Bootleggers dock brawler and Linzay Downs horse racing (CoCo 3)
 - `flightsim2` — Flight Simulator II
 - `koronis` — Koronis Rift
 - `kyumgai` — Kyum-Gai

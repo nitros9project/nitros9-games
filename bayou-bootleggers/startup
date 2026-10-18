@@ -1,0 +1,4 @@
+link shell
+load utilpak1
+merge SYS/stdfonts SYS/stdptrs SYS/stdpats_2 SYS/stdpats_4 SYS/stdpats_16
+echo Linzay Downs: teeboy / Dock Brawl: bayou
