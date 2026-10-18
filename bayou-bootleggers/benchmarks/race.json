@@ -1,0 +1,32 @@
+{
+  "platform": "MAME CoCo 3, 6809, 512K, NitrOS-9 Level 2, 320x200 16 colors",
+  "measurement": "120 race_step(RIGHT) plus full frame calls, no deliberate sleeps; 60Hz clock",
+  "before": {
+    "frames": 120,
+    "ticks": 1434,
+    "fps": 5.02,
+    "course_metres": 240
+  },
+  "after": {
+    "frames": 120,
+    "ticks": 673,
+    "fps": 10.7,
+    "course_metres": 120,
+    "crowd_dialogue": true
+  },
+  "changes": [
+    "32x30 horse art and 32x32 background patches",
+    "four framebuffer banks stay mapped",
+    "packed opaque HUD fields",
+    "rival palettes translated once into process RAM",
+    "race-only assembly run blitter",
+    "cached randomized spectator dialogue every 2\u20134 seconds"
+  ],
+  "physical_hardware_tested": false,
+  "before_crowd_dialogue": {
+    "frames": 120,
+    "ticks": 635,
+    "fps": 11.34,
+    "course_metres": 120
+  }
+}
