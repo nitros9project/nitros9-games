@@ -24,6 +24,7 @@ The following archive games have independent c3 cross-builds:
 - `sokoban` — Sokoban, including all 50 levels
 - `kalah` — Kalah and Dead-Pan
 - `reversi` — Joel Rees’s graphical Reversi
+- `walk` — James Delaney’s animated screen saver/demo
 - `adventure` — Crowther/Woods Adventure
 - `cocothello` — graphical Othello
 - `solitaire` — Pyramid Solitaire
