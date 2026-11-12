@@ -2,12 +2,9 @@ include $(NITROS9DIR)/rules.mak
 
 .DEFAULT_GOAL := all
 
-vpath %.asm ../objs
+include ../sierra-engine.mak
 
-AFLAGS		+= -I. -I../objs
-DEPENDS		= ./Makefile ../sierra-game.mak
-
-sierra mnln: ../objs/instance.d
+DEPENDS		= ./Makefile ../sierra-game.mak ../sierra-engine.mak
 
 CMDS		= sierra mnln scrn shdw tocgen
 MD		= $(LEVEL2)/coco3/modules

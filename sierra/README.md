@@ -1,5 +1,8 @@
 # Sierra instances
 
+See the [Wild Bits / CoCo 3 parity checklist](WILDBITS-PARITY.md) for verified
+evidence, remaining work, and the acceptance criteria for completion.
+
 See [the implementation explanation](INSTANCE-DESIGN.md) for the memory
 layout, loader, graphics ownership, startup, cleanup, and validation details.
 
@@ -60,3 +63,12 @@ invoke the normal AGI Quit routine in one process and verify that the other
 continues. The fixture is a separate disposable disk; emulator writes are
 disabled. These checks do not exercise a complete playthrough or save/restore
 through the game UI.
+
+Wild Bits native presentation work and target-side testing are documented in
+[WILDBITS-README.md](WILDBITS-README.md). The interactive King’s Quest I port supports
+typed commands, movement, inventory, menus, save/restore, owned queued sound and
+positioned messages on the tested Wild Bits drivers. Install the matching
+`wbgame`, `wbui`, `wbstate` and `wbfont` build together. The matching ABI-11
+UI helper supplies text/audio code; the state helper supplies save/restore code.
+Build it with `make -C sierra/objs -f wildbits.mk all` from the games repository.
+Full AGI compatibility and common-engine consolidation remain unfinished.

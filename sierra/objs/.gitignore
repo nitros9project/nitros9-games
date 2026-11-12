@@ -1,0 +1,15 @@
+
+# Wild Bits module build products
+/wbgame
+/wbstate
+/wbexec
+/wbdecode
+/wbrun
+/wbasset
+/wbres
+/wbpic
+/wbfont
+/*.list
+/*.map
+/test-picture.bin
+/reference-picture.bin

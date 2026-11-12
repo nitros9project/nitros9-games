@@ -26,7 +26,12 @@ class Debugger:
         self.s = socket.create_connection(('127.0.0.1', port), 5)
         self.s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
         self.s.settimeout(15)
-        self.call('?')
+        self.received = bytearray()
+        try:
+            self.call('?')
+        except (OSError, ConnectionError):
+            self.s.close()
+            raise
 
     def call(self, command):
         data = command.encode()
@@ -40,18 +45,41 @@ class Debugger:
         raise RuntimeError('debugger repeatedly rejected the packet')
 
     def receive(self):
+        def more():
+            chunk = self.s.recv(4096)
+            if not chunk:
+                emulator=getattr(self,'emulator',None)
+                detail=''
+                if emulator is not None:
+                    status=emulator.poll()
+                    if status is None:
+                        try:status=emulator.wait(timeout=.1)
+                        except subprocess.TimeoutExpired:pass
+                    elapsed=time.monotonic()-self.emulator_started
+                    detail=(f' (XRoar status={status}, host elapsed={elapsed:.2f}s, '
+                            f'host limit={self.emulator_limit}s, watchdog='
+                            f'{getattr(emulator,"wall_timeout_reached",False)}; log={self.emulator_log})')
+                raise ConnectionError('debugger disconnected'+detail)
+            self.received.extend(chunk)
+
+        # Keep bytes beyond this packet for the next reply. TCP can split a
+        # packet or deliver its acknowledgement and payload in one read.
         while True:
-            c = self.s.recv(1)
-            if c == b'$':
+            if not self.received:
+                more()
+            c = self.received[0]
+            del self.received[:1]
+            if c == ord('$'):
                 break
-            if c == b'-':
+            if c == ord('-'):
                 return None
-            if not c:
-                raise ConnectionError('debugger disconnected')
-        data = b''
-        while (c := self.s.recv(1)) != b'#':
-            data += c
-        self.s.recv(2)
+        while True:
+            end = self.received.find(b'#')
+            if end >= 0 and len(self.received) >= end + 3:
+                break
+            more()
+        data = bytes(self.received[:end])
+        del self.received[:end + 3]  # Consume both checksum bytes as well.
         self.s.sendall(b'+')
         return data.decode()
 
@@ -108,6 +136,50 @@ class Debugger:
             updates = calls[state['pc']](service, state)
             updates['pc'] = state['pc'] + 3
             self.regs(**updates)
+
+
+def check_transport():
+    """Replay packet boundaries independently of emulator timing."""
+    class ReplyStream:
+        def __init__(self, chunks):
+            self.chunks = list(chunks)
+            self.acks = []
+
+        def recv(self, size):
+            if not self.chunks:
+                return b''
+            chunk = self.chunks.pop(0)
+            if len(chunk) > size:
+                self.chunks.insert(0, chunk[size:])
+            return chunk[:size]
+
+        def sendall(self, data):
+            self.acks.append(data)
+
+    packet = b'+$OK#9a$1122#c6'
+    cases = [([packet], ['OK', '1122']),
+             ([bytes((c,)) for c in packet], ['OK', '1122']),
+             ([b'+$OK#', b'9', b'a$1122#c', b'6'], ['OK', '1122']),
+             ([b'-$OK#9a'], [None, 'OK']),
+             ([b'+$#00'], ['']),
+             ([b'+$partial'], []),
+             ([b'+$partial#0'], []),
+             ([], [])]
+    for chunks, expected in cases:
+        stream = ReplyStream(chunks)
+        debugger = Debugger.__new__(Debugger)
+        debugger.s = stream
+        debugger.received = bytearray()
+        assert [debugger.receive() for _ in expected] == expected
+        assert stream.acks == [b'+'] * sum(value is not None for value in expected)
+        try:
+            debugger.receive()
+        except ConnectionError:
+            pass
+        else:
+            raise AssertionError('debugger accepted a truncated reply or ignored EOF')
+    print('PASS: debugger coalesced/fragmented packets, split checksums, '
+          'acknowledgements, negative reply, empty payload and truncated EOF')
 
 
 def check(d):
@@ -313,20 +385,30 @@ def check(d):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--port', type=int)
+    parser.add_argument('--transport-only', action='store_true',
+                        help='check debugger packet handling without an emulator')
     parser.add_argument('--boot', action='store_true', help='boot King\'s Quest I and reach the interpreter cycle')
     parser.add_argument('--disk', type=Path)
+    parser.add_argument('--rompath', type=Path, default=SHELF / 'toolshed/cocoroms',
+                        help='CoCo ROM directory for OS boot checks')
+    parser.add_argument('--unthrottled', action='store_true', help='run headless CPU/boot checks at full speed')
     parser.add_argument('--instances', type=int, default=1)
     parser.add_argument('--setup-module', type=Path, default=ROOT / 'sierra/kingsquest1/sierra')
     parser.add_argument('--setup-map', type=Path, default=ROOT / 'sierra/kingsquest1/sierra.map')
     args = parser.parse_args()
+    if args.transport_only:
+        check_transport()
+        return
     if args.port is None:
         with socket.socket() as reservation:
             reservation.bind(('127.0.0.1', 0))
             args.port = reservation.getsockname()[1]
     command = ['xroar', '-machine', 'coco3', '-ui', 'null', '-ao', 'null', '-ram', '2048',
         '-gdb', '-gdb-port', str(args.port), '-timeout', '300']
+    if args.unthrottled:
+        command.append('-no-ratelimit')
     if args.boot:
-        command += ['-rompath', str(SHELF / 'toolshed/cocoroms'), '-cart', 'rsdos',
+        command += ['-rompath', str(args.rompath), '-cart', 'rsdos',
             '-cart-rom', 'disk11.rom', '-load-fd0', str(args.disk or ROOT / 'sierra/kingsquest1/KingsQuestI.dsk'),
             '-no-disk-write-back', '-type', 'DOS\r']
     else:
@@ -334,13 +416,14 @@ def main():
     emulator = subprocess.Popen(command, stdout=subprocess.DEVNULL,
         stderr=subprocess.PIPE)
     try:
-        time.sleep(0.5)  # let machine initialization finish before stopping its CPU
-        for attempt in range(50):
+        if not args.boot:
+            time.sleep(0.5)  # idle-ROM CPU checks retain their existing startup delay
+        for attempt in range(1000 if args.boot else 50):
             try:
                 d = Debugger(args.port)
                 break
             except ConnectionRefusedError:
-                time.sleep(0.1)
+                time.sleep(0.001 if args.boot else 0.1)
         else:
             raise RuntimeError('XRoar debugger did not start: ' + (emulator.stderr.read().decode() if emulator.poll() is not None else 'still running'))
         if args.boot:
@@ -350,7 +433,7 @@ def main():
             setup_header = args.setup_module.read_bytes()[:13]
             engine_header = (ROOT / 'sierra/kingsquest1/mnln').read_bytes()[:13]
             target = 0x8000 + mn['MainCycleLoop']
-            starts = [0xE000 + off + si['InitEntry'] for off in range(-0x2000, 0x1A00, 0x100)]
+            starts = [off + si['InitEntry'] for off in range(0, 0xFF00, 0x100)]
             for address in starts:
                 d.breakpoint(address)
             base = None
