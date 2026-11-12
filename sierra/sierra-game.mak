@@ -4,8 +4,10 @@ include $(NITROS9DIR)/rules.mak
 
 vpath %.asm ../objs
 
-AFLAGS		+= -I.
+AFLAGS		+= -I. -I../objs
 DEPENDS		= ./Makefile ../sierra-game.mak
+
+sierra mnln: ../objs/instance.d
 
 CMDS		= sierra mnln scrn shdw tocgen
 MD		= $(LEVEL2)/coco3/modules

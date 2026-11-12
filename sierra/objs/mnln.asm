@@ -44,6 +44,8 @@
 *   Standard I/O path numbers shared with sierra, scrn, and shdw modules.
 *======================================================================
 *
+                    use       instance.d
+
 StdIn               equ       0
 StdOut              equ       1
 StdErr              equ       2
@@ -1652,7 +1654,7 @@ CmdShowMemInfo      leas      >-$00C8,s allocate 200-byte local frame on stack
                     ldd       <$0057    load max script size
                     pshs      b,a       push max script size
                     ldd       <$0053    load current heap top
-                    subd      #$0776    subtract heap base to get tables size
+                    subd      #SierraHeapBase    subtract heap base to get tables size
                     pshs      b,a       push tables size
                     ldd       <$0051    load heap pointer
                     subd      <$0053    subtract to get common size
@@ -1661,7 +1663,7 @@ CmdShowMemInfo      leas      >-$00C8,s allocate 200-byte local frame on stack
                     subd      <$0053    subtract to get rm.0 size
                     pshs      b,a       push rm.0 size
                     ldd       <0        load heap base (direct-page variable 0)
-                    subd      #$0776    subtract to get available heap size
+                    subd      #SierraHeapBase    subtract to get available heap size
                     pshs      b,a       push available heap size
                     ldd       <$004D    load heap max used
                     pshs      b,a       push max used

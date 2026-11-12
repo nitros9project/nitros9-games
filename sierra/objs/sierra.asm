@@ -42,7 +42,7 @@ StdErr              equ       2
 tylg                set       Prgrm+Objct
 atrv                set       ReEnt+rev
 rev                 set       $01
-edition             set       1
+edition             set       2
 
                     mod       eom,name,tylg,atrv,start,size
 
@@ -104,8 +104,33 @@ GameDataBuf         rmb       154       general game data buffer
                     rmb       169       padding before SigIntercept/MmuSwitch slots
 int5EE              rmb       107       slot for SigIntercept routine copy [$696–$700]
 sub659              rmb       117       slot for MmuSwitch routine copy [$701–$775]
-u0xxx               rmb       6281      remaining data area [$776–$1FFE]
+* Per-process setup state. Never put writable state in a linked module.
+MultitaskFlag       rmb       1
+RgbRequested        rmb       1
+ProcMapReady        rmb       1
+OwnProcessId        rmb       1         process ID used to locate our descriptor
+OptionsChanged      rmb       1
+SierraMmuBlk2       rmb       2
+SierraMmuBlk3       rmb       2
+EchoSave            rmb       1
+EofSave             rmb       1
+IntSave             rmb       1
+QuitSave            rmb       1
+                    rmb       1         reserved for ABI stability
+ViDevAddr           rmb       2
+ViPathNum           rmb       1
+PrivateNext         rmb       1         next unused private engine block
+PrivateLimit        rmb       1         exclusive end of /VI allocation
+mmubuf              rmb       16
+                    rmb       1         keep heap word pointers even
+InstanceHeapBase    equ       .
+gprbuf              equ       .         512-byte startup scratch; released before engine entry
+u0xxx               rmb       $1FFF-.  keep the original 8K data allocation
 size                equ       .
+                    use       instance.d
+                  IFNE        InstanceHeapBase-SierraHeapBase
+                    error     private state / heap ABI mismatch
+                  ENDC
 
 * ====== Module Header ======
 name                fcs       /sierra/
@@ -117,9 +142,6 @@ EntryDispatch       lbra      InitEntry branch to entry process params
 ExitDispatch        lbra      ExitDispEntry agi_exit() branch to clean up routines
 
 
-*                   Multi-tasking flag (0=No multitask, 1=multitask)
-MultitaskFlag       fcb       $00       we store a value here
-*                   the "old self modifying code" trick
 
 
 * ====== Static String Constants ======
@@ -141,16 +163,33 @@ InitEntry           tfr       s,d       save stack ptr / start of param ptr into
 *
                     subd      #$04FF    start of stack/end of data mem ptr
                     std       <DataAreaSize store this value in user var
+                    pshs      x         preserve the command-line pointer
+                    lbsr      InitDataArea initialize private state before parsing options
+                    puls      x
                     bsr       ArgParseLoop branch to input processer routine
 
-PostArgInit         lbsr      SetupModule relay call to InitDataArea
+PostArgInit         lbsr      SetupModule initialize this instance
+                    bcc       MainInit
+                    pshs      b         preserve the startup error
+                    lbsr      ShutdownFull release only this instance
+                    puls      b
+                    bra       ExitNow
 
 MainInit            ldd       <DataAreaSize load the data pointer
                     beq       ExitNow   if it is zero we have a problem
 *         ldd   >$FFA9     ??? MMU task 1 block 1 ???
                     lbsr      mmuini2   get MMU values $FFA8-$FFAF
-                    ldd       mmubuf+9,pcr load task-1 MMU block entry (9th byte)
+                    ldd       >mmubuf+9 load task-1 MMU block entry (9th byte)
                     std       <MmuTask1Blk0 save the task 1 block one value
+* No further descriptor snapshots occur after startup. Restore the heap's
+* initial zero-fill before allowing the engine to allocate this scratch area.
+                    ldx       #gprbuf
+                    ldy       #P$Size/2
+                    clra
+                    clrb
+ClearSetupScratch   std       ,x++
+                    leay      -1,y
+                    bne       ClearSetupScratch
                     lda       #$00      clear a to zero
                     sta       <MmuInitFlag save that value
                     ldx       <MnlnRemap set up to jump to mnln and go for it
@@ -184,17 +223,13 @@ ArgParseLoop        lda       ,x+       get next char after name string
                     bra       ExitNow   and branch to exit!
 
 * found a "-r"
-HandleOptRgb        pshs      x         save x-reg since set stat call uses it
-                    lda       #StdOut   $01  set the path number
-                    ldb       #SS.Montr code #$92 sets the monitor type
-                    ldx       #RGB      monitor type code $0001
-                    os9       I$SetStt  set it up
-                    puls      x         fetch our x back assumes call doesn't fail
-                    bra       ArgParseLoop go process the rest of the parms
+HandleOptRgb        lda       #1
+                    sta       >RgbRequested apply after screen ownership is acquired
+                    bra       ArgParseLoop
 
 * found an "-m"
 HandleOptMulti      lda       #$01      we have found a -m and load a flag
-                    sta       >MultitaskFlag,pcr and stow it in our code area  (SELF MODIFYING)
+                    sta       >MultitaskFlag save this instance's option
                     bra       ArgParseLoop check for next param
 
 ArgsDone            rts                 return
@@ -246,14 +281,6 @@ ColorTable          fcb       $00       composite
                     fcb       $37
                     fcb       $3F
 
-* The disassembly gets confused here with text and the nulls
-*  according to the partial disassembly I recieved these hold
-*  Original MMU block image of second and third blocks of SIERRA
-*  MORE SELF MODIFYING CODE
-
-SierraMmuBlk2       fdb       $0000     Orig MMU block image of 2nd blk of sierra
-SierraMmuBlk3       fdb       $0000     Orig MMU block image of 3nd blk of sierra
-
 * Name strings of other modules to load.
 
 ShdwModName         fcc       'Shdw'
@@ -266,35 +293,67 @@ MnlnModName         fcc       'MnLn'
                     fcb       C$CR
 
 
-* Internal variables for self modifying code
-EchoSave            fcb       $00       Echo
-EofSave             fcb       $00       EOF
-IntSave             fcb       $00       INTerupt
-QuitSave            fcb       $00       Quit
-MonTypeSave         fcb       $00       Monitor type Coco set to when Sierra ran
 
 
 * ====== SetupModule / ShutdownFull: Setup and Shutdown Orchestration ======
 * L011A called by PostArgInit
-SetupModule         lbsr      InitDataArea Clears data area, sets up vars and saves montype
+SetupModule         lbsr      CheckInstanceServices
+                    bcs       SetupModuleRet
                     lbsr      mmuini1   get MMU values $FFA0-$FFA7
                     lbsr      SetupProcMap Change our process image to dupe block 0 to 1-2
 CopySubroutines     lbsr      CopySubsToData copies two subs to data area so others can use them
 
                     lbsr      SetupVirq load intercept routine and open /VI and allocate Ram
-                    bcs       CleanupVirq if errors occured  close VIRQ device
+                    bcs       SetupModuleRet
 
                     lbsr      LoadModules NMLoads the three other modules and sets up vals
-                    bcs       CleanupMods problems then unload them
+                    bcs       SetupModuleRet
 
                     lbsr      SetupScreen go set up screens
-                    bcs       ShutdownFull problems deallocate them
-                    rts                 return to InitEntry
+SetupModuleRet      rts                 startup error is handled by InitEntry
+
+* Require matching input/output terminals and the ownership-aware screen
+* service. Reject old bootfiles before changing any device or MMU state.
+CheckInstanceServices lda     #StdIn
+                    ldb       #SS.DevNm
+                    ldx       #gprbuf
+                    os9       I$GetStt
+                    bcs       InstanceServiceRet
+                    lda       #StdOut
+                    ldb       #SS.DevNm
+                    ldx       #gprbuf+32
+                    os9       I$GetStt
+                    bcs       InstanceServiceRet
+                    ldx       #gprbuf
+                    ldy       #gprbuf+32
+                    ldb       #32
+InstanceNameLoop    lda       ,x+
+                    cmpa      ,y+
+                    bne       InstanceServiceBad
+                    tsta
+                    beq       InstanceNamesMatch
+                    bmi       InstanceNamesMatch
+                    decb
+                    bne       InstanceNameLoop
+InstanceServiceBad  comb
+                    ldb       #E$IllArg
+                    rts
+InstanceNamesMatch  lda       #StdOut
+                    ldb       #SS.AScrn
+                    os9       I$GetStt  query the ownership-aware application-screen ABI
+                    bcs       InstanceServiceRet
+                    cmpx      #2
+                    bcc       InstanceServiceOK
+                    comb
+                    ldb       #E$UnkSvc
+InstanceServiceRet  rts
+InstanceServiceOK   clrb
+                    rts
 
 * clean up and shut down
 agi_shutdown
 ShutdownFull        lbsr      RestoreScreen go deallocate hi res screens
-CleanupMods         lbsr      UnloadAllMods unloads the three other modules
+CleanupMods
 CleanupVirq         lbsr      CloseVirqPath Close VIRQ device
                     lbsr      RestoreMmu restore the MMU blocks
                     rts                 return to caller
@@ -311,10 +370,8 @@ ClearLoop           std       ,x++      write zero word and advance pointer
                     bcs       ClearLoop appears this zeros out memory somewhere
 
 * initialize some variables
-                    lda       >MultitaskFlag,pcr multitasking flag from startup parms
-                    sta       >MultitaskFlagCopy store multitask flag in data area
 
-                    ldd       #$0776    why twice
+                    ldd       #InstanceHeapBase start the heap after private setup state
                     std       <InitParam53 initialize game parameter at $53
                     std       <InitParam55 initialize game parameter at $55
 
@@ -329,50 +386,6 @@ ClearLoop           std       ,x++      write zero word and advance pointer
 
                     ldd       #$0000    zero value for game state word
                     std       <GameState4F clear game state field at $004F
-
-*  get current montype
-*  GetStat Function Code $92
-*          Allocates and maps high res screen
-*          into application address space
-* entry:
-*       a -> path number
-*       b -> function code $92 (SS.Montr)
-*
-* exit:
-*       x -> monitor type
-*
-* error:
-*       CC -> Carry set on error
-*       b  -> error code (if any)
-*
-                    lda       #StdOut   $01 path number
-                    ldb       #SS.Montr monitor type code (not listed for getstat $92
-                    os9       I$GetStt  make the call
-                    tfr       x,d       save in d appears he expects montype returned
-                    stb       >MonTypeSave,pcr trim it to a byte and save it
-                    andb      #$01      mask out mono type only RGB or COMP
-                    stb       >$0553    save that value off as display_type
-
-*  set current montype
-*  SetStat Function Code $92
-*          Allocates and maps high res screen
-*          into application address space
-* entry:
-*       a -> path number
-*       b -> function code $92 (SS.Montr)
-*       x -> momitor type
-*            0 = color composite
-*            1 = analog RGB
-*            2 = monochrome composite
-*
-* error:
-*       CC -> Carry set on error
-*       b  -> error code (if any)
-*
-                    ldx       #RGB      $0001 set type to RGB again as in L00C2
-                    lda       #StdOut   $01 set the path
-                    ldb       #SS.Montr Monitor type code $92
-                    os9       I$SetStt  make the call
 
 * initialize more variables
 
@@ -399,6 +412,37 @@ FillBytes           sta       ,x+       store fill byte and advance pointer
                     decb                decrement byte count
                     bne       FillBytes loop until count reaches zero
                     rts                 return from FillBytes/InitDataArea
+
+ConfigureMonitor
+*  get current montype
+*  GetStat Function Code $92
+*          Allocates and maps high res screen
+*          into application address space
+* entry:
+*       a -> path number
+*       b -> function code $92 (SS.Montr)
+*
+* exit:
+*       x -> monitor type
+*
+* error:
+*       CC -> Carry set on error
+*       b  -> error code (if any)
+*
+                    lda       #StdOut   $01 path number
+                    ldb       #SS.Montr monitor type code (not listed for getstat $92
+                    os9       I$GetStt  make the call
+                    bcs       ConfigureMonitorRet
+                    tfr       x,d       save in d appears he expects montype returned
+                    lda       >RgbRequested
+                    beq       UseOriginalMonitor
+                    ldb       #RGB
+UseOriginalMonitor  andb      #$01      mask out mono type only RGB or COMP
+                    stb       >$0553    save that value off as display_type
+
+                    clrb                success; global monitor mode is untouched
+
+ConfigureMonitorRet rts
 
 * ====== DisableKbdInt: Save and Suppress Keyboard Signals ======
 *  Raw disassembly of followin code
@@ -449,7 +493,9 @@ FillBytes           sta       ,x+       store fill byte and advance pointer
 *       THEN, CAN BUMP BLOCKS AROUND WITH THE ACTUAL BLOCK #
 *       IN FULL 2 MB RANGE, INSTEAD OF JUST GIME 512K RANGE.
 
-SetupProcMap        orcc      #IntMasks Shut interrupts off
+SetupProcMap        os9       F$ID
+                    sta       >OwnProcessId
+                    orcc      #IntMasks Shut interrupts off
                     ldx       #$0002    ???
                     stx       <BlockRef save block reference pair
 
@@ -457,10 +503,15 @@ SetupProcMap        orcc      #IntMasks Shut interrupts off
 *        available for Sierra process
 
 *         lda   >$FFAF         Get MMU block # SIERRA is in
-                    lda       mmubuf+$0F,pcr read task-0 MMU slot 15 (Sierra's block)
+                    lda       >mmubuf+$0F read task-0 MMU slot 15 (Sierra's block)
                     sta       <MmuSaveTmp Save it
                     clr       >$FFA9    Map system block 0 into $2000-$3FFF
-                    ldd       >D.Proc+$2000 Get SIERRA's process dsc. ptr
+                    ldx       >D.PrcDBT+$2000
+                    leax      $2000,x   process-pointer table resides in system block 0
+                    ldb       >OwnProcessId
+                    lda       b,x       process descriptors are aligned to $200
+                    clrb
+                    tfr       d,y       retain the full system descriptor address
                     anda      #$1F      Keep non-MMU dependent address
 
 * NOTE: OFFSET IS STUPID, SHOULD USE EVEN BYTE SO LDD'S BELOW
@@ -468,7 +519,8 @@ SetupProcMap        orcc      #IntMasks Shut interrupts off
 
                     addd      #$2000+P$DATImg+3 Set up ptr for what we want out of it
                     std       <Sierra2ndBlk Save it
-                    ldb       >D.Proc+$2000 Get MSB of SIERRA's process dsc. ptr
+                    tfr       y,d
+                    tfr       a,b       MSB of our descriptor address
                     andb      #$E0      Calculate which 8K block within
 *                                 system task it's in
 *         lsrb
@@ -482,16 +534,16 @@ SetupProcMap        orcc      #IntMasks Shut interrupts off
 * NOTE: HAVE TO CHANGE THIS TO GET BLOCK #'S FROM SYSTEM DAT IMAGE,
 *       NOT RAW GIME REGS (TO WORK WITH >512K MACHINES)
 *         ldx   #$FFA0       Point to base of System task DAT register set block 0 task 0
-                    leax      mmubuf,pcr point to task-0 physical MMU block table
+                    ldx       #mmubuf point to task-0 physical MMU block table
 *         lda   b,x          Get block # that has process desc. for SIERRA
                     lda       a,x       read block # at computed offset
                     sta       <SierraPdBlk Save it
                     sta       >$FFA9    Map in block with process dsc. to $2000-$3FFF
                     ldx       <Sierra2ndBlk Get offset to 2nd 8K block in DAT map for SIERRA
                     ldd       -1,x      Get MMU block # of current 2nd 8k block in SIERRA
-                    std       >SierraMmuBlk2,pc Save it
+                    std       >SierraMmuBlk2 Save it
                     ldd       1,x       Get MMU block # of current 3rd 8k block in SIERRA
-                    std       >SierraMmuBlk3,pc Save it
+                    std       >SierraMmuBlk3 Save it
                     ldd       -3,x      Get data area block 3 from sierra (1st block)
                     std       -1,x      Move 8k data area to 2nd block
                     std       1,x       And to 3rd block
@@ -500,6 +552,7 @@ SetupProcMap        orcc      #IntMasks Shut interrupts off
 * HAVE TO CHANGE TO ALLOW FOR DISTO DAT EXTENSION
                     std       >$FFA9    Map data area block into both blocks 2&3
                     std       <MmuBlk2Orig Save both block #'s
+                    inc       >ProcMapReady
                     andcc     #^IntMasks Turn interrupts back on
                     rts                 return from SetupProcMap
 
@@ -539,7 +592,11 @@ CopySub2Loop        lda       ,x+       copy routine
 * The last op in the subroutine before this one
 * was a puls a,b after a puhs x and a setsatt call for process+path to VIRQ
 
-LoadModules         tfr       b,a       don't see what's going on here
+LoadModules         lda       >MultitaskFlag
+                    sta       >MultitaskFlagCopy
+                    ldb       >PrivateNext
+                    subb      #13       original heap allocation begins 13 blocks earlier
+                    tfr       b,a       don't see what's going on here
                     incb                make B one higher than A for block pair
                     std       <BlkMapLow but we save off a bunch of values
 
@@ -610,6 +667,10 @@ SetupScreen         leas      -$04,s    mamke room om stack 2 words
                     tfr       y,d       Move screen # returned to D
 *         stb   >$0174      Save screen #
                     stb       >HiResScrnNum save allocated hi-res screen number
+                    pshs      x         preserve screen mapping across monitor calls
+                    lbsr      ConfigureMonitor
+                    puls      x
+                    bcs       ScreenSetupRet
 
 * call with application address of screen in x
 * returns with values in u
@@ -675,8 +736,9 @@ PaletteLoop         ldb       ,x+       get value computed above for color table
                     lda       #StdOut   $01      Std Out path
                     leax      $02,s     start of data to write
                     os9       I$Write   write it
+                    puls      x         balance the palette-loop save on errors too
                     bcs       ScreenSetupRet error during write clean up stack and leave
-                    puls      x         retrieve our x
+*                   puls      x         retrieve our x
                     inc       $02,s     this is our palette register value
                     lda       $02,s     we bumped it by one
                     cmpa      #$10      we loop 15 times to set them all
@@ -684,6 +746,9 @@ PaletteLoop         ldb       ,x+       get value computed above for color table
 
                     clr       <PaletteFlag clear a flag in memory
                     lbsr      DisableKbdInt go disable keyboard interrupts
+                    bcs       ScreenSetupRet
+                    inc       >OptionsChanged
+                    clrb
 ScreenSetupRet      leas      $04,s     clean up stack
                     rts                 return
 
@@ -744,25 +809,25 @@ DisableKbdInt       leas      <-$20,s   Make temp buffer to hold PD.OPT data
 *       null values and saving the original ones back to vars
 *       since L0115 - L0118 were initialized with $00
 
-                    lda       >EchoSave,pc load saved echo value (initially 0)
+                    lda       >EchoSave load saved echo value (initially 0)
                     ldb       PD.EKO-PD.OPT,x Get echo option
                     sta       PD.EKO-PD.OPT,x change echo option no echo
-                    stb       >EchoSave,pc Save original echo option
+                    stb       >EchoSave Save original echo option
 
-                    lda       >EofSave,pc load saved EOF char value
+                    lda       >EofSave load saved EOF char value
                     ldb       PD.EOF-PD.OPT,x Change EOF char
                     sta       PD.EOF-PD.OPT,x disable EOF character
-                    stb       >EofSave,pc save original EOF character
+                    stb       >EofSave save original EOF character
 
-                    lda       >IntSave,pc load saved interrupt char value
+                    lda       >IntSave load saved interrupt char value
                     ldb       <PD.INT-PD.OPT,x Change INTerrupt char (normally CTRL-C)
                     sta       <PD.INT-PD.OPT,x disable interrupt character
-                    stb       >IntSave,pc save original interrupt character
+                    stb       >IntSave save original interrupt character
 
-                    lda       >QuitSave,pc load saved quit char value
+                    lda       >QuitSave load saved quit char value
                     ldb       <PD.QUT-PD.OPT,x Change QUIT char (normally CTRL-E)
                     sta       <PD.QUT-PD.OPT,x disable quit character
-                    stb       >QuitSave,pc save original quit character
+                    stb       >QuitSave save original quit character
 
 *  set current options packet
 *  SetStat Function Code $00
@@ -822,8 +887,11 @@ RestoreScreen       leas      -2,s      Make temp buffer to hold write data
 *         tst   >$0174       Any hi-res screen # allocated?
                     tst       >HiResScrnNum any hi-res screen number allocated?
                     beq       RestoreScreenRet No, restore stack & return
-                    lbsr      DisableKbdInt go change the echo,eof,int and quit settings
-                    bcs       RestoreScreenRet had an error restore stack and return
+                    tst       >OptionsChanged
+                    beq       RestoreScreenDisplay
+                    lbsr      DisableKbdInt restore original keyboard options
+                    clr       >OptionsChanged
+RestoreScreenDisplay equ      *
                     lda       #$1B      Setup DefColr sequence in temp buffer
                     sta       ,s        store escape byte in write buffer
                     lda       #$30      Sets palettes back to default color
@@ -832,7 +900,6 @@ RestoreScreen       leas      -2,s      Make temp buffer to hold write data
                     lda       #StdOut   path to write to $01
                     leax      ,s        point x a buffer
                     os9       I$Write   write
-                    bcs       RestoreScreenRet we have an error clean stack and leave
 
 *  Display a screen allocated by SS.AScrn
 *  SetStat Function Code $8C
@@ -871,23 +938,15 @@ RestoreScreen       leas      -2,s      Make temp buffer to hold write data
                     lda       #StdOut   set the path $01
                     ldb       #SS.FSCrn Return screen memory to system
                     os9       I$SetStt  amke the call
+                    bcs       RestoreScreenRet
+                    clr       >HiResScrnNum
 
 RestoreScreenRet    leas      2,s       Eat stack & return
                     rts                 return from RestoreScreen
 
 
 
-* ====== UnloadAllMods: Unlink All Three AGI Modules ======
-*  Unload the other modules
-UnloadAllMods       leax      >ShdwModName,pcr shdw name string
-                    lda       #Prgrm+Objct #$11        module type
-                    lbsr      UnloadMod unload it
-                    leax      >ScrnModName,pcr scrn name string
-                    lbsr      UnloadMod unload it
-                    leax      >MnlnModName,pcr mnln name string
-                    lbsr      UnloadMod unload it
-                    rts                 return from UnloadAllMods
-
+* Templates are unlinked immediately after copying; no global unload at exit.
 *L0388    orcc  #$50
 *         lda   <u0042
 *         sta   >$FFA9
@@ -928,27 +987,22 @@ UnloadAllMods       leax      >ShdwModName,pcr shdw name string
 
 * ====== RestoreMmu: Restore MMU to Pre-Game State ======
 * Restore original MMU block numbers
-RestoreMmu          orcc      #IntMasks Shut off interrupts
+RestoreMmu          tst       >ProcMapReady
+                    beq       RestoreMmuRet
+                    clr       >ProcMapReady
+                    orcc      #IntMasks Shut off interrupts
                     lda       <SierraPdBlk get MMU Block #
                     sta       >$FFA9    Restore original block 0 onto MMU
                     ldx       <Sierra2ndBlk reload Sierra DAT image pointer
-                    ldd       >SierraMmuBlk3,pc Origanl 3rd block of MMU
+                    ldd       >SierraMmuBlk3 Origanl 3rd block of MMU
                     std       1,x       restore 3rd block in Sierra's DAT map
                     stb       >$FFAA    Restore original block 1 onto MMU
-                    ldd       >SierraMmuBlk2,pc Original 2nd block of MMU
+                    ldd       >SierraMmuBlk2 Original 2nd block of MMU
                     std       -1,x      restore 2nd block in Sierra's DAT map
                     stb       >$FFA9    Restore block 0 again
                     andcc     #^IntMasks Turn interrupts back on
 
-*  return monitor type to original value
-                    clra                clear A for 16-bit monitor type in D
-                    ldb       >MonTypeSave,pc Get original monitor type
-                    andb      #$03      Force to only legit values
-                    tfr       d,x       Move to proper register
-                    lda       #StdOut   set path $01
-                    ldb       #SS.Montr Restore original monitor type
-                    os9       I$SetStt  make the call
-                    rts                 return from RestoreMmu
+RestoreMmuRet       rts                 return from RestoreMmu
 
 * ====== TwiddleAddr: Map Logical Address to Physical Block Pair ======
 * twiddles address
@@ -968,7 +1022,7 @@ TwiddleAddr         tfr       x,d       Move address to D
                     ldb       #8        hi_byte × 8 / 256 = 8K block index in A
                     mul                 compute block index from address high byte
                     pshs      a         save block index (0-7)
-                    leau      mmubuf+8,pcr point to task-1 physical MMU block table
+                    ldu       #mmubuf+8 point to task-1 physical MMU block table
                     lda       a,u       get MMU value
                     ldb       ,s        reload block index from stack
                     incb                index of next adjacent block
@@ -987,79 +1041,86 @@ TwiddleAddr         tfr       x,d       Move address to D
 *       u -> contains some arbitrary value
 *
 
-NMLoadModule        leas      -$08,s    Make a little scratch on the stack
-                    stu       ,s        pointer to our buffer
-
-* Loads one or more modules from a file but does not map the module
-* into user's address space F$NMLoad
-* entry:
-*      a -> type/language byte
-*      x -> address of the path list
-*           with out path list default path is current execution dir
-*
-* exit:
-*      a -> type/language
-*      b -> module revision
-*      x -> address of the last byte in the pathlist + 1
-*      y -> storageb requirements of the module
-*
-* error:
-*      b  -> error code if any
-*      cc -> carry set on error
-
-                    stx       $02,s     pointer module name
-                    lda       #Prgrm+Objct $11      module type
-                    os9       F$NMLoad  Load it but don't map it in
-                    bcs       NMLoadFail exit on error
-
-* Links to a memory module that has the specified name, language and type
-* entry:
-*      a -> type/language byte
-*      x -> address of the module name
-*
-* exit:
-*      a -> type/language
-*      b -> attributes/module revision
-*      x -> address of the last byte in the modulename + 1
-*      y -> module entry point absolute address
-*      u -> module header abosolute address
-*
-* error:
-*     cc -> set on error
-
-                    ldx       $02,s     get our name string again
-                    os9       F$Link    link it
-                    bcs       NMLoadFail exit on error
-                    stu       $06,s     store module header address
-                    tfr       u,x       copy module header address to X
-                    lbsr      mmuini2   get current MMU values
-NMLoadLoop          stx       $04,s     save current module segment pointer
-                    lbsr      TwiddleAddr Go twiddle with address`
-                    ldx       ,s        reload buffer base pointer
-                    leax      a,x       index into block map at block index A
-                    exg       d,u       swap: D=module ptr, U=block pair
-                    sta       ,x        store block number into map entry
-                    exg       d,u       restore D=block pair, U=module ptr
-                    cmpa      #$06      check if all 6 blocks mapped
-                    beq       NMLoadUnlink done — unlink and clean up
-                    ldx       $04,s     reload module segment pointer
-                    leax      >$2000,x  advance to next 8K segment
-                    bra       NMLoadLoop map next block
-
-NMLoadUnlink        ldu       $06,s     recover module header for unlink
+* Link an immutable template, copy its complete occupied 8K pages to
+* this process's /VI allocation, then balance exactly our own link.
+* U on return remains the logical template header address; LoadModules
+* uses its offset when constructing the relocated entry-vector address.
+NMLoadModule        leas      -10,s
+                    stu       ,s        remap-table base
+                    stx       2,s       module name
+                    lda       #Prgrm+Objct
+                    os9       F$Link
+                    bcc       PrivateLinked
+                    ldx       2,s
+                    lda       #Prgrm+Objct
+                    os9       F$Load
+                    bcs       PrivateLoadRet
+PrivateLinked       stu       6,s
+                    tfr       u,d
+                    addd      M$Size,u
+                    bcs       PrivateBadSize
+                    subd      #1
+                    bcs       PrivateBadSize
+                    anda      #$E0
+                    clrb
+                    std       8,s       last occupied source page
+                    cmpd      #$C000    relocated code must end below the I/O page
+                    bhi       PrivateBadSize
+                    tfr       u,d
+                    anda      #$E0
+                    clrb
+                    cmpd      #$6000    $4000 is the private copy window
+                    blo       PrivateBadSize
+                    std       4,s       first occupied source page
+PrivatePageLoop     lda       >PrivateNext
+                    cmpa      >PrivateLimit
+                    bhs       PrivateBadSize
+                    ldd       4,s
+                    ldb       #8
+                    mul                 A = source logical slot
+                    ldx       ,s
+                    leax      a,x
+                    lda       >PrivateNext
+                    sta       ,x        save private page in the runtime remap table
+                    ldx       4,s
+                    lbsr      CopyPrivatePage
+                    inc       >PrivateNext
+                    ldd       4,s
+                    cmpd      8,s
+                    beq       PrivateCopyDone
+                    addd      #$2000
+                    std       4,s
+                    bra       PrivatePageLoop
+PrivateCopyDone     ldu       6,s
+                    os9       F$UnLink  releases our template reference and mappings
+                    bra       PrivateLoadRet
+PrivateBadSize      ldu       6,s
                     os9       F$UnLink
-NMLoadFail          leas      $08,s     clean up scratch stack frame
-                    rts                 return (carry set on failure)
+                    comb
+                    ldb       #E$MemFul
+PrivateLoadRet      leas      10,s
+                    rts
 
-UnloadMod           os9       F$UnLoad  Unlink a module by name
-                    bcc       UnloadMod loop until unload fails (module gone)
-                    clrb                clear error: expected not-found at end
-                    rts                 return from UnloadMod
+* X=source page, A=private destination block. The $4000 data alias is
+* borrowed only while interrupts are masked; the process DAT image is
+* unchanged and no system calls occur before the hardware map is restored.
+CopyPrivatePage     pshs      cc,d,x,y,u
+                    orcc      #IntMasks
+                    ldb       <MmuBlk2Orig the copy window normally aliases private data
+                    pshs      b
+                    sta       >$FFAA
+                    ldu       #$4000
+                    ldy       #$1000
+PrivateWordLoop     ldd       ,x++
+                    std       ,u++
+                    leay      -1,y
+                    bne       PrivateWordLoop
+                    puls      b
+                    stb       >$FFAA
+                    puls      cc,d,x,y,u,pc
 
 ViDevPath           fcc       '/VI'
 ViDevPathEnd        fcb       C$CR
-ViDevAddr           fdb       $0000     address of the device table entry
-ViPathNum           fcb       $00       path number to device
 
 **************************************************************
 *
@@ -1104,7 +1165,7 @@ SetupVirq           ldu       #$0000    start of Sierra memory area
                     leax      >ViDevPath+1,pcr skip the slash Load VI only
                     os9       I$Attach  make the call
                     bcs       SetupVirqRet didn't work exit
-                    stu       >ViDevAddr,pcr did work save address
+                    stu       >ViDevAddr did work save address
 
 * Open a path to the device /VI
 * entry:
@@ -1123,21 +1184,37 @@ SetupVirq           ldu       #$0000    start of Sierra memory area
                     leax      >ViDevPath,pcr load with device name including /
                     os9       I$Open    make the call
                     bcs       SetupVirqRet didn't work exit
-                    sta       >ViPathNum,pcr did work save path #
+                    sta       >ViPathNum did work save path #
 
 * Allocate process+path RAM blocks
 
                     ldb       #SS.ARAM  $CA function code for VIRQ
-                    ldx       #$000D    request 13 RAM blocks
+                    ldx       #21       13 game blocks + 8 private engine blocks
                     os9       I$SetStt  make the call
                     bcs       SetupVirqRet abort if allocation failed
+                    tfr       x,d
+                    tsta                legacy MMU code handles blocks 0-255
+                    bne       PrivateRamRangeErr
+                    addb      #21
+                    bcs       PrivateRamRangeErr
+                    stb       >PrivateLimit
+                    subb      #8
+                    stb       >PrivateNext
                     pshs      x         save allocated RAM pointer
 
 * Set process+path VIRQ KQ3
+                    lda       >ViPathNum restore path clobbered by allocation arithmetic
                     ldb       #SS.KSet  $C8 function code for VIRQ
                     os9       I$SetStt
+                    bcs       SetupVirqError
                     puls      b,a       restore A and B after KSet call
+                    rts
+SetupVirqError      leas      2,s       retain the real SetStat error in B
 SetupVirqRet        rts                 return from SetupVirq
+
+PrivateRamRangeErr  comb
+                    ldb       #E$MemFul
+                    rts
 
 * ====== SigIntercept / SigHandlerCore: VIRQ Timer and Game Clock ======
 * Signal Intercept processing gets copied to int5EE mem slot
@@ -1191,16 +1268,19 @@ TimerRet            rts                 return from timer handler
 
 * ====== CloseVirqPath: Release VIRQ Device ======
 * deallocates the VIRQ device
-CloseVirqPath       lda       >ViPathNum,pcr load path number to /VI device
+CloseVirqPath       lda       >ViPathNum load path number to /VI device
                     beq       DetachVi  no path open check for device table addr
                     ldb       #SS.KClr  $C9 Clear KQ3 VIRQ
                     os9       I$SetStt  make the call
                     ldb       #SS.DRAM  $CB deallocate the ram
                     os9       I$SetStt  make the call
                     os9       I$Close   close the path to /VI
-DetachVi            ldu       >ViDevAddr,pcr load device table address for VI
+                    clr       >ViPathNum
+DetachVi            ldu       >ViDevAddr load device table address for VI
                     beq       CloseVirqRet don't have one leave now
                     os9       I$Detach  else detach it
+                    ldd       #0
+                    std       >ViDevAddr
 CloseVirqRet        rts                 return from CloseVirqPath
 
 * ====== MmuSwitch: Switch Between Module MMU Address Spaces ======
@@ -1271,30 +1351,36 @@ SierraNameStr       fcb       $73,$69,$65,$72,$72,$61,$00 sierra.
 
 * ====== mmuini1 / mmuini2: Snapshot Task MMU Block Tables ======
 * New routines so we don't have raw reads of the MMU bytes. RG
-mmubuf              fcb       0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
-gprbuf              fzb       512
 * Get $FFA0-$FFA7
-mmuini1             pshs      cc,x,y    save registers across system calls
-                    orcc      #$50      disable interrupts
-                    lda       #1        system ID#
-                    leax      gprbuf,pcr point to process descriptor buffer          point to process descriptor buffer
-                    os9       F$GPrDsc  get system process descriptor
-                    leay      $41,x     point to its mmu block values
-                    leax      mmubuf,pcr destination: task-0 MMU snapshot buffer
-                    ldb       #8        copy 8 MMU block entries
-m2lup               lda       ,y++      get MMU value and skip over usage
-                    sta       ,x+       store block number and advance
-                    decb                decrement copy count
-                    bne       m2lup     loop until all 8 copied
-                    puls      cc,x,y,pc restore registers and return
+* PID 1 belongs to SysGo, not the kernel. Snapshot the real D.SysDAT
+* through system block 0, borrowing the $2000 slot with interrupts masked.
+* First capture our own image so the borrowed slot can be restored.
+mmuini1             lbsr      mmuini2
+                    pshs      cc,d,x,y
+                    orcc      #IntMasks
+                    lda       >mmubuf+9
+                    pshs      a
+                    clr       >$FFA9
+                    ldx       >D.SysDAT+$2000
+                    leax      $2000,x    the system descriptor is in system block 0
+                    ldy       #mmubuf
+                    ldb       #8
+m2lup               lda       1,x       low byte of the physical block number
+                    sta       ,y+
+                    leax      2,x
+                    decb
+                    bne       m2lup
+                    puls      a
+                    sta       >$FFA9
+                    puls      cc,d,x,y,pc
 * Get $FFA8-$FFAF
 mmuini2             pshs      cc,x,y    save registers across system calls
                     orcc      #$50      disable interrupts
                     os9       F$ID      get our ID#
-                    leax      gprbuf,pcr point to process descriptor buffer
+                    ldx       #gprbuf point to process descriptor buffer
                     os9       F$GPrDsc  get our process descriptor
                     leay      $41,x     point to our mmu block values
-                    leax      mmubuf+8,pcr destination: task-1 MMU snapshot buffer
+                    ldx       #mmubuf+8 destination: task-1 MMU snapshot buffer
                     ldb       #8        copy 8 MMU block entries
 mloop               lda       ,y++      read MMU value from process descriptor
                     sta       ,x+       store block number and advance
