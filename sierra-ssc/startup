@@ -1,0 +1,1 @@
+* Echo welcome messageecho * Sierra welcomes you to the *echo * world of 3-D adventuring.  *echo*GETMODEecho What display are you using?echoecho (R)GB,echo (C)omposite/TV orecho (M)onochromevar.0IF %0=r  montype -rELSEIF %0=c  montype -cELSEIF %0=m  montype -mELSEIF %0=  montype -rELSE  GOTO GETMODEENDIFENDIFENDIFENDIFsierra <>>>/term
