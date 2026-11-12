@@ -1,0 +1,219 @@
+CoCothello Version 1.2
+
+Copyright (c) 1989
+ColorSystems
+Zack C. Sessions
+
+Required System
+
+    CoCo 3 512K
+    Color Monitor (TV acceptable)
+    Mouse/Joystick (keyboard mouse supported)
+    OS9 Level II
+    Multi-Vue (not needed if you fire up with the TYPE command)
+
+
+Program Documentation
+
+Diskclaimer
+
+Notice: This software is distributed as "Begware". If you find this game
+fun and enjoyable, you may want to help me create more software for the
+Color Computer 3. If you do, may I suggest a small donation of $10.
+
+This software has NOT been released to the public domain. It may
+be FREELY distributed if, and only if, all copyright notices remain
+intact. You MAY NOT sell this software or otherwise profit from it.
+
+SPECIAL NOTE TO BBS SYSOPS:
+
+I do not object to this group of files being posted on your respective
+BBSs, unless they were uploaded by yourself. That is, this group of files
+can only be posted if they were uploaded and submitted to your BBS's
+library by one of your users, not yourself. I object to BBS SYSOPs
+populating their own BBS library themselves from other BBSs. That
+is a job for your users.
+
+
+Now that all that bull$#!t is out of the way ...
+
+
+Basic Game Rules
+
+This game is played just like it's namesake, the popular board game,
+Othello. There is an 8 by 8 playing board and each player has tokens,
+one has RED tokens, the other has BLUE tokens. The actual game uses
+game pieces which are BLACK on one side and WHITE on the other.
+A move consists of placing a single piece on the board with your color
+up. The position on the board where this token is placed must
+"outflank" one (or more) of your opponent's token(s). To outflank
+means to place a token on the board such that your opponent's row
+(or rows) of tokens is bordered at each end you a token of your color.
+A row may be made up of one or more tokens. All of the opponent's
+pieces which are outflanked by the move are then "flipped" over
+to show the other color.
+
+With CoCothello, when you make a move outflanking some of the
+opponents tokens, they simply change color, as if by magic!
+
+The game starts with each player having two tokens each and they are
+arranged on in the center of the playing board. Each player takes
+turn at making a play. If you cannot make a play, you MUST forfeit.
+
+The game continues in this manner, with each player taking turns
+at placing one token and flipping the captured pieces until one
+of three events occur.
+
+1) All squares become occupied
+
+2) either player loses ALL of his/her tokens, or
+
+3) both players are forced (or select) to forfeit their move.
+
+In either case, the score is tallyed and the player with the most
+tokens on the board wins. The difference between the two scores is called
+the "margin". Naturally, the greater the margin, the better the win.
+
+
+Installation
+
+The archive file contains the following files:
+
+CoCothello            Game program
+cocothello.doc        this file
+AIF.oth               MV AIF
+icon.cocothello       MV Icon
+cocothello.c          C source listing
+release.notes         Changes since the last version
+
+All of you OS9 wizards will readily know where each of these files
+should reside. For non-OS9 wizards, suggested locations are:
+
+/dd/games/AIF.oth
+/dd/cmds/cocothello
+/dd/cmds/icons/icon.cocothello
+
+NOTE: This game ONLY runs as a MultiVue application. It opens a type 6
+graphics window, which uses 16000 bytes of memory. The program uses another
+16K. So, if you have a 128K CoCo 3, you must have at least 40K free to
+play this game(doubtful!).
+
+There are some run-time options which may be optionally specified
+on the parameter line (line 2) of the AIF. The default monitor type
+can be specified with an r (RGB) or a c (CMP). Also, you can specify
+type types of play mode. An f means "FAST" mode, which is just like
+V1.0 played, but the computer move is still "flashed" prior to effecting
+its move. An s means "SLOW" mode. This is just like the way V1.1 played,
+that is, after "flashing" its move, the program then waits for a mouse
+click before it effects its move.
+
+If no default monitor type is specified, you will be asked what kind of
+monitor you are using, as described below. If no default play mode is
+specifed, the default is "FAST" mode. Upper or lower case is supported
+for ALL options. If both monitor type and play mode options are specified
+do NOT put a space between them.
+
+MultiVue is not needed if you run this program via Jim Smith's
+excellant utility, TYPE. It is available on all major information
+systems. Runtime options may be specified after the pathname, ie,
+
+OS9: type 6 cocothello rf
+
+I have tested this, and it works just fine. Nice job, Jim!
+
+In the following instructions, "pointing" to an object means to move
+the mouse pointer and "clicking" means to press the mouse button
+(or if you are using a joystick, press the "Fire" button).
+
+Since this game runs under OS9 and uses the "autofollow" mouse, the
+keyboard mouse is also supported. If you don't have a mouse or joystick,
+press CTRL/CLEAR to switch over to the keyboard mouse. For more
+information on the use of the keyboard mouse, check page 2-2 of the
+Multi-Vue manual.
+
+To crank up the game, you must select the directory which contains the
+AIF. When you do, the game icon will be displayed. Double click on the
+game icon. If you did not specify a default monitor type as runtime
+parameter, you are first presented with a screen used to determine your
+monitor type. Just click on RGB or CMP, depending on which type of
+monitor you are using. You then will see an introductory banner screen.
+To begin play, click the mouse.
+
+The initial playing board is then displayed. It is on the left side of the
+screen. When it is your move, to select a square to occupy, simply
+point the arrow cursor to the square desired and click the mouse.
+
+You are first asked three questions. You are given choices for each
+question. To select the choice, point to it and click the mouse.
+The first question is whether you want the game to play it's best
+strategy ot not. What this means is that if you select YES, during the
+play of the next game, the computer will tend to select the corners
+if it is one of the computer's valid moves.
+
+The next question is which color you want to play and the last question
+whether you want to go first ot not. If you click on NO, the computer
+goes ahead and moves before allowing you to.
+
+After you make a play, the computer will tell you how many of it's
+pieces you have captured and update the score. It will then make
+it's move. When it has decided, it will "flash" the square it has
+selected with one of it's game pieces. If you are in "SLOW" mode,
+it will then wait for a mouse click before it shows you your pieces
+that it has captured and updates the score. In "FAST" mode, no mouse
+click is required.
+
+The right side has the current score. The right side is also
+used for informational messages, such as "invalid move" and "square is
+already occupied".
+
+Also, in the right area are the three words, QUIT, NEW GAME, and FORFEIT.
+These three special commands are more or less self-explanatory. Clicking
+on them causes that function to be performed. If you need to forfeit
+your move (yes it CAN happen in CoCothello!), click on the word FORFEIT.
+
+At any time, you may give up on the current game and have a new game
+started by clicking on "NEW GAME". When you have finished playing and
+want the program to exit, click on "QUIT".
+
+
+I developed CoCothello on a CoCo 3 with 512K, OS9 LII, OS9 C
+Compiler, C Graphics Library, & Multi-Vue. This program also depends
+on the supplemental clib.l library written by Carl Kreider. My system
+also has a Seagate ST225 20Mb hard disk with the Burke & Burke CoCoXT-RTC
+interface, two 3.5" 720Kb floppies, and one 5.25" 360Kb floppy.
+I also have a Tandy CM-8 RGB monitor, for which this game was
+specifically designed. I did take a look at it on a TV and it
+didn't look too bad. If you do use a TV, be sure to select the CMP
+palette.
+
+
+Planned Future Enhancements
+
+
+Support for non-Multi Vue environment.
+
+Maintain a top ten margins file.
+
+Better computer strategy.
+
+
+If you'd like to help me implement these enhancements, I would appreciate
+a donation. My address is:
+
+Zack C. Sessions
+4616 Castle Hayne Rd.
+P. O. Box 540
+Castle Hayne, NC 28429
+
+(919) 675-2426
+
+CIS:        76407,1524
+Delphi:     ZACKSESSIONS
+GEnie:      Z.SESSIONS
+
+If you do decide to send me a contribution, THANK YOU VERY MUCH! Also,
+please tell me where you obtained CoCothello.
+
+Oh yes, I intentionally misspelled "Disclaimer"!
+
+Othello is copyrighted by the Milton Bradley Co.

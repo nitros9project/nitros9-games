@@ -1,0 +1,67 @@
+Pyramid Solitaire Release Notes
+
+V1.1
+
+This release is mainly a cosmetic upgrade for Pyramid Solitaire. Thanks
+to some constructive criticism from Mark Griffith, I hope to have made
+playing this game a little more enjoyable. First of all, I have canned
+the Bell, except for error conditions, such as chosing an invalid move,
+etc.
+
+Second, I have removed the autofollow mouse and "wait" mouse position
+cursor during card drawing and game processing. This makes the game
+move faster and with more fluidity.
+
+Third, I corrected the spelling of the word "Solitaire".
+
+Lastly, I removed an include which was needlessly defining the MultiVue
+Standard Menu structures. This saved about .5k in program size.
+
+
+V1.2
+
+This release has improvements which aid in the performance of the
+multitasking system.
+
+It also kills the group of get/put buffers, freeing up 4k of memory,
+which previously hung around.
+
+V1.3
+
+This was another "cosmetic" improvement. It was brought to my attention
+that if the MV user had changed the colors from the default with the
+Control function, the game looked kinda weird. This was because the program
+was assuming that Palette slots 0 through 2 still contained the default
+colors. It no longer makes this assumption and sets up all four
+palette slots for the appropriate colors.
+
+V1.4
+
+This release is mainly a "cleaning-up" release. There were still a few
+places where the code would hog the cpu. These were cleaned up. Also,
+general mouse interrupt handling was cleaned up. That is, the auto
+follow mouse and the mouse pointer are turned off when not needed.
+And some redundant code was removed which saved almost .5K in the
+size of the binary!
+
+I also fixed a "back door" bug in the program. This bug allowed you to
+go through the deck again after getting a "Game Over" message by
+attempting an invalid move after getting the "Game Over" message.
+Actually, taking advantage of this bug only helped if and only if
+you had missed a move from the Pile by not seeing it and clicking
+on the Deck too quick.
+
+Support for the CMP palette set is now also supported. This is
+accomplished by a new screen at the beginning of the program which
+asks you what kind of monitor you are using, RGB or CMP. Just
+click on the appropriate word.
+
+Oh, and all of you current and would be C programmers will rejoice in
+that I have decided to include the source with this release. It is
+in two parts, a .c file and a .h include file. I had to split it up
+because I currently am using T/S Edit and it couldn't hold it all
+at one time!! The code isn't commented very much, but it may help to
+give you some insight on "how I did it".
+
+
+Enjoy!

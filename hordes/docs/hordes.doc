@@ -1,0 +1,25 @@
+                                 Hordes & Holes
+                               Documentation File
+          Author:  Bruce M. Terry Jr.
+          Date:    February 10, 1988
+              "Hordes & Holes" is an action packed "run-for-your-life"
+          game that will keep you playing for hours.  The object of the
+          game is simply to survive.  There is not much strategy
+          involved, only the instinct to survive.
+              The game begins with you being placed in the center of
+          the screen surrounded by hordes of monsters and holes.
+          Instantly the monsters will swarm around you.  One touch, and
+          you're a goner.  Your only hope is to evade the monsters and
+          lure them into the holes before they can get you.  If all the
+          monsters fall into holes, you have survived the level.  But
+          don't relax, the next level is even harder!
+              The game can be played in any 80 x 24 window.  There are
+          three game characters:
+              O - You
+              X - Monster
+              * - Hole
+              Luring a monster into a hole will get you 10 points.  You
+          may choose at the beginning of the program to have the sound
+          effects on or off and use joystick or keyboard.  This is a
+          simple game but you will be suprised at how entertaining it
+          can be.

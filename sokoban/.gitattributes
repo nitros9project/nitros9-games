@@ -1,0 +1,2 @@
+# Level-map spaces and blank rows are part of the imported data.
+screens/screen.* -whitespace
