@@ -1,0 +1,36 @@
+CoCothello Release Notes
+
+V1.1
+
+This release contains two major changes. The first is support for the
+CMP palette set. A new screen asks for the type of monitor you are using,
+either RGB or CMP. The second is in the way the computer makes its
+move. It first "flashes" its move with one of its pieces. It then
+waits for a mouse click before it show the results of its move.
+
+
+V1.2
+
+This release adds some options, plus fixes a minor buglet. There was
+a bug in the logic which decides which message to display when the game
+is won. Only two of a possible fives messages were ever being displayed.
+
+I had some negative comments about the change in the previous version
+which causes the program to wait for a mouse click before showing the
+results of the computer move. I have made this a run-time option which
+can be specified on the parameters line of the AIF. An F means to play
+in "FAST" mode, which was the way V1.0 did it. To maintain the wait
+for mouse click, use a S for "SLOW" mode. If no option for play mode
+is specified, the default it "FAST".
+
+There is another option which can be specified on the parameters line,
+too. It specifies the default monitor type. An R specifies RGB, and a
+C specifies CMP. If no option for monitor type is present, you will
+be asked what kind of monitor you are using, just like V1.1 did.
+
+All options may be specified in upper or lower case, and if multiple options
+are present, ie, one for play mode and the other for default monitor type,
+then do not put any spaces between them.
+
+
+Enjoy!!!

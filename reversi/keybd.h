@@ -1,0 +1,24 @@
+/* keycode definitions for the CoCo 3 */
+#define BREAK   5
+#define shBREAK 3
+#define clBREAK 0x1b
+#define ENTER   0x0d
+#define SPACE   0x20
+#define LEFT    8
+#define shLEFT  0x18
+#define clLEFT  0x10
+#define RIGHT   9
+#define shRIGHT 19
+#define clRIGHT 11
+#define DOWN    0x0a
+#define shDOWN  0x1a
+#define clDOWN  0x12
+#define UP      0x0c
+#define shUP    0x1c
+#define clUP    0x13
+#define F1      0xb1
+#define shF1    0xb3
+#define clF1    0xb5
+#define F2      0xb2
+#define shF2    0xb4
+#define clF2    0xb6

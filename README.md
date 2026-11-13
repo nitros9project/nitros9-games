@@ -16,6 +16,33 @@ This repository contains games, game data, and bootable disk-image builds for
 - `sierra` — Sierra AGI games and shared runtime sources
 - `subsim` — Sub Battle Simulator
 
+## C source ports
+
+The following archive games have independent c3 cross-builds:
+
+- `hordes` — Hordes & Holes
+- `sokoban` — Sokoban, including all 50 levels
+- `kalah` — Kalah and Dead-Pan
+- `reversi` — Joel Rees’s graphical Reversi
+- `walk` — James Delaney’s animated screen saver/demo
+- `adventure` — Crowther/Woods Adventure
+- `cocothello` — graphical Othello
+- `solitaire` — Pyramid Solitaire
+
+Build the sibling c3 host tools/runtime first, then build or launch a port:
+
+```sh
+make -C ../nitros9-languages/c3 runtime
+make -C sokoban
+make -C sokoban disk
+make -C sokoban run
+```
+
+These ports build independently of the aggregate target. Each supplies a
+private NitrOS-9 boot disk and MAME launcher; see its README for requirements,
+controls, provenance, and validation. `make -C <port> clean` removes generated
+outputs and listing/map files.
+
 ## Building
 
 The games build against a neighboring NitrOS-9 source tree. Set

@@ -1,0 +1,209 @@
+Pyramid Solitaire Version 1.4
+
+Copyright c 1989
+ColorSystems
+Zack C. Sessions
+
+Required System
+
+    CoCo 3 512K
+    Color Monitor (TV acceptable)
+    Mouse/Joystick (keyboard mouse supported)
+    OS9 Level II
+    Multi-Vue
+
+
+Program Documentation
+
+Diskclaimer
+
+Notice: This software is distributed as "Begware". If you find this game
+fun and enjoyable, you may want to help me create more software for the
+Color Computer 3. If you do, may I suggest a small donation of $10.
+
+This software has NOT been released to the public domain. It may
+be FREELY distributed if, and only if, all copyright notices remain
+intact. You MAY NOT sell this software or otherwise profit from it.
+
+SPECIAL NOTE TO BBS SYSOPS:
+
+I do not object to this group of files being posted on your respective
+BBSs, unless they were uploaded by yourself. That is, this group of files
+can only be posted if they were uploaded and submitted to your BBS's
+library by one of your users, not yourself. I object to BBS SYSOPs
+populating their own BBS library themselves from other BBSs. That
+is a job for your users.
+
+
+Now that all that bull$#!t is out of the way ...
+
+
+Basic Game Rules
+
+Pyramid Solitaire is a very easy and fun variation of the lonely person's
+favorite card game. First, after shuffling the deck, a "Pyramid" is built
+by by dealing the cards off the top of the deck, and placing them face up
+on the playing area. The first card goes at the top. The second and third
+are placed on the lower half of the first card, with only the top half of
+the first card still exposed. The second card covers the left lower corner
+of the first card, and the third covers the right lower corner of the
+first card. Next a third row is placed in a similar fashion, such that the
+third row has three cards. This continues until the bottom row of cards
+contain seven cards. Thus the entire Pyramid contains 28 cards, leaving
+24 cards in the Deck.
+
+The basic play operation is matching up two cards which are "free", such
+that the value of the two cards add up to a sum of 13. Aces have a value
+of one, Jack, Queen, and King have values 11, 12, and 13, respectively.
+Therefore, Aces match up with Queens, 4's match up with 9's, etc. Kings
+do not need to be matched with any other card, they may be picked up
+singly. The two (or possibly one if a King) cards are then picked up
+and placed in a discard pile.
+
+What determines if a card is "free"? First of all, any card on the Pyramid
+which does not have any cards on it is free. So, when the game first starts,
+only the cards on the bottom row are free. Once some of them have been
+matched and picked up, cards on the next level up become free.
+
+Also, as with most variations of Solitaire, you may deal cards, three at a
+time, from the Deck to a Pickup Pile (called just the Pile). The top card
+on the Pile is also free and may be matched with any free card on the
+Pyramid, if the matching criteria is met, ie, values add up to 13. As with
+free Kings on the Pyramid, a King on the top of the Pile may be picked
+up and discarded immediately. (And should be!!)
+
+You may go through the deck as many times as you wish. If no matching plays
+are made during a pass through the Deck, it is assumed that no matching plays
+remain, and you lose the game. To win the game you must match and discard
+all cards in the Pyramid. This obviously means that the last card in the
+Pyramid (which was the first card turned over and placed on the Pyramid)
+must be matched with the top card on the Pile, since it is the last card left
+in the Pyramid (unless, of course, it is a King! <kindof like ending up
+with an 8 while playing Crazy Eights!!>).
+
+Got it?
+
+
+Installation
+
+The archive file contains the following files:
+
+Solitaire            Game program
+solitaire.doc        this file
+solitaire.c          First part of the source
+solitaire.h          Second part of the source
+AIF.sol              MV AIF
+icon.solitaire       MV Icon
+release.notes        release notes
+
+All of you OS9 wizards will readily know where each of these files
+should reside. For non-OS9 wizards, suggested locations are:
+
+/dd/games/AIF.sol
+/dd/cmds/Solitaire
+/dd/cmds/icons/icon.solitaire
+
+I decided to include the source for Pyramid Solitaire with this release.
+Please do not modify the game and upload your modifications to anyone
+or anywhere. Please let me maintain control over this program. Feel
+free to cut 'n' paste some sections of the code in some of your own
+programs. I only included them to help give users some insight on
+cgfx and MultiVue type coding.
+
+NOTE: This game ONLY runs as a MultiVue application. It opens a type 6
+graphics window, which uses 16000 bytes of memory. The program uses another
+16K. Not sure where the other 8K comes from, but I found that a MFREE
+command executed while the program is active shows 40K being used. So,
+if you have a 128K CoCo 3, you must have at least 40K free to play this
+game(doubtful!).
+
+In the following instructions, "pointing" to an object means to move
+the mouse pointer and "clicking" means to press the mouse button
+(or if you are using a joystick, press the "Fire" button).
+
+Since this game runs under OS9 and uses the "autofollow" mouse, the
+keyboard mouse is also supported. If you don't have a mouse or joystick,
+press CTRL/CLEAR to switch over to the keyboard mouse. For more
+information on the use of the keyboard mouse, check page 2-2 of the
+Multi-Vue manual.
+
+To crank up the game, you must select the directory which contains the
+AIF. When you do, the game icon will be displayed. Double click on the
+game icon. The first screen is used to get your response as to what
+type of monitor you are using, RGB or CMP. Just click on the word which
+applies to your hardware.
+
+An introductory screen then is displayed. When you click the mouse,
+graphics images are produced and save away (done just once per
+invocation), and the game then proceeds.
+
+The Pyramid will then be set up for you. The Pyramid is in the center
+of the screen, the Deck and Pile are on the left side of the screen and
+three special commands are displayed on the right side of the screen.
+These three special commands are more or less self-explanatory. Clicking
+on them causes that function to be performed.
+
+To select a card from the Pyramid, simply point to it and click the
+mouse. To select the top card on the Pile, point to it and click the
+mouse. Easy, huh? When you select a card either in the Pyramid or on
+the top of the pile, it is highlighted by changing it's border from
+black to red.
+
+Once you have selected two cards, the program takes over. It the move
+is valid, both cards are removed. If the move is invalid, ie, the values
+of the two cards do not add up to 13, a message is displayed on the
+error message line (line 24) and after a short pause, both cards are
+de-selected.
+
+If you select the wrong card, you may manually de-select it by clicking
+in the word "CANCEL".
+
+To turn over three more cards from the Deck to the Pile, point to the
+red shaded Deck and click the mouse. What can be easier?!? If you click
+on the Deck while you have a card selected, either on the Pile or on
+the Pyramid, it will be de-selected before the Deck card is turned over.
+
+At any time, you may give up on the current game and have a new game
+started by clicking on "RE-DEAL". When you have finished playing and
+want the program to exit, click on "QUIT".
+
+
+I developed Pyramid Solitaire on a CoCo 3 with 512K, OS9 LII, OS9 C
+Compiler, C Graphics Library, & Multi-Vue. It also depends on the
+supplimental clib.l library written by Carl Kreider. My system also
+has a Seagate ST225 20Mb hard disk (Burke & Burke CoCo-XTC Interface),
+two 3.5" 720Kb floppies, and one 5.25" 360Kb floppy. I also have a
+Tandy CM-8 RGB monitor, for which this game was specifically designed.
+I did take a look at it on a TV and it didn't look too bad.
+
+
+Planned Future Enhancements
+
+
+More sophisticated card refreshing algorithm.
+
+Game options like going through the deck just once, and a two player
+tournament mode.
+
+Support for non-Multi Vue environment.
+
+
+If you'd like to help me implement these enhancements, I would appreciate
+a $10 donation. My address is:
+
+Zack C. Sessions
+4616 Castle Hayne Rd.
+P. O. Box 540
+Castle Hayne, NC 28429
+
+(919) 675-2426
+
+CIS:        76407,1524
+Delphi:     ZACKSESSIONS
+GEnie:      Z.SESSIONS
+
+My thanks goes out to those of you who have already sent me a check. Your
+contributions were greatly appreciated and will go to a good cause, more
+quality CoCo programming!!
+
+Oh yes, I intentionally misspelled "Disclaimer"!
