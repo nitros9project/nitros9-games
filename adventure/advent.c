@@ -51,7 +51,7 @@ char **argv;
 /*
 ** Initialization
 */
-static char *misc = "/dd/GAMES/ADVENT";
+static char *misc = "/DD/GAMES/ADVENTURE";
 static char *dat  = ".dat";
 static char *name = "/advent";
 init(rflag, rpnt)

@@ -1,10 +1,15 @@
 
-L0000               fcb       $87,$CD,$3D,$39,$00,$0D,$11,$81 .M=9....
-L0008               fcb       $2C,$00,$10,$3E,$D5,$6D,$ED,$01 ,..>Umm.
+                    mod       eom,name,$11,$81,start,$3ED5
+name                fcs       /mm/
+                    fcb       1
+start               equ       *
 L0010               fcb       $1F,$50,$83,$00,$02,$DD,$08,$10 .P...]..
 L0018               fcb       $DF,$06,$9F,$04,$10,$9F,$02,$DF _......_
-L0020               fcb       $00,$30,$8D,$01,$4E,$86,$02,$10 .0..N...
-L0028               fcb       $3F,$84,$10,$25,$3C,$3B,$97,$14 ?..%<;..
+L0020               fcb       $00
+* Use the launcher's output terminal instead of opening /TERM behind it.
+                    lda       #1
+                    fill      $12,11            preserve every following code/data offset
+                    sta       <$14              terminal path used by the game
 L0030               fcb       $17,$3C,$0D,$9E,$00,$30,$0F,$6F .<...0.o
 L0038               fcb       $80,$9C,$02,$26,$FA,$30,$8D,$33 ...&z0.3
 L0040               fcb       $98,$DE,$00,$10,$3F,$09,$10,$25 .^..?..%
@@ -1957,5 +1962,6 @@ L3D10               fcb       $6D,$20,$2D,$78,$20,$5B,$45,$4E m -x [EN
 L3D18               fcb       $54,$45,$52,$5D,$0D,$0A,$35,$31 TER]..51
 L3D20               fcb       $32,$6B,$20,$55,$73,$65,$72,$73 2k Users
 L3D28               fcb       $3A,$20,$6D,$6D,$20,$5B,$45,$4E : mm [EN
-L3D30               fcb       $54,$45,$52,$5D,$0D,$0A,$F9,$12 TER]..y.
-L3D38               fcb       $60                 `
+L3D30               fcb       $54,$45,$52,$5D,$0D,$0A
+                    emod
+eom                equ       *

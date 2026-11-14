@@ -2069,8 +2069,9 @@ DRloop              pshs      b,x                 push em
 
 
 Diesel
-L0D31               fcc       "sub/diesel.dat"
+L0D31               fcc       "./diesel.dat"
                     fcb       C$NULL
+                    fcb       0,0                 preserve original offsets
 
 SetandJsr1
 L0D40               pshs      a,b,x,y,u
@@ -2901,53 +2902,62 @@ L14B8               fcb       $04,$05,$06,$07,$00,$01
 
 
 Convoys
-L14C0               fcc       "sub/convoys.dat"
+L14C0               fcc       "./convoys.dat"
                     fcb       C$CR
+                    fcb       0,0                 preserve original offsets
 
 
 Mis_dat
-L14D0               fcc       "sub/missions.dat"
+L14D0               fcc       "./missions.dat"
                     fcb       C$CR
+                    fcb       0,0                 preserve original offsets
 
 
 Mis_txt
-L14E1               fcc       "sub/mission.txt"
+L14E1               fcc       "./mission.txt"
                     fcb       C$CR
+                    fcb       0,0                 preserve original offsets
 
 
 SubStat
-L14F1               fcc       "sub/substats.dat"
+L14F1               fcc       "./substats.dat"
                     fcb       C$CR
+                    fcb       0,0                 preserve original offsets
 
 
 Font
-L1502               fcc       "sub/fonts.dat"
+L1502               fcc       "./fonts.dat"
                     fcb       C$CR
+                    fcb       0,0                 preserve original offsets
 
 
 Shipmap
-L1510               fcc       "sub/shipmap2.dat"
+L1510               fcc       "./shipmap2.dat"
                     fcb       C$CR
+                    fcb       0,0                 preserve original offsets
 
 
 Invert
-                    fcc       "sub/invert.pic"    had no disasm generated label
-                    fcb       C$CR
+                    fcc       "./invert.pic"     resolve inside the game directory
+                    fcb       C$CR,0,0
 
 
 Control1
-L1530               fcc       "sub/control1.cmp"
+L1530               fcc       "./control1.cmp"
                     fcb       C$CR
+                    fcb       0,0                 preserve original offsets
 
 
 Germap
-L1541               fcc       "sub/germap.cmp"
+L1541               fcc       "./germap.cmp"
                     fcb       C$CR
+                    fcb       0,0                 preserve original offsets
 
 
 USAmap
-L1550               fcc       "sub/usamap.cmp"
+L1550               fcc       "./usamap.cmp"
                     fcb       C$CR
+                    fcb       0,0                 preserve original offsets
 
 
 ByteTbl1
@@ -2994,8 +3004,9 @@ L15F9               fcc       "Nameless"
                     fcb       C$CR
 
 SinTbl
-L1602               fcc       "sub/sintbl.dat"
+L1602               fcc       "./sintbl.dat"
                     fcb       C$CR
+                    fcb       0,0                 preserve original offsets
 
                     emod
 eom
