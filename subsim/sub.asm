@@ -3842,20 +3842,24 @@ L1F6B               fcb       $01,$02,$01,$01
                     fcb       $01,$01,$01
 
 Sub6
-L1F76               fcc       "sub/sub6"
+L1F76               fcc       "./sub6"
                     fcb       C$NULL
+                    fcb       0,0                 preserve original offsets
 
 Radar
-L1F7F               fcc       "sub/radar.dat"
+L1F7F               fcc       "./radar.dat"
                     fcb       C$NULL
+                    fcb       0,0                 preserve original offsets
 
 Status
-L1F8D               fcc       "sub/status.dat"
+L1F8D               fcc       "./status.dat"
                     fcb       C$NULL
+                    fcb       0,0                 preserve original offsets
 
 STitle
-L1F9C               fcc       "sub/stitle.pic"
+L1F9C               fcc       "./stitle.pic"
                     fcb       C$NULL
+                    fcb       0,0                 preserve original offsets
 
 Sub1
 L1FAB               fcc       "sub1"
