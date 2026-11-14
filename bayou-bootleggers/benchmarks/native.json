@@ -1,0 +1,50 @@
+{
+  "platform": "MAME CoCo 3, 6809, 512K, NitrOS-9 Level 2, 320x200 16 colors",
+  "measurement": "game_step plus frame, no deliberate sleeps",
+  "before": {
+    "frames": 20,
+    "seconds": 19,
+    "gp_mapped": true
+  },
+  "after": {
+    "frames": 120,
+    "seconds": 15,
+    "actual_redraws": 120,
+    "direct_video": true,
+    "double_buffered": true,
+    "scene": "two crew members and one alligator"
+  },
+  "clock_validation": {
+    "sleep_calls": 20,
+    "requested_ticks_each": 4,
+    "elapsed_ticks": 60,
+    "kernel_sleep_subtracts_one_tick": true
+  },
+  "resolution": "F$Time, whole seconds",
+  "physical_hardware_tested": false,
+  "single_screen": {
+    "frames": 120,
+    "seconds": 14,
+    "direct_video": true
+  },
+  "initial_double_buffered": {
+    "frames": 120,
+    "seconds": 17,
+    "direct_video": true,
+    "double_buffered": true
+  },
+  "arena_load_and_copy_seconds": 4,
+  "frozen_scene": {
+    "requests": 20,
+    "actual_redraws": 1,
+    "reused": 19
+  },
+  "build_scope": "Alligator build with repeat attacks, swing footwork, interrupted wind-ups, warning bars and crew lane spacing",
+  "crew_only_optimized": {
+    "frames": 120,
+    "seconds": 16,
+    "actual_redraws": 120,
+    "direct_video": true,
+    "double_buffered": true
+  }
+}

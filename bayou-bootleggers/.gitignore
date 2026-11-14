@@ -1,0 +1,5 @@
+/build/
+/dist/
+/test-game
+__pycache__/
+*.pyc
