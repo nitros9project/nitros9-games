@@ -205,7 +205,8 @@ L00DC               rti
 *   group/buff (1b 29 gg bb), so it has type 5, 8x8, $400 byte load
 L00DD               fcb       $05,$00,$08,$00,$08,$04,$00
 
-RogueDir            fcc       '...../rogue'
+RogueDir            fcc       '.'                  use the launcher's game directory
+                    fill      0,10                 preserve following code offsets
                     fcb       $0D
                     
 * Name of special font
