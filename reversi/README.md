@@ -6,33 +6,27 @@ assigns the program and generated object code to the public domain.
 
 ## Build and run
 
-Requires the sibling c3 and NitrOS-9 source trees, LWTOOLS, and ToolShed.
-Build the c3 host compiler and runtime once:
+Compilation stays in this repository:
 
 ```sh
 make -C ../../nitros9-languages/c3 runtime
 make
-make disk
-make run
 ```
 
-`make` creates `build/reversi`. `make disk` creates a private bootable
-NitrOS-9 Level 2 disk at `build/emulator/reversi.dsk`. `make run` boots it in
-MAME as a 512K CoCo 3 and connects the game to `/term`. Game preferences
-appear on the terminal; the board opens in its own graphics window.
-
-For another checkout or ROM location:
+`make` produces `build/reversi`. `make clean` removes compilation output.
+For a bootable disk or MAME launch, use the sibling NitrOS-9 recipe:
 
 ```sh
-make run C3ROOT=/path/to/c3 NITROS9DIR=/path/to/nitros9 \
-    MAME_ROM_PATH=/path/to/roms
+make -C ../../nitros9/recipes/coco3/games GAME=reversi
+make -C ../../nitros9/recipes/coco3/games GAME=reversi run MAME_ROM_PATH=/path/to/roms
+make -C ../../nitros9/recipes/coco3/games GAME=reversi check MAME_ROM_PATH=/path/to/roms
 ```
 
-`MAME` selects the emulator executable; `MAME_FLAGS` defaults to
-`-window -skip_gameinfo -ramsize 512k`. ROMs default to
-`~/.local/share/mame/roms`. `make clean` removes build output and root
-listing/map files. This port builds independently of the repository's
-aggregate target.
+The recipe builds c3 and the game, packages the OS and assets, and selects
+`coco3h` when `CPU=6309`. Images and emulator state live under the NitrOS-9
+recipe's `.build/reversi/CPU/TRANSPORT/` directory. Use `LANGUAGES` and
+`NITROS9_GAMES_DIR` there to override sibling paths, and `MAME_BINARY` to
+select the emulator. See `nitros9/recipes/coco3/games/README.md` for details.
 
 ## Controls
 
@@ -60,9 +54,8 @@ The module builds and links with a good OS-9 CRC. MAME checks exercised
 preferences, the opening position, graphics/font buffers, and a
 computer-assisted move. Full matches and physical hardware are not tested.
 
-`make smoke` runs the scripted MAME check and saves screen captures in
-`build/verification`. These captures are for visual inspection; the script
-does not assert the game rules. All emulator artifacts stay under `build/`.
+The shared recipe's `check` target verifies startup and captures the screen.
+It does not assert the game rules or play a full match.
 
 ## Origin
 

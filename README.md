@@ -1,6 +1,6 @@
 # NitrOS-9 Games
 
-This repository contains games, game data, and bootable disk-image builds for
+This repository contains game sources, game data, and compilation rules for
 [NitrOS-9](https://github.com/nitros9project/nitros9).
 
 ## Contents
@@ -34,13 +34,13 @@ Build the sibling c3 host tools/runtime first, then build or launch a port:
 ```sh
 make -C ../nitros9-languages/c3 runtime
 make -C sokoban
-make -C sokoban disk
-make -C sokoban run
+make -C ../nitros9/recipes/coco3/games GAME=sokoban
+make -C ../nitros9/recipes/coco3/games GAME=sokoban run
 ```
 
-These ports build independently of the aggregate target. Each supplies a
-private NitrOS-9 boot disk and MAME launcher; see its README for requirements,
-controls, provenance, and validation. `make -C <port> clean` removes generated
+These ports build independently of the aggregate target. Bootable images and
+MAME launchers are supplied by the sibling NitrOS-9 `recipes/coco3/games`
+recipe; see each port's README for controls, provenance, and validation. `make -C <port> clean` removes generated
 outputs and listing/map files.
 
 ## Building
@@ -53,9 +53,19 @@ export NITROS9DIR=/path/to/nitros9
 make
 ```
 
-Each game builds its own kernel track, bootfile, and disk image from the
-modules it requires. Multi-disk Sierra games also format their additional
-data-only disks.
+The makefiles here compile game executables only. NitrOS-9 owns the kernel
+track, bootfile, startup configuration, disk images, and emulator launches.
+For example, from this repository:
+
+```sh
+make -C ../nitros9/recipes/coco3/games GAME=rogue
+make -C ../nitros9/recipes/coco3/games GAME=kingsquest3 CPU=6309 run
+make -C ../nitros9/recipes/coco3/games GAME=rogue check MAME_ROM_PATH=/path/to/roms
+```
+
+The recipe builds the selected game from the current checkout without changing
+its revision. CI checks out this repository's `main`. See the NitrOS-9
+`recipes/coco3/games/README.md` for source paths, outputs, and optional CI tests.
 
 Individual games can be built from their own directories. For example:
 

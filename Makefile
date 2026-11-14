@@ -1,3 +1,5 @@
+PORT ?= coco3
+export PORT
 ifndef NITROS9DIR
 NITROS9DIR := $(abspath ../nitros9)
 endif

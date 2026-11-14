@@ -6315,7 +6315,7 @@ PicListPtr          fdb       0
 *   draw_pic, overlay_pic, show_pic, and discard_pic commands.
 *======================================================================
 *
-PicListClear        leau      $3776,pcr ; point to PicListBuf (PC-relative)
+PicListClear        leau      >PicListBuf,pcr ; clear the list, independent of code layout
                     ldd       #0
                     std       ,u        ; clear first two bytes of pic list
                     rts

@@ -40,25 +40,13 @@ declarations in `walkoth.c` now match their definitions in `walk.c`.
 ## Launch in MAME
 
 ```sh
-make run
+make -C ../../nitros9/recipes/coco3/games GAME=walk run MAME_ROM_PATH=/path/to/roms
 ```
 
-This builds a private NitrOS-9 Level 2 boot disk at
-`build/emulator/walk.dsk`, boots a 512K CoCo 3 in MAME, loads the standard
-fonts, and starts Walk automatically. `make disk` builds the disk without
-launching it. All boot modules and disk files are built under `build/`.
-
-Requires a neighboring NitrOS-9 checkout, ToolShed `os9`, MAME, and your
-CoCo 3/FDC ROMs. Override paths as needed:
-
-```sh
-make run NITROS9DIR=/path/to/nitros9 MAME_ROM_PATH=/path/to/roms
-```
-
-`MAME` selects the emulator executable; `MAME_FLAGS` defaults to
-`-window -skip_gameinfo -ramsize 512k`. The ROM directory defaults to
-`~/.local/share/mame/roms`. MAME boots from floppy, so allow time for OS-9
-to load. Press a key in the demo to exit to the shell.
+The shared recipe builds c3 and Walk, installs its icons and standard fonts,
+and creates the bootable image under its `.build/walk/CPU/TRANSPORT/` tree.
+Use `all` instead of `run` to build without launching, or `check` for a
+startup smoke test. Press a key in Walk to exit to the shell.
 
 ## Run on NitrOS-9
 

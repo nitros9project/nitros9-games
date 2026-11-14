@@ -11,7 +11,7 @@ OBJECTS = reversi board rand gpbuf
 RFILES = $(addprefix build/,$(addsuffix .r,$(OBJECTS)))
 C3LIB = $(C3ROOT)/lwbackend
 
-.PHONY: all clean disk run
+.PHONY: all clean
 all: build/$(PROG)
 build:
 	mkdir -p $@
@@ -27,26 +27,6 @@ clean:
 	rm -rf build cfg
 	rm -f *.list *.map
 
-EMUDIR = build/emulator
-DISK = $(EMUDIR)/$(PROG).dsk
-MAME ?= mame
-MAME_ROM_PATH ?= $(HOME)/.local/share/mame/roms
-MAME_FLAGS ?= -window -skip_gameinfo -ramsize 512k
-disk: $(DISK)
-$(DISK): build/$(PROG) run.startup Makefile
-	mkdir -p $(EMUDIR)
-	cp $(NITROS9DIR)/recipes/coco3/floppy/defsfile $(EMUDIR)/defsfile
-	$(MAKE) -C $(EMUDIR) -f $(NITROS9DIR)/recipes/coco3/coco3.mak \
-	    NITROS9DIR=$(NITROS9DIR) LEVEL=2 CPU=6809 TERM_COLS=80 \
-	    CMDS="shell grfdrv utilpak1 load link echo merge" PORTDEFSDIR= \
-	    STARTUP=$(CURDIR)/run.startup DSKIMAGE=$(PROG).dsk all
-	os9 copy -r build/$(PROG) $(DISK),CMDS/$(PROG)
-	os9 attr -e -pe $(DISK),CMDS/$(PROG)
-
-run: $(DISK)
-	$(MAME) coco3 -rompath "$(MAME_ROM_PATH)" -cfg_directory "$(abspath build/mame-cfg)" -nvram_directory "$(abspath build/mame-nvram)" $(MAME_FLAGS) \
-	    -ext fdc -ext:fdc:wd17xx:0 525qd -flop1 "$(abspath $(DISK))" \
-	    -autoboot_delay 2 -autoboot_command "DOS\n"
 
 build/libsupport.a: cross-support.sh cross-defs.sed | build
 	C3ROOT="$(C3ROOT)" sh cross-support.sh
@@ -54,8 +34,3 @@ build/libsupport.a: cross-support.sh cross-defs.sed | build
 build/rev_img.r: rev_img.a | build
 	awk -f $(C3LIB)/c3lw.awk $< > build/rev_img.s
 	lwasm --format=obj -o $@ build/rev_img.s
-
-.PHONY: smoke
-smoke: $(DISK)
-	mkdir -p build/verification
-	$(MAKE) run MAME_FLAGS="-video none -sound none -skip_gameinfo -nothrottle -ramsize 512k -autoboot_script $(CURDIR)/smoke.lua"

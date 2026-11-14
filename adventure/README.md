@@ -6,35 +6,27 @@ Original author: Crowther/Woods adventure; historical Microware C source package
 
 ## Cross-build
 
-Requires the sibling C-Cubed checkout, a native C compiler, LWTOOLS
-(`lwasm`, `lwar`, `lwlink`), and ToolShed `os9` for disks.
+Compilation stays in this repository:
 
 ```sh
 make -C ../../nitros9-languages/c3 runtime
 make
-make disk
-make run
 ```
 
-`make` produces `build/adventure`. `make disk` builds a private NitrOS-9
-Level 2 boot floppy at `build/emulator/adventure.dsk`. `make run` boots a
-512K CoCo 3 in MAME and starts the game with `/term` connected to its input.
-Boot modules, libraries, system fonts, and disk artifacts stay under `build/`.
-`make clean` removes the build directory and root `.list`/`.map` files.
-
-Override sibling/tool paths as needed:
+`make` produces `build/adventure`. `make clean` removes compilation output.
+For a bootable disk or MAME launch, use the sibling NitrOS-9 recipe:
 
 ```sh
-make run C3ROOT=/path/to/c3 NITROS9DIR=/path/to/nitros9 \
-    MAME_ROM_PATH=/path/to/roms
+make -C ../../nitros9/recipes/coco3/games GAME=adventure
+make -C ../../nitros9/recipes/coco3/games GAME=adventure run MAME_ROM_PATH=/path/to/roms
+make -C ../../nitros9/recipes/coco3/games GAME=adventure check MAME_ROM_PATH=/path/to/roms
 ```
 
-`MAME` selects the executable. `MAME_FLAGS` defaults to
-`-window -skip_gameinfo -ramsize 512k`. ROMs default to
-`~/.local/share/mame/roms`. The NitrOS-9 checkout supplies the boot sources;
-its CoCo 3 recipe builds in this port's `build/emulator` directory.
-The game can also be copied into an existing OS-9 execution directory;
-set its execute attributes with `os9 attr -e -pe` after copying to an image.
+The recipe builds c3 and the game, packages the OS and assets, and selects
+`coco3h` when `CPU=6309`. Images and emulator state live under the NitrOS-9
+recipe's `.build/adventure/CPU/TRANSPORT/` directory. Use `LANGUAGES` and
+`NITROS9_GAMES_DIR` there to override sibling paths, and `MAME_BINARY` to
+select the emulator. See `nitros9/recipes/coco3/games/README.md` for details.
 
 ## Play
 
