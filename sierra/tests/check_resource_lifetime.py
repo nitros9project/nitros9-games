@@ -24,6 +24,20 @@ def main():
                 d.regs(pc=address,s=regs['s']+2,**updates)
             for base in (0x8000,0x9000):
                 d.write(base,coco)
+                # Picture-list initialization must touch its relocated list
+                # head only. A stale numeric address once erased an LBSR
+                # operand in AddToPicImpl and crashed the KQ3 introduction.
+                head=base+cs['PicListBuf']
+                d.write(head,b'\x45\x67PICTS')
+                expected=bytearray(d.read(base,len(coco)))
+                expected[cs['PicListBuf']:cs['PicListBuf']+2]=b'\0\0'
+                d.write(0x7ef0,b'\x7e\x00STACK')
+                d.regs(pc=base+cs['PicListClear'],s=0x7ef0,dp=0,cc=0x50)
+                d.call('c');regs=d.regs()
+                assert regs['pc']==0x7e00 and regs['s']==0x7ef2,regs
+                assert d.read(0x7ef2,5)==b'STACK'
+                assert d.read(base,len(coco))==expected,'picture-list clear modified code or adjacent data'
+                d.write(base,coco)
                 hooks={base+cs[n]:n for n in ('PushScript','ClearBothRanges','CalcPriAddr','SwapObjRanges','SetLogicPage','ReportError')}
                 for address in hooks:d.breakpoint(address)
                 for target in range(3):
@@ -134,7 +148,7 @@ def main():
                         assert d.read(base,len(native))==native
                         calls+=1
                 for address in hooks:d.breakpoint(address,False)
-            print(f'PASS: {calls} actual discard calls at two load addresses; CoCo suffix rewind, '
+            print(f'PASS: relocated picture-list initialization preserves code; {calls} actual discard calls at two load addresses; CoCo suffix rewind, '
                   'native typed single-slot release/absent/release failure, ownership, stack and code guards')
         finally:
             d.s.close();emulator.terminate()

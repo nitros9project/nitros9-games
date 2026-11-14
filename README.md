@@ -1,6 +1,6 @@
 # NitrOS-9 Games
 
-This repository contains games, game data, and bootable disk-image builds for
+This repository contains game sources, game data, and compilation rules for
 [NitrOS-9](https://github.com/nitros9project/nitros9).
 
 ## Contents
@@ -26,9 +26,19 @@ export NITROS9DIR=/path/to/nitros9
 make
 ```
 
-Each game builds its own kernel track, bootfile, and disk image from the
-modules it requires. Multi-disk Sierra games also format their additional
-data-only disks.
+The makefiles here compile game executables only. NitrOS-9 owns the kernel
+track, bootfile, startup configuration, disk images, and emulator launches.
+For example, from this repository:
+
+```sh
+make -C ../nitros9/recipes/coco3/games GAME=rogue
+make -C ../nitros9/recipes/coco3/games GAME=kingsquest3 CPU=6309 run
+make -C ../nitros9/recipes/coco3/games GAME=rogue check MAME_ROM_PATH=/path/to/roms
+```
+
+The recipe builds the selected game from the current checkout without changing
+its revision. CI checks out this repository's `main`. See the NitrOS-9
+`recipes/coco3/games/README.md` for source paths, outputs, and optional CI tests.
 
 Individual games can be built from their own directories. For example:
 

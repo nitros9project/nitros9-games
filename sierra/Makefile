@@ -1,3 +1,7 @@
+PORT ?= coco3
+export PORT
+NITROS9DIR ?= $(abspath ../../nitros9)
+export NITROS9DIR
 include $(NITROS9DIR)/rules.mak
 
 dirs	= blackcauldron christmas86 goldrush \

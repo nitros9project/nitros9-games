@@ -9149,9 +9149,10 @@ read_key_nonblocking                  ldd       #SS.Ready                       
                                       os9       I$GetStt                                  ; check for ready from stdin
                                       bcs       file_step_006                             ; continue at file_step_006 when this state test selects that path.
                                       ldx       #$0095                                    ; fetch constant $0095 for the read key nonblocking calculation.
-                                      ldy       #$0001                                    ; fetch constant $0001 for the read key nonblocking calculation.
-                                      lda       >stdout_path                              ; fetch stdout_path for the read key nonblocking calculation.
-                                      os9       I$Read                                    ; ask OS-9 to perform I$Read for this read key nonblocking operation.
+                                      ldy       #$0001                                    ; read one character.
+                                      lda       #0                                        ; read stdin, matching the SS.Ready query.
+                                      os9       I$Read                                    ; stdout may be a write-only redirected path.
+                                      bcs       file_step_006                             ; preserve an actual input error.
                                       lda       <module_temp_word                         ; fetch module_temp_word for the read key nonblocking calculation.
                                       andcc     #^Carry                                   ; apply the constant ^Carry mask/flags required by read key nonblocking.
 file_step_006                         rts                                                 ; return the completed file 006 result to the caller.

@@ -1,3 +1,6 @@
+NITROS9DIR ?= $(abspath ../../../nitros9)
+PORT ?= coco3
+.DEFAULT_GOAL := all
 include $(NITROS9DIR)/rules.mak
 
 DEPENDS		= ./Makefile
