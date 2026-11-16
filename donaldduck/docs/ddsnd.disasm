@@ -1,0 +1,51 @@
+; f9dasm: M6800/1/2/3/8/9 / H6309 Binary/OS9/FLEX9 Disassembler V1.83
+; Loaded binary file outputs/ddp-wildbits/original/CMDS/DDSND
+
+;****************************************************
+;* Used Labels                                      *
+;****************************************************
+
+M0039   EQU     $0039
+M00FF   EQU     $00FF
+M81CD   EQU     $81CD
+MFFFF   EQU     $FFFF
+
+;****************************************************
+;* Program Code / Data Areas                        *
+;****************************************************
+
+        ORG     $0000
+
+M0000   FCB     $87                      ;0000: 87             '.'
+        FCB     $CD                      ;0001: CD             '.'
+        NEG     M0039                    ;0002: 00 39          '.9'
+        NEG     M0031                    ;0004: 00 31          '.1'
+        CMPB    M81CD                    ;0006: F1 81 CD       '...'
+        NEG     M002E                    ;0009: 00 2E          '..'
+        NEG     M0029                    ;000B: 00 29          '.)'
+        FCB     $1B                      ;000D: 1B             '.'
+        STU     >M0000                   ;000E: FF 00 00       '...'
+        LBSR    Z0014                    ;0011: 17 00 00       '...'
+Z0014   NEG     M0000                    ;0014: 00 00          '..'
+        NEG     M0000                    ;0016: 00 00          '..'
+        NEG     M0000                    ;0018: 00 00          '..'
+        STU     MFFFF                    ;001A: FF FF FF       '...'
+        NEG     M0000                    ;001D: 00 00          '..'
+        STU     MFFFF                    ;001F: FF FF FF       '...'
+        STU     MFFFF                    ;0022: FF FF FF       '...'
+        NEG     M00FF                    ;0025: 00 FF          '..'
+        NEG     M0000                    ;0027: 00 00          '..'
+M0029   COMB                             ;0029: 53             'S'
+        CLRA                             ;002A: 4F             'O'
+        FCB     $55                      ;002B: 55             'U'
+        FCB     $4E                      ;002C: 4E             'N'
+        ANDB    #$53                     ;002D: C4 53          '.S'
+        COMA                             ;002F: 43             'C'
+        LDB     #$44                     ;0030: C6 44          '.D'
+        LSRA                             ;0032: 44             'D'
+        COMB                             ;0033: 53             'S'
+        FCB     $4E                      ;0034: 4E             'N'
+        ANDB    #$37                     ;0035: C4 37          '.7'
+        JMP     B,S                      ;0037: 6E E5          'n.'
+
+        END
