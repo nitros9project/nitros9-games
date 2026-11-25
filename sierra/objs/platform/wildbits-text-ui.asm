@@ -4,12 +4,26 @@
 WILDBITS_SHOW_API_LAYOUT equ 1
 ShowApiPriorityWait equ 36
 ShowApiModuleHeader equ 44
+ShowApiTextPresent  equ 46
+ShowApiPictureUnmap equ 48
+ShowApiReadMessage  equ 50
+ShowApiPrintText    equ 16
+ShowApiLoadResource equ 8
+DIALOG_TRACE_MODE   equ 5
+DIALOG_RESTART_MODE equ 6
                     endc
 * Grouped diagnostic backend; owner-specific buffers stay private.
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_DIAGNOSTIC_CODE
 * The restart unwind resumes through this cached entry without a directory
 * argument. Its private API was captured by the original request.
 AuxUiCommand        ldu       <resourcebase
+                    lda       <vmopcode
+                    cmpa      #VM_EVENT_MISSING_LOGIC
+                    beq       AuxMissingRoomLogic
+                    cmpa      #VM_EVENT_ROOM_LOAD_ERROR
+                    lbeq      AuxRoomLoadIoError
+                    cmpa      #182
+                    lbeq      AuxTraceDispatch
                     lda       <vmroompending
                     cmpa      #3
                     lbeq      AuxRestart
@@ -17,7 +31,9 @@ AuxUiCommand        ldu       <resourcebase
                     leax      UiCommandClasses,pcr
                     lbsr      UiCatalogNibble
                     tfr       b,a
-                    pshs      a
+                    cmpa      #4
+                    bhs      AuxUiTraceClass
+AuxUiClassLookup    pshs      a
                     lsla
                     ldd       a,y
                     leay      d,y
@@ -29,6 +45,111 @@ AuxUiCommand        ldu       <resourcebase
                     cmpa      #3
                     lbeq      AuxStateName
                     lbra      AuxShowObject
+AuxUiTraceClass
+* The first directory entry is the common game UI callback table. Only trace
+* commands need this cached pointer; ordinary classes keep their old state.
+                    pshs      a
+                    ldd       ,y
+                    leax      d,y
+                    stx       coldapi,u
+                    puls      a
+                    ldb       <vmopcode
+                    cmpb      #149
+                    lbeq      AuxTraceOn
+                    lbra      AuxTraceInfo
+* Missing native logics use CoCo's message text and the normal modal print
+* callback, keeping message formatting out of the resident code budget.
+AuxMissingRoomLogic pshs      cc,d,x,y,u
+                    ldu       <resourcebase
+                    ldd       ,y
+                    leay      d,y
+                    sty       coldapi,u
+                    clra
+                    ldb       resourcenumber+1,u
+                    pshs      b,a
+                    leax      AuxMissingRoomName,pcr
+                    pshs      x
+                    leax      AuxMissingRoomFormat,pcr
+                    leau      messagebuffer,u
+                    pshs      x
+                    pshs      u
+                    lbsr      PrintFmtStr
+                    leas      8,s
+                    ldu       <resourcebase
+                    ldy       coldapi,u
+                    ldd       ShowApiPrintText,y
+                    leay      d,y
+                    leax      messagebuffer,u
+                    jsr       ,y
+                    puls      cc,d,x,y,u,pc
+AuxMissingRoomName  fcc       /Logics/
+                    fcb       0
+AuxMissingRoomFormat fcc      /%s #%d not found./
+                    fcb       0
+* Room setup reports non-missing destination-load errors here. ENTER retries
+* the logic resource; ESC ends the game through the normal VM quit state.
+AuxRoomLoadIoError  pshs      cc,d,x,y,u
+                    lda       <resourceerror
+                    cmpa      #E$PNNF
+                    lbeq      AuxRoomLoadIoMissing
+                    ldu       <resourcebase
+                    ldd       ,y
+                    leay      d,y
+                    sty       coldapi,u
+AuxRoomLoadIoRetry  ldu       <resourcebase
+                    lda       #DIALOG_RESTART_MODE
+                    sta       dialoginputmode,u
+                    ldy       coldapi,u
+                    ldd       ShowApiPrintText,y
+                    leay      d,y
+                    leax      AuxRoomLoadIoText,pcr
+                    jsr       ,y
+                    ldu       <resourcebase
+                    clr       dialoginputmode,u
+                    lda       parsercharacter,u
+                    cmpa      #13
+                    bne       AuxRoomLoadIoQuit
+                    ldy       coldapi,u
+                    ldd       ShowApiLoadResource,y
+                    leay      d,y
+                    ldu       <resourcebase
+                    clra
+                    ldb       vmnewroom,u
+                    jsr       ,y
+                    bcs       AuxRoomLoadIoRetry
+                    clrb
+                    puls      cc,d,x,y,u
+                    andcc     #$FE
+                    rts
+AuxRoomLoadIoQuit   ldu       <resourcebase
+                    lda       #1
+                    sta       gamequit,u
+                    clr       <vmroompending
+                    clrb
+                    puls      cc,d,x,y,u
+                    andcc     #$FE
+                    rts
+AuxRoomLoadIoText   fcc       /Room load failed./
+                    fcb       10
+                    fcc       /ENTER retries; ESC quits./
+                    fcb       0
+AuxRoomLoadIoMissing puls      cc,d,x,y,u
+                    ldb       <resourceerror
+                    orcc      #1
+                    rts
+AuxTraceDispatch    ldd       ,y
+                    leax      d,y
+                    stx       coldapi,u
+                    lda       <vmargindex
+                    sta       <vmopcode
+                    ldb       restartcall+1,u
+                    pshs      b
+                    lda       restartcall,u
+                    lbsr      AuxTraceEvent
+                    leas      1,s
+                    rts
+* Private VM-event sentinel. Restore the real opcode before formatting so
+* headers and argument masks still use the script's actual instruction.
 * X=packed table, B=index. Opcode parity selects the high or low nibble.
 UiCatalogNibble     lsrb
                     ldb       b,x
@@ -40,19 +161,592 @@ UiCatalogNibble     lsrb
 UiCatalogLow        andb      #15
                     rts
 * Derive grouping from the common command catalog, not a second opcode list.
-UiClass_GameShakeCommand equ 1
 UiClass_GameRestartCommand equ 2
 UiClass_GameStateCommand equ 3
+UiClass_GameTraceOnCommand equ 4
+UiClass_GameTraceInfoCommand equ 5
+UiEmitTraceMasks    set 0
 AGI_COMMAND         macro
+                    ifne UiEmitTraceMasks
+                    AGI_EMIT_NIBBLE ((\2)>>4)
+                    else
                     ifdef UiClass_\3
                     AGI_EMIT_NIBBLE UiClass_\3
                     else
                     AGI_EMIT_NIBBLE 0
                     endc
+                    endc
                     endm
 AGI_NIBBLE_PAIR     set 0
 UiCommandClasses    equ *
                     use shared/agi-command-table.asm
+* Native trace configuration, event formatting and key-stepped display.
+* Allocation follows the owner's terminal readiness validation.
+AuxTraceInfo        ldu       <resourcebase
+                    lda       #1
+                    sta       traceconfigured,u
+                    leay      vmarguments,u
+                    AGI_TRACE_CONFIG AuxTraceInfoRows
+AuxTraceOn          ldu       <resourcebase
+                    AGI_TRACE_ACTIVATE AuxTraceOnReturn,AuxTraceOnCheck
+                    bsr       AuxTraceInitialize
+                    bcc       AuxTraceOnReturn
+                    pshs      cc,b
+                    lbsr      AuxTraceRelease
+                    clr       <tracemode
+                    puls      cc,b,pc
+AuxTraceOnReturn    clrb
+                    rts
+AuxTraceInitialize  ldu       <resourcebase
+                    tst       traceconfigured,u
+                    bne       AuxTraceHaveConfig
+                    clr       traceconfiglogic,u
+                    lda       #1
+                    sta       traceconfigline,u
+                    sta       traceconfigured,u
+                    lda       #15
+                    sta       traceconfigrows,u
+AuxTraceHaveConfig  bsr       AuxTraceAllocate
+                    bcs       AuxTraceInitReturn
+                    bsr       AuxTraceMap
+                    bcs       AuxTraceInitReturn
+                    leax      2000,x
+                    ldy       #1000
+                    lda       #32
+AuxTraceBlankHistory sta      ,x+
+                    leay      -1,y
+                    bne       AuxTraceBlankHistory
+* Preserve wrapped byte arithmetic, then bound the native 40x25 text plane.
+                    lda       <vmpicturetop
+                    inca
+                    adda      traceconfigline,u
+                    cmpa      #23
+                    bls       AuxTraceTopReady
+                    lda       #23
+AuxTraceTopReady    sta       tracetop,u
+                    ldb       #25
+                    subb      tracetop,u
+                    cmpb      traceconfigrows,u
+                    bls       AuxTraceRowsReady
+                    ldb       traceconfigrows,u
+AuxTraceRowsReady   stb       tracelines,u
+                    lda       tracecol,u
+                    anda      #$80
+                    ora       #2
+                    sta       tracecol,u
+                    bra      AuxTraceUnmap
+AuxTraceInitReturn  rts
+
+* A single owned page holds text backup, history and UI context.
+* Resource/picture mappings must be gone before borrowing the map window.
+AuxTraceAllocate    ldu       <resourcebase
+                    tst       traceowned,u
+                    bne       AuxTracePageSuccess
+                    ldx       #1
+                    clra
+                    ldb       #$D4
+                    os9       I$SetStt
+                    bcs       AuxTracePageReturn
+                    ldu       <resourcebase
+                    stx       tracefirst,u
+                    inc       traceowned,u
+AuxTracePageSuccess clrb
+AuxTracePageReturn  rts
+AuxTraceMap         ldu       <resourcebase
+                    tst       tracemapped,u
+                    bne       AuxTraceMapReady
+                    tst       traceowned,u
+                    beq       AuxTracePageInvalid
+                    UI_CALL_REGS   18
+                    bcs       AuxTracePageReturn
+                    UI_CALL_REGS   48
+                    bcs       AuxTracePageReturn
+                    ldu       <resourcebase
+                    ldx       tracefirst,u
+                    ldb       #1
+                    os9       F$MapBlk
+                    bcs       AuxTracePageReturn
+                    tfr       u,x
+                    ldu       <resourcebase
+                    stx       tracemapbase,u
+                    inc       tracemapped,u
+AuxTraceMapReady    ldx       tracemapbase,u
+                    clrb
+                    rts
+AuxTracePageInvalid ldb       #E$BMode
+                    orcc      #1
+                    rts
+AuxTraceUnmap       ldu       <resourcebase
+                    tst       tracemapped,u
+                    beq       AuxTracePageSuccess
+                    ldu       tracemapbase,u
+                    ldb       #1
+                    os9       F$ClrBlk
+                    bcs       AuxTracePageReturn
+                    ldu       <resourcebase
+                    clr       tracemapped,u
+                    clrb
+                    rts
+AuxTraceRelease     bsr       AuxTraceRestore
+                    bcs       AuxTracePageReturn
+                    ldu       <resourcebase
+                    tst       traceowned,u
+                    beq       AuxTraceReleased
+                    ldx       tracefirst,u
+                    ldu       #1
+                    clra
+                    ldb       #$D5
+                    os9       I$SetStt
+                    bcs       AuxTracePageReturn
+                    ldu       <resourcebase
+                    clr       traceowned,u
+AuxTraceReleased    clr       <tracemode
+                    clrb
+                    rts
+
+* 0..1999 text/attributes; 2000..2999 history; 3000 cold controls;
+* 3100 onward contiguous cursor/inventory/parser/dialog context.
+* Keep resourcecommands intact: a held dialog owns its existing backup.
+AuxTraceSave        ldu       <resourcebase
+                    tst       tracesaved,u
+                    bne      AuxTracePageInvalid
+                    lbsr      AuxTraceMap
+                    bcs       AuxTraceBackupReturn
+                    tfr       x,y
+                    leax      textcharacters,u
+                    ldd       #1000
+                    jsr       [copywordentry,u]
+                    ldy       tracemapbase,u
+                    leay      3000,y
+                    leax      textstoremodule,u
+                    ldb       #statesimplename-textstoremodule
+AuxTraceSaveCells   lda       ,x+
+                    sta       ,y+
+                    decb
+                    bne       AuxTraceSaveCells
+                    leax      textpointer,u
+                    ldy       tracemapbase,u
+                    leay      3100,y
+                    ldd       #(terminalchanged-textpointer)/2
+                    jsr       [copywordentry,u]
+                    inc       tracesaved,u
+                    clrb
+AuxTraceBackupReturn rts
+AuxTraceRestore     ldu       <resourcebase
+                    tst       tracesaved,u
+                    lbeq      AuxTraceUnmap
+                    lbsr      AuxTraceMap
+                    bcs       AuxTraceBackupReturn
+                    leay      textcharacters,u
+                    ldd       #1000
+                    jsr       [copywordentry,u]
+                    ldx       tracemapbase,u
+                    leax      3000,x
+                    leay      textstoremodule,u
+                    ldb       #statesimplename-textstoremodule
+AuxTraceRestoreCells lda      ,x+
+                    sta       ,y+
+                    decb
+                    bne       AuxTraceRestoreCells
+                    ldx       tracemapbase,u
+                    leax      3100,x
+                    leay      textpointer,u
+                    ldd       #(terminalchanged-textpointer)/2
+                    jsr       [copywordentry,u]
+                    clr       tracesaved,u
+                    lbra      AuxTraceUnmap
+                    ifne (terminalchanged-textpointer)&1
+                    error Trace text/parser context must be word aligned
+                    endc
+                    ifgt 3100+terminalchanged-textpointer-8192
+                    error Trace context backup exceeds its owned page
+                    endc
+                    ifgt 3000+statesimplename-textstoremodule-3100
+                    error Trace cold backup overlaps context backup
+                    endc
+
+* Pure history operations: no OS calls while the history page is mapped.
+AuxTraceNewline     pshs      d,x,y
+                    ldx       tracemapbase,u
+                    leay      2000,x
+                    leax      2040,x
+                    ldb       tracelines,u
+                    decb
+                    lda       #20
+                    mul
+                    jsr       [copywordentry,u]
+                    lda       #32
+                    ldb       #40
+AuxTraceBlankRow    sta       ,y+
+                    decb
+                    bne       AuxTraceBlankRow
+                    lda       #2
+                    sta       tracecol,u
+                    puls      d,x,y,pc
+AuxTraceChar        pshs      d,x,y
+                    cmpa      #10
+                    beq       AuxTraceCharNewline
+                    ldb       tracecol,u
+                    cmpb      #38
+                    blo       AuxTraceCharPosition
+                    bsr       AuxTraceNewline
+AuxTraceCharPosition ldb      tracelines,u
+                    decb
+                    lda       #40
+                    mul
+                    addb      tracecol,u
+                    adca      #0
+                    ldx       tracemapbase,u
+                    leax      2000,x
+                    leax      d,x
+                    lda       ,s
+                    sta       ,x
+                    inc       tracecol,u
+                    puls      d,x,y,pc
+AuxTraceCharNewline bsr       AuxTraceNewline
+                    puls      d,x,y,pc
+AuxTraceString      lda       ,x+
+                    beq       AuxTraceStringDone
+                    bsr       AuxTraceChar
+                    bra       AuxTraceString
+AuxTraceStringDone  clrb
+                    rts
+AuxTraceOverlay     ldu       <resourcebase
+                    ldb       tracetop,u
+                    lda       #40
+                    mul
+                    leay      textcharacters,u
+                    leay      d,y
+                    leay      2,y
+                    ldx       tracemapbase,u
+                    leax      2002,x
+                    lda       tracelines,u
+                    pshs      a
+AuxTraceOverlayRow  ldb       #36
+AuxTraceOverlayCell lda       ,x+
+                    sta       ,y
+                    lda       #$0F
+                    sta       1000,y
+                    leay      1,y
+                    decb
+                    bne       AuxTraceOverlayCell
+                    leax      4,x
+                    leay      4,y
+                    dec       ,s
+                    bne       AuxTraceOverlayRow
+                    leas      1,s
+                    lbra      AuxTraceUnmap
+
+* Reuse signed common formatting, beyond the prefetched argument bytes.
+AuxTraceNumber      pshs      d
+                    leax      AuxTraceNumberFormat,pcr
+                    pshs      x
+                    leax      messagebuffer+480,u
+                    pshs      x
+                    lbsr      PrintFmtStr
+                    leas      6,s
+                    tfr       u,x
+                    ldu       <resourcebase
+                    bra      AuxTraceString
+AuxTraceNumberFormat fcc      /%d/
+                    fcb       0
+
+* Use the catalog's variable masks; FE is encoded with the unused F nibble.
+* Verification rejects every other unrepresentable mask and the F0 mask.
+UiEmitTraceMasks    set 1
+AGI_NIBBLE_PAIR     set 0
+AuxTraceCommandMasks equ *
+                    use shared/agi-command-table.asm
+AGI_TEST macro
+                    AGI_EMIT_NIBBLE ((\2)>>4)
+                    endm
+AGI_NIBBLE_PAIR     set 0
+AuxTracePredicateMasks equ *
+                    use shared/agi-test-table.asm
+                    AGI_EMIT_NIBBLE 0
+AuxTraceVariableMask lbsr     UiCatalogNibble
+                    lslb
+                    lslb
+                    lslb
+                    lslb
+                    cmpb      #$F0
+                    bne       AuxTraceMaskReturn
+                    ldb       #$FE
+AuxTraceMaskReturn  rts
+
+* Re-read all consumed operands: vmarguments retains only the first 42 bytes.
+AuxTracePrefetch    ldu       <resourcebase
+                    tst       tracemapped,u
+                    lbne      AuxTracePageInvalid
+                    ldb       <vmargcount
+                    stb       showcached,u
+                    beq       AuxTracePrefetchDone
+                    clra
+                    std       showposition,u
+                    ldd       <vmip
+                    subd      showposition,u
+                    std       showposition,u
+                    UI_CALL_REGS   18
+                    bcs       AuxTracePrefetchReturn
+                    ldb       <vmcurrent
+                    UI_CALL_REGS   20
+                    UI_CALL_REGS   10
+                    leay      messagebuffer,u
+AuxTracePrefetchByte ldd      showposition,u
+                    UI_CALL   14
+                    bcs       AuxTracePrefetchReturn
+                    stb       ,y+
+                    ldd       showposition,u
+                    addd      #1
+                    std       showposition,u
+                    dec       showcached,u
+                    bne       AuxTracePrefetchByte
+                    UI_CALL_REGS   18
+AuxTracePrefetchReturn rts
+AuxTracePrefetchDone clrb
+                    rts
+
+* A=raw/resolved selector, B=variable mask. SAID operands are signed LE words.
+AuxTraceArguments   pshs      a
+                    stb       showview,u
+                    clr       showposition,u
+                    clr       showposition+1,u
+                    ldb       <vmargcount
+                    stb       showcached,u
+                    lda       #1
+                    ldb       restartcall,u
+                    cmpb      #2
+                    bne       AuxTraceWidthReady
+                    ldb       <vmopcode
+                    cmpb      #14
+                    bne       AuxTraceWidthReady
+                    inca
+AuxTraceWidthReady  sta       tracewidth,u
+                    lda       #'(
+                    lbsr      AuxTraceChar
+                    tst       showcached,u
+                    beq       AuxTraceArgumentsDone
+AuxTraceArgument    ldx       <resourcebase
+                    leax      messagebuffer,x
+                    ldd       showposition,u
+                    leax      d,x
+                    ldb       tracewidth,u
+                    cmpb      #2
+                    beq       AuxTraceWordArgument
+                    clra
+                    ldb       ,x
+                    tst       ,s
+                    beq       AuxTraceArgumentReady
+                    tst       showview,u
+                    bpl       AuxTraceArgumentReady
+                    leax      vmvariables,u
+                    ldb       d,x
+                    bra       AuxTraceArgumentReady
+AuxTraceWordArgument ldd      ,x
+                    exg       a,b
+AuxTraceArgumentReady lbsr    AuxTraceNumber
+                    ldd       showposition,u
+                    addb      tracewidth,u
+                    adca      #0
+                    std       showposition,u
+                    ldb       showcached,u
+                    subb      tracewidth,u
+                    stb       showcached,u
+                    beq       AuxTraceArgumentsDone
+                    lsl       showview,u
+                    lda       #',
+                    lbsr      AuxTraceChar
+                    bra       AuxTraceArgument
+AuxTraceArgumentsDone lda     #')
+                    lbsr      AuxTraceChar
+                    leas      1,s
+                    clrb
+                    rts
+
+* Header consumes the pending logic-zero separator in the column's high bit.
+* Between trace events the old column is dead; the next header starts a row.
+AuxTraceHeader      tst       tracecol,u
+                    bpl       AuxTraceHeaderRow
+                    lbsr      AuxTraceNewline
+                    ldb       #26
+                    lda       #'=
+AuxTraceSeparator   lbsr      AuxTraceChar
+                    decb
+                    bne       AuxTraceSeparator
+AuxTraceHeaderRow   lbsr      AuxTraceNewline
+                    ldb       <vmcurrent
+                    cmpb      #32
+                    lbhs      AuxTracePageInvalid
+                    lda       #VM_CACHE_ENTRY_BYTES
+                    mul
+                    leax      vmcache,u
+                    ldb       d,x
+                    clra
+                    lbsr      AuxTraceNumber
+                    lda       #':
+                    lbsr      AuxTraceChar
+                    lda       #32
+                    lbsr      AuxTraceChar
+                    ldb       traceconfiglogic,u
+                    beq       AuxTraceHeaderNumeric
+                    leax      vmcache,u
+                    ldy       #32
+AuxTraceFindName    tst       1,x
+                    beq       AuxTraceFindNext
+                    tst       5,x
+                    bne       AuxTraceFindNext
+                    cmpb      ,x
+                    beq       AuxTraceNameFound
+AuxTraceFindNext    leax      VM_CACHE_ENTRY_BYTES,x
+                    leay      -1,y
+                    bne       AuxTraceFindName
+AuxTraceHeaderNumeric clra
+                    ldb       <vmopcode
+                    lbra      AuxTraceNumber
+AuxTraceNameFound   tst       <vmopcode
+                    bne       AuxTraceReadName
+                    leax      AuxTraceReturnName,pcr
+                    lbra      AuxTraceString
+AuxTraceReturnName  fcc       /return/
+                    fcb       0
+AuxTraceReadName    pshs      x
+                    ldd       <vmend
+                    pshs      d
+                    lbsr      AuxTraceUnmap
+                    bcs      AuxTraceNameUnmapFailed
+                    ldx       2,s
+                    UI_CALL_REGS   10
+                    ldd       #0
+                    UI_CALL   12
+                    bcs       AuxTraceRestoreRoot
+                    addd      #2
+                    bcs       AuxTraceNameInvalid
+                    cmpd      <resourcelength
+                    bhs       AuxTraceNameInvalid
+                    std       <vmend
+                    ldb       <vmopcode
+                    lda       restartcall,u
+                    cmpa      #2
+                    bne       AuxTraceReadMessage
+                    addb      #220
+AuxTraceReadMessage UI_CALL   50
+                    bra       AuxTraceRestoreRoot
+AuxTraceNameInvalid ldb       #E$BMode
+                    orcc      #1
+AuxTraceRestoreRoot pshs      cc,b
+                    UI_CALL_REGS   18
+                    bcc       AuxTraceRootUnmapped
+* Preserve the first failure; use the unmap failure if decoding succeeded.
+                    lda       ,s
+                    bita      #1
+                    bne       AuxTraceRootUnmapped
+                    stb       1,s
+                    ora       #1
+                    sta       ,s
+AuxTraceRootUnmapped ldd      2,s
+                    std       <vmend
+                    ldb       <vmcurrent
+                    UI_CALL_REGS   20
+                    UI_CALL_REGS   10
+                    puls      cc,b
+                    leas      4,s
+                    bcs       AuxTraceHeaderReturn
+                    lbsr      AuxTraceMap
+                    bcs       AuxTraceHeaderReturn
+                    leax      messagebuffer,u
+                    lbra      AuxTraceString
+AuxTraceNameUnmapFailed leas  4,s
+AuxTraceHeaderReturn rts
+
+* Kind 1=command, 2=predicate; predicate's saved truth byte is at 2,S.
+* Kind 3 is teardown and retries one transient release failure.
+AuxTraceEvent       cmpa      #3
+                    bne       AuxTraceStep
+                    lbsr      AuxTraceRelease
+                    bcs       AuxTraceReleaseRetry
+                    rts
+AuxTraceReleaseRetry lbra     AuxTraceRelease
+AuxTraceStep        ldb       2,s
+                    pshs      d
+                    lbsr      AuxTraceSave
+                    lbcs      AuxTraceSaveFailed
+                    puls      d
+                    std       restartcall,u
+                    lbsr      AuxTraceHeader
+                    lbcs      AuxTraceFinish
+                    lbsr      AuxTraceUnmap
+                    lbcs      AuxTraceFinish
+                    lbsr      AuxTracePrefetch
+                    lbcs      AuxTraceFinish
+                    lbsr      AuxTraceMap
+                    bcs      AuxTraceFinish
+                    ldb       <vmopcode
+                    leax      AuxTraceCommandMasks,pcr
+                    lda       restartcall,u
+                    deca
+                    beq       AuxTraceSelectMask
+                    leax      AuxTracePredicateMasks,pcr
+AuxTraceSelectMask  lbsr      AuxTraceVariableMask
+                    lda       tracecol,u
+                    pshs      d          original column and variable mask
+                    clra
+                    lbsr      AuxTraceArguments
+                    ldb       1,s
+                    beq       AuxTraceArgumentsReady
+                    lbsr      AuxTraceNewline
+* CoCo PopRowCol aligns the resolved list under the raw argument list.
+                    lda       ,s
+                    sta       tracecol,u
+                    ldb       1,s
+                    lda       #1
+                    lbsr      AuxTraceArguments
+AuxTraceArgumentsReady leas   2,s
+                    lda       restartcall,u
+                    deca
+                    beq       AuxTracePresent
+                    lda       #35
+                    sta       tracecol,u
+                    lda       #32
+                    lbsr      AuxTraceChar
+                    lda       #':
+                    lbsr      AuxTraceChar
+                    lda       #'T
+                    ldb       restartcall+1,u
+                    bne       AuxTraceTruthReady
+                    lda       #'F
+AuxTraceTruthReady  lbsr      AuxTraceChar
+AuxTracePresent     bsr       AuxTraceShow
+                    bcs       AuxTraceFinish
+                    lda       #DIALOG_TRACE_MODE
+                    sta       dialoginputmode,u
+                    ldy       coldapi,u
+                    leay      ShowApiPriorityWait,y
+                    lbsr      AuxPrintWait
+                    bcs       AuxTraceFinish
+                    AGI_TRACE_KEY_ADVANCE AuxTraceKeyAdvanced
+AuxTraceKeyAdvanced clrb
+AuxTraceFinish      pshs      cc,b
+                    lbsr      AuxTraceRestore
+                    bcs       AuxTraceCleanupFailed
+                    UI_CALL_REGS 30
+                    bcs       AuxTraceCleanupFailed
+                    UI_CALL_REGS 32
+                    bcs       AuxTraceCleanupFailed
+AuxTraceFinishStatus puls     cc,b,pc
+AuxTraceCleanupFailed lda     ,s
+                    bita      #1
+                    bne       AuxTraceFinishStatus
+                    stb       1,s
+                    ora       #1
+                    sta       ,s
+                    bra       AuxTraceFinishStatus
+AuxTraceSaveFailed  leas      2,s
+AuxTraceEventReturn rts
+AuxTraceShow        lbsr      AuxTraceOverlay
+                    bcs       AuxTraceEventReturn
+                    UI_CALL_REGS 46
+                    rts
+
 * File-name staging is cold; persistent name configuration is caller-private.
 AuxStateName        ldu       <resourcebase
                     sty       coldapi,u
@@ -151,11 +845,11 @@ OBJECT_STATUS_DISPLAY macro
                     OBJECT_EMIT_STATUS_STRINGS
                     OBJECT_EMIT_STATUS
 * Release cached root mapping before allocating/drawing through another window.
-AuxDiagnosticPrepare UI_CALL 18
+AuxDiagnosticPrepare UI_CALL_REGS 18
                     bcs       AuxDiagnosticPrepareReturn
                     tst       <pictureowned
                     bne       AuxDiagnosticPrepareReturn
-                    UI_CALL 26
+                    UI_CALL_REGS 26
 AuxDiagnosticPrepareReturn rts
 AuxStatusSetupError leas      2+OBJECT_STATUS_FRAME,s
                     ldu       <resourcebase
@@ -169,7 +863,7 @@ AuxStatusBadObject  leas      OBJECT_STATUS_FRAME,s
 * Segmented native memory has no CoCo flat-heap "free" byte category.
 * Report actual owned pages and module/private extents without double counting.
 AuxMemoryInfo       ldu       <resourcebase
-                    lbsr      AuxDiagnosticPrepare
+                    bsr       AuxDiagnosticPrepare
                     lbcs      AuxMemoryReturn
                     leas      -4,s
                     ldd       #0
@@ -256,7 +950,7 @@ PrintFmtStr         ldu       <resourcebase
                     std       textpointer,u
                     ldx       4,s
                     leau      6,s
-                    lbsr      PrintFmtLoop
+                    bsr       PrintFmtLoop
                     ldu       2,s
                     rts
                     FORMAT_EMIT_WORD_ARGUMENTS
@@ -281,10 +975,47 @@ WORD_CONVERSION_DEFINITIONS_ONLY equ 1
                     UNSIGNED_DECIMAL_EMIT WordUIntToDecStr,WordUIntToDecLoop,WORD_DECIMAL_OUTPUT_END,WORD_DECIMAL_OUTPUT_DIVIDE
                     WORD_EMIT_HEX_DIVIDE
                     else
-* Immutable text/UI backend executes while wbui remains linked.
+* Immutable text/UI backend executes while sierraui remains linked.
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_TEXT_STORE_CODE
 AuxTextStore        tst       dialogactive,u
-                    beq       GameTextRead
+                    bne       GameTextStoreActive
+* text.screen displays use the same bounded white panel and word wrapping as
+* modal print text. Initialize once; later display calls share this panel.
+AuxTextScreenStart  tst       <vmgraphics
+                    lbne      GameTextRead
+                    lbsr      AuxTextModePanel
+GameTextStoreActive tst       dialogactive,u
+                    lbeq      GameTextRead
+                    tst       <vmgraphics
+                    bne       GameTextPanelBoundsReady
+                    lda       #2
+                    sta       dialogleft,u
+                    lda       #36
+                    sta       dialogright,u
+                    lda       textrow,u
+                    cmpa      #2
+                    bhs       GameTextPanelRowLimit
+                    lda       #2
+                    sta       textrow,u
+                    bra       GameTextPanelColumn
+GameTextPanelRowLimit cmpa #23
+                    blo       GameTextPanelColumn
+                    lda       #22
+                    sta       textrow,u
+GameTextPanelRowReady
+GameTextPanelColumn
+                    lda       textcolumn,u
+                    cmpa      #2
+                    bhs       GameTextPanelColumnLimit
+                    lda       #2
+                    sta       textcolumn,u
+                    bra       GameTextPanelBoundsReady
+GameTextPanelColumnLimit cmpa #38
+                    blo       GameTextPanelBoundsReady
+                    lda       #2
+                    sta       textcolumn,u
+                    inc       textrow,u
+GameTextPanelBoundsReady
                     tst       dialogwordstart,u
                     beq       GameTextRead
                     lda       textcolumn,u
@@ -331,10 +1062,24 @@ GameTextRead        ldx       textpointer,u
                     cmpb      dialogleft,u
                     lbeq     AuxTextStore
 GameTextCharacter   pshs      a
+                    lda       textcolumn,u
+                    tst       dialogactive,u
+                    beq       AuxTextColumnReady
+                    pshs      a
+                    lda       <vmstatusenabled
+                    lsra
+                    lsra
+                    lsra
+                    adda      ,s+
+AuxTextColumnReady cmpa      #40
+                    blo       AuxTextColumnClip
+                    lda       #39
+AuxTextColumnClip   pshs      a
                     lda       textrow,u
                     ldb       #40
                     mul
-                    addb      textcolumn,u
+                    addb      ,s
+                    leas      1,s
                     adca      #0
                     leax      textcharacters,u
                     leax      d,x
@@ -364,7 +1109,92 @@ GameTextAdvanceRow  inc       textrow,u
                     lda       textrow,u
                     cmpa      #25
                     lblo      AuxTextStore
-AuxTextPresent      jmp       ,y
+AuxTextPresent      tst       dialogactive,u
+                    beq       AuxTextPresentCall
+                    tst       <vmgraphics
+                    bne       AuxTextPresentCall
+                    lbsr      AuxTextPanelFrame
+AuxTextPresentCall  jmp       ,y
+
+* Build a 38-column white panel with a solid black one-cell frame in the
+* private text plane. Preserve the two status-offset columns and input row.
+AuxTextModePanel    pshs      d,x,y,u
+                    ldu       <resourcebase
+                    clr       <vmtextforeground
+                    lda       #15
+                    sta       <vmtextbackground
+                    lda       #1
+                    sta       dialogactive,u
+                    sta       dialogwordstart,u
+                    lda       #2
+                    sta       dialogleft,u
+                    lda       #36
+                    sta       dialogright,u
+                    lda       #2
+                    sta       textrow,u
+                    sta       textcolumn,u
+                    leax      textcharacters+41,u ; row 1, column 1
+                    leay      textcolors+41,u
+                    bsr       AuxTextPanelBlackRow
+                    leax      2,x                 ; row 2, column 1
+                    leay      2,y
+                    lda       #21                 ; text rows 2 through 22
+                    pshs      a
+AuxTextPanelRow     lda       #32
+                    sta       ,x+
+                    clr       ,y+
+                    ldb       #36
+AuxTextPanelWhite   lda       #32
+                    sta       ,x+
+                    lda       #15
+                    sta       ,y
+                    leay      1,y
+                    decb
+                    bne       AuxTextPanelWhite
+                    lda       #32
+                    sta       ,x+
+                    clr       ,y+
+                    leay      1,y
+                    leax      2,x                ; skip col 39 and next row col 0
+                    leay      2,y
+                    dec       ,s
+                    bne       AuxTextPanelRow
+                    leas      1,s
+                    bsr       AuxTextPanelBlackRow ; row 23, column 1
+                    puls      d,x,y,u,pc
+AuxTextPanelBlackRow lda #32
+                    ldb       #38
+AuxTextPanelBlackCell
+                    sta       ,x+
+                    clr       ,y+
+                    decb
+                    bne       AuxTextPanelBlackCell
+                    rts
+AuxTextPanelFrame   pshs      d,x,y,u
+                    ldu       <resourcebase
+                    leax      textcharacters+41,u ; top edge, row 1
+                    leay      textcolors+41,u
+                    bsr       AuxTextPanelBlackRow
+                    leax      textcharacters+921,u ; bottom edge, row 23
+                    leay      textcolors+921,u
+                    bsr       AuxTextPanelBlackRow
+                    leax      textcharacters+81,u ; side edges, row 2
+                    leay      textcolors+81,u
+                    lda       #21
+                    pshs      a
+AuxTextPanelSide     lda       #32
+                    sta       ,x
+                    clr       ,y
+                    leax      37,x
+                    leay      37,y
+                    sta       ,x
+                    clr       ,y
+                    leax      3,x
+                    leay      3,y
+                    dec       ,s
+                    bne       AuxTextPanelSide
+                    leas      1,s
+                    puls      d,x,y,u,pc
                     else
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_DIALOG_WAIT_CODE
 * Read-only modal loop. Timer and callback state belong to this process.
@@ -403,6 +1233,10 @@ AuxWaitTimer        ldb       vmvariables+21,u
                     sta       dialogtimed,u
                     bra       AuxWaitLoop
 AuxWaitUntimed      clr       dialogtimed,u
+* Trace mode accepts the queued key, including during diagnostic commands.
+                    lda       dialoginputmode,u
+                    cmpa      #DIALOG_TRACE_MODE
+                    beq       AuxWaitLoop
                     lda       <vmopcode
                     cmpa      #133
                     beq       AuxDiagnosticFresh
@@ -476,6 +1310,10 @@ AuxWaitKey          lda       #0
                     sta       vmvariables+19,u
                     bra       AuxWaitKeyDone
 AuxWaitInputMode
+                    cmpa      #DIALOG_RESTART_MODE
+                    beq       AuxRestartKey
+                    cmpa      #DIALOG_TRACE_MODE * trace: any key advances, no editor
+                    beq       AuxWaitKeyDone
                     tst       dialoginputmode,u
                     bne       AuxWaitEditor
                     lda       <vmopcode
@@ -484,6 +1322,14 @@ AuxWaitInputMode
                     cmpa      #135
                     bne       AuxWaitKeyDone
 AuxDiagnosticKey    lda       parsercharacter,u
+                    cmpa      #13
+                    beq       AuxWaitKeyDone
+                    cmpa      #5
+                    beq       AuxWaitKeyDone
+                    cmpa      #27
+                    beq       AuxWaitKeyDone
+                    lbra      AuxWaitLoop
+AuxRestartKey       lda       parsercharacter,u
                     cmpa      #13
                     beq       AuxWaitKeyDone
                     cmpa      #5
@@ -530,18 +1376,50 @@ AuxWaitSample       ldy       2,s
 AuxClearTextRect    pshs      y
                     ldu       <resourcebase
                     leax      vmarguments,u
-                    lda       ,x
+                    lda       <vmopcode
+                    cmpa      #106      text.screen owns the full 40x25 plane
+                    bne       AuxRectArguments
+                    clr       ,x
+AuxRectArguments    lda       4,x
+                    cmpa      #$82      private print-panel request
+                    bne       AuxRectPanelReady
+                    lda       #2
+                    sta       dialogwordstart,u
+                    clr       4,x       first pass paints the black frame
+AuxRectPanelReady  lda       ,x
+                    tst       dialogactive,u
+                    beq       AuxRectRowsReady
+                    lda       <vmstatusenabled
+                    lsra
+                    lsra
+                    lsra
+                    adda      1,x
+                    sta       1,x
+                    lda       <vmstatusenabled
+                    lsra
+                    lsra
+                    lsra
+                    adda      3,x
+                    cmpa      #40
+                    bls       AuxRectRightReady
+                    lda       #40
+AuxRectRightReady  sta       3,x
+AuxRectRowsReady   lda       ,x
+                    cmpa      #24
+                    lbhs      AuxRectNoOp
                     ldb       2,x
-                    cmpb      #25
-                    bhs      AuxRectInvalid
                     cmpa      2,x
-                    bhi      AuxRectInvalid
-                    lda       1,x
+                    lbhi      AuxRectInvalid
+                    cmpb      #24
+                    blo       AuxRectRowClipped
+                    lda       #23      CoCo text rectangle clips at row 23
+                    sta       2,x
+AuxRectRowClipped  lda       1,x
                     ldb       3,x
-                    cmpb      #40
-                    bhs      AuxRectInvalid
+                    cmpb      #41      column 40 spills into next text row
+                    lbhs      AuxRectInvalid
                     cmpa      3,x
-                    bhi      AuxRectInvalid
+                    lbhi      AuxRectInvalid
                     subb      1,x
                     incb
                     pshs      b
@@ -559,9 +1437,21 @@ AuxClearTextRect    pshs      y
                     clra
                     tst       <vmgraphics
                     beq       GameRectRow
-                    tst       4,x
-                    beq       GameRectRow
-                    lda       #$FF
+* CoCo's text_color writes white foreground and the requested background
+* nibble (FF00, FF11, ... FFFF); retain that color in the cell overlay.
+* clear.lines passes a tagged boolean because its CoCo helper uses only
+* foreground white (FF) or black (00), not the rectangle color convention.
+                    lda       4,x
+                    bita      #$80
+                    beq       GameRectColorNibble
+                    bita      #1
+                    bne       GameRectBooleanWhite
+                    clra
+                    bra       GameRectRow
+GameRectBooleanWhite lda #$FF
+                    bra       GameRectRow
+GameRectColorNibble lda      #$F0
+                    ora       4,x
 GameRectRow         ldb       1,s
 GameRectCell        pshs      b
                     ldb       #32
@@ -577,7 +1467,30 @@ GameRectCell        pshs      b
                     dec       ,s
                     bne       GameRectRow
                     leas      2,s
+                    ldu       <resourcebase
+                    lda       dialogwordstart,u
+                    cmpa      #2
+                    beq       AuxRectPanelInterior
+                    cmpa      #3
+                    bne       AuxRectDone
+                    lda       #1       restore initial print word-wrap state
+                    sta       dialogwordstart,u
+                    bra       AuxRectDone
+AuxRectPanelInterior lda #3
+                    sta       dialogwordstart,u
+                    leax      vmarguments,u
+                    inc       ,x
+                    inc       1,x
+                    dec       2,x
+                    dec       3,x
+                    lda       #15      white interior, black outer cell remains
+                    sta       4,x
+                    lbra      AuxRectRowsReady
+AuxRectDone        equ       *
                     puls      y
+                    jmp       ,y
+
+AuxRectNoOp        puls      y
                     jmp       ,y
 
 AuxRectInvalid      puls      y
@@ -592,6 +1505,11 @@ UI_CALL           macro
                     lda       #\1
                     lbsr      AuxUICall
                     leas      2,s
+                    endm
+* B/X/Y/U-only callbacks do not need an original A argument.
+UI_CALL_REGS       macro
+                    lda       #\1
+                    lbsr      AuxUIRegsCall
                     endm
 AuxShowObject       ldu       <resourcebase
                     sty       coldapi,u
@@ -635,15 +1553,15 @@ AuxShowFind          tst       1,x
 AuxShowFindNext      leax      VM_CACHE_ENTRY_BYTES,x
                     leay      -1,y
                     bne       AuxShowFind
-AuxShowPrepare      UI_CALL 24
+AuxShowPrepare      UI_CALL_REGS 24
                     lbcs      AuxShowReturn
                     tst       <pictureowned
                     bne       AuxShowHavePicture
-                    UI_CALL 26
+                    UI_CALL_REGS 26
                     lbcs      AuxShowReturn
 AuxShowHavePicture  tst       gamebackgroundowned,u
                     bne       AuxShowHaveBackground
-                    UI_CALL 2
+                    UI_CALL_REGS 2
                     lbcs      AuxShowReturn
 AuxShowHaveBackground equ     *
                     leax      spritelist+128,u
@@ -681,7 +1599,7 @@ AuxShowZero         clr       ,x+
                     ldb       showview,u
                     UI_CALL 8
                     lbcs      AuxShowReturn
-                    UI_CALL 10
+                    UI_CALL_REGS 10
                     ldd       #3
                     UI_CALL 12
                     lbcs      AuxShowReturn
@@ -697,7 +1615,7 @@ AuxShowCopy         ldd       showposition,u
                     cmpd      <resourcelength
                     lbhs      AuxShowInvalid
                     UI_CALL 14
-                    lbcs      AuxShowReturn
+                    bcs      AuxShowReturn
                     ldx       textpointer,u
                     stb       ,x+
                     stx       textpointer,u
@@ -708,13 +1626,13 @@ AuxShowCopy         ldd       showposition,u
                     std       showposition,u
                     leay      -1,y
                     bne       AuxShowCopy
-                    lbra      AuxShowInvalid
+                    bra      AuxShowInvalid
 AuxShowEmpty        clr       ,x
-AuxShowCopied       UI_CALL 18
+AuxShowCopied       UI_CALL_REGS 18
                     bcs      AuxShowReturn
                     ldb       <vmcurrent
-                    UI_CALL 20
-                    UI_CALL 10
+                    UI_CALL_REGS 20
+                    UI_CALL_REGS 10
 * Inventory previews require dismissal, independent of print flags/timers.
                     leax      messagebuffer,u
                     inc       showactive,u
@@ -729,9 +1647,9 @@ AuxShowCopied       UI_CALL 18
                     sta       gamecopydirection,u
                     UI_CALL 28
                     bcs      AuxShowReturn
-                    UI_CALL 30
+                    UI_CALL_REGS 30
                     bcs      AuxShowReturn
-                    UI_CALL 32
+                    UI_CALL_REGS 32
                     bcs      AuxShowReturn
                     tst       showcached,u
                     bne       AuxShowDone
@@ -745,16 +1663,16 @@ AuxShowInvalid      ldb       #E$BMode
                     orcc      #1
                     rts
 * Priority diagnostic uses its own modal callbacks and never enters save UI.
-AuxPriorityView     UI_CALL   34
+AuxPriorityView     UI_CALL_REGS   34
                     bcs       AuxShowReturn
                     tst       <pictureowned
                     bne       AuxPriorityHavePicture
-                    UI_CALL   26
+                    UI_CALL_REGS   26
                     bcs       AuxShowReturn
 AuxPriorityHavePicture inc    <gamepriorityview
                     lda       #4
                     sta       dialoginputmode,u
-                    UI_CALL   32
+                    UI_CALL_REGS   32
                     bcs       AuxPriorityRestore
                     ldy       coldapi,u
                     leay      ShowApiPriorityWait,y
@@ -763,23 +1681,23 @@ AuxPriorityRestore  pshs      cc,b
                     ldu       <resourcebase
                     clr       <gamepriorityview
                     clr       dialoginputmode,u
-                    UI_CALL   32
+                    UI_CALL_REGS   32
                     bcs       AuxPriorityRestoreError
                     puls      cc,b,pc
 AuxPriorityRestoreError leas   2,s
                     rts
 * Interpreter information shares the existing text callback and cold entry.
 AuxJoystickInfo     leax      JoystickInfo,pcr
-                    lbra      AuxBlockingPrint
+                    bra      AuxBlockingPrint
 JoystickInfo        fcc       /Joystick service unavailable./
                     fcb       13
                     fcc       /Use the keyboard to play./
                     fcb       0
 AuxInterpreterInfo  leax      InterpreterInfo,pcr
-                    lbra      AuxBlockingPrint
+                    bra      AuxBlockingPrint
 InterpreterInfo     fcc       /Adventure Game Interpreter/
                     fcb       13
-                    fcc       /Wild Bits NitrOS-9 engine/
+                    fcc       /      Version 2.072/
                     fcb       0
 AuxBlockingPrint
                     lda       vmflags+15,u
@@ -795,6 +1713,10 @@ AuxBlockingPrint
                     rts
 * Preserve caller arguments, including a scratch object's U. The indirect
 * destination is a stack word, never a patched instruction or shared variable.
+AuxUIRegsCall      pshs      d
+                    bsr       AuxUICall
+                    leas      2,s
+                    rts
 AuxUICall         pshs      x,y,u
                     ldu       <resourcebase
                     ldy       coldapi,u
@@ -821,10 +1743,16 @@ AuxRestart          ldu       <resourcebase
                     bne       AuxRestartAccepted
                     lda       vmflags+15,u
                     pshs      a
+                    lda       dialoginputmode,u
+                    pshs      a
+                    lda       #DIALOG_RESTART_MODE
+                    sta       dialoginputmode,u
                     clr       vmflags+15,u
                     leax      AuxRestartPrompt,pcr
                     clra
                     lbsr      AuxRestartCall
+                    puls      a
+                    sta       dialoginputmode,u
                     puls      a
                     sta       vmflags+15,u
                     bcs       AuxRestartReturn
@@ -835,7 +1763,7 @@ AuxRestartAccepted  lda       #3
                     sta       <vmroompending
 AuxRestartSuccess   clrb
 AuxRestartReturn    rts
-AuxRestartPrompt    fcc       /Restart game? ENTER confirms./
+AuxRestartPrompt    fcc       /ENTER restarts; ESC cancels./
                     fcb       0
 AuxRestartApply     lda       #2       stop owned sound
                     bsr      AuxRestartCall
@@ -952,21 +1880,10 @@ GamePrintSave equ *
                     lda       <vmtextforeground
                     ldb       <vmtextbackground
                     pshs      d
-                    clr       <vmtextforeground
+                    clr       <vmtextforeground ; black ink on a white panel
                     lda       #15
                     sta       <vmtextbackground
-                    leax      textcharacters,u
-                    ldy       #1000
-GamePrintClear      lda       #32
-                    tst       showactive,u
-                    beq       GamePrintClearCell
-                    clra       preview leaves cells outside its message transparent
-GamePrintClearCell  sta       ,x
-                    lda       #$0F
-                    sta       1000,x
-                    leax      1,x
-                    leay      -1,y
-                    bne       GamePrintClear
+                    lbsr      GameTextInitialize ; leave cells outside popup transparent
                     lda       #1
                     sta       dialogactive,u
                     sta       dialogwordstart,u
@@ -978,9 +1895,9 @@ GamePrintClearCell  sta       ,x
                     bhi       GamePrintDefaultPosition
                     ldd       vmarguments+1,u
                     cmpa      #25
-                    bhs       GamePrintAtBad
+                    lbhs      GamePrintAtBad
                     cmpb      #40
-                    bhs       GamePrintAtBad
+                    lbhs      GamePrintAtBad
                     sta       textrow,u
                     stb       textcolumn,u
                     stb       dialogleft,u
@@ -993,12 +1910,25 @@ GamePrintWidth      adda      dialogleft,u
                     bls       GamePrintWidthReady
 GamePrintClipWidth  lda       #40
 GamePrintWidthReady sta       dialogright,u
+                    lda       #4       print.at keeps its requested position
+                    sta       dialogactive,u
                     bra       GamePrintPositionReady
-GamePrintDefaultPosition ldd  #$0802
+GamePrintDefaultPosition
+                    ldd       #$0500    centered full-width, 15-row panel
+                    std       vmarguments,u
+                    ldd       #$1325    bottom/right: rows 5..19, columns 0..37
+                    std       vmarguments+2,u
+                    lda       #$82      black frame with white interior
+                    sta       vmarguments+4,u
+                    lbsr      GameClearTextRect
+                    lbcs      GamePrintRestore
+                    ldu       <resourcebase
+                    lda       #7
                     sta       textrow,u
-                    stb       textcolumn,u
-                    stb       dialogleft,u
-                    lda       #40
+                    lda       #2
+                    sta       textcolumn,u
+                    sta       dialogleft,u
+                    lda       #36
                     sta       dialogright,u
 GamePrintPositionReady ldx    textpointer,u
                     lbsr      GameTextValidate
@@ -1079,11 +2009,12 @@ ShakeCallbacks      fdb       GameFramePointer-ShakeCallbacks,unmap-ShakeCallbac
                     fdb       AssetUnmap-ShakeCallbacks,PictureUnmap-ShakeCallbacks
 * Rare UI commands share a cache/loader; priority screen calls retain their
 * distinct Y=0..3 entry contract and are deliberately not part of this bridge.
-GameShakeCommand    equ       *
 GameRestartCommand  equ       *
 GameShowPriorityCommand equ   *
 GameVersionCommand  equ       *
 GameShowObjectCommand equ     *
+GameTraceOnCommand  equ       *
+GameTraceInfoCommand equ      *
 GameUiCommand       ldu       <resourcebase
                     leax      uicommandentry,u
                     ldb       #24
@@ -1109,6 +2040,8 @@ PriorityWaitCallbacks fdb     GameModalForeground-PriorityWaitCallbacks
                     fdb       GameStateReturn-PriorityWaitCallbacks
                     fdb       GameClockSample-PriorityWaitCallbacks
 ShowModuleHeader    fdb       name-13-ShowCallbacks * ABI-10: read-only header metadata
+                    fdb       GameTextPresent-ShowCallbacks,PictureUnmap-ShowCallbacks
+                    fdb       ReadLogicMessage-ShowCallbacks
                     ifne PriorityWaitCallbacks-ShowCallbacks-ShowApiPriorityWait
                     error Show API priority-wait directory moved
                     endc
@@ -1162,9 +2095,9 @@ RestartCallbacks          fdb       GamePrintText-RestartCallbacks,GameSoundStop
                     fdb       LoadAsset-RestartCallbacks,GameTextInitialize-RestartCallbacks
                     fdb       MenuInitialize-RestartCallbacks,ScreenInitialize-RestartCallbacks
 GameStateCommand    lbsr      GameSoundStop
-                    lbcs      GameStateReturn
+                    bcs      GameStateReturn
                     lbsr      GameUiCommand
-                    lbcs      GameStateReturn
+                    bcs      GameStateReturn
                     ldu       <resourcebase
                     tst       parserlength,u
                     beq      GameStateSuccess
@@ -1172,7 +2105,7 @@ GameStateCommand    lbsr      GameSoundStop
                     bcs      GameStateReturn
                     ldu       <resourcebase
                     pshs      u
-                    lbsr      StateLoadModule
+                    bsr       StateLoadModule
                     bcs       StateLoadReturn
                     ldx       ,s
                     ldd       M$Exec,u
@@ -1220,7 +2153,7 @@ GameStateFailure    ldu       <resourcebase
                     lbsr      GamePrintText
                     bcc       GameStateSuccess
                     rts
-StateFailure        fcc       /File error./
+StateFailure        fcc       /Error/
                     fcb       0
 * Shared, bounded cold-image loader. Success leaves U=module, X=metadata
 * after the eight-byte private ABI. Y is the checked copy length for state;
@@ -1275,9 +2208,9 @@ StateLoadBad        os9       F$UnLink
                     ldb       #E$BMode
                     orcc      #1
 StateModuleFailure  puls      a,x,u,pc
-UiModule            fcc       /wbui/
+UiModule            fcc       /sierraui/
                     fcb       C$CR
-StateModule         fcc       /wbstate/
+StateModule         fcc       /sierrastate/
                     fcb       C$CR
 StateSignature      STATE_ABI
 * Position-independent callbacks: offsets are relative to this table's base.
@@ -1311,7 +2244,7 @@ DictionaryReadAt    pshs      x,y,u
                     lda       <resourcepath
                     os9       I$Seek
                     bcs       DictionaryReadReturn
-                    lbsr      ParserByte
+                    bsr       ParserByte
                     bcs       DictionaryReadReturn
                     tfr       b,a
                     andcc     #$FE
@@ -1321,7 +2254,7 @@ DictionaryReadCached leay    assetinput,u
                     andcc     #$FE
                     puls      x,y,u,pc
 DictionaryPrefix    pshs      a
-                    lbsr      DictionaryReadAt
+                    bsr       DictionaryReadAt
                     bcs       DictionaryPrefixError
                     tfr       a,b
                     puls      a
@@ -1331,11 +2264,11 @@ DictionaryPrefix    pshs      a
 DictionaryPrefixError puls   a,pc
 DictionaryReadID    pshs      x
                     leax      1,x
-                    lbsr      DictionaryReadAt
+                    bsr       DictionaryReadAt
                     bcs       DictionaryIDReturn
                     pshs      a
                     leax      1,x
-                    lbsr      DictionaryReadAt
+                    bsr       DictionaryReadAt
                     bcs       DictionaryIDError
                     tfr       a,b
                     puls      a
@@ -1504,6 +2437,17 @@ GameColdFailure     ldu       <resourcebase
                     lbra      GamePrintRestore
 GameColdReturn      rts
 GameTextUnlink      ldu       <resourcebase
+                    tst       traceowned,u
+                    beq       GameTextUnlinkModule
+                    ldu       <resourcebase
+                    lda       #1
+                    sta       <tracemode
+                    lda       #3
+                    clrb
+                    lbsr      GameTraceEvent
+                    bcs       GameTextUnlinkDone
+GameTextUnlinkModule equ    *
+                    ldu       <resourcebase
                     ldx       textstoremodule,u
                     beq       GameTextUnlinkDone
                     tfr       x,u
@@ -1523,18 +2467,18 @@ GameTextUnlink      ldu       <resourcebase
 GameTextUnlinkDone  rts
 GameTextPresent     lbsr      AssetUnmap
                     bcs       GameTextReturn
-* Preview dialogs replace opaque text-mode cells with transparent cells.
-* Repaint their underlying picture; a text-only pass cannot undo old pixels.
                     ldu       <resourcebase
-                    tst       showactive,u
-                    lbne      RefreshPicture
+* text.screen displays retain the scene but must paint every occupied cell,
+* including the blank cells that make the white background opaque.
                     tst       <bitmapowned
                     bne       GameDrawText
                     tst       <pictureowned
                     bne       GameTextShowPicture
                     bsr      GameCreateScreen
                     bcs       GameTextReturn
-GameTextShowPicture lbra      PresentPicture
+GameTextShowPicture lbsr      PresentPicture
+                    bcs       GameTextReturn
+                    lbra      GameDrawText
 GameTextInvalid     ldb       #E$IllArg
                     orcc      #1
 GameTextReturn      rts
@@ -1597,27 +2541,20 @@ GameFrameAddress    ldd       ,s
                     andcc     #$FE
 GameFrameReturn     puls      d,x,y,pc
 
-* Text mode uses opaque cells on the owned bitmap; retain the game picture.
+* text.screen remains on the game picture; the first display builds a bounded
+* black-frame/white panel and wraps its text there.
 GameTextScreen      lbsr      GameCloseWindow
                     lbcs      GameTextReturn
                     clr       <vmgraphics
-                    ldu       <resourcebase
-                    leax      textcharacters,u
-                    ldy       #1000
-GameTextScreenCell  lda       #32
-                    sta       ,x
-                    lda       <vmtextbackground
-                    sta       1000,x
-                    leax      1,x
-                    leay      -1,y
-                    bne       GameTextScreenCell
-                    lbra      GameTextPresent
+                    clrb
+                    rts
 
 GameGraphicsMode    lbsr      GameCloseWindow
                     lbcs      GameTextReturn
                     lda       #1
                     sta       <vmgraphics
                     lbsr      GameTextInitialize
+                    clr       dialogactive,u
                     tst       <pictureowned
                     bne       GameGraphicsReady
                     lbsr      GameCreateScreen
@@ -1639,7 +2576,11 @@ GameClearTextRect   ldu       <resourcebase
 * clear.lines is a full-width rectangle. Arguments are command-local scratch.
 GameClearLines      ldu       <resourcebase
                     ldb       vmarguments+2,u
-                    stb       vmarguments+4,u
+                    beq       GameClearLinesBlack
+                    ldb       #$81
+                    bra       GameClearLinesColor
+GameClearLinesBlack ldb       #$80
+GameClearLinesColor stb       vmarguments+4,u
                     ldb       vmarguments+1,u
                     stb       vmarguments+2,u
                     clr       vmarguments+1,u
@@ -2146,20 +3087,6 @@ MenuInitialize      clr       <menupending
                     clr       <menutextused
                     clr       <menutextused+1
                     rts
-MenuCommand         ldb       <vmopcode
-                    cmpb      #156
-                    beq       MenuSetTitle
-                    cmpb      #157
-                    beq       MenuSetItem
-                    cmpb      #158
-                    lbeq      MenuSubmit
-                    cmpb      #159
-                    lbeq      MenuEnable
-                    cmpb      #160
-                    lbeq      MenuDisable
-                    ldb       #E$UnkSvc
-                    orcc      #1
-                    rts
 MenuCopyLabel       ldu       <resourcebase
                     ldb       vmarguments,u
                     lbsr      ReadLogicMessage
@@ -2186,7 +3113,9 @@ MenuReturn          rts
 MenuFull            ldb       #E$MemFul
                     orcc      #1
                     rts
-MenuSetTitle        ldb       <menucount
+MenuSetTitle        tst       <menuready
+                    bne       MenuBuildReturn
+                    ldb       <menucount
                     cmpb      #8
                     bhs       MenuFull
                     bsr      MenuCopyLabel
@@ -2204,11 +3133,13 @@ MenuSetTitle        ldb       <menucount
                     stb       2,x
                     clr       3,x
                     inc       <menucount
-                    clr       <menuready
+MenuBuildReturn     equ       *
                     clrb
                     rts
-MenuSetItem         tst       <menucount
-                    beq      MenuInvalid
+MenuSetItem         tst       <menuready
+                    bne       MenuBuildReturn
+                    tst       <menucount
+                    lbeq      MenuInvalid
                     ldb       <menuitems
                     cmpb      #32
                     bhs       MenuFull
@@ -2234,7 +3165,6 @@ MenuSetItem         tst       <menucount
                     leax      d,x
                     inc       3,x
                     inc       <menuitems
-                    clr       <menuready
                     clrb
                     rts
 MenuSubmit          tst       <menucount
@@ -2242,6 +3172,20 @@ MenuSubmit          tst       <menucount
                     lda       #1
                     sta       <menuready
                     clrb
+                    rts
+MenuCommand         ldb       <vmopcode
+                    cmpb      #156
+                    beq       MenuSetTitle
+                    cmpb      #157
+                    beq       MenuSetItem
+                    cmpb      #158
+                    beq       MenuSubmit
+                    cmpb      #159
+                    beq       MenuEnable
+                    cmpb      #160
+                    beq       MenuDisable
+                    ldb       #E$UnkSvc
+                    orcc      #1
                     rts
 MenuEnable          lda       #1
                     bra       MenuSetEnabled
@@ -2320,9 +3264,13 @@ AuxMenuVisible      tst       <menuready
                     lbeq      AuxMenuSuccess
                     UI_CALL   0
                     lbcs      AuxMenuReturn
-                    UI_CALL   2
+                    UI_CALL_REGS   2
                     lbcs      AuxMenuReturn
                     ldu       <resourcebase
+* An open dialog owns resourcecommands as its saved text-plane backup.
+* Do not borrow that workspace for a nested menu snapshot.
+                    tst       dialogactive,u
+                    lbne      AuxMenuSuccess
                     leax      textcharacters,u
                     leay      resourcecommands,u
                     ldd       #1000
@@ -2331,96 +3279,146 @@ GameMenuSave equ *
                     clr       inventoryselected,u
                     clr       inventoryselected+1,u
 GameMenuDraw        ldu       <resourcebase
-                    leax      textcharacters,u
-                    ldy       #1000
-GameMenuWhite       lda       #32
-                    sta       ,x
+* Restore the saved overlay planes before repainting.
+                    leax      resourcecommands,u
+                    leay      textcharacters,u
+                    ldd       #1000      copy 1000 words = 2000 bytes
+                    jsr       [copywordentry,u]
+                    ldu       <resourcebase
+* Keep the familiar menu heading and all titles/items in script order.
+                    lda       #1
+                    sta       inventoryrow,u
                     lda       #$0F
-                    sta       1000,x
-                    leax      1,x
-                    leay      -1,y
-                    bne       GameMenuWhite
+                    sta       inventorykey,u
+                    lbsr      GameMenuFillRow
                     leax      GameMenuTitle,pcr
                     leay      textcharacters+42,u
-                    UI_CALL   4
-                    leax      GameMenuHelp,pcr
-                    leay      textcharacters+961,u
-                    UI_CALL   4
-                    clra
-                    ldb       inventoryselected+1,u
-                    cmpb      #21
-                    blo       GameMenuPage
-                    lda       #21
+                    ldb       #34
+                    lbsr      GameMenuLabel
+* Page the global item list around the selected action.
+                    lda       inventoryselected+1,u
+                    cmpa      #21
+                    blo       GameMenuPageStart
+                    suba      #20
+                    bra       GameMenuPage
+GameMenuPageStart   clra
 GameMenuPage        sta       inventorytop+1,u
-                    clr       inventorytop,u
                     sta       inventoryprevious+1,u
                     clr       inventoryprevious,u
                     lda       #3
                     sta       inventoryrow,u
-GameMenuItem        ldb       inventoryprevious+1,u
-                    cmpb      <menuitems
-                    lbhs      GameMenuPresent
-                    lda       #6
+GameMenuItem        lda       inventoryprevious+1,u
+                    cmpa      <menuitems
+                    lbhs      GameMenuHelpLine
+                    cmpa      inventoryselected+1,u
+                    bne       GameMenuNormal
+                    ldb       #6
                     mul
                     leax      menuentries,u
                     leax      d,x
-                    pshs      x
-                    lda       inventoryrow,u
-                    ldb       #40
-                    mul
-                    leay      textcharacters,u
-                    leay      d,y
-                    pshs      y
-                    ldb       #40
-                    lda       inventoryprevious+1,u
-                    cmpa      inventoryselected+1,u
-                    bne       GameMenuNormal
+                    tst       4,x
+                    beq       GameMenuDisabled
                     lda       #$F0
                     bra       GameMenuRowColor
-GameMenuNormal      lda       #$0F
+GameMenuNormal      lda       inventoryprevious+1,u
+                    ldb       #6
+                    mul
+                    leax      menuentries,u
+                    leax      d,x
                     tst       4,x
-                    bne       GameMenuRowColor
-                    lda       #$7F
-GameMenuRowColor    sta       1000,y
-                    leay      1,y
-                    decb
-                    bne       GameMenuRowColor
-                    puls      y
-                    leay      2,y
-                    ldb       3,x
-                    lda       #4
+                    beq       GameMenuDisabled
+                    lda       #$0F
+                    bra       GameMenuRowColor
+GameMenuDisabled    lda       #$7F
+GameMenuRowColor    sta       inventorykey,u
+                    lbsr      GameMenuFillRow
+* Draw the parent title, separator and option label on one bounded row.
+                    ldu       <resourcebase
+                    lda       inventoryprevious+1,u
+                    ldb       #6
+                    mul
+                    leax      menuentries,u
+                    leax      d,x
+                    lda       3,x
+                    ldb       #4
                     mul
                     leax      menutitles,u
-                    ldd       d,x
-                    leax      menutext,u
                     leax      d,x
-                    ldb       #38
-                    lbsr      GameMenuLabel
-                    leax      GameMenuColon,pcr
-                    lbsr      GameMenuLabel
-                    puls      x
-                    pshs      x
-                    lda       inventoryrow,u
-                    ldb       #40
-                    mul
-                    addd      #40
-                    leax      textcharacters,u
-                    leax      d,x
-                    pshs      y
-                    tfr       x,d
-                    subd      ,s++
-                    stb       inventorykey,u
-                    puls      x
                     ldd       ,x
                     leax      menutext,u
                     leax      d,x
-                    ldb       inventorykey,u
+                    lda       inventoryrow,u
+                    ldb       #40
+                    mul
+                    addd      #2
+                    leay      textcharacters,u
+                    leay      d,y
+                    ldb       #15
+                    lbsr      GameMenuLabel
+                    leax      GameMenuColon,pcr
+                    ldb       #2
+                    lbsr      GameMenuLabel
+                    ldu       <resourcebase
+                    lda       inventoryprevious+1,u
+                    ldb       #6
+                    mul
+                    leax      menuentries,u
+                    leax      d,x
+                    ldd       ,x
+                    leax      menutext,u
+                    leax      d,x
+                    ldb       #19
                     lbsr      GameMenuLabel
                     inc       inventoryprevious+1,u
                     inc       inventoryrow,u
                     lda       inventoryrow,u
                     cmpa      #24
                     lblo      GameMenuItem
+GameMenuHelpLine    lda       #24
+                    sta       inventoryrow,u
+                    lda       #$0F
+                    sta       inventorykey,u
+                    lbsr      GameMenuFillRow
+* The help line uses 38 cells, extending one cell beyond the normal panel.
+                    lda       #' '
+                    sta       textcharacters+961,u
+                    sta       textcharacters+998,u
+                    lda       #$0F
+                    sta       textcolors+961,u
+                    sta       textcolors+998,u
+                    leax      GameMenuHelp,pcr
+                    leay      textcharacters+961,u
+                    ldb       #38
+                    lbsr      GameMenuLabel
+                    lbra      GameMenuPresent
+* Fill only the menu line and leave both side gutters untouched.
+GameMenuFillRow     pshs      d,x,y
+                    ldu       <resourcebase
+                    lda       inventoryrow,u
+                    ldb       #40
+                    mul
+                    addd      #2
+                    leay      textcharacters,u
+                    leay      d,y
+                    ldb       #36
+                    lda       #' '
+GameMenuFillChars   sta       ,y+
+                    decb
+                    bne       GameMenuFillChars
+                    ldu       <resourcebase
+                    lda       inventoryrow,u
+                    ldb       #40
+                    mul
+                    addd      #2
+                    leax      textcolors,u
+                    leax      d,x
+                    lda       inventorykey,u
+                    ldb       #36
+GameMenuFillColors  sta       ,x+
+                    decb
+                    bne       GameMenuFillColors
+                    puls      d,x,y
+                    rts
 GameMenuPresent     UI_CALL   6
                     lbcs      GameMenuRestore
 GameMenuWait        UI_CALL   8
@@ -2439,33 +3437,123 @@ GameMenuReadKey     ldu       <resourcebase
                     ldy       #1
                     clra
                     os9       I$Read
-                    bcs      GameMenuRestore
+                    lbcs      GameMenuRestore
                     ldu       <resourcebase
                     lda       parsercharacter,u
                     cmpa      #5
-                    beq       GameMenuCancel
+                    lbeq      GameMenuCancel
                     cmpa      #27
-                    beq       GameMenuCancel
+                    lbeq      GameMenuCancel
                     cmpa      #13
-                    beq       GameMenuSelect
+                    lbeq      GameMenuSelect
                     cmpa      #12
-                    beq       GameMenuUp
+                    lbeq      GameMenuUp
                     cmpa      #8
-                    beq       GameMenuUp
+                    lbeq      GameMenuLeft
                     cmpa      #10
                     beq       GameMenuDown
                     cmpa      #9
-                    bne       GameMenuWait
-GameMenuDown        inc       inventoryselected+1,u
-                    lda       inventoryselected+1,u
-                    cmpa      <menuitems
-                    blo       GameMenuChanged
-                    clr       inventoryselected+1,u
-                    bra       GameMenuChanged
-GameMenuUp          tst       inventoryselected+1,u
-                    bne       GameMenuDecrement
-                    lda       <menuitems
+                    beq       GameMenuRight
+                    lbra      GameMenuWait
+* CoCo Down returns to the head item of the currently selected title.
+GameMenuDown        ldx       <resourcebase
+                    ldb       inventoryselected+1,u
+                    lda       #6
+                    mul
+                    leax      d,x
+                    leax      menuentries,x
+                    lda       3,x
+                    ldb       #4
+                    mul
+                    ldx       <resourcebase
+                    leax      menutitles,x
+                    leax      d,x
+                    lda       2,x
                     sta       inventoryselected+1,u
+                    lbra      GameMenuChanged
+* CoCo's right-arrow event advances to the next nonempty menu title and
+* highlights that title's final item.  K2 reports right-arrow as TAB ($09).
+GameMenuRight       ldx       <resourcebase
+                    ldb       inventoryselected+1,u
+                    lda       #6
+                    mul
+                    leax      d,x
+                    leax      menuentries,x
+                    lda       3,x
+                    inca
+                    cmpa      <menucount
+                    blo       GameMenuRightGroup
+                    clra
+GameMenuRightGroup  sta       <menucurrent
+                    clr       inventorykey,u
+GameMenuRightScan   ldx       <resourcebase
+                    leax      menutitles,x
+                    lda       <menucurrent
+                    ldb       #4
+                    mul
+                    leax      d,x
+                    tst       3,x
+                    bne       GameMenuRightFound
+                    inc       <menucurrent
+                    lda       <menucurrent
+                    cmpa      <menucount
+                    blo       GameMenuRightNext
+                    clr       <menucurrent
+GameMenuRightNext   inc       inventorykey,u
+                    lda       inventorykey,u
+                    cmpa      <menucount
+                    blo       GameMenuRightScan
+                    lbra      GameMenuWait
+GameMenuRightFound  lda       2,x
+                    adda      3,x
+                    deca
+                    sta       inventoryselected+1,u
+                    bra       GameMenuChanged
+* CoCo's left-arrow event highlights the second item of the current title;
+* a one-item title wraps to its only item. K2 reports left as backspace ($08).
+GameMenuLeft        ldx       <resourcebase
+                    ldb       inventoryselected+1,u
+                    lda       #6
+                    mul
+                    leax      d,x
+                    leax      menuentries,x
+                    lda       3,x
+                    sta       inventorykey,u
+                    ldx       <resourcebase
+                    leax      menutitles,x
+                    lda       inventorykey,u
+                    ldb       #4
+                    mul
+                    leax      d,x
+                    lda       2,x
+                    ldb       3,x
+                    cmpb      #2
+                    blo       GameMenuLeftFound
+                    inca
+GameMenuLeftFound   sta       inventoryselected+1,u
+                    bra       GameMenuChanged
+GameMenuUp          ldx       <resourcebase
+                    ldb       inventoryselected+1,u
+                    lda       #6
+                    mul
+                    leax      d,x
+                    leax      menuentries,x
+                    lda       3,x
+                    sta       inventorykey,u
+                    ldx       <resourcebase
+                    leax      menutitles,x
+                    lda       inventorykey,u
+                    ldb       #4
+                    mul
+                    leax      d,x
+                    lda       2,x
+                    cmpa      inventoryselected+1,u
+                    bne       GameMenuDecrement
+                    lda       3,x
+                    adda      2,x
+                    deca
+                    sta       inventoryselected+1,u
+                    bra       GameMenuChanged
 GameMenuDecrement   dec       inventoryselected+1,u
 GameMenuChanged     lbra      GameMenuDraw
 GameMenuSelect      ldb       inventoryselected+1,u
@@ -2476,7 +3564,7 @@ GameMenuSelect      ldb       inventoryselected+1,u
                     tst       4,x
                     lbeq      GameMenuWait
                     ldb       2,x
-                    UI_CALL   10
+                    UI_CALL_REGS   10
                     ora       ,x
                     sta       ,x
 GameMenuCancel      clrb
@@ -2505,7 +3593,7 @@ GameMenuTitle       fcc       /Game menu/
                     fcb       0
 GameMenuColon       fcc       /: /
                     fcb       0
-GameMenuHelp        fcc       /Arrows select; ENTER opens; ESC cancels/
+GameMenuHelp        fcc       /Arrows select; ENTER opens; ESC cancel/
                     fcb       0
 
 AuxMenuSuccess      clrb
@@ -2523,6 +3611,9 @@ menucurrent         rmb       1
 menuready           rmb       1
 menutextused        rmb       2
 menupending         rmb       1
+                    ifne GAME_PRESENTATION
+tracemode           rmb       1
+                    endc
 menulabel           rmb       2
 menuoperation       rmb       1
 
@@ -2701,18 +3792,19 @@ GameDrawTextDirty   lda       #1
                     bpl       TextFastMode
 GameDrawText        clra
 TextFastMode        ldx       <resourcebase
+                    clra
                     sta       textrenderdirty,x
-TextFastInitialize  ldd       #1000
+                    ldd       #1000
                     std       textrenderend,x
                     clr       textrow,x
                     clr       textcolumn,x
 TextFastPrepare     lbsr      AssetUnmap
-                    lbcs      GameTextReturn
+                    bcs       GameTextReturn
                     lbsr      PictureUnmap
-                    lbcs      GameTextReturn
+                    bcs       GameTextReturn
                     ldx       <resourcebase
 TextFastNextRow     lbsr      foreground
-                    lbcs      GameTextReturn
+                    bcs       GameTextReturn
                     ldx       <resourcebase
                     lda       textrow,x
                     ldb       #40
@@ -2851,7 +3943,7 @@ TextFastNextCell    ldd       textindex,x
                     mul
                     std       textend,x
 TextFastWriteSpan   ldd       textindex,x
-                    lbsr      GameFramePointer
+                    bsr       GameFramePointer
                     lbcs      GameTextReturn
                     anda      #$1F
                     pshs      d
@@ -3003,7 +4095,7 @@ FormatPart          tst       ,x
 FormatNext          equ *
                     FORMAT_EMIT_SCAN
 FormatDirective     lda       ,x+
-                    beq       FormatPartInvalid
+                    beq       FormatDone
 * CoCo ignores an unknown two-byte escape without consuming following digits.
                     cmpa      #'w
                     beq       FormatNumberStart
@@ -3109,7 +4201,7 @@ FormatReadEmpty     ldu       <resourcebase
                     clrb
                     rts
 FormatMessage       pshs      x
-                    lbsr      FormatReadMessage
+                    bsr       FormatReadMessage
                     bcs       FormatMessageReturn
 FormatMessageReturn equ FormatExpansionReturn
                     FORMAT_EMIT_EXPANSION
@@ -3746,21 +4838,21 @@ AuxObjectPath       lda       ,x+
                     lbsr      AuxObjectReadAt
                     lbcs      AuxObjectFailed
                     cmpy      #3
-                    lbne      AuxObjectInvalid
+                    bne      AuxObjectInvalid
                     ldb       ,x
                     lda       1,x
                     cmpd      #768
-                    lbhi      AuxObjectInvalid
+                    bhi      AuxObjectInvalid
                     std       ,s
 AuxObjectTableCheck  subd      #3
-                    lblo      AuxObjectInvalid
+                    blo      AuxObjectInvalid
                     bne       AuxObjectTableCheck
                     ldd       4,s
                     cmpd      ,s
                     bhs      AuxObjectInvalid
                     addd      #3
                     ldy       #3
-                    lbsr      AuxObjectReadAt
+                    bsr       AuxObjectReadAt
                     bcs      AuxObjectFailed
                     cmpy      #3
                     bne      AuxObjectInvalid

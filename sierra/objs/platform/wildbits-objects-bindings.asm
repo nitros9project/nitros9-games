@@ -79,9 +79,7 @@ POSITION_RECOVER macro
                     bra       MotionBlocked
                     endm
 POSITION_ACCEPT_STATE macro
-                    lda       $25,u
-                    anda      #$BF
-                    sta       $25,u
+* Collision recovery does not repurpose the AGI random-animation flag.
                     endm
 POSITION_BOUNDARY_READ macro
                     lda       motionedge,x

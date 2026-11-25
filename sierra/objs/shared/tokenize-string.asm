@@ -10,18 +10,34 @@ TokenizeLoop        lda       ,u+       load next input character
                     beq       TokenizeDone done if null terminator
                     TOKENIZE_FOLD
                     leax      >PunctChars1,pcr point to punctuation set 1
+                    ifne      WILDBITS
+                    bsr       FindByte
+                    else
                     lbsr      FindByte  check if char is punctuation
+                    endc
                     bne       TokenizeLoop skip if found (discard punct)
                     leax      >PunctChars2,pcr point to punctuation set 2
+                    ifne      WILDBITS
+                    bsr       FindByte
+                    else
                     lbsr      FindByte  check second punct set
+                    endc
                     bne       TokenizeLoop skip if found (discard)
                     bra       TokenizeStoreChar non-punct: store it
 TokenizeCharLoop    TOKENIZE_FOLD
                     leax      >PunctChars1,pcr point to punct set 1
+                    ifne      WILDBITS
+                    bsr       FindByte
+                    else
                     lbsr      FindByte  check if char is punctuation
+                    endc
                     bne       TokenizeAddSpace if punct: insert space first
                     leax      >PunctChars2,pcr point to punct set 2
+                    ifne      WILDBITS
+                    bsr       FindByte
+                    else
                     lbsr      FindByte  check second punct set
+                    endc
                     bne       TokenizeNextChar if punct: skip char
 TokenizeStoreChar   ldx       ,s        load output pointer
                     sta       ,x+       store character to output

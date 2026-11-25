@@ -5125,9 +5125,10 @@ DiscardPicFound     stu       $01,s     ; save pic list node pointer
                     lda       #$06
                     ldb       ,s        ; reload pic number
                     lbsr      PushScript ; push discard-pic script entry
+                    ldu       $01,s     ; reload discarded node pointer
+                    ldd       ,u        ; save successor from discarded node
                     ldu       >PicListPtr,pcr ; get predecessor node pointer
-                    ldd       #$0000
-                    std       ,u        ; unlink node from list
+                    std       ,u        ; unlink node and retain its successor
                     lbsr      ClearBothRanges ; clear rendering ranges
                     ldu       $01,s     ; reload discarded node pointer
                     stu       <$0055    ; store for free-space calc
@@ -9112,7 +9113,8 @@ DiscardViewDoFree   stx       $01,s     ; save view node pointer
                     ldb       ,s        ; view number
                     lbsr      PushScript ; record in script replay buffer
                     ldu       >ListLastNode,pcr ; previous list node
-                    ldd       #$0000    ; null link word
+                    ldx       $01,s     ; discarded view node
+                    ldd       ,x        ; successor link
                     std       ,u        ; unlink discarded node from list
                     lbsr      ClearBothRanges ; clear object motion ranges
                     ldx       $01,s     ; view node pointer

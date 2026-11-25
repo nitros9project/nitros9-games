@@ -988,26 +988,41 @@ description, interrupt cleanup and unchanged free memory in MAME.
 
 ### Owned text screens and graphics restoration
 
-`text.screen` (106) now uses the existing terminal-owned bitmap as a 40-by-25
-text screen. It fills the persistent character plane with spaces and the color
-plane with the selected background; `display` then draws through the same font
-and cell renderer used by graphics overlays. The 200 text scanlines occupy the
-top of the 240-line bitmap. The remaining 40 scanlines retain the black border.
-The combined game picture remains allocated underneath the text screen.
+`text.screen` (106) selects CoCo's text overlay and leaves the graphics page
+intact. Previously the Wild Bits handler incorrectly cleared all 40x25 cells
+to an opaque background, hiding the picture. It now closes an active popup
+and sets the VM's text-mode flag. The first text display builds a large white
+panel with a one-cell black tile frame; later displays wrap within the panel
+and refresh its frame before compositing text over the retained scene. KQ1
+logic 53's king speech uses this path. The KQ1 MAME king-dialog check verifies
+the black border and white text area, holds the dialogue for 2,000 frames,
+dismisses it with fresh input, and confirms exact scene restoration and memory
+recovery. A native actual-6809 pixel fixture compares the result with the
+original KQ1 picture plus independently expanded font cells. CoCo's
+`cmd_text_screen` selects the text overlay without clearing the graphics page.
+The ordinary modal `print` path now draws a white text area with a black frame
+across rows 5–19, leaving scene pixels visible above and below. Its text wraps
+within the safe interior columns. KQ1 lake/castle descriptions and KQ4 `look`
+messages are checked against this panel. KQ4 logic 99's opening title credits
+use positioned text and remain a separate title presentation. The opaque KQ4
+Inventory page is separate:
+`InventoryStatus` explicitly fills the text plane with white cells before
+drawing the list. `graphics` (107) clears text cells, composes current objects,
+and restores the picture. A direct normalized CoCo/native capture comparison
+for both modes remains part of S04.
 
 `graphics` (107) closes any active window, clears the text cells, composes the
 current objects, and restores the picture. Bit 6 of `presentationconfigured`
 requests a full bitmap clear on this transition. The clear consumes that bit
 and marks every picture band dirty; bit 7 still requests a full text repaint.
 This removes text outside the picture without changing terminal ownership or
-writing display registers directly. During text mode, normal game cycles update
-logic and input while painting text instead of composing the picture.
+writing display registers directly.
 
 `clear.text.rect` and `clear.lines` share the existing rectangle loop. Graphics
 mode retains the black/white clearing convention; text mode clears to black.
 All of this lives in the existing graphics, text UI and object components; no
-new platform assembly files or helper modules are needed. The resident build
-uses 23,774 code bytes and 24,460 private bytes, leaving 34 code bytes.
+new platform assembly files or helper modules are needed. The 2026-10-29
+production build uses 23,792 of 23,808 code bytes and 24,450 private bytes.
 
 The CPU integration suite checks all text cells and glyph pixels with four
 background colors, three-cycle persistence, repeated graphics restoration and
@@ -1640,7 +1655,10 @@ A separate interrupted run also restores terminal options and the memory map
 reproduces that path, separating modifier/key events and clearing residual
 shell input before collecting the memory report.
 
-### Native screen shake — 2026-10-07
+### Native screen shake — 2026-10-07 (superseded)
+
+This implementation was removed from opcode 110 because the CoCo reference
+handler is a one-operand no-op. See the [S04 opcode 110 CoCo-stub checkpoint](WILDBITS-PARITY.md#s04-opcode-110-coco-stub-checkpoint-2026-11-06). The notes below are historical evidence for that now-unreachable helper, not current game behavior.
 
 Opcode 110 now runs `GameShakeCommand`, with the effect in the existing grouped
 `wildbits-graphics.asm`. Its cold entry shares the immutable `wbstate` helper
@@ -2030,7 +2048,9 @@ checks instruction bounds and overlapping branch targets, decodes variable-lengt
 Reports contain opcode locations and call/room destinations, rather than copied
 game assets. Variable destinations remain unresolved; the direct root graph is
 a conservative graph, not proof that every listed script is reachable during
-ordinary play. Saved scan starts and actual puzzle states need runtime coverage.
+ordinary play. The 2026-10-29 direct scan-start/reset handler comparison passes;
+saved scan-position reporting and actual puzzle-state progression still need
+runtime coverage.
 
 Run it from `sierra`:
 
@@ -2738,12 +2758,15 @@ and `/tmp/sierra-priority-final-kq3.log`.
 ## Parity checklist: compatibility stubs, capacity and audit inventory
 
 The active acceptance contract is [WILDBITS-PARITY.md](WILDBITS-PARITY.md).
-Commands 144, 175, 179 and 180 now succeed like their actual CoCo stub bodies,
+Commands 144, 175, 179 and 180 succeed like their actual CoCo stub bodies,
 consuming the catalog's literal/variable operands. They are not silent fallbacks
-for missing CoCo features. The catalog now routes 175/182 commands; seven real
-diagnostic/menu/save routes remain unsupported. The common executor regression
-runs 43 scripts in both interpreters at two bases, checks complete variables and
-flags, and includes a counterpart of Manhunter I's overlapping instruction paths.
+for missing CoCo features. The catalog now routes all 182 commands; the 2026-10-19
+all-title audit found no statically visited unsupported opcode sites. The common
+executor regression now runs 51 scripts in both interpreters at two bases,
+checks complete variables and flags, and includes both Manhunter I logic 159
+instruction interpretations. The 2026-10-29 addition executes all three
+indirect-variable commands through the actual CoCo/native dispatchers, reading
+and writing via index variables pointing at v0 and v255.
 The audio suite checks opcode 175 while notes are playing, including exact packet
 sequence, completion and cleanup.
 
@@ -2757,12 +2780,21 @@ prefix and 24,465 private bytes. The private helper ABI remains 6. This initial
 recovery does not yet close the checklist's capacity gate for all missing features.
 
 `audit_game_scripts.py --self-test --all-games --output-dir /tmp/sierra-audits`
-now inventories all fourteen bundled resource sets. Reports include resource
+inventories all fourteen bundled resource sets. The 2026-10-19 run in
+`../.wildbits-test/audit-20261019` reports zero statically visited unsupported
+opcode sites. Reports include resource
 SHA-256 values, ignored/unsupported command sites, formatter findings, unresolved
 dynamic destinations and overlapping decodings. `coverage.json` accounts for all
 182 command and 19 predicate catalog entries with routes, acceptance gates and
 candidate regression families. Candidate tests are explicitly not per-command
 equivalence results; the complete coverage gate remains open.
+
+The 2026-10-19 source-linked manifest revision now also records CoCo/native
+source files, the shared-core/platform-backend boundary and explicit route or
+predicate test results. The audit self-test requires source links for every
+catalog entry. This closes source/route accounting only; semantic behavior
+remains open wherever no focused differential result is recorded. The refreshed
+manifest is in `/private/tmp/sierra-audit-source-manifest-rerun-20261019`.
 
 Manhunter I logic 159 jumps from byte 245 into a conditional's skip operand at
 443. Report mode retains both bounded instruction interpretations and records
@@ -2799,8 +2831,17 @@ index zero is normalized to an empty substitution rather than following CoCo's
 unsafe header-derived pointer; this remains an explicit decision under S05.
 The bounded recursion and output policies also remain part of that open gate.
 
-`check_decimal_index.py` passes 531 actual CoCo/native formatter comparisons and
-4,094 index/formatter cases, including cursor, state, stack and code guards.
+`check_decimal_index.py` passes 548 actual CoCo/native formatter comparisons
+and 4,094 index/formatter cases, including cursor, state, stack and code guards.
+Sixteen unknown-escape spellings extracted from audited original messages now
+also run through both assembled formatters; the prose is not printed or stored
+in the report. The actual Space Quest II logic 82 `%m` and Space Quest I logic 0
+`%s` missing-operand messages now run through the loaded native game path and
+match their literal-text controls pixel-for-pixel; exact CoCo comparisons for
+those original resource contexts remain open. The added trailing-percent case
+first reproduced a CoCo-success/native-error mismatch.
+Wild Bits now completes that empty malformed tail successfully, like the CoCo
+formatter, without reading beyond the bounded source terminator.
 The native playback suite passes updated visible-output cases and retains
 missing/corrupt resource, recursion and output-bound failures. Decimal parsing
 now returns its byte result without writing private state on each digit; empty
@@ -3403,8 +3444,9 @@ log is retained and is not a pass. The corrected complete target passed on froze
 /tmp/sierra-host-watchdog-verified-complete-check-20261016.log. All 58 check
 commands completed uninterrupted with terminal exit status 0. The log also
 contains the font-export build prerequisite, which is not a check command.
-A04 remains open for the final product revision after the remaining feature
-gates; this completed run establishes the current ABI-13 baseline. The confirmed reproduction used emulator log
+A04 was still open at this ABI-13 baseline; the ABI-14 trace revision later
+passed the complete 59-check target (see the accepted trace section below). The
+confirmed reproduction used emulator log
 /var/folders/qq/d73w3j8x5gx3b9q2bsncq3mr0000gp/T/sierra-xroar-5fhogf1r.log.
 
 
@@ -3487,8 +3529,50 @@ and exact ownership recovery. Artifacts are in
 The matching complete 59-check target passed on frozen revision `f1a52a3`
 at `.wildbits-test/trace-catalog-full-20261016/checkout/sierra`, with its log at
 `.wildbits-test/trace-catalog-full-20261016/check.log`. All 59 check commands finished uninterrupted with terminal exit status 0.
-This establishes the current playable baseline; A04 remains a gate for the
-final product revision after the remaining migration work. These paths are relative to the workspace root and survive loss of `/tmp`.
+This establishes the playable baseline at that catalog revision; the ABI-14
+trace revision subsequently passed the complete 59-check target. The retained
+final log is `.wildbits-test/wildbits-check-final-20261017.log`. These paths are
+relative to the workspace root and survive loss of `/tmp`.
+
+
+## Native trace backend integration (ABI 14, accepted 2026-10-17)
+
+The Wild Bits build now routes commands 149 and 150 to the grouped `wbui`
+backend. The implementation keeps trace mode, selected logic, display bounds,
+history, and page ownership in each game instance. Command and predicate
+events are emitted from the shared VM integration points; the normal CoCo
+build emits no additional trace code. The UI backend preserves the text plane
+and caller context around its trace overlay and releases temporary page
+mapping before returning to the interpreter.
+
+The ABI-14 game/UI/state modules assemble within the current resident and
+provider limits. The new native dispatch checks include commands 149/150;
+focused interpreter tests verify trace configuration operand consumption and
+permission-denied activation. The provider-level CPU harness exercises page
+allocation/mapping, error cleanup and retries, saved text/context restoration,
+configuration bounds, packed command/predicate masks, operand formatting,
+event history and overlay restoration at two load bases. The complete local
+59-check `make check` run passes, and the standard KQ1 Wild Bits MAME smoke
+passes with these modules.
+
+Acceptance is now complete for C04/C05. `tests/check_wbgame.py` runs loaded
+scripts through trace configuration, activation, event display, stepping,
+continued assignment and normal return; it also asserts release of the
+instance-owned trace page. Its boundary cases cover configurations `(0,1,8)`,
+`(255,255,255)`, and `(0,0,0)`, the minimum display row, wrapped byte
+arithmetic, and the 40x25 bounds. `tests/check_trace.py` compares all 256 event
+values with the CoCo reference contract.
+
+The real-driver MAME run also passes:
+`SDL_VIDEODRIVER=dummy python3 tests/check_wbgame_mame.py --trace ...` prints
+`PASS: active native trace overlay advances through real KQ1 logic events`.
+The final rerun's captures are in
+`/private/tmp/wildbits-trace-final-rerun-20261017`. An earlier fixture revision
+had an invalid resource length, and a later fixture exited before it could
+capture active trace screens; those failed attempts were superseded by the
+passing cyclic logic fixture. The complete 59-check `make check` target also
+passes on this product revision, with log
+`../../.wildbits-test/wildbits-check-final-20261017.log`.
 
 
 ## Bounded per-instance audio adapter storage (ABI-14)
@@ -3510,9 +3594,129 @@ from one build. The current package guidance in `WILDBITS-README.md` and
 The complete `make check` target passes all 59 commands with exit status 0,
 including actual instance/audio integration, full game interaction, rendering,
 resource, and trace-reference tests. Build and test output is retained in
-`.wildbits-test/audio-reserve-20261016`. The real-driver KQ1 menu test passes
+`../../.wildbits-test/audio-reserve-20261016`. The real-driver KQ1 menu test passes
 with ABI-14 modules, including modal input/restoration, interrupt exit and
 unchanged free memory (`mame-kq1-menu.log`).
+
+
+## Focused VM and predicate differential checks (2026-10-19)
+
+Six actual-6809 CoCo/native regression scripts pass on the current working tree:
+
+- `check_coco_conditions.py`: all 19 predicate-table entries relocate, with
+  unsigned comparison and packed-flag boundaries at two code bases.
+- `check_condition_flow.py`: all 16 mixed AND/OR/NOT combinations, short-circuit
+  callback order, branch targets, cursor advancement, stack balance and code
+  immutability.
+- `check_math_commands.py`: 4,544 calls, including all byte dividends,
+  zero-divisor results, boundary products/quotients, variable indexes and
+  aliasing.
+- `check_random_command.py`: all 256 controlled generator bytes across eleven
+  inclusive/wrapping ranges, destination indexes 0/255 and range edges.
+- `check_said.py`: ASCII folding, both wildcard forms, endian IDs, mismatch and
+  length boundaries, input gates and cursor guards.
+- `check_logic_executor.py`: 51 controlled scripts at two code bases, covering
+  actual command/test dispatch, both Manhunter I logic-159 decodings,
+  arithmetic/flags, branches, operand advancement and frame guards. It also
+  directly compares CoCo absolute and native offset-based scan-start/reset
+  handlers at two code bases, including per-logic slot isolation.
+
+These checks close specific S01 behavior slices, not the whole semantic gate.
+The refreshed executor compares indirect-variable reads/writes and preloaded
+nested-resource calls in both owners at two code bases. Its malformed `assignn`
+probe also records a safety difference: CoCo consumes an adjacent guard byte
+and succeeds, while Wild Bits returns bounded EOF without changing the target
+variable; stack and code guards survive both paths. This difference still needs
+an explicit acceptance decision, and broader malformed-script/error-cleanup
+comparisons remain open. The first sandboxed run could not bind the local
+debugger socket; rerunning with loopback access produced the prior six passes,
+and the refreshed 2026-10-29 executor run passes the scan-marker comparison.
+
+
+## Resource format, decompression and lifetime checks (refreshed 2026-10-29)
+
+Three more actual-6809 CoCo/native regression scripts pass:
+
+- `check_lzw.py` compares 228 compressed KQ1 logic/view/sound resources against
+  the shared byte oracle, exercises 528 direct reads across bit alignments and
+  code widths, rejects malformed native streams and checks exact input
+  consumption.
+- `check_resource_format.py` performs 9,184 directory/header decoding calls,
+  covering each directory byte, size-byte boundaries, endianness, source guards,
+  preserved context and immutable code.
+- `check_resource_lifetime.py` exercises 18 actual discard calls at two load
+  bases, including CoCo suffix rewind and native typed-slot release, absent-slot
+  and release-failure behavior.
+
+All three pass on the refreshed 2026-10-29 run: `check_lzw.py` compares 228
+compressed KQ1 logic/view/sound resources through both actual decoders;
+`check_resource_format.py` performs 9,184 directory/header decodes at two code
+bases; `check_resource_lifetime.py` covers 18 actual discard calls at two code
+bases.
+`check_logic_executor.py` additionally extracts and runs the original
+Manhunter I logic 159 jump and both overlapping IF paths in both owners at two
+code bases, matching results and normalized cursors. These cover decoder,
+discard and overlap slices. `check_replay_differential.py` also compares CoCo
+`PushScript`/checkpoint rollback with native resource replay records at two
+code bases; both retain the same operation sequence after tail overwrite.
+Native-only `check_wbexec.py` passes mapped bytecode across physical pages,
+cached and nested calls, bounded fetch, unsupported-command error return and
+allocation cleanup. It validates the Wild Bits loader path but does not replace
+a CoCo/native comparison. `check_logic_executor.py` now compares a four-resource
+nested logic call in both owners at two code bases, including caller cursor,
+active-resource, stack, cache and variable restoration; the native asset-pointer
+mapping boundary is mocked, so this is specifically a preloaded-cache/VM test.
+S02 still needs cache replacement and reload through the actual resource loaders,
+runtime checkpoint restore that replays resources, and broader read/map/
+truncation failure-path comparisons.
+
+The native-only `check_wbasset.py` pass exercises the actual mapped loader on
+original KQ1 logic 0, an exact 16-KiB plain resource and a 65,535-byte LZW output;
+it also checks malformed input and partial I/O, allocation, map, unmap, read and
+write cleanup. This closes the native loader slice only. The same disk-loader
+and failure cases still need CoCo/native comparison.
+
+The current KQ4 MAME intro trace reaches the process-owned Wild Bits PSG driver.
+It asserts the original command-99 sequence for sound resources 2, 100, 101 and
+102 with flags 220, 154, 154 and 154. `check_native_audio.py` loads those exact
+four CoCo-format resources and compares all 386 note-event packets through the
+Wild Bits adapter, including pitch, amplitude, duration, order and end markers.
+The audio-enabled MAME run records 1,111 owned PSG writes and a varying
+post-boot intro signal in a stereo WAV (centered RMS 51.7, peak-to-peak 231).
+Write counts vary with asynchronous scheduling. This verifies the resource
+event mapping and mixed output, not perceived loudness or timed CoCo playback
+parity. See `WILDBITS-PARITY.md` under S07 and `WILDBITS-MAME.md` for details.
+
+
+## Object and motion primitive differential checks (2026-10-19)
+
+Nine actual-6809 CoCo/native scripts pass: `check_object_flags.py`,
+`check_object_scalar_commands.py` (7,188 calls), `check_object_bounds.py`
+(7,500 cases), `check_object_terrain.py` (3,328 scans), `check_motion_setup.py`,
+`check_move_direction.py` (9,280 calls), `check_object_collision_filter.py`
+(3,084 calls), `check_object_coordinates.py`, and `check_cel_advance.py`.
+They compare object field/flag preservation, screen and horizon bounds,
+terrain/control masks, motion setup and completion, direction selection,
+collision filtering, coordinate aliases/deltas and cel loop modes. They include
+callback, stack and record guards; the harness relocates code to two addresses
+where applicable. Terrain pixel mapping is mocked. This verifies primitive
+contracts, not integrated scenes: overlapping actors, time-based follow/wander,
+blocking interactions and room-edge transitions remain open under S03.
+
+
+## Picture, fill and sprite differential checks (2026-10-19)
+
+Seven graphics checks pass. `check_picture_stream.py` covers streamed picture
+handling and malformed-input cleanup. `check_fill_selection.py` compares 9,136
+fill selections; `check_add_to_picture.py` checks 52 immediate/variable static
+cel draws and priority/occlusion; `check_cel_clipping.py` compares 5,920 cases;
+`check_priority_bands.py` covers all 168 CoCo tables, 4,565 native custom
+priority/band combinations and transitions; `check_wbsprite_damage.py` checks
+erase restoration and span failures. `check_packed_pictures.py` compares all 443
+bundled original packed pictures against CoCo and an independent oracle and
+rejects bounded malformed input. All pass. Full scene pixel/palette
+normalization, text/graphics switching and restoration across every modal/failure
+path remain open under S04.
 
 The two-game Larry/KQ1 MAME acceptance attempt fails at the second game's
 inventory-font checkpoint. Repeating the same command with the verified ABI-13
@@ -3520,3 +3724,137 @@ module set produces the same failure and the same shell/error screen, so this
 does not isolate a regression from the reservation reduction. Retained logs and
 captures document both attempts. V04 remains open; this control result does
 not close two-terminal acceptance.
+
+
+## All-title startup checkpoints (2026-10-18)
+
+`tests/check_wbgame_mame.py --startup-only --game <title>` prepares a private
+MAME disk with one bundled original resource set, starts `wbgame`, captures the
+shell and early game/intro display, sends Ctrl-C, verifies return to the shell,
+and compares free memory before and after. The assertion is color-mode neutral:
+it requires a nonblank changed display, since several original titles use a
+two-color text presentation. All fourteen bundled titles pass this startup
+checkpoint. Representative KQ1, KQ3 and Larry gameplay checkpoints also pass;
+artifacts and exact coverage limits are listed in
+[`WILDBITS-CHECKPOINTS.md`](WILDBITS-CHECKPOINTS.md). This is startup/cleanup
+coverage only. It does not close V02's help, dialogue, menu, inventory,
+persistence, death, puzzle or ending requirements, and it does not prove V03
+continuous progression. KQ4's captured screen is still an intro credit; it is
+not evidence that KQ4 reached playable input. The separate credit-overlay and
+selected packed-picture regressions pass, but do not establish story interaction.
+
+
+## Tokenizer and formatter comparisons (2026-10-19)
+
+Six parser/text regressions pass. `check_tokenizer.py` covers every non-NUL byte
+value in three positions and delimiter/drop/trim boundaries;
+`check_dictionary_lookup.py` checks mapped/streamed lookup, longest phrases,
+case folding, ignored words and partial matches; `check_string_compare.py`
+compares byte classes and punctuation/length/slot boundaries through real
+condition dispatch; `check_string_slots.py` covers `set.string` and
+`word.to.string`; and `check_text_helpers.py` checks bounded copies and decimal
+input/output. `check_decimal_index.py` performs 4,094 calls and 548 direct
+formatter comparisons, seven recursion chains, a 2,211-byte output edge, and
+original Space Quest II missing/corrupt/truncated-message cases.
+
+The formatter suite builds its 16 malformed/unknown escape samples from the 18
+all-title static findings (including duplicates) and compares each with the
+actual CoCo formatter. Both original missing-operand cases also have
+resource-boundary tests, so the static anomaly inventory is connected to runtime
+evidence.
+
+The test exposes a real policy difference: Wild Bits rejects formatter depth
+above four active frames and caps output at 2,048 bytes, while CoCo follows its
+unbounded paths into caller memory/resource. S05 stays open until this policy is
+accepted as a platform difference or brought into parity, and remaining
+original-message/error-cleanup cases are resolved.
+
+
+## Input, inventory and modal regressions (2026-10-19)
+
+Six focused checks pass: `check_cancel_line.py` compares 316 actual cancel/echo
+calls; `check_inventory_commands.py` covers all inventory commands and
+possession/room predicates at two code bases; `check_persistent_window.py`
+checks nonblocking text and character/color/pixel restoration after workspace
+reuse and nested modals; `check_game_clock.py` covers 2,048 cycle-flag edges, 26
+frame-clock cases and 4,118 clock calls; `check_wbparser.py` exercises typed
+commands, stream refills, backspace and single acceptance; `check_wbplay.py`
+checks loaded fixtures for pause/resume, modal restoration, parser/input and
+resource ownership, including original KQ1/Larry/SQ messages.
+
+These checks pass, but S06 remains open for the full held/repeated/fresh-key
+matrix, stale-key dismissal, inactive-terminal ownership and room-transition
+interactions through the real event loop.
+
+
+## Audio adapter failure and queue checks (2026-10-19)
+
+`check_native_audio.py` passes the native audio adapter cases: converted CoCo
+note/end packets, bounded resource reads, helper/driver absence and stale
+versions, invalid amplitudes, busy-then-available behavior, truncated notes,
+queue refill during a long modal wait, 16 nested logic calls, audio completion
+and ownership cleanup. S07 still needs logical note/event-sequence comparisons
+over full game scenes and modal pause/device-change interactions.
+
+
+## Persistence and restart coverage in the complete target (2026-10-19)
+
+The current 59-command `make -f wildbits.mk check` target passes with exit status
+0. Loaded-game coverage includes restart confirmation/cancellation and unwind,
+automatic/manual filename selection surviving restart, 64 actual CoCo/native
+replacement/create-error cases, cold snapshot validation, partial reads,
+malformed state rejection and continued execution after restore. Original-game
+MAME checkpoints additionally cover KQ1 save/walk/restore/look, a controlled
+KQ1 quest-save ending, and KQ3 save/change/restore with exact scene/position
+recovery and memory cleanup. S08 remains open for the complete corruption,
+wrong-game, short-write/full-disk and nested/modal restart comparisons against
+CoCo-observable resumed behavior.
+
+
+## Current Wild Bits performance profile (2026-10-29)
+
+The production MAME profiler was rerun with current `wbgame` SHA256
+`3c6f94a5aa06d23382b1b367829079b12f387fd9ad3947e0d3c95466481d704b`
+(`wbui` 8,089 bytes, `wbstate` 3,193 bytes), Wild Bits MAME 0.289, `wbjr2`
+`-bios turbo`, the stock Wild Bits test image, host audio/video disabled, and
+MAME unthrottled. The profiler measures 43 original Larry gameplay cycles at
+12.5875 MHz E-clock. `check_wbgame_mame.py --larry --profile` passes the full
+Larry quiz, movement, look-dialog, interrupt and free-memory assertions; the
+same 400-frame walk covers 20.52 AGI pixels.
+
+Median measured intervals are 27.36 ms from root logic to the next cycle,
+0.412 ms for the clock gate, 37.27 ms for object update/input, 113.99 ms from
+scene composition to picture presentation, 55.05 ms during picture
+presentation, and 74.43 ms from text drawing back to root logic. These are
+production entry-to-entry intervals and include OS work between breakpoints;
+they are not isolated instruction timings. Exact CPU-cycle medians and the
+215 sprite-entry records are in
+`/private/tmp/wildbits-v05-larry-profile-current-pass-20261029/profile.json`,
+`profile-events.json` and `profile-sprites.json`; movement is in
+`movement.json`. The test also corrected its Larry text assertion to handle
+wrapped popup rows and picture cells visible behind transparent parts of the
+window.
+
+This refresh establishes only the Wild Bits side. There is no matched current
+CoCo 3 profile yet, and the sample excludes a custom-priority comparison, room
+loads, modal timing, sound workload and an inactive second terminal. V05 stays
+open pending those matched results and user-agreed acceptance thresholds.
+
+### Current Wild Bits performance profile rerun (2026-11-06)
+
+The real-driver Larry profile was repeated on the current 23,752-byte `wbgame`
+(`b2f68b5cb1e35f87d0b6d0e33238ac89d7b3eeda2e022802e97397a5187ee0bb`), with
+`wbui` `ae744f6d72084c54ae63dfe68e6786d670e080a8b22ee9f29ff7dff5b08ec134` and
+`wbstate` `867942abbd8aa614f3c69bf897b6e90ff70c453e221b0186f8ae762329cfef0e`.
+The compatible boot/graphics pair, `wbjr2 -bios turbo`, unthrottled MAME, and
+host audio/video disabled were used. The run again completed the original Larry
+quiz, movement, `look`, dismissal, interrupt and free-memory checks; its
+400-frame walk moved 20.52 AGI pixels. Across 43 cycles, median root-logic to
+next-cycle was 27.371 ms, clock gate 0.412 ms, object update/input 37.240 ms,
+composition to presentation 113.912 ms, presentation work 55.006 ms, and text
+draw back to root logic 74.268 ms. Exact data is in
+`/private/tmp/wildbits-larry-profile-current-20261106/profile.json`.
+
+This refreshes the Wild Bits baseline only. There is still no matched CoCo 3
+profile, custom-priority comparison, room-load/modal/sound workload, inactive
+terminal run, or agreed performance threshold; V05 remains open.

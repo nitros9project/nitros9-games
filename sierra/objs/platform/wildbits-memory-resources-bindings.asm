@@ -55,9 +55,9 @@ LZW_CHAIN_RETAIN macro
                     endm
 
 
-* Animation-stage interface. Native validates 2..4 direction-driven loops,
-* restores resource context after view acquisition and tail-calls cel advance.
-ANIMATION_STRICT_LOOP_COUNTS equ 1
+* Animation-stage interface. Match the CoCo loop-count and flag-20 policy;
+* native AGI flags are byte-valued in vmflags rather than packed at $01B0.
+ANIMATION_STRICT_LOOP_COUNTS equ 0
 ANIMATION_PREPARE macro
                     endm
 ANIMATION_SELECT_LOOP macro
@@ -70,6 +70,12 @@ ANIMATION_SELECT_LOOP macro
 ANIMATION_FINISH macro
                     clrb
                     rts
+                    endm
+ANIMATION_REVERSE_ENABLE macro
+                    pshs      x
+                    ldx       <resourcebase
+                    lda       vmflags+20,x
+                    puls      x
                     endm
 ANIMATION_ADVANCE_BEFORE_RESET macro
                     endm

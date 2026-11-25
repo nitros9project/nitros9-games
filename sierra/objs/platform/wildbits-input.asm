@@ -16,29 +16,23 @@ InputClearController sta      ,x+
                     rts
                     endc
 SetKeyCommand       ldu       <resourcebase
-                    leax      vmkeys,u
-                    ldy       #0
-InputFindKey        tfr       y,d
-                    cmpb      <vmkeycount
-                    bhs       InputAddKey
-                    ldd       vmarguments,u
-                    cmpd      ,x
-                    beq       InputStoreKey
-                    leax      3,x
-                    leay      1,y
-                    bra       InputFindKey
-InputAddKey         ldb       <vmkeycount
+                    ldb       <vmkeycount
                     cmpb      #50
                     bhs       InputKeyFull
+                    lda       #3
+                    mul
+                    leax      vmkeys,u
+                    leax      d,x
                     inc       <vmkeycount
-InputStoreKey       ldd       vmarguments,u
+                    ldd       vmarguments,u
                     std       ,x
                     ldb       vmarguments+2,u
                     stb       2,x
                     clrb
                     rts
-InputKeyFull        ldb       #E$MemFul
-                    orcc      #1
+* CoCo has a fixed 50-entry key table and silently ignores new bindings
+* after its last slot. Preserve that behavior and script continuation.
+InputKeyFull        clrb
                     rts
 InputTest           ldb       <vmopcode
                     cmpb      #12
@@ -263,6 +257,7 @@ GameGetInput        ldu       <resourcebase
                     lda       vmarguments,u
                     cmpa      #12
                     lbhs      GameGetInvalid
+                    sta       resourcecommands+2041,u
                     lda       vmarguments+2,u
                     cmpa      #25
                     lbhs      GameGetInvalid
@@ -279,6 +274,8 @@ GameGetInput        ldu       <resourcebase
                     bra       GameGetSave
 GameGetNumber       lda       #2
                     sta       dialoginputmode,u
+                    lda       vmarguments+1,u
+                    sta       resourcecommands+2041,u
                     sta       inventorykey,u
                     lda       #10
                     sta       inventoryrow,u
@@ -304,7 +301,7 @@ GameGetSaveByte     lda       ,x+
                     lda       dialoginputmode,u
                     cmpa      #2
                     beq       GameGetCommitNumber
-                    lda       vmarguments,u
+                    lda       resourcecommands+2041,u
                     ldb       #40
                     mul
                     leay      vmstrings,u
@@ -318,7 +315,7 @@ GameGetCommitNumber leax      parserline,u
                     bsr      AtoI
                     tfr       a,b
 GameGetNumberStore  leay      vmvariables,u
-                    lda       vmarguments+1,u
+                    lda       resourcecommands+2041,u
                     pshs      b
                     tfr       a,b
                     clra
@@ -430,40 +427,42 @@ GameLineDone        lda       #1
                     clrb
                     rts
 
-GameWordToString    ldu       <resourcebase
-                    ldb       vmarguments,u
-                    beq       GameWordInvalid
+* Two operands have just been read, so U is the process-private base.
+GameWordToString    ldd       vmarguments,u
+                    cmpa      #12
+                    bhs       GameWordInvalid
+                    decb
                     cmpb      #20
-                    bhi       GameWordInvalid
+                    bhs       GameWordInvalid
                     lda       parsercount,u
                     tst       vmvariables+9,u
                     beq       GameWordBound
                     inca
 GameWordBound       pshs      a
                     cmpb      ,s+
-                    bhi       GameWordInvalid
-                    lda       vmarguments+1,u
-                    cmpa      #12
                     bhs       GameWordInvalid
                     pshs      b
+                    lda       vmarguments,u
                     ldb       #40
                     mul
                     leay      vmstrings,u
                     leay      d,y
                     puls      b
-                    decb
                     leax      parseroffsets,u
                     leax      b,x
                     lda       ,x
                     ldb       20,x
                     leax      parserlastline,u
                     leax      a,x
+                    cmpb      #39
+                    bls       GameWordCopy
+                    ldb       #39
 GameWordCopy        tstb
                     beq       GameWordEnd
                     lda       ,x+
                     sta       ,y+
                     decb
-                    bra       GameWordCopy
+                    bne       GameWordCopy
 GameWordEnd         clr       ,y
                     clrb
                     rts

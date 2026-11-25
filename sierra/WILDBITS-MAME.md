@@ -22,15 +22,27 @@ python3 sierra/tests/check_wbgame_mame.py --prepare-play \
 
 Run this from the games repository after `make -C sierra/objs -f wildbits.mk all`.
 The output directory must be new. The runner copies the source disk, matching
-current `wbgame`, `wbui`, `wbstate`, and `wbfont`, and converted game resources into the
+current `sierra`, `sierraui`, `sierrastate`, and `sierrafont`, and converted game resources into the
 private image. Optional `--sol-driver` and `--expanded-krnp2` have the same meaning
 as in acceptance tests. Neither the source disk nor an existing emulator is
-changed. The launcher uses normal display, sound and throttling, with the MAME
-UI initially disabled so the emulated computer receives keys. It starts the
+changed. The launcher explicitly enables MAME sound and sets the mixer to
++12 dB (MAME's maximum) while investigating an inaudible-audio report. It uses
+normal display and throttling, with the MAME UI initially disabled so the
+emulated computer receives keys. It starts the
 game after boot; press Space through the introduction, press an arrow to walk
 and press the same arrow again to stop,
 Escape for the game menu, and Ctrl-C to return to NitrOS-9. Scroll Lock toggles
-MAME UI controls. The disk retains saved games between launches.
+MAME UI controls. The launcher types `sierra /s0/game 0` after 1,000 emulated
+frames (about 17 seconds at 60 Hz), once the shell is ready to accept it. Pass
+`--start-frame N` when preparing the image to adjust that boot delay. The disk
+retains saved games between launches.
+
+When the firmware checkout has built `PSGdrv` and `fPSG` in the sibling
+`l2/.mods` directory, the runner installs both modules in `CMDS` and loads them
+before the game. This is needed because the stock MAME boot image does not load
+the process-owned PSG device; without `/fPSG`, the game disables sound. For a
+separate build location, pass both `--psg-driver /path/to/PSGdrv` and
+`--psg-device /path/to/fPSG`.
 
 ## Automated original quest regression
 
@@ -109,6 +121,39 @@ this run supplied the existing workspace's `level1/wildbits/cmds/vs.asm` in
 the temporary OS tree. That command is unrelated to `wbpic` or graphics.
 
 The test requires `os9` (ToolShed) on PATH and an already-built `wbpic`.
+
+## MAME boot and graphics-driver pairing (2026-11-06)
+
+Use a boot image and `grfdrv256` revision known to work with the selected MAME
+build. A fresh KQ4 run using `/Users/boisy/Projects/mame/mamed` with the current
+`l2_wildbitsjr2.dsk` booted to a flat pink display: the one-Space screenshot
+contained no dialogue, and the complete test could not reach gameplay. The
+current pair in that disk is `OS9Boot` (30,720 bytes,
+SHA-256 `be90ba06939dbdc87b006fe9f1be81f3d4061417fdd438901f359d84cda0997e`)
+and `CMDS/grfdrv256` (6,740 bytes,
+SHA-256 `995d057e48fbce066253d81b705a3c2380049754c41efa156f2b5d92ea519569`).
+
+Replacing only those two files in a private copy of the test disk with the
+pair from the passing 2026-11-06 KQ4 run restored rendering and passed the
+complete intro, movement, look-popup, menu, Inventory and scene-restoration
+checkpoint. That compatible pair is `OS9Boot` (32,000 bytes, SHA-256
+`7142bee71cc4261eb5ff3ca43df789cf31bc359126b95bf9aade06d7c7cd5b59`) and
+`CMDS/grfdrv256` (6,209 bytes, SHA-256
+`462de45ca8623a6fe41df835ee5ac346c39cc937c160c57adc3052b0d739af23`). The
+files were extracted from `/private/tmp/wildbits-kq4-current-20261106`; the
+passing test output is `/private/tmp/wildbits-kq4-compat-rerun-20261106`.
+This pins the emulator result to a reproducible firmware pair. It does not
+establish which pair matches physical Wild Bits hardware; V06 remains open.
+
+The passing image also needs the process-owned PSG modules. The current L2
+source disk lacked them. Installing `PSGdrv` (1,368 bytes, SHA-256
+`188aa2724410128b92b52c5e7ef408e18721aeaca291744392f8265b6f555801`) and
+`fPSG` (62 bytes, SHA-256
+`7d84e9910e95d631a7f357380bb24141a8d2611943f295321f61ac3a5459b193`) from the
+passing image made KQ4's four intro sound commands produce 1,179 owned PSG
+writes. The `--audio-wav` capture was non-silent: 48 kHz stereo, 16-bit, with
+intro-window AC RMS 54.66 and peak-to-peak 231. The full audio/video run is
+`/private/tmp/wildbits-kq4-audio-compatible-20261106`.
 
 ## Run
 
@@ -338,7 +383,7 @@ python3 ../tests/check_wbgame_mame.py \
 ```
 
 That optional trace module is assembled from `sierra.asm` with `-DWILDBITS=1` and
-`-DGAME_TRACE=1`. The harness installs the generated `wbfont` in `CMDS` with
+`-DGAME_TRACE=1`. The harness installs the generated `sierrafont` in `CMDS` with
 read/execute attributes. It checks castle graphics, the inventory title's
 pixels against the shared font, dismissal, restored graphics, interrupt exit
 and the original 376 KB free-memory map. Ctrl-I supplies the game's ASCII Tab
@@ -690,6 +735,31 @@ leading FF alignment to 256 bytes, and enforces the recipe's 32,256-byte limit.
 The tested replacement is 3,290 bytes, SHA256
 `98acf809d94d357cfe1bd8d02383b3dcea03aed7cc2ba6908fc180f810b03549`.
 
+The two-title scenario now repeats KQ1's launch and interrupt while Larry
+remains resident, and verifies Larry-only and final free-memory maps after both
+cycles. It restores 848 KiB before/after both games and 560 KiB while Larry
+alone is resident. The final rerun passes at `/private/tmp/wildbits-larry-kq1-repeat-20261108-r8`;
+its input is the compatible test image from
+`/private/tmp/wildbits-full-game-pair-correct-20261106/test.dsk`. It used
+`/Users/boisy/Projects/mame/mame` (the neighboring `mamed` binary currently
+returns `Unknown system 'wbjr2'`) and the expanded kernel with SHA-256
+`98acf809d94d357cfe1bd8d02383b3dcea03aed7cc2ba6908fc180f810b03549`.
+
+Re-run the expanded lifecycle check with the same compatible image and kernel:
+
+```sh
+python3 tests/check_wbgame_mame.py \
+  --mame /Users/boisy/Projects/mame/mame \
+  --disk /private/tmp/wildbits-full-game-pair-correct-20261106/test.dsk \
+  --firmware /Users/boisy/Projects/coco-shelf/nitros9/recipes/wildbits/feu \
+  --game ../leisuresuitlarry --larry-pair ../kingsquest1 \
+  --expanded-krnp2 /private/tmp/wildbits-larry-kq1-repeat-20261108-r7/krnp2 \
+  --output /private/tmp/wildbits-larry-kq1-repeat-20261108-rerun
+```
+
+This covers repeated KQ1 starts/exits with Larry alive. Other V04 modal/audio/save
+stress and allocation/driver failure cleanup remain open.
+
 To reproduce the kernel overlay from the OS source revision above, copy
 `level2/modules/kernel/krnp2.asm` to a temporary file. Change **only** its two
 `IFNE k2` gates for the block-map extension and `NotRAMTbl` to
@@ -758,8 +828,24 @@ snapshots, preserves an existing save, then checks independent exit/relaunch and
 exact free-memory recovery. `check_wbgame_mame.py --persistence --game
 sierra/kingsquest1` uses the original game's `save game` and `restore game`
 commands, walks out of the castle, restores Graham's position and exercises
-another command. Install `wbstate` alongside `wbgame` and `wbfont`; both harnesses
+another command. Install `sierrastate` alongside `sierra` and `sierrafont`; both harnesses
 now do so in their disposable disk images.
+
+The `check_wbpic_mame.py --native-game kingsquest1 --interpreter --persistence`
+timeline presses Escape after both the save and restore filename editors open.
+It verifies both cancellations leave the scene unchanged and that the canceled
+save creates no file, then continues through valid save/restore, overwrite,
+invalid fields, wrong game, checksum failure, truncation, unsupported version,
+declared-size mismatch and trailing bytes. The passing current-module run is
+captured in `/private/tmp/wildbits-state-headers-20261108-r3`; filename input is
+intentionally omitted after each canceled prompt so MAME does not type it
+afterward.
+
+Use the same command parameters with `--full-disk` to leave less space than a
+snapshot requires, save through the game's real filename prompt, and verify the
+visible error, clean dismissal, unchanged scene and absence of a partial file.
+The verified run leaves 6 KB free and is captured in
+`/private/tmp/wildbits-full-disk-20261108-r4`.
 
 Completed runs are recorded in [WILDBITS-ENGINE.md](WILDBITS-ENGINE.md).
 Full-adventure completion remains unverified.
@@ -770,11 +856,39 @@ requires AGI command 99 and non-muted PSG store instructions while a process
 owns the device; it writes the captured bytes to `audio-writes.json`. It uses
 the existing disposable disk workflow and leaves the player's emulator alone.
 
+KQ4's own opening sound sequence can be checked through its one-Space intro
+runner. Pass the same PSG modules explicitly when they are outside the firmware
+tree:
+
+```sh
+SDL_VIDEODRIVER=dummy python3 sierra/tests/check_kq4_mame.py \
+  --mame /path/to/mamed --disk /path/to/wildbits.dsk \
+  --firmware /path/to/nitros9/recipes/wildbits/feu \
+  --module-file sierra/objs/wbgame --helper-file sierra/objs/sierrastate \
+  --ui-helper-file sierra/objs/sierraui \
+  --psg-driver /path/to/PSGdrv --psg-device /path/to/fPSG \
+  --audio-trace --output /tmp/wildbits-kq4-audio
+```
+
+`--audio-trace` asserts that the original intro issues command 99 and makes
+non-mute PSG writes. Add `--audio-wav` to enable MAME's automatic sound mixer
+and capture its output in `audio.wav`; the test verifies varying samples after
+removing the DC offset in the post-boot intro window. Without `--audio-wav`,
+the deterministic trace run keeps host sound disabled. The audio-enabled
+2026-10-30 capture is recorded in `WILDBITS-PARITY.md`; it verifies mixed WAV
+signal, not perceived loudness or CoCo note-sequence parity.
+The trace now requires sound resources 2, 100, 101 and 102 in that order with
+completion flags 220, 154, 154 and 154. `check_native_audio.py` separately
+compares all 386 note events from those original CoCo resources against the
+actual Wild Bits adapter packets byte-for-byte. This establishes note content
+and order; duration timing and modal/device-change behavior remain open under
+S07.
+
 
 ## Owned native sound and modal refill acceptance — 2026-10-06
 
 The production engine is 23,788 bytes with 24,460 bytes of declared private
-storage. Its paired `wbstate` helper is 3,550 bytes. Install both from the same
+storage. Its paired `sierrastate` helper is 3,550 bytes. Install both from the same
 build: the helper ABI includes the audio workspace and callback layout.
 The version-4, 1,370-byte PSG driver is preserved on local NitrOS-9 branch
 `codex/sierra-owned-psg` at `f99a8196`; its base is the tested Wild Bits terminal
@@ -812,10 +926,10 @@ passes after these changes. Physical hardware remains untested.
 
 ## Cached text backend and positioned messages — 2026-10-07
 
-The current matched pair is `wbgame` 23,794 bytes and `wbstate` 3,778 bytes,
-with 24,460 bytes of declared private data. `wbstate` is required for text output;
+The current matched pair is `sierra` 23,794 bytes and `sierrastate` 3,778 bytes,
+with 24,460 bytes of declared private data. `sierrastate` is required for text output;
 its immutable text code retains one DAT window until exit. Install all three
-production files (`wbgame`, `wbstate`, `wbfont`) from the same build. The helper
+production files (`sierra`, `sierrastate`, `sierrafont`) from the same build. The helper
 ABI is version 2; the save-file schema remains version 1.
 
 The geometry probe `/tmp/sierra-cold-window-probe` verified resource mapping at
@@ -904,7 +1018,11 @@ The passing run is `/tmp/sierra-preview-real-drivers-controlled`. Original KQ1
 save/restore passes at `/tmp/sierra-preview-original-kq1`; independent Larry/KQ1
 terminals pass at `/tmp/sierra-preview-pair` with the expanded emulator kernel.
 
-### Generated screen-shake regression
+### Generated screen-shake regression (superseded)
+
+This historical test described the removed Wild Bits-only opcode-110 effect.
+Opcode 110 now matches the CoCo no-op, so the shake-specific mode has been
+removed. Use the S04 checkpoint in [the parity checklist](WILDBITS-PARITY.md#s04-opcode-110-coco-stub-checkpoint-2026-11-06) for current status.
 
 Run `tests/check_wbgame_previews_mame.py` with its usual emulator, disk and
 firmware arguments plus `--shake`. Supply `--boot-file` with a compatible
@@ -919,9 +1037,30 @@ actual helper load address rather than assuming a bank window.
 the reserved dialog tail, and exercise the sleep fallback.
 
 The same generated UI regression accepts `--version` to check opcode 141's
-two-line interpreter information, dismissal, scene restoration and cleanup.
-It passes at `/tmp/sierra-version-real-drivers`. `--version` and `--shake`
-are mutually exclusive.
+interpreter information, dismissal, scene restoration and cleanup. Its source
+contains two CR-separated strings; the first wraps at a word boundary, so the
+real display has three text rows. `--version` and `--shake` are mutually
+exclusive.
+
+#### Current real-driver modal rerun — 2026-11-08
+
+The earlier `mamed` binary did not register the `wbjr2` driver despite the
+driver source and compiled object being present. An incremental MAME rebuild
+refreshed the release `mame` binary. With it, all three generated UI variants
+pass on the real Wild Bits display drivers:
+
+- `/private/tmp/sierra-preview-current-20261108-r3`: graphics-mode item pixels,
+  centered white-on-black description glyphs, keyboard dismissal, continuation,
+  exact scene restoration and memory cleanup.
+- `/private/tmp/sierra-preview-current-20261108-text-r2`: the same modal
+  checks after switching to text mode.
+- `/private/tmp/sierra-preview-current-20261108-version-r2`: the wrapped
+  three-row CoCo interpreter information, dismissal, restoration and cleanup.
+
+The MAME glyph expectations were corrected to follow the actual production
+text-plane position, white-on-black glyph colors and rendered line wrapping.
+This validates the generated modal fixtures on MAME's drivers; it does not
+close the original-game-wide S06 display parity or physical V06 gate.
 
 The cold-menu helper passes original KQ1 `--restart` at
 `/tmp/sierra-cold-menu-restart`, two games with `--larry-pair` at
@@ -1009,3 +1148,191 @@ verifying that restore initializes the previously cold helper entry. Screenshot,
 debugger-state, saved-file and MAME logs are retained under the output directory.
 The fixture does not establish complete King's Quest IV compatibility or a
 continuous original-adventure playthrough.
+
+## Current KQ4 acceptance refresh — 2026-10-31
+
+The current rebuilt modules passed the original KQ4 MAME test using the local
+Wild Bits Jr2 image and FEU firmware. The run advanced after one Space and one
+Return, verified Rosella moved into the next scene under camera scrolling,
+checked the centered `look` popup against the retained scene, then checked
+menu/Inventory dismissal and scene restoration. The reported Rosella screen-X
+centroids were 487.1 before and 179.1 after movement; `look` restored X=243.9,
+and Inventory restoration matched X=243.9. Captures and the private test disk
+are at `/private/tmp/wildbits-kq4-current-parity-20261031`. The standard
+`make -f wildbits.mk check` run for these modules passed all 59 checks; its log
+is `/private/tmp/wildbits-two-mover-parity-20261031.log`.
+
+Reproduce the KQ4 run with a fresh output directory:
+
+```sh
+python3 sierra/tests/check_kq4_mame.py \
+  --mame /Users/boisy/Projects/mame/mame \
+  --disk /Users/boisy/Projects/coco-shelf/.wildbits-test/nitros9/recipes/wildbits/l2/l2_wildbitsjr2.dsk \
+  --firmware /Users/boisy/Projects/coco-shelf/.wildbits-test/nitros9/recipes/wildbits/feu \
+  --output /private/tmp/wildbits-kq4-next \
+  --os9 /Users/boisy/Projects/coco-shelf/usr/local/bin/os9
+```
+
+This is emulator/driver acceptance for the scripted KQ4 paths, not a full
+adventure completion or a physical-hardware result.
+
+#### 2026-11-06 follow-up
+
+The current rebuilt game passes the standard KQ4 scenario with a single Space,
+rightward movement, look dialogue, menu/Inventory, and scene restoration. The
+Rosella direction trace confirms view 0's five-loop reverse-direction policy
+uses AGI flag 20. Captures, MAME log and movement JSON are under
+`/private/tmp/wildbits-kq4-flag20-standard-final-20261106`; the PSG/WAV variant
+is under `/private/tmp/wildbits-kq4-audio-20261106`. Audio trace observed 1,112
+owned PSG writes, and MAME's stereo 48 kHz WAV contains a varying intro signal
+(AC RMS 52.8, peak-to-peak 231 over the measured window). This verifies signal
+generation and mixer output, not the host speaker level. The run remains a
+scripted acceptance path, not a complete playthrough or a physical-hardware
+check.
+
+The 2026-11-06 player-control fix was also offered to the documented local
+`mamed` binary, which exits with `Unknown system 'wbjr2'` because it was built
+with CoCo systems only. The adjacent `mame` binary does include Wild Bits Jr2.
+Using that target, the rebuilt module passed the full scripted KQ4 check on
+2026-11-06: intro advance, movement, retained-scene look popup, menu/Inventory
+and scene restoration. Rosella's measured screen X changed from 487.1 to
+143.9 while moving; look and Inventory each restored X=187.9. The separate
+direction-trace run confirmed rightward direction 3 uses view 0 loop 0 of 5
+with AGI flag 20 set and reported no game opcode errors. Artifacts are under
+`/private/tmp/wildbits-kq4-player-control-full-20261106` and
+`/private/tmp/wildbits-kq4-player-control-20261106-mame`. These remain scripted
+acceptance scenarios, not a complete adventure playthrough.
+
+#### Current KQ4 gameplay rerun — 2026-11-08
+
+After rebuilding the release MAME target with `wbjr2`,
+`check_kq4_mame.py` passes the original-resource single-Space intro, gameplay,
+movement, look popup, menu/Inventory and restoration scenario. Rosella's screen
+X changes from 487.1 to 147.9 while moving; the look and Inventory overlays
+restore X=187.9. The look popup retains scene colors on both sides and restores
+the original frame. Captures, log and result are in
+`/private/tmp/wildbits-kq4-current-parity-20261108`. This is a scripted
+original-game path, not full adventure completion or a physical-hardware test.
+The separate `--direction-trace` rerun passes in
+`/private/tmp/wildbits-kq4-current-direction-20261108`: rightward movement
+advances Rosella using direction 3, view 0 loop 0 of 5, with AGI flag 20 set.
+
+## Original dialog-overlay rerun — 2026-11-07
+
+With the current `wbgame`, `sierrastate`, and `sierraui` modules, the original KQ1
+king-dialog scenario passes for 2,000 emulated frames. The text remains held,
+the throne-room picture remains visible behind the overlay, a fresh key
+restores the scene, and the free-memory report matches. The screenshot and JSON
+are in `/private/tmp/wildbits-kq1-king-popup-20261107`.
+
+The original KQ4 run also passes its single-Space intro, movement, look popup,
+menu/Inventory, and scene-restoration checks. The look screenshot shows the
+centered popup over the retained river-meadow picture; the measured popup has
+three colors and the visible scene margins have 11 colors on the left and 13
+on the right. Captures and movement output are in
+`/private/tmp/wildbits-kq4-s06-popup-20261107`.
+
+These are emulator checks for these paths. They do not establish CoCo popup
+geometry equivalence or cover every dialog's input timing. Reproduce with
+`tests/check_wbgame_mame.py --king-dialog` and `tests/check_kq4_mame.py` using
+the MAME, disk, firmware, and OS/9 arguments documented above.
+
+## CoCo 3 KQ4 modal-display comparison — 2026-11-11
+
+The paired reference run uses the CoCo-only MAME executable and original KQ4
+disk images:
+
+```sh
+python3 tests/check_coco_kq4_inventory_mame.py \
+  --mame /path/to/mamed-coco \
+  --rompath /path/to/coco-rom-sets \
+  --disk1 kingsquest4/KingsQuestIV_d1_80d.dsk \
+  --disk2 kingsquest4/KingsQuestIV_d2_80d.dsk \
+  --output /tmp/coco-kq4-modal
+```
+
+On this machine, `mamed-coco` was `/Users/boisy/Projects/mame/mamed`; the ROM
+search directory had `coco3/coco3.rom` and `coco_fdc/disk11.rom` set directories
+pointing to the local CoCo ROM files. The test passed at
+`/private/tmp/wildbits-coco-kq4-compare-20261111`. CoCo's 640x239 Inventory
+image contains only black and white (32,048 black and 120,912 white pixels).
+Space returns to a 16-color game picture. Ordinary `look` and `look room`
+display bounded windows while keeping scene pixels outside the window, and
+dismissal restores the 16-color scene.
+
+The matching Wild Bits capture is
+`/private/tmp/wildbits-kq4-current-parity-20261108`: its 640x480 Inventory is
+also a two-color full-screen view and restores a 16-color scene; its look
+windows likewise retain the scene around the text. These assertions compare
+the presentation modes and restoration behavior. They do not claim matching
+popup pixels, font, exact bounds, or text contents across the independently
+packaged display data and different screen geometries.
+
+The Wild Bits game was rerun on 2026-11-11 with the current `objs/wbgame`,
+`objs/sierrastate`, and `objs/sierraui` modules using
+`tests/check_kq4_mame.py --persistence`. The ordinary route passed its single
+Space intro advance, movement, look popup, menu/Inventory and scene-restoration
+checks. Persistence wrote a 34,745-byte KQ4 save; moving changed 173,328
+pixels, then restore returned room and Rosella coordinates exactly to
+`(26, 42, 127)` and continued into original `look` logic. Saved flags and
+non-animation payload matched; the four observed variables matched at the
+restore-apply boundary and changed only after gameplay resumed. The look popup
+retained scene colors on both sides. Captures and result are under
+`/private/tmp/wildbits-kq4-parity-20261111-r2`. This validates these KQ4
+scenarios against the current emulator modules; it does not cover the complete
+save/restore failure and CoCo equivalence matrices.
+
+The same KQ4 persistence scenario passed again on 2026-11-07 with the current
+modules at `/private/tmp/wildbits-kq4-persistence-current-20261107`. It saved a
+34,745-byte KQ4 state, changed 173,192 pixels, restored room/X/Y exactly to
+`(26, 69, 127)`, and continued into the original look logic. Saved flags and
+non-animation payload bytes matched; variables changed only after continued
+logic, with the restore-apply boundary matching the saved values. The popup
+retained 11 and 12 scene colors on its left and right margins. This does not
+cover the remaining S08 corruption, short-write/full-disk, and nested/modal
+restart matrix.
+
+After the `config.screen` text-offset change, KQ4 was rerun on the same MAME
+build. The normal play path passed with the popup at its configured column and
+the scene visible on both sides. The save/restore run passed again with
+`--persistence --audio-trace`: room and Rosella coordinates matched the saved
+state, original look logic resumed, and 724 game-owned PSG writes were
+observed. Captures are in
+`/private/tmp/wildbits-kq4-offset-rerun-20261107b` and
+`/private/tmp/wildbits-kq4-offset-persistence-fixed-20261107`.
+
+## Multi-terminal persistence refresh — 2026-11-08
+
+`check_wbpic_mame.py --native-game sierra/kingsquest4 --interpreter
+--persistence` passes with the current modules and Wild Bits Jr2 MAME drivers.
+The second save replaces the first while the fixture's save controller remains
+active. A variable change followed by restore reproduces the exact original
+picture; invalid-field-count, wrong-game, bad-CRC and truncated snapshots show
+errors and leave the picture unchanged. Both terminals then exit and relaunch, and the
+free-memory report returns to its initial value. The test's overwrite action
+was moved next to the first save after review showed its old late action ran
+after the synthetic controller script had ended. Screenshots and the private
+disk are in `/private/tmp/wildbits-multiterminal-state-negative-cases-20261108`.
+
+## Current KQ4 Help/audio rerun — 2026-11-16
+
+The original-resource `check_kq4_mame.py --help-screen --direction-trace
+--audio-trace --audio-wav` route passes against the current full-check modules.
+It checks intro progression, Rosella's rightward direction/view/loop and AGI
+flag, look-dialog scene restoration, Sierra Help, Inventory, and exit cleanup.
+The log records 2,338 PSG writes owned by the game process. The MAME stereo WAV
+is 48 kHz, 34,433,281 frames, and passes the non-silent sample check. Captures,
+trace, WAV, disk and log are in
+`/Users/boisy/Projects/coco-shelf/.wildbits-test/kq4-current-fullcheck-20261116`.
+This remains bounded emulator acceptance, not full KQ4 progression or physical
+audio validation.
+
+## Current Larry Lefty's entrance rerun — 2026-11-16
+
+The original-resource `check_wbgame_mame.py --game leisuresuitlarry
+--larry-enter` route passes on the current modules. It completes Larry's age
+quiz, opens the door, enters Lefty's, displays/dismisses the interior look
+response and restores the original free-memory map after interrupt cleanup.
+Artifacts are in
+`/Users/boisy/Projects/coco-shelf/.wildbits-test/larry-enter-current-fullcheck-20261116`.
+This refreshes opening-gameplay emulator evidence only.

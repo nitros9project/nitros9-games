@@ -120,9 +120,11 @@ def main():
                 module='wbexec', blocks=None, multiple=True, capture=True)
             assert error == 208 and not output  # explicit unsupported platform opcode
             assert state['vmgameid'] == b'KQ1' + bytes(5)
-            print('KQ1 stop:', error, {n: state[n].hex() for n in ('asseterror','vmerror','vmend','resourcelength','vmcurrent')})
-            print(f'KQ1 startup stops at unported command/test {state["vmopcode"][0]}; caller-restored IP {int.from_bytes(state["vmip"], "big")}')
-            print('PASS: native mapped bytecode crosses physical pages, relocated data/code, bounded fetch, cached/nested calls, explicit unsupported-command failure and allocation cleanup')
+            assert state['vmopcode'][0] == 24  # load.pic is game-only in this VM probe
+            print('Standalone wbexec probe stops at platform-only load.pic (opcode 24); '
+                  f'this probe has no game graphics backend; caller-restored IP '
+                  f'{int.from_bytes(state["vmip"], "big")}')
+            print('PASS: native mapped bytecode crosses physical pages, relocated data/code, bounded fetch, cached/nested calls, explicit platform-only opcode failure and allocation cleanup')
         finally:
             d.s.close()
             emulator.terminate()

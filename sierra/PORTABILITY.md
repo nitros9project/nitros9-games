@@ -808,7 +808,7 @@ audio, or input backend, and none is claimed by this groundwork.
 
 The compilation/include paths and explicit backend dependencies now live in
 `sierra-engine.mak`. Both the standard `sierra-game.mak` and Black Cauldron's
-standalone makefile include it; Black Cauldron retains its existing disk recipe.
+standalone makefile include it; CoCo disk packaging, including Black Cauldron, now lives in NitrOS-9 recipes.
 This prevents a backend edit from being missed by that title and supplies the
 same source include path to every game. The comparison checker also verifies
 that all four module sources reject the unimplemented Wild Bits selection.

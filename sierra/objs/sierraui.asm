@@ -1,5 +1,5 @@
 * Immutable Wild Bits UI/audio provider; mutable cells belong to the caller.
-* Persistence code stays in wbstate and is copied only for state operations.
+* Persistence code stays in sierrastate and is copied only for state operations.
 AUDIO_USER_COPY     equ 1
 WILDBITS            equ 1
 WILDBITS_LAYOUT_ONLY equ 1
@@ -14,7 +14,7 @@ WORD_FORMAT_DECIMAL macro
                     endc
                     org 0
                     mod UiEnd,UiName,Sbrtn+Objct,ReEnt+1,UiEntry,0
-UiName              fcs /wbui/
+UiName              fcs /sierraui/
                     fcb 1
 UiEntry             bra UiInvalid
                     STATE_ABI

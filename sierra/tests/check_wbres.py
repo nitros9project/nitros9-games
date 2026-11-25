@@ -72,13 +72,13 @@ def start_cpu(bootrom, timeout=300):
     raise RuntimeError('XRoar debugger did not attach after four fresh starts')
 
 
-def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zero_read=False, seek_error=False, write_error=False, module='wbres', map_failure=0, allocation_error=False, unmap_error=False, window=0x8000, terminal=True, blocks=4, capture=False, multiple=False, firstblock=0x30, frame_capture=False, keyboard=b'', clock=(0,), bitmap_error=False, key_sense=0, cycle_limit=None, os_call_limit=20000, keyboard_by_cycle=None, option_set_error=False, resource_kind=None, module_root=None, breakpoint_hooks=None, psg=None, sol=None, joystick=None, palette_error=0, keyboard_by_sleep=None):
+def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zero_read=False, seek_error=False, write_error=False, module='wbres', map_failure=0, allocation_error=False, unmap_error=False, window=0x8000, terminal=True, blocks=4, capture=False, multiple=False, firstblock=0x30, frame_capture=False, keyboard=b'', clock=(0,), bitmap_error=False, key_sense=0, cycle_limit=None, os_call_limit=20000, keyboard_by_cycle=None, option_set_error=False, resource_kind=None, module_root=None, breakpoint_hooks=None, psg=None, sol=None, joystick=None, palette_error=0, keyboard_by_sleep=None, keyboard_by_hook=None, entry_symbol=None, stop_address=None, initial_memory=(), initial_stack=b'', initial_dp=None, read_limit=97, initial_regs=None, preopened_paths=(), allow_open_paths=False, read_error_path=None, read_error_at=0, allow_output_with_open_paths=False, cold_hooks=None):
     module_root = Path(module_root) if module_root is not None else ROOT
-    ui_owner='wbui' if (module_root/'wbui').exists() else 'wbstate'
+    ui_owner='sierraui' if (module_root/'sierraui').exists() else 'sierrastate'
     if module == 'wbgame':
-        defaults={'wbfont':(ROOT/'wbfont').read_bytes(),
-                  'wbstate':(module_root/'wbstate').read_bytes()}
-        if ui_owner=='wbui':defaults['wbui']=(module_root/'wbui').read_bytes()
+        defaults={'sierrafont':(ROOT/'sierrafont').read_bytes(),
+                  'sierrastate':(module_root/'sierrastate').read_bytes()}
+        if ui_owner=='sierraui':defaults['sierraui']=(module_root/'sierraui').read_bytes()
         files={**defaults,**files}
     syms = symbols(module_root / (module + '.map'))
     calls = {base + int(m[1], 16): int(m[2], 16) for m in re.finditer(
@@ -93,17 +93,40 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
     private_end = database + ((syms['size'] + 8191)//8192)*8192
     argv = private_end - len(arguments) - 16
     d.write(argv, arguments)
+    for address, data in initial_memory:
+        d.write(address, data)
+    if initial_stack:
+        d.write(argv - 16, initial_stack)
     for address in calls:
         d.breakpoint(address)
-    d.regs(pc=base + syms['start'], s=argv - 16,
-           dp=database >> 8, u=database, x=argv, cc=0x50)
+    d.regs(pc=base + syms[entry_symbol or 'start'], s=argv - 16,
+           dp=(database >> 8) if initial_dp is None else initial_dp,
+           u=database, x=argv, cc=0x50)
+    if initial_regs:
+        d.regs(**initial_regs)
     hooks = {(name if isinstance(name,int) else base+syms[name]):callback for name,callback in (breakpoint_hooks or {}).items()}
+    cold_hooks=cold_hooks or {}
+    keyboard_by_hook=keyboard_by_hook or {}
+    hook_keys={(name if isinstance(name,int) else base+syms[name]):schedule
+               for name,schedule in keyboard_by_hook.items()}
+    hook_counts={address:0 for address in hook_keys}
+    for address in hook_keys:
+        if address not in hooks:
+            hooks[address]=None
+            d.breakpoint(address)
     for address in hooks: d.breakpoint(address)
+    if stop_address is not None:
+        d.breakpoint(stop_address)
     kind_entry = base + syms['LoadAsset'] if resource_kind is not None else None
     if kind_entry is not None:
         d.breakpoint(kind_entry)
     paths, output, nextpath = {}, bytearray(), 3
     path_names, file_reads = {}, {}
+    for path_id, name in preopened_paths:
+        assert name in files and path_id not in paths
+        paths[path_id] = [files[name], 0]
+        path_names[path_id] = name
+        nextpath = max(nextpath, path_id + 1)
     owned, mapped = {}, False
     nextblock = firstblock
     bitmapfirst, frame = None, bytearray()
@@ -155,9 +178,9 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
         private_calls={database+syms['soundcode']+offset-blob_start:service
                        for offset,service in provider_sites[ui_owner].items()
                        if blob_start<=offset<blob_end}
-        state_syms=symbols(module_root/'wbstate.map')
+        state_syms=symbols(module_root/'sierrastate.map')
         state_calls={database+syms['fillstack']+offset:service
-                     for offset,service in sites('wbstate').items()
+                     for offset,service in sites('sierrastate').items()
                      if offset<state_syms['StateCopyEnd']}
         calls.update(state_calls);calls.update(private_calls)
         for address in [*state_calls,*private_calls]:d.breakpoint(address)
@@ -165,9 +188,21 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
     for _ in range(os_call_limit):
         d.call('c')
         r = d.regs()
+        if stop_address is not None and r['pc'] == stop_address:
+            assert allow_open_paths or not paths, f'leaked file paths at probe return: {paths}'
+            for address in list(calls) + list(hooks) + [stop_address]:
+                d.breakpoint(address, False)
+            state={'file_reads':file_reads,'cycles':cycles,'registers':r,
+                   'map_calls':maps,'map_sites':map_sites}
+            return 0, bytes(frame if frame_capture else output), state
         if r['pc'] in hooks:
             callback=hooks[r['pc']]
-            if callback(d,r,syms):
+            if r['pc'] in hook_keys:
+                address=r['pc']
+                hook_counts[address]+=1
+                added=hook_keys[address].get(hook_counts[address])
+                if added:keyboard.extend(added)
+            if callback is None or callback(d,r,syms):
                 # A repeating observer must advance beyond this instruction
                 # before continuing, otherwise it retriggers its breakpoint.
                 d.call('s')
@@ -193,16 +228,21 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
                 assert d.read(database+syms['soundcode'],len(expected))==expected, 'private audio code overwritten by the game stack or buffers'
             assert options==original_options, 'terminal options were not restored'
             assert not mapped and not owned, 'leaked picture allocation/mapping'
-            assert d.read(base, len(code)) == code, 'native module modified its code/tables'
+            loaded_code=d.read(base,len(code))
+            assert loaded_code == code, ('native module modified its code/tables',
+                [(hex(base+i),before,after) for i,(before,after) in enumerate(zip(code,loaded_code)) if before!=after][:32])
             for address in list(calls)+list(hooks)+([kind_entry] if kind_entry is not None else []):
                 d.breakpoint(address, False)
             if capture:
-                state={name: d.read(database + syms[name], length) for name, length in [('vmopcode', 1), ('vmip', 2), ('vmvariables', 256), ('vmflags', 256), ('vmgameid', 8), ('messagebuffer', 512), ('vmobjects', 2752), ('vmkeys',150), ('vmcontrollers',32), ('vmkeycount',1), ('menucount', 1), ('menuitems', 1), ('menuready', 1), ('menutext', 768), ('asseterror', 1), ('vmerror', 1), ('vmend', 2), ('resourcelength', 2), ('vmcurrent', 1)]}
+                state={name: d.read(database + syms[name], length) for name, length in [('vmopcode', 1), ('vmip', 2), ('vmvariables', 256), ('vmflags', 256), ('vmgameid', 8), ('messagebuffer', 512), ('vmobjects', 2752), ('vmkeys',150), ('vmcontrollers',32), ('vmkeycount',1), ('menucount', 1), ('menuitems', 1), ('menuready', 1), ('menutext', 768), ('asseterror', 1), ('vmerror', 1), ('vmend', 2), ('resourcelength', 2), ('vmcurrent', 1), ('parserline',40), ('parserlength',1), ('dialoginputmode',1)] if name in syms}
                 for name, length in [('replayused',2),('replaybuffer',510)]:
                     if name in syms:
                         state[name]=d.read(database+syms[name],length)
                 if module=='wbgame':
                     state['vmstrings']=d.read(database+syms['vmstrings'],480)
+                    for name in ('traceowned','tracemode','traceconfiglogic','traceconfigline',
+                                 'traceconfigrows','tracetop','tracelines'):
+                        if name in syms:state[name]=d.read(database+syms[name],1)
                     state['palettes']=palettes
                     state['sleeps']=sleep_count
                     if 'monitorprofile' in syms:state['monitorprofile']=d.read(database+syms['monitorprofile'],1)
@@ -210,7 +250,7 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
                     for name in ('joystickenabled','joysticklast','joystickbuttons','joystickpressed'):
                         if name in syms:state[name]=d.read(database+syms[name],1)
                     state['gamefont']=d.read(database+syms['gamefont'],1024)
-                    for name in ('vmcursor','vmtextforeground','vmtextbackground','vmpicturetop','vminputrow','vmstatusrow','vmstatusenabled','vminputenabled'):
+                    for name in ('vmcursor','vmtextforeground','vmtextbackground','vmpicturetop','vminputrow','vmstatusrow','vmstatusenabled','vminputenabled','vmgraphics'):
                         state[name]=d.read(database+syms[name],1)
                 state['cycles']=cycles
                 state['audio_packets']=audio_packets
@@ -218,15 +258,18 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
                 state['map_calls']=maps
                 state['map_sites']=map_sites
                 state['file_reads']=file_reads
+                state['keyboard_hook_counts']=dict(hook_counts)
                 return r['b'], bytes(frame if frame_capture else output), state
             return r['b'], bytes(frame if frame_capture else output)
         elif service == syms.get('F$Load'):
             assert not mapped
             name=d.read(r['x'],16).split(b'\r')[0].decode()
-            if name not in files or files[name] is None:
+            image=files.get(name)
+            module_name=name.strip('/')
+            if image is None and module_name in files:image=files[module_name]
+            if image is None:
                 updates.update(cc=r['cc']|1,b=syms['E$PNNF'])
             else:
-                image=files[name]
                 if name not in cold_modules:
                     occupied={item['base'] for item in cold_modules.values()}
                     cold_base=next((address for address in (0x6000,0x8000) if address not in occupied),None)
@@ -234,6 +277,11 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
                     assert len(image)<=8192, 'provider fixture exceeds its code window'
                     d.write(cold_base,image)
                     cold_modules[name]={'base':cold_base,'refs':0,'image':image,'sites':{}}
+                    for label,callback in cold_hooks.get(module_name,{}).items():
+                        offset=label if isinstance(label,int) else symbols(module_root/(module_name+'.map'))[label]
+                        address=cold_base+offset
+                        hooks[address]=callback
+                        d.breakpoint(address)
                     for offset,number in provider_sites.get(name,{}).items():
                         address=cold_base+offset
                         cold_modules[name]['sites'][address]=number
@@ -252,6 +300,11 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
             if not item['refs']:
                 for address in item['sites']:calls.pop(address);d.breakpoint(address,False)
                 del cold_modules[name]
+        elif service == syms['I$GetStt'] and r['a'] in paths and not (
+                (sol is not None and r['a']==sol_path and r['b']==0xc3) or
+                (psg is not None and r['a']==audio_path and r['b']==0xc5)):
+            length=len(paths[r['a']][0])
+            updates.update(x=(length >> 16) & 0xffff,u=length & 0xffff)
         elif service == syms['I$GetStt'] and r['b']==0xc3:
             assert sol is not None and r['a']==sol_path and not mapped
             updates.update(x=7,y=sol_ticks)
@@ -283,7 +336,9 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
                 if audio_mode==4:
                     audio_current_packets.clear();audio_end_cycle=None
                     audio_queues=[[] for _ in range(4)];audio_played_ends=[False]*4
-        elif service == syms.get('F$Time'):
+        # Some owners assemble F$Time as the literal OS-9 service number
+        # rather than retaining a linker symbol in their map/listing.
+        elif service == syms.get('F$Time') or service == 0x16:
             assert not mapped
             if clock:
                 clocksecond = clock.pop(0)
@@ -377,6 +432,8 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
             if (map_failure(d,r,syms) if callable(map_failure) else maps == map_failure):
                 updates.update(cc=r['cc'] | 1, b=syms['E$MemFul'])
             else:
+                assert 0 <= r['x'] <= 255, ('mapping block outside fixture range',
+                    r, owned, bitmapfirst, nextblock, map_sites)
                 d.write(0xFFA8 + window // 8192, bytes([r['x']]))
                 mapped = True
                 updates['u'] = window
@@ -428,12 +485,14 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
             data, position = paths[r['a']]
             name=path_names[r['a']]
             file_reads[name]=file_reads.get(name,0)+1
-            if zero_read:
+            if name == read_error_path and file_reads[name] == read_error_at:
+                updates.update(cc=r['cc'] | 1, b=syms['E$Read'])
+            elif zero_read:
                 updates['y'] = 0
             elif position >= len(data):
                 updates.update(cc=r['cc'] | 1, b=syms['E$EOF'])
             else:
-                count = min(r['y'], 97, len(data) - position)
+                count = min(r['y'], read_limit, len(data) - position)
                 d.write(r['x'], data[position:position + count])
                 paths[r['a']][1] += count
                 updates['y'] = count
@@ -455,7 +514,7 @@ def exercise(d, files, arguments=b'/game 1\r', base=0xE000, database=0x2000, zer
                     audio_queues[channel].append(packet)
                 audio_packets.append(packet);audio_current_packets.append(packet);updates['y']=6
         elif service == syms['I$Write']:
-            assert not paths, 'output before complete resource validation/close'
+            assert not paths or allow_output_with_open_paths, 'output before complete resource validation/close'
             assert not mapped, 'file write with foreign mapping live'
             if write_error:
                 updates.update(cc=r['cc'] | 1, b=syms['E$Write'])
@@ -478,61 +537,43 @@ def fixture(payload=b'\xf0\x00\xff', number=1, volume=1, offset=32, header=None)
 
 
 def main():
-    with socket.socket() as reservation:
-        reservation.bind(('127.0.0.1', 0))
-        port = reservation.getsockname()[1]
-    bootrom = tempfile.NamedTemporaryFile(prefix='sierra-cpu-idle-', suffix='.rom')
-    idle_rom(bootrom.name)
-    emulator = subprocess.Popen(['xroar', '-machine', 'coco3', '-ui', 'null', '-ao', 'null',
-        '-ram', '2048', '-no-ratelimit', '-gdb', '-gdb-port', str(port), '-timeout', '300',
-        '-no-bas', '-extbas', bootrom.name, '-no-altbas'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    d = None
-    try:
-        time.sleep(.1)
-        for _ in range(50):
-            try:
-                d = Debugger(port)
-                break
-            except ConnectionRefusedError:
-                time.sleep(.1)
-        assert d is not None
-        d.write(0xFFDF, b'\0')
-        d.write(0xFF90, b'\x4c')
-        d.write(0xFF91, b'\x01')
-        for address in (0xFF92, 0xFF93, 0xFF01, 0xFF03, 0xFF21, 0xFF23):
-            d.write(address, b'\0')
-        d.write(0xFFA8, bytes(range(8)))
-        payload = bytes(range(256)) * 31 + bytes(255) + b'\xff'  # exactly 8192
-        for base, database in ((0xE000, 0x2000), (0xA000, 0x6000)):
-            assert exercise(d, fixture(payload, 255, 15, 0x23456), b'/game 255\r', base, database) == (0, payload)
-            assert exercise(d, fixture(), b' /game/ 001 \r', base, database) == (0, b'\xf0\x00\xff')
-        for arguments in (b'/game\r', b'/game -1\r', b'/game 256\r', b'/game 1x\r', b'/game 1 extra\r', b'x' * 128 + b' 1\r'):
-            error, output = exercise(d, fixture(), arguments)
-            assert error and not output
-        cases = [({}, {}), (fixture(), {'arguments': b'/game 0\r'}),
-                 (fixture(), {'arguments': b'/game 2\r'}), (fixture(b''), {}),
-                 (fixture(b'\0'), {}), (fixture(b'\0' * 8192 + b'\xff'), {}),
-                 (fixture(header=b'\0\x34\x01\x03\0\x03\0'), {}),
-                 (fixture(header=b'\x12\x34\x02\x03\0\x03\0'), {}),
-                 (fixture(header=b'\x12\x34\x81\x03\0\x03\0'), {}),
-                 (fixture(header=b'\x12\x34\x01\x04\0\x03\0'), {}),
-                 (fixture(header=b'\x12\x34\x01\x04\0\x04\0'), {}),
-                 (fixture(), {'zero_read': True}), (fixture(), {'seek_error': True}),
-                 (fixture(), {'write_error': True})]
-        for files, options in cases:
-            error, output = exercise(d, files, **options)
-            assert error and not output, options
-        print('PASS: native 6809 resource loading, relocated code/data, 20-bit seeks, volumes 1/15, exact 8KB boundary, short reads/writes, malformed resources, cleanup')
-    finally:
-        if d:
-            d.s.close()
-        bootrom.close()
-        emulator.terminate()
+    with tempfile.TemporaryDirectory(prefix='sierra-cpu-idle-') as temp:
+        bootrom=Path(temp)/'idle.rom'
+        idle_rom(bootrom)
+        d,emulator=start_cpu(bootrom,timeout=300)
         try:
-            emulator.wait(timeout=2)
-        except subprocess.TimeoutExpired:
+            d.write(0xFFDF, b'\0')
+            d.write(0xFF90, b'\x4c')
+            d.write(0xFF91, b'\x01')
+            for address in (0xFF92, 0xFF93, 0xFF01, 0xFF03, 0xFF21, 0xFF23):
+                d.write(address, b'\0')
+            d.write(0xFFA8, bytes(range(8)))
+            payload = bytes(range(256)) * 31 + bytes(255) + b'\xff'  # exactly 8192
+            for base, database in ((0xE000, 0x2000), (0xA000, 0x6000)):
+                assert exercise(d, fixture(payload, 255, 15, 0x23456), b'/game 255\r', base, database) == (0, payload)
+                assert exercise(d, fixture(), b' /game/ 001 \r', base, database) == (0, b'\xf0\x00\xff')
+            for arguments in (b'/game\r', b'/game -1\r', b'/game 256\r', b'/game 1x\r', b'/game 1 extra\r', b'x' * 128 + b' 1\r'):
+                error, output = exercise(d, fixture(), arguments)
+                assert error and not output
+            cases = [({}, {}), (fixture(), {'arguments': b'/game 0\r'}),
+                     (fixture(), {'arguments': b'/game 2\r'}), (fixture(b''), {}),
+                     (fixture(b'\0'), {}), (fixture(b'\0' * 8192 + b'\xff'), {}),
+                     (fixture(header=b'\0\x34\x01\x03\0\x03\0'), {}),
+                     (fixture(header=b'\x12\x34\x02\x03\0\x03\0'), {}),
+                     (fixture(header=b'\x12\x34\x81\x03\0\x03\0'), {}),
+                     (fixture(header=b'\x12\x34\x01\x04\0\x03\0'), {}),
+                     (fixture(header=b'\x12\x34\x01\x04\0\x04\0'), {}),
+                     (fixture(), {'zero_read': True}), (fixture(), {'seek_error': True}),
+                     (fixture(), {'write_error': True})]
+            for files, options in cases:
+                error, output = exercise(d, files, **options)
+                assert error and not output, options
+            print('PASS: native 6809 resource loading, relocated code/data, 20-bit seeks, volumes 1/15, exact 8KB boundary, short reads/writes, malformed resources, cleanup')
+        finally:
+            d.s.close()
             emulator.kill()
-            emulator.wait(timeout=2)
+            try:emulator.wait(timeout=5)
+            except subprocess.TimeoutExpired:pass
 
 
 if __name__ == '__main__':

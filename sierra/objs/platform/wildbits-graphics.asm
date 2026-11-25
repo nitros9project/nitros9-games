@@ -294,7 +294,7 @@ GameFontLoad        leax      GameFontName,pcr
                     lbcs      ResourceFailed
                     clrb
                     rts
-GameFontName        fcc       /wbfont/
+GameFontName        fcc       /sierrafont/
                     fcb       C$CR
 
                     else
@@ -587,7 +587,7 @@ AddPicArgumentReady stb       ,x+
                     lbcs      AddPicReturn
                     ldd       ,s
                     lbsr      ReplayPush
-                    lbcs      AddPicReturn
+                    bcs      AddPicReturn
                     ldd       2,s
                     lbsr      ReplayPush
                     bcs      AddPicReturn
@@ -1161,18 +1161,28 @@ SpriteInvalid       ldb       #E$BMode
 * draw/erase only alter visibility, then recompose all visible objects.
 GameObjectVisibility lbsr    ObjectAddress
                     lbcs      SpriteReturn
-                    lda       $26,x
                     ldb       <vmopcode
                     cmpb      #36
                     beq       GameHideObject
                     ldd       $10,x
                     beq      SpriteInvalid
                     lda       $26,x
+                    bita      #$01
+                    bne       GameVisibilityNoop
+                    lda       $25,x
+                    anda      #$EF
+                    sta       $25,x
+                    lda       $26,x
                     ora       #$11
                     bra       GameVisibilityStore
-GameHideObject      anda      #$FE
+GameHideObject      lda       $26,x
+                    bita      #$01
+                    beq       GameVisibilityNoop
+                    anda      #$FE
 GameVisibilityStore sta       $26,x
                     lbra      GameComposeScene
+GameVisibilityNoop clrb
+                    rts
 
                     else
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_GAME_RENDER_DATA
@@ -1400,7 +1410,7 @@ SbuffXLine          sta       <ScratchAC
                     ldb       <PosInitX
                     stb       <PosFinalX
                     sta       <PosInitX
-XLineStart          lbsr      SbuffPlot
+XLineStart          bsr       SbuffPlot
                     lda       <PosInitX
                     cmpa      <PosFinalX
                     beq       XLineDone
@@ -1415,7 +1425,7 @@ SbuffYLine          stb       <ScratchAC
                     lda       <PosInitY
                     sta       <PosFinalY
                     stb       <PosInitY
-YLineStart          lbsr      SbuffPlot
+YLineStart          bsr       SbuffPlot
                     ldb       <PosInitY
                     cmpb      <PosFinalY
                     beq       YLineDone
@@ -2096,7 +2106,7 @@ PresentBandWritten  lbsr      unmap
 PresentFinishBands  equ       *
                     endc
                     lbsr      foreground
-                    lbcs     PresentFailure
+                    bcs     PresentFailure
                     ifne      GAME_PRESENTATION
                     lda       <presentationconfigured
                     bita      #1
@@ -2121,7 +2131,7 @@ PresentPaletteReady equ       *
                     lbsr      GameTraceStage
                     puls      cc,a
                     endc
-                    lbcs     PresentFailure
+                    bcs     PresentFailure
                     lda       #1
                     ldb       #SS.Palet
                     ldx       #0
@@ -2133,7 +2143,7 @@ PresentPaletteReady equ       *
                     lbsr      GameTraceStage
                     puls      cc,a
                     endc
-                    lbcs     PresentFailure
+                    bcs     PresentFailure
                     lda       #1
                     ldb       #SS.PScrn
                     ldx       #0
@@ -2145,7 +2155,7 @@ PresentPaletteReady equ       *
                     lbsr      GameTraceStage
                     puls      cc,a
                     endc
-                    lbcs     PresentFailure
+                    bcs     PresentFailure
                     lda       #1
                     ldb       #SS.DScrn
                     ldx       #FX_BM+FX_GRF
@@ -2157,7 +2167,7 @@ PresentPaletteReady equ       *
                     lbsr      GameTraceStage
                     puls      cc,a
                     endc
-                    lbcs     PresentFailure
+                    bcs     PresentFailure
                     ifne      GAME_PRESENTATION
                     lda       #$81
                     sta       <presentationconfigured
@@ -2169,7 +2179,7 @@ PresentDrawTextOnly equ       *
                     lbsr      GameTraceStage
                     puls      cc,a
                     endc
-                    lbcs     PresentFailure
+                    bcs     PresentFailure
                     clr       <gamepresentdirty
                     clr       <gamepresentdirty+1
                     clr       <gamepresentdirty+2
@@ -2264,7 +2274,7 @@ PresentReleaseError tst       <errorcode
 * Modal overlays can cover pixels outside the game picture. Clear the whole
 * owned bitmap before restoring the picture and persistent text cells.
 RefreshPicture      lbsr      AssetUnmap
-                    lbcs     PresentFailure
+                    bcs     PresentFailure
                     lbsr      PictureUnmap
                     bcs     PresentFailure
                     tst       <bitmapowned
@@ -2310,375 +2320,9 @@ PLATFORM_SECTION    set PLATFORM_WILDBITS_SCREEN_COLD_CODE
 
                     else
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_SHAKE_CODE
-* Shift the owned 320x200 content right eight and down four pixels. The four
-* spare rows remain inside the 320x240 bitmap and below the 16-bit limit.
-* Save only right edges (1600 bytes); one row stages in idle rowoutput.
-AuxShakeScreen      ldu       <resourcebase
-                    sty       coldapi,u
-                    ldd       ,y
-                    leax      d,y
-                    stx       shakemap,u
-                    clr       shakeshifted,u
-                    clra
-                    ldb       vmarguments,u
-                    lslb
-                    rola
-                    lslb
-                    rola
-                    lslb
-                    rola
-                    std       shakecycles,u
-                    lbeq      AuxShakeSuccess
-                    tst       <bitmapowned
-                    lbeq      AuxShakeSuccess
-* A cached UI provider may be entered with the logic slab still mapped.
-* Release both engine mappings before borrowing the framebuffer window.
-                    UI_CALL   8
-                    lbcs      AuxShakeReturn
-                    UI_CALL   10
-                    lbcs      AuxShakeReturn
-                    clr       textrow,u
-AuxShakeSaveEdge    lbsr      AuxShakeRowOffset
-                    addd      #312
-                    pshs      d
-                    clra
-                    ldb       textrow,u
-                    lslb
-                    rola
-                    lslb
-                    rola
-                    lslb
-                    rola
-                    leay      fillstack,u
-                    leay      d,y
-                    puls      d
-                    ldx       #8
-                    lbsr      AuxShakeRead
-                    lbcs      AuxShakeFailure
-                    inc       textrow,u
-                    lda       textrow,u
-                    cmpa      #200
-                    blo       AuxShakeSaveEdge
-                    UI_CALL   2
-                    lbcs      AuxShakeFailure
-AuxShakePhase       UI_CALL   4
-                    lbcs      AuxShakeFailure
-                    ldd       #4
-                    std       dialogticks,u
-                    lda       gameclockreset,u
-                    sta       dialogepoch,u
-                    lda       gameclockpath,u
-                    cmpa      #$FF
-                    beq       AuxShakeFallback
-                    UI_CALL   6
-                    lbcs      AuxShakeFailure
-                    sta       dialogseen,u
-                    lda       #1
-                    bra       AuxShakeTimerMode
-AuxShakeFallback    clra
-AuxShakeTimerMode   sta       dialogtimed,u
-                    tst       shakeshifted,u
-                    bne       AuxShakeUp
-                    inc       shakeshifted,u
-                    ldd       #64000
-                    std       pictureoffset,u
-                    std       pictureoutoffset,u
-                    lbsr      AuxShakeMove
-                    lbcs      AuxShakeFailure
-                    lda       #4
-                    sta       textrow,u
-                    leay      rowoutput,u
-                    ldx       #8
-                    lbsr      AuxShakeBlack
-AuxShakeDownMargin  lbsr      AuxShakeRowOffset
-                    leay      rowoutput,u
-                    ldx       #8
-                    lbsr      AuxShakeWrite
-                    lbcs      AuxShakeFailure
-                    inc       textrow,u
-                    lda       textrow,u
-                    cmpa      #205       includes the final eight-byte spill
-                    blo       AuxShakeDownMargin
-                    clr       textrow,u
-                    bra       AuxShakeClearRows
-AuxShakeUp          clr       shakeshifted,u
-                    ldd       #1288
-                    std       pictureoffset,u
-                    ldd       #64000
-                    std       pictureoutoffset,u
-                    lbsr      AuxShakeMove
-                    lbcs      AuxShakeFailure
-                    clr       textrow,u
-AuxShakeUpRow       clra
-                    ldb       textrow,u
-                    lslb
-                    rola
-                    lslb
-                    rola
-                    lslb
-                    rola
-                    leay      fillstack,u
-                    leay      d,y
-                    lbsr      AuxShakeRowOffset
-                    addd      #312
-                    ldx       #8
-                    lbsr      AuxShakeWrite
-                    lbcs      AuxShakeFailure
-                    inc       textrow,u
-                    lda       textrow,u
-                    cmpa      #200
-                    blo       AuxShakeUpRow
-AuxShakeClearRows   leay      rowoutput,u
-                    ldx       #320
-                    lbsr      AuxShakeBlack
-                    ldb       #4
-                    stb       textcolumn,u
-AuxShakeClearRow    lbsr      AuxShakeRowOffset
-                    leay      rowoutput,u
-                    ldx       #320
-                    lbsr      AuxShakeWrite
-                    lbcs      AuxShakeFailure
-                    inc       textrow,u
-                    dec       textcolumn,u
-                    bne       AuxShakeClearRow
-                    UI_CALL   2
-                    lbcs      AuxShakeFailure
-AuxShakeWait        UI_CALL   4
-                    lbcs      AuxShakeFailure
-                    tst       dialogtimed,u
-                    beq       AuxShakeSleepFallback
-                    UI_CALL   6
-                    lbcs      AuxShakeFailure
-                    ldb       gameclockreset,u
-                    cmpb      dialogepoch,u
-                    beq       AuxShakeDelta
-                    stb       dialogepoch,u
-                    sta       dialogseen,u
-                    bra       AuxShakeSleep
-AuxShakeDelta       tfr       a,b
-                    subb      dialogseen,u
-                    sta       dialogseen,u
-                    clra
-                    cmpd      dialogticks,u
-                    bhs       AuxShakeNext
-                    nega
-                    negb
-                    sbca      #0
-                    addd      dialogticks,u
-                    std       dialogticks,u
-AuxShakeSleep       ldx       #2
-                    os9       F$Sleep
-                    ldu       <resourcebase
-                    bra       AuxShakeWait
-AuxShakeSleepFallback ldx     #2
-                    os9       F$Sleep
-                    ldu       <resourcebase
-                    ldd       dialogticks,u
-                    subd      #1
-                    std       dialogticks,u
-                    bne       AuxShakeWait
-AuxShakeNext        ldd       shakecycles,u
-                    subd      #1
-                    std       shakecycles,u
-                    lbne      AuxShakePhase
-AuxShakeSuccess     clrb
-AuxShakeReturn      rts
-AuxShakeFailure     pshs      cc,b
-                    ldu       <resourcebase
-                    tst       <mapped
-                    beq       AuxShakeFailureDone
-                    UI_CALL   2
-AuxShakeFailureDone puls      cc,b,pc
-AuxShakeBlack       lda       #1
-AuxShakeBlackByte   sta       ,y+
-                    leax      -1,x
-                    bne       AuxShakeBlackByte
-                    rts
-AuxShakeRowOffset   lda       textrow,u
-                    ldb       #160
-                    mul
-                    lslb
-                    rola
-                    rts
-* Bulk memmove: copy directly while source/destination occupy one bank;
-* stage only the at-most-1288-byte spans crossing a bank boundary. All
-* offsets/counts are eight-byte aligned, allowing four-word copy groups.
-AuxShakeMove        tst       shakeshifted,u
-                    beq       AuxShakeMoveUpCount
-                    ldd       pictureoffset,u
-                    anda      #$1F
-                    bne       AuxShakeMoveDownCount
-                    ldd       #8192
-AuxShakeMoveDownCount std     picturechunk,u
-                    ldd       pictureoffset,u
-                    addd      #1288
-                    anda      #$1F
-                    bne       AuxShakeMoveMinimum
-                    ldd       #8192
-                    bra       AuxShakeMoveMinimum
-AuxShakeMoveUpCount  ldd       pictureoffset,u
-                    anda      #$1F
-                    pshs      d
-                    ldd       #8192
-                    subd      ,s++
-                    std       picturechunk,u
-                    ldd       pictureoffset,u
-                    subd      #1288
-                    anda      #$1F
-                    pshs      d
-                    ldd       #8192
-                    subd      ,s++
-AuxShakeMoveMinimum cmpd      picturechunk,u
-                    bls       AuxShakeMoveRemaining
-                    ldd       picturechunk,u
-AuxShakeMoveRemaining cmpd    pictureoutoffset,u
-                    bls       AuxShakeMoveSize
-                    ldd       pictureoutoffset,u
-AuxShakeMoveSize     std       picturechunk,u
-                    ldd       pictureoffset,u
-                    tst       shakeshifted,u
-                    beq       AuxShakeMoveUpPages
-                    subd      #1       exclusive source end -> final byte
-                    pshs      d
-                    addd      #1288
-                    bra       AuxShakeMovePages
-AuxShakeMoveUpPages  pshs      d
-                    subd      #1288
-AuxShakeMovePages   anda      #$E0
-                    sta       textbits,u
-                    puls      d
-                    anda      #$E0
-                    cmpa      textbits,u
-                    bne       AuxShakeMoveStaged
-                    ldd       pictureoffset,u
-                    tst       shakeshifted,u
-                    beq       AuxShakeMoveDirectUp
-                    subd      #1
-                    ldx       <resourcebase
-                    jsr       [shakemap,x]
-                    lbcs      AuxShakeFailure
-                    leau      1,u
-                    ldy       picturechunk,x
-                    leax      1288,u
-AuxShakeMoveDownWords ldd     ,--u
-                    std       ,--x
-                    ldd       ,--u
-                    std       ,--x
-                    ldd       ,--u
-                    std       ,--x
-                    ldd       ,--u
-                    std       ,--x
-                    leay      -8,y
-                    bne       AuxShakeMoveDownWords
-                    bra       AuxShakeMoveDone
-AuxShakeMoveDirectUp ldx      <resourcebase
-                    jsr       [shakemap,x]
-                    lbcs      AuxShakeFailure
-                    ldy       picturechunk,x
-                    leax      -1288,u
-AuxShakeMoveUpWords  ldd       ,u++
-                    std       ,x++
-                    ldd       ,u++
-                    std       ,x++
-                    ldd       ,u++
-                    std       ,x++
-                    ldd       ,u++
-                    std       ,x++
-                    leay      -8,y
-                    bne       AuxShakeMoveUpWords
-                    bra       AuxShakeMoveDone
-AuxShakeMoveStaged  ldd       pictureoffset,u
-                    tst       shakeshifted,u
-                    beq       AuxShakeMoveRead
-                    subd      picturechunk,u
-AuxShakeMoveRead     leay      fillstack+1600,u
-                    ldx       picturechunk,u
-                    lbsr      AuxShakeRead
-                    lbcs      AuxShakeFailure
-                    ldd       pictureoffset,u
-                    tst       shakeshifted,u
-                    beq       AuxShakeMoveWriteUp
-                    subd      picturechunk,u
-                    addd      #1288
-                    bra       AuxShakeMoveWrite
-AuxShakeMoveWriteUp subd      #1288
-AuxShakeMoveWrite   leay      fillstack+1600,u
-                    ldx       picturechunk,u
-                    lbsr      AuxShakeWrite
-                    lbcs      AuxShakeFailure
-AuxShakeMoveDone    ldu       <resourcebase
-                    ldd       pictureoffset,u
-                    tst       shakeshifted,u
-                    beq       AuxShakeMoveAdvance
-                    subd      picturechunk,u
-                    bra       AuxShakeMoveAdvanced
-AuxShakeMoveAdvance addd      picturechunk,u
-AuxShakeMoveAdvanced std      pictureoffset,u
-                    ldd       pictureoutoffset,u
-                    subd      picturechunk,u
-                    std       pictureoutoffset,u
-                    lbne      AuxShakeMove
-                    clrb
-                    rts
-* Read/write staging, split at the existing 8K bank edge.
-AuxShakeRead        std       frameoffset,u
-                    clr       textrenderdirty,u
-                    bra       AuxShakeTransfer
-AuxShakeWrite       std       frameoffset,u
-                    lda       #1
-                    sta       textrenderdirty,u
-AuxShakeTransfer    stx       remaining,u
-                    sty       sourceptr,u
-AuxShakeChunk       ldx       <resourcebase
-                    ldd       frameoffset,x
-                    jsr       [shakemap,x]
-                    lbcs      AuxShakeFailure
-                    ldd       frameoffset,x
-                    anda      #$1F
-                    pshs      d
-                    ldd       #8192
-                    subd      ,s++
-                    cmpd      remaining,x
-                    bls       AuxShakeChunkSize
-                    ldd       remaining,x
-AuxShakeChunkSize   std       chunk,x
-                    ldy       sourceptr,x
-                    tst       textrenderdirty,x
-                    bne       AuxShakeWriteWords
-                    ldx       chunk,x
-AuxShakeReadWord    ldd       ,u++
-                    std       ,y++
-                    ldd       ,u++
-                    std       ,y++
-                    ldd       ,u++
-                    std       ,y++
-                    ldd       ,u++
-                    std       ,y++
-                    leax      -8,x
-                    bne       AuxShakeReadWord
-                    bra       AuxShakeChunkDone
-AuxShakeWriteWords  ldx       chunk,x
-AuxShakeWriteWord   ldd       ,y++
-                    std       ,u++
-                    ldd       ,y++
-                    std       ,u++
-                    ldd       ,y++
-                    std       ,u++
-                    ldd       ,y++
-                    std       ,u++
-                    leax      -8,x
-                    bne       AuxShakeWriteWord
-AuxShakeChunkDone   ldu       <resourcebase
-                    sty       sourceptr,u
-                    ldd       frameoffset,u
-                    addd      chunk,u
-                    std       frameoffset,u
-                    ldd       remaining,u
-                    subd      chunk,u
-                    std       remaining,u
-                    lbne      AuxShakeChunk
-                    clrb
-                    rts
+* Opcode 110 matches the CoCo stub. Keep the helper directory slot
+* stable for ABI consumers; no frame-buffer work is performed.
+AuxShakeScreen      rts
                     else
                     ifeq PLATFORM_SECTION-PLATFORM_WILDBITS_SCREEN_COLD_CODE
 * Immutable screen backend. Native Y normally points to resident callbacks.
@@ -2782,7 +2426,7 @@ AuxScreenCommand    ldu       <resourcebase
                     sty       coldapi,u
                     ldb       <vmopcode
                     cmpb      #140
-                    lbeq      ScreenMonitor
+                    beq      ScreenMonitor
                     endc
                     ldb       <vmopcode
                     ifne      GAME_PRESENTATION
@@ -2795,13 +2439,13 @@ AuxScreenCommand    ldu       <resourcebase
                     cmpb      #111
                     beq       ScreenConfigure
                     cmpb      #112
-                    beq       ScreenStatusOn
+                    lbeq      ScreenStatusOn
                     cmpb      #113
-                    beq       ScreenStatusOff
+                    lbeq      ScreenStatusOff
                     cmpb      #119
-                    beq       ScreenInputOff
+                    lbeq      ScreenInputOff
                     cmpb      #120
-                    beq       ScreenInputOn
+                    lbeq      ScreenInputOn
                     ldb       #E$UnkSvc
                     orcc      #1
                     rts
@@ -2813,7 +2457,7 @@ ScreenMonitor       lda       monitorprofile,u
                     anda      #$FE       publish this terminal's palette next time
                     sta       <presentationconfigured
                     tst       <bitmapowned
-                    lbeq      ScreenDone
+                    lbeq     ScreenDone
                     UI_CALL   2
                     rts
                     endc
@@ -2838,24 +2482,45 @@ ScreenColors        ldd       vmarguments,u
 ScreenConfigure     lda       vmarguments,u
                     cmpa      #4         21 picture rows within 25 text rows
                     bhi       ScreenInvalid
-                    sta       <vmpicturetop
                     lda       vmarguments+1,u
                     cmpa      #24
                     bhi       ScreenInvalid
-                    sta       <vminputrow
                     lda       vmarguments+2,u
                     cmpa      #24
                     bhi       ScreenInvalid
+* Validate all operands before publishing any of the three layout values.
+                    ldu       <resourcebase
+                    lda       vmarguments,u
+                    sta       <vmpicturetop
+                    lda       vmarguments+1,u
+                    sta       <vminputrow
+                    lda       vmarguments+2,u
+                    anda      #$1F
                     sta       <vmstatusrow
+                    lda       <vmstatusenabled
+                    anda      #7
+                    pshs      a
+                    lda       vmarguments,u
+                    lsla
+                    lsla
+                    lsla
+* The status-enabled low bit controls visibility; upper bits preserve CoCo's
+* text-X offset without making the validated status row invalid in save files.
+                    ora       ,s+
+                    sta       <vmstatusenabled
                     bra       ScreenDone
-ScreenStatusOn      lda       #1
+ScreenStatusOn      lda       <vmstatusenabled
+                    anda      #$F8
+                    ora       #1
                     sta       <vmstatusenabled
                     ifne      GAME_PRESENTATION
-                    lbra      AuxStatusRefresh
+                    bra      AuxStatusRefresh
                     else
                     bra       ScreenDone
                     endc
-ScreenStatusOff     clr       <vmstatusenabled
+ScreenStatusOff     lda       <vmstatusenabled
+                    anda      #$F8
+                    sta       <vmstatusenabled
                     ifne      GAME_PRESENTATION
                     lbra      AuxStatusClear
                     else
@@ -2874,10 +2539,11 @@ ScreenInvalid       ldb       #E$IllArg
                     ifne      GAME_PRESENTATION
 * Compose only the status row, in private scratch. Publishing changed cells
 * requests a text redraw; an unchanged score/sound line costs no bitmap I/O.
-AuxStatusRefresh    tst       <vmstatusenabled
-                    lbeq      ScreenDone
+AuxStatusRefresh    lda       <vmstatusenabled
+                    bita      #1
+                    beq      ScreenDone
                     tst       <vmgraphics
-                    lbeq      ScreenDone
+                    beq      ScreenDone
                     leax      rowoutput,u
                     ldb       #40
                     lda       #32
@@ -2910,12 +2576,12 @@ AuxStatusCustomCell sta       ,y+
                     lbsr      AuxStatusDecimal
                     leax      rowoutput+30,u
                     leay      AuxStatusSound,pcr
-                    lbsr      AuxStatusCopy
+                    bsr       AuxStatusCopy
                     leay      AuxStatusOff,pcr
                     tst       vmflags+9,u
                     beq       AuxStatusSoundValue
                     leay      AuxStatusOn,pcr
-AuxStatusSoundValue lbsr      AuxStatusCopy
+AuxStatusSoundValue bsr       AuxStatusCopy
                     lda       #$0F      black text on white
                     bra       AuxStatusPublish
 AuxStatusClear      leax      rowoutput,u
@@ -3095,13 +2761,13 @@ SpriteEraseNext     ldu       dirtyobject,x
                     sta       gamecopydirection,x
                     lbra      GameCopyBackground
 SpriteEraseSmall    clr       gamecopydirection,x
-                    lbsr      SpriteEraseStage
+                    bsr       SpriteEraseStage
                     lbcs      GameBackgroundReturn
                     lbsr      AssetUnmap
                     lbcs      GameBackgroundReturn
                     ldx       <resourcebase
                     inc       gamecopydirection,x
-                    lbsr      SpriteEraseStage
+                    bsr       SpriteEraseStage
                     lbcs      GameBackgroundReturn
                     lbsr      PictureUnmap
                     lbcs      GameBackgroundReturn

@@ -7,6 +7,11 @@ LOGIC_CONTEXT       macro
                     clr       <vmerror
                     ldd       #$FFFF
                     std       <vmsteps
+                    ifne      GAME_PRESENTATION
+                    AGI_TRACE_LOGIC_ENTRY NativeTraceLogicReady,0
+NativeTraceLogicReady AGI_TRACE_ROOT_ENTER NativeTraceRootReady
+NativeTraceRootReady equ *
+                    endc
                     endm
 LOGIC_FETCH_OPCODE  macro
                     ldd       <vmsteps
@@ -29,6 +34,14 @@ LOGIC_APPLY_BRANCH  macro
                     lbhs      VmLogicInvalid
                     std       <vmip
                     endm
+TRACE_COMMAND_HOOK  macro
+                    ifne      GAME_PRESENTATION
+                    lda       #1
+                    lbsr      GameTraceEvent
+                    lbcs      VmLogicFailure
+                    endc
+NativeTraceCommandReady equ *
+                    endm
 LOGIC_DISPATCH      macro
                     cmpb      #181
                     lbhi      VmLogicInvalid
@@ -45,6 +58,7 @@ NativeCountLow    andb      #15
                     stb       <vmargcount
                     lbsr      VmReadArguments
                     lbcs      VmLogicFailure
+                    TRACE_COMMAND_HOOK
                     ldb       <vmopcode
                     cmpb      #17
                     lbls      VmArithmetic
@@ -59,7 +73,7 @@ LOGIC_CONTINUE      macro
                     endc
                     tst       <vmroompending
                     bne       ExecScriptDone
-                    bra       VmNext
+                    lbra      VmNext
                     endm
 LOGIC_SUCCESS       macro
                     clrb
@@ -72,6 +86,22 @@ LOGIC_BRANCH        macro
                     endc
                     endm
 LOGIC_SKIP_HELPER   macro
+                    endm
+LOGIC_TRACE_ROUTINE macro
+                    ifne      GAME_PRESENTATION
+GameTraceEvent      ldu       <resourcebase
+                    std       restartcall,u
+                    TRACE_MODE_READ a
+                    TRACE_MODE_COMPARE a
+                    bne       GameTraceEventMuted
+                    lda       <vmopcode
+                    sta       <vmargindex
+                    lda       #182
+                    sta       <vmopcode
+                    lbra      GameUiCommand
+GameTraceEventMuted andcc     #$FE
+                    rts
+                    endc
                     endm
 
 * ===== wildbits-random-operands =====
@@ -88,7 +118,14 @@ CONDITION_READ_CODE macro
                     endm
 CONDITION_EVALUATE  macro
                     lbsr      VmConditionTest
-                    bcs       VmConditionFailure
+                    lbcs      VmConditionFailure
+                    ifne      GAME_PRESENTATION
+                    pshs      b
+                    lda       #2
+                    bsr       GameTraceEvent
+                    puls      b
+                    lbcs      VmConditionFailure
+                    endc
                     tfr       b,a
                     endm
 CONDITION_SKIP_TEST macro
@@ -105,7 +142,7 @@ CONDITION_BRANCH    macro
                     endm
 CONDITION_VALIDATE_END macro
                     ldd       ,s
-                    bne       VmConditionInvalid
+                    lbne      VmConditionInvalid
                     endm
 CONDITION_VALIDATE_OR macro
                     tst       1,s
@@ -120,7 +157,7 @@ CONDITION_TRUE_SCAN_BEGIN macro
                     endm
 CONDITION_TRUE_BRANCH macro
                     lbsr      VmReadWord
-                    bcs       VmConditionFailure
+                    lbcs      VmConditionFailure
                     lbra      VmNext
                     endm
 

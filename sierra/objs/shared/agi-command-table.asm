@@ -125,7 +125,7 @@ AGI_NIBBLE_PAIR      set 0
                     AGI_COMMAND cmd_graphics,$0000,GameGraphicsMode,1 *graphics
                     AGI_COMMAND cmd_set_cursor_char,$100,ScreenCommand,0 *set cursor char
                     AGI_COMMAND cmd_set_text_attribute,$200,ScreenCommand,0 *set text attribute
-                    AGI_COMMAND cmd_shake_screen,$100,GameShakeCommand,1 *shake screen
+                    AGI_COMMAND cmd_shake_screen,$100,VmSuccess,0 *shake screen: CoCo stub
                     AGI_COMMAND cmd_config_screen,$300,ScreenCommand,0 *config screen
                     AGI_COMMAND cmd_status_line_on,$0000,ScreenCommand,0 *status line on
                     AGI_COMMAND cmd_status_line_off,$0000,ScreenCommand,0 *status line off
@@ -164,8 +164,8 @@ AGI_NIBBLE_PAIR      set 0
                     AGI_COMMAND cmd_reset_scan_start,$0000,VmCommandScanReset,0 *reset scan start
                     AGI_COMMAND cmd_reposition_to,$300,GameReposition,1 *reposition to
                     AGI_COMMAND cmd_reposition_to_v,$360,GameReposition,1 *reposition to v
-                    AGI_COMMAND cmd_trace_on,$0000,VmPlatformUnsupported,0 *trace on
-                    AGI_COMMAND cmd_trace_info,$300,VmPlatformUnsupported,0 *trace info
+                    AGI_COMMAND cmd_trace_on,$0000,GameTraceOnCommand,1 *trace on
+                    AGI_COMMAND cmd_trace_info,$300,GameTraceInfoCommand,1 *trace info
                     AGI_COMMAND cmd_print_at,$400,GamePrintCommand,1 *print at
                     AGI_COMMAND cmd_print_at_v,$480,GamePrintCommand,1 *print at v
                     AGI_COMMAND cmd_discard_view_v,$180,VmCommandDiscardViewVariable,0 *discard view v

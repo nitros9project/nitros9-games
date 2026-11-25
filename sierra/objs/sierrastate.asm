@@ -1,5 +1,5 @@
 * Wild Bits persistence provider: writable operations execute in a private copy.
-* Only this bounded prefix is copied; UI/audio code lives in immutable wbui.
+* Only this bounded prefix is copied; UI/audio code lives in immutable sierraui.
 * No formatter or flood-fill runs during the copied state operations.
 AUDIO_USER_COPY     equ 1
 WILDBITS            equ 1
@@ -7,7 +7,7 @@ WILDBITS_LAYOUT_ONLY equ 1
                     use platform/wildbits-runtime.asm
                     org 0
                     mod StateEnd,StateName,Sbrtn+Objct,ReEnt+1,StateEntry,0
-StateName           fcs /wbstate/
+StateName           fcs /sierrastate/
                     fcb 1
 StateEntry          bra StateBegin
                     STATE_ABI

@@ -68,20 +68,68 @@ def main():
                     else:raise AssertionError('CoCo discard did not return')
                     assert regs['s']==0x7ef2 and d.read(0x7ef2,5)==b'STACK'
                     predecessor=base+cs['list_struct'] if not target else nodes[target-1]
+                    successor=nodes[target+1] if target<2 else 0
                     expected=bytearray(records)
-                    if target:expected[(target-1)*16:(target-1)*16+2]=b'\0\0'
+                    if target:expected[(target-1)*16:(target-1)*16+2]=successor.to_bytes(2,'big')
                     assert d.read(0x7000,len(records))==expected
-                    assert d.read(predecessor,2)==b'\0\0'
+                    assert d.read(predecessor,2)==successor.to_bytes(2,'big')
                     assert d.read(0x55,2)==nodes[target].to_bytes(2,'big')
                     assert d.read(0x4f,2)==(0x6000+target*0x100).to_bytes(2,'big')
                     assert trace==['PushScript','ClearBothRanges','CalcPriAddr','SwapObjRanges','SetLogicPage']
                     assert d.read(0x6fff,1)==b'G' and d.read(0x7030,1)==b'H'
-                    expected_code=bytearray(coco)
-                    expected_code[cs['list_struct']:cs['list_struct']+2]=(0 if not target else nodes[0]).to_bytes(2,'big')
-                    expected_code[cs['ListLastNode']:cs['ListLastNode']+2]=predecessor.to_bytes(2,'big')
-                    assert d.read(base,len(coco))==expected_code
+                    expected_head=successor if not target else nodes[0]
+                    assert d.read(base+cs['list_struct'],2)==expected_head.to_bytes(2,'big')
+                    assert d.read(base+cs['ListLastNode'],2)==predecessor.to_bytes(2,'big')
                     calls+=1
                 for address in hooks:d.breakpoint(address,False)
+                picture_hooks={base+cs[n]:n for n in
+                               ('PushScript','ClearBothRanges','CalcPriAddr',
+                                'SwapObjRanges','UpdateFreeSpace','ReportError')}
+                for address in picture_hooks:d.breakpoint(address)
+                picture_nodes=(0x7000,0x7007,0x700e)
+                for target in range(3):
+                    picture_records=bytearray(21)
+                    for index,node in enumerate(picture_nodes):
+                        offset=index*7
+                        picture_records[offset:offset+2]=(picture_nodes[index+1]
+                            if index<2 else 0).to_bytes(2,'big')
+                        picture_records[offset+2]=11+index
+                        picture_records[offset+3:offset+5]=(0x5000+index*0x100).to_bytes(2,'big')
+                        picture_records[offset+5:offset+7]=(100+index).to_bytes(2,'big')
+                    d.write(0x6fff,b'G'+picture_records+b'H')
+                    d.write(base+cs['PicListBuf'],picture_nodes[0].to_bytes(2,'big'))
+                    d.write(0x0431+250,bytes([11+target]))
+                    d.write(0x2000,b'\xfaARGS')
+                    d.write(0x7ef0,b'\x7e\x00STACK')
+                    d.regs(pc=base+cs['cmd_discard_pic'],s=0x7ef0,y=0x2000,dp=0,cc=0x50)
+                    trace=[]
+                    for _ in range(20):
+                        d.call('c');regs=d.regs()
+                        if regs['pc']==0x7e00:break
+                        hook=picture_hooks.get(regs['pc'])
+                        assert hook and hook!='ReportError',('CoCo discard.pic',target,regs)
+                        trace.append(hook);updates={'cc':regs['cc']&~1}
+                        if hook=='CalcPriAddr':updates['u']=0x6000+target*0x100
+                        ret=int.from_bytes(d.read(regs['s'],2),'big')
+                        d.regs(pc=ret,s=regs['s']+2,**updates)
+                    else:raise AssertionError('CoCo discard.pic did not return')
+                    predecessor=base+cs['PicListBuf'] if target==0 else picture_nodes[target-1]
+                    successor=picture_nodes[target+1] if target<2 else 0
+                    expected_records=bytearray(picture_records)
+                    if target:
+                        expected_records[(target-1)*7:(target-1)*7+2]=successor.to_bytes(2,'big')
+                    assert d.read(0x7000,21)==expected_records,('CoCo picture links',target)
+                    assert d.read(predecessor,2)==successor.to_bytes(2,'big')
+                    assert regs['s']==0x7ef2 and d.read(0x7ef2,5)==b'STACK'
+                    assert regs['y']==0x2001 and d.read(0x2001,4)==b'ARGS'
+                    assert trace==['PushScript','ClearBothRanges','CalcPriAddr',
+                                   'SwapObjRanges','UpdateFreeSpace']
+                    expected_head=successor if target==0 else picture_nodes[0]
+                    assert d.read(base+cs['PicListBuf'],2)==expected_head.to_bytes(2,'big')
+                    assert d.read(base+cs['PicListPtr'],2)==predecessor.to_bytes(2,'big')
+                    assert d.read(0x6fff,1)==b'G' and d.read(0x7015,1)==b'H'
+                    calls+=1
+                for address in picture_hooks:d.breakpoint(address,False)
             for base in (0x9000,0xa000):
                 d.write(base,native)
                 hooks={base+ns[n]:n for n in ('AssetUnmap','AssetRelease')}
@@ -147,8 +195,46 @@ def main():
                         assert regs['s']==0x7ef2 and d.read(0x7ef2,5)==b'STACK'
                         assert d.read(base,len(native))==native
                         calls+=1
+                for target in (11,12,13):
+                    private=0x1000;state=bytearray(ns['size'])
+                    state[ns['resourcebase']:ns['resourcebase']+2]=private.to_bytes(2,'big')
+                    state[ns['vmcurrent']]=0;state[ns['vmopcode']]=27
+                    state[ns['vmarguments']]=250;state[ns['replaylimit']]=0
+                    state[ns['vmvariables']+250]=target
+                    for index,(kind,number) in enumerate([(0,10),(1,11),(1,12),(1,13)]):
+                        offset=ns['vmcache']+slot_bytes*index
+                        state[offset:offset+12]=bytes([number,1,0,0x30+index,2,kind,0,50,0,50,0,0])
+                    cache=bytes(state[ns['vmcache']:ns['vmcache']+cache_bytes])
+                    d.write(private,state+b'GUARD')
+                    d.write(0x7ef0,b'\x7e\x00STACK')
+                    d.regs(pc=base+ns['GameDiscardPicture'],s=0x7ef0,
+                           dp=private>>8,u=private,cc=0x50)
+                    released=[]
+                    for _ in range(12):
+                        d.call('c');regs=d.regs()
+                        if regs['pc']==0x7e00:break
+                        hook=hooks.get(regs['pc']);assert hook,('native discard.pic',target,regs)
+                        updates={'cc':regs['cc']&~1,'b':0}
+                        if hook=='AssetRelease':
+                            released.append(int.from_bytes(d.read(private+ns['assetfirst'],2),'big'))
+                            assert d.read(private+ns['assetowned'],1)==b'\x01'
+                            d.write(private+ns['assetowned'],b'\0')
+                        ret=int.from_bytes(d.read(regs['s'],2),'big')
+                        d.regs(pc=ret,s=regs['s']+2,**updates)
+                    else:raise AssertionError('native discard.pic did not return')
+                    expected=bytearray(cache);slot=target-10
+                    expected[slot*slot_bytes+1]=0
+                    assert d.read(private+ns['vmcache'],cache_bytes)==expected
+                    assert released==[0x30+slot]
+                    assert d.read(private+ns['replayused'],2)==b'\0\0'
+                    assert d.read(private+ns['assetfirst'],2)==b'\0\x30'
+                    assert not d.read(private+ns['assetowned'],1)[0]
+                    assert regs['s']==0x7ef2 and d.read(0x7ef2,5)==b'STACK'
+                    assert d.read(private+ns['size'],5)==b'GUARD'
+                    assert d.read(base,len(native))==native
+                    calls+=1
                 for address in hooks:d.breakpoint(address,False)
-            print(f'PASS: relocated picture-list initialization preserves code; {calls} actual discard calls at two load addresses; CoCo suffix rewind, '
+            print(f'PASS: relocated picture-list initialization preserves code; {calls} actual discard calls at two load addresses; CoCo successor-link preservation, '
                   'native typed single-slot release/absent/release failure, ownership, stack and code guards')
         finally:
             d.s.close();emulator.terminate()

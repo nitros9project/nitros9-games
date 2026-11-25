@@ -71,6 +71,26 @@ def check_controls():
         count+=1
        assert enabled==[10],enabled
        print('PASS: actual CoCo trace activation requires flag 10, preserves existing modes and does not allocate twice at',hex(base),flush=True)
+
+       # config.screen's first operand also sets the CoCo trace-window base.
+       # Check the full command sequence for every legal Wild Bits picture-top
+       # value, so the platform renderer's vertical offset is not mistaken for
+       # an unrelated display-only setting.
+       for picturetop in range(5):
+        d.write(0x68,b'\0')
+        d.write(0x7000,bytes([picturetop,23,0]))
+        q,_=call(base,'cmd_config_screen')
+        assert q['y']==0x7003
+        d.write(0x7000,b'\x0a')
+        call(base,'CmdSetImpl')
+        d.write(base+s['TraceLineOff'],bytes([1,8]))
+        d.write(0x68,b'\0')
+        _,windows=call(base,'cmd_trace_on')
+        expected_top=picturetop+2
+        assert d.read(base+s['TraceTopRow'],2)==bytes([expected_top,expected_top+7])
+        assert len(windows)==1
+        count+=1
+       print('PASS: config.screen picture-top operand feeds CoCo trace-window geometry for all five legal layouts at',hex(base),flush=True)
       print('PASS:',count,'actual CoCo trace config/permission/mode calls; byte bounds, one window creation, exact callback words, operand/stack guards')
      finally:
       d.s.close();e.terminate()

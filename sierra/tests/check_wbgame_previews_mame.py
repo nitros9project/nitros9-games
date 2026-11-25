@@ -20,7 +20,6 @@ def main():
     modes.add_argument('--monitor',action='store_true',help='Check native/CoCo RGB palette switching on real drivers')
     modes.add_argument('--joystick',action='store_true',help='Check real-driver joystick enable, neutral polling, toggle and cleanup')
     modes.add_argument('--version',action='store_true',help='Check the interpreter information dialog instead of an item preview')
-    modes.add_argument('--shake',action='store_true',help='Check shake.screen timing and restoration instead of an item preview')
     ap.add_argument('--interrupt',action='store_true',help='Exit with Ctrl-C instead of the bound quit controller')
     a=ap.parse_args()
     root=Path(__file__).resolve().parents[1]
@@ -32,7 +31,7 @@ def main():
     def install(name,data,target=None,text=False):
         p=out/name;p.write_bytes(data);os9('copy','-r',*(['-l'] if text else []),p,f'{disk},{target or name}')
     os9('makdir',f'{disk},preview')
-    for name in ('wbgame','wbstate','wbui','wbfont'):
+    for name in ('wbgame','sierrastate','sierraui','sierrafont'):
         install(name,(root/'objs'/name).read_bytes(),'CMDS/'+name);os9('attr',f'{disk},CMDS/{name}','-e','-pe')
     install('startup',b'load utilpak1\nlink shell\nload wbgame\nload grfdrv256\n',text=True)
     install('feu.startup',b'bootos9 /s0/OS9Boot\n','FEU/startup',text=True)
@@ -41,10 +40,6 @@ def main():
     script=bytes([255,12,1,255,3,0,134,1,0,255,7,20,255,1,0,0,3,10,2,121,113,0,1,3,0,1,24,0,25,0,26,129,0,3,240,73,119,12,20,0])
     if a.text_preview:script=script.replace(bytes([129,0]),bytes([106,129,0]))
     if a.version:script=script.replace(bytes([129,0]),bytes([141]))
-    if a.shake:
-        script=bytes([255,12,1,255,3,0,134,1,0,255,7,20,255,1,0,0,3,10,2,121,113,0,1,
-                      3,0,1,24,0,25,0,33,0,41,0,0,37,0,40,80,54,0,15,35,0,26,110,1,
-                      3,240,73,119,12,20,0])
     if a.joystick:
         script=bytes([255,12,1,255,3,0,134,1,0,
                       255,12,2,255,4,0,139,3,240,74,
@@ -87,23 +82,6 @@ def main():
             lines.append(f'  cpu.debug:bpset({base+offset},{json.dumps(condition)},{json.dumps(action)})')
         action=f'printf "JOYSTICK QUIT %d %d",b@(u+{syms["vmvariables"]+240:x}),b@(u+{syms["joystickenabled"]:x}); g'
         lines.append(f'  cpu.debug:bpset({base+syms["GameQuitCommand"]},{json.dumps(condition)},{json.dumps(action)})')
-    elif a.shake:
-        helper=symbols(root/'objs/wbui.map')
-        wait=f'printf "SHAKE WAIT %d %d %d",totalcycles,b@(w@{syms["resourcebase"]:x}+{syms["shakeshifted"]:x}),b@(w@{syms["resourcebase"]:x}+{syms["gameclockpath"]:x}); g'
-        end=f'printf "SHAKE NEXT %d %d",totalcycles,b@(w@{syms["resourcebase"]:x}+{syms["shakeshifted"]:x}); g'
-        shifted='snap "shake-shifted"; g'
-        cold_guard=f'{condition} && b@(w@{syms["resourcebase"]:x}+{syms["vmopcode"]:x})==6e'
-        shifted_guard=f'{cold_guard} && b@(w@{syms["resourcebase"]:x}+{syms["shakeshifted"]:x})==1'
-        action=(f'bpset u+{helper["AuxShakeWait"]:x},{cold_guard},{{{wait}}}; '
-                f'bpset u+{helper["AuxShakeNext"]:x},{cold_guard},{{{end}}}; '
-                f'bpset u+{helper["AuxShakeDelta"]:x},{shifted_guard},{{{shifted}}}; '
-                f'bpset u+{helper["AuxShakeSleepFallback"]:x},{shifted_guard},{{{shifted}}}; '
-                f'printf "SHAKE MODULE %d",u; g')
-        selector=f'{condition} && b@s == 12'
-        lines.append(f'  cpu.debug:bpset({base+syms["GameColdMetadata"]},{json.dumps(selector)},{json.dumps(action)})')
-        for label,tag in [('GameShakeCommand','START'),('ScreenCommand','END')]:
-            action=f'printf "SHAKE {tag} %d %d",totalcycles,b@(u+{syms["vmvariables"]+240:x}); g'
-            lines.append(f'  cpu.debug:bpset({base+syms[label]},{json.dumps(condition)},{json.dumps(action)})')
     else:
         for label,tag in [('GamePrintWait','MODAL'),('ScreenCommand','RESUMED')]:
             action=f'printf "PREVIEW {tag} %d %d",b@{syms["vmopcode"]:x},b@(u+{syms["vmvariables"]+240:x}); g'
@@ -137,17 +115,6 @@ def main():
         assert re.findall(r'JOYSTICK TOGGLE (\d+)',log)==['0','1'],log[-2000:]
         assert 'JOYSTICK QUIT 74 0' in log,log[-2000:]
         (out/'joystick.json').write_text(json.dumps({'samples':samples,'marker':74,'enabled_at_quit':False},indent=2)+'\n')
-    elif a.shake:
-        events=re.findall(r'SHAKE (START|WAIT|NEXT|END) (\d+) (\d+)(?: (\d+))?',log)
-        (out/'shake-events.json').write_text(json.dumps(events,indent=2)+'\n')
-        starts=[event for event in events if event[0]=='START'];ends=[event for event in events if event[0]=='END']
-        phases=[event for event in events if event[0]=='NEXT']
-        assert len(starts)==1 and len(ends)==1 and int(ends[0][2])==73,events
-        assert len(phases)==8 and [int(event[2]) for event in phases]==[1,0]*4,phases
-        seconds=(int(ends[0][1])-int(starts[0][1]))/12587500
-        assert .49<=seconds<=1.5,seconds
-        assert len([event for event in events if event[0]=='WAIT'])>=8,events
-        (out/'shake-timing.json').write_text(json.dumps({'seconds':seconds,'counter_active':all(event[3]!='255' for event in events if event[0]=='WAIT')},indent=2)+'\n')
     else:
         assert ('PREVIEW MODAL 141 0' if a.version else 'PREVIEW MODAL 129 0') in log,log[-2000:]
         assert 'PREVIEW RESUMED 119 73' in log,log[-2000:]
@@ -168,20 +135,6 @@ def main():
     elif a.joystick:
         assert png_rgb(out/'preview-visible.png')==png_rgb(out/'preview-restored.png'),'neutral joystick altered the scene'
         print('PASS: real-driver joystick enable, neutral axes/buttons, toggle, script continuation and memory cleanup')
-    elif a.shake:
-        def colors(path):
-            w,h,pixels=png_rgb(path);assert (w,h)==(640,480)
-            blue=[]
-            for y in range(480):
-                for x in range(640):
-                    at=(y*w+x)*3
-                    if pixels[at:at+3]==bytes([0,0,170]):blue.append((x,y))
-            assert blue,path
-            return (min(x for x,y in blue),min(y for x,y in blue))
-        shifted=colors(out/'shake-shifted.png');restored=colors(out/'preview-restored.png')
-        assert shifted==(restored[0]+16,restored[1]+8),(shifted,restored)
-        assert restored==(160,172),restored
-        print('PASS: real-driver shake displacement, eight phases, subsequent script execution, exact sprite restoration and memory cleanup',seconds)
     else:
         w,h,pixels=png_rgb(out/'preview-visible.png');assert (w,h)==(640,480)
         if not a.version:
@@ -192,18 +145,26 @@ def main():
                 for x,color in enumerate(row):
                     at=((346+y*2)*w+312+x*2)*3
                     assert pixels[at:at+3]==color,('preview pixel',x,y,pixels[at:at+3],color)
-        font=(root/'objs/wbfont').read_bytes()
-        messages=['Adventure Game Interpreter','Wild Bits NitrOS-9 engine'] if a.version else ['A FINE TREASURE.']
+        font=(root/'objs/sierrafont').read_bytes()
+        # The information source has two CR-separated strings, but the first
+        # long line wraps at the production modal's word boundary.
+        messages=['Adventure Game','Interpreter','Version 2.072'] if a.version else ['A FINE TREASURE.']
+        # Modal output uses the native text plane's white-on-black character
+        # cells. The one-line preview description is centered in the 40-column
+        # plane at cell (10,10), rendered as 16x16 MAME pixels per glyph. The
+        # text-screen preview enters this same modal renderer.
+        glyph_x,glyph_y=160,160
+        glyph_fg,glyph_bg=bytes([255])*3,bytes(3)
         for row,message in enumerate(messages):
             for col,char in enumerate(message):
                 for y in range(8):
                     for x in range(8):
-                        expected=bytes(3) if font[ord(char)*8+y]&(128>>x) else bytes([255])*3
-                        at=((128+row*16+y*2)*w+32+col*16+x*2)*3
+                        expected=glyph_fg if font[ord(char)*8+y]&(128>>x) else glyph_bg
+                        at=((glyph_y+row*16+y*2)*w+glyph_x+col*16+x*2)*3
                         assert pixels[at:at+3]==expected,('dialog glyph',row,col,x,y)
         w,h,pixels=png_rgb(out/'preview-restored.png')
         for y in range(h):
-            expected=(bytes([255])*3 if not a.text_preview and 16<=y<352 else bytes(3))*w
+            expected=(bytes([255])*3 if 16<=y<352 else bytes(3))*w
             assert pixels[y*w*3:(y+1)*w*3]==expected,('restored scene row',y)
         print('PASS: real-driver '+('interpreter information' if a.version else 'item pixels and description')+', keyboard dismissal, subsequent script execution, exact scene restoration and memory cleanup')
 

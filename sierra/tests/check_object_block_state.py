@@ -75,6 +75,43 @@ def main():
                         assert d.read(0x6fff, len(records)+2) == b'G'+wanted+b'H'
                         assert d.read(0x7ef2, 5) == b'STACK'
                         calls += 1
+                    # Invoke the public opcode-34 entry as well as the shared
+                    # bulk loop above. Only CoCo's MMU-backed range cleanup is
+                    # bypassed; the complete unanimate command body is real.
+                    records=bytearray((i*73+19)&255 for i in range(64*43))
+                    wanted=bytearray(records)
+                    for index in range(64):wanted[index*43+0x26]&=0xbe
+                    if private:
+                        memory=bytearray(syms['size'])
+                        memory[syms['resourcebase']:syms['resourcebase']+2]=private.to_bytes(2,'big')
+                        memory[syms['vmopcode']]=34
+                        memory[syms['vmobjects']:syms['vmobjects']+len(records)]=records
+                        d.write(private,memory+b'GUARD')
+                        d.write(0x7ef0,b'\x7e\0STACK')
+                        d.regs(pc=base+syms['ObjectCommand'],s=0x7ef0,u=private,
+                               dp=private>>8,cc=0x50)
+                        d.call('c');actual=d.regs()
+                        assert actual['pc']==0x7e00 and actual['s']==0x7ef2 and actual['b']==0
+                        assert d.read(private+syms['vmobjects'],len(records))==wanted
+                        assert d.read(private+syms['size'],5)==b'GUARD'
+                    else:
+                        d.write(0x30,(0x7000).to_bytes(2,'big'))
+                        d.write(0x32,(0x7000+len(records)).to_bytes(2,'big'))
+                        d.write(0x6fff,b'G'+records+b'H')
+                        entry=base+syms['CmdUnanimateAll']
+                        prefix=d.read(entry,3)
+                        assert len(prefix)==3
+                        d.write(entry,b'\x12\x12\x12')
+                        try:
+                            d.write(0x7ef0,b'\x7e\0STACK')
+                            d.regs(pc=entry,s=0x7ef0,u=0,dp=0,cc=0x50)
+                            d.call('c');actual=d.regs()
+                        finally:
+                            d.write(entry,prefix)
+                        assert actual['pc']==0x7e00 and actual['s']==0x7ef2
+                        assert d.read(0x6fff,len(records)+2)==b'G'+wanted+b'H'
+                    assert d.read(base,len(code))==code,(owner,'public unanimate modified module')
+                    calls+=1
                     assert d.read(base+syms['StepXDelta'], 18) == bytes([
                         0,0,1,1,1,0,255,255,255, 0,255,255,0,1,1,1,0,255])
                     assert d.read(base, len(code)) == code, (owner, 'modified code')

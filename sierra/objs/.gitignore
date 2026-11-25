@@ -1,14 +1,15 @@
 
 # Wild Bits module build products
 /wbgame
-/wbstate
+/sierraui
+/sierrastate
 /wbexec
 /wbdecode
 /wbrun
 /wbasset
 /wbres
 /wbpic
-/wbfont
+/sierrafont
 /*.list
 /*.map
 /test-picture.bin

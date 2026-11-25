@@ -75,6 +75,8 @@ ExecScriptExecCmdImpl lsla                ; multiply cmd by 2
                     leay      a,y       ; advance Y past command arguments
                     rts
                     endm
+LOGIC_TRACE_ROUTINE macro
+                    endm
 
 * ===== coco-random-operands =====
 * Fixed CoCo variable-table binding for the common random command.

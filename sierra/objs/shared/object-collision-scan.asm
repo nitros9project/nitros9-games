@@ -2,7 +2,9 @@
 * Actor is U. Owners bind table iteration, candidate register and return ABI.
 * Horizontal arithmetic and baseline history retain explicit legacy policies.
 * Horizontal parameter 3 preserves the first native comparison's high byte;
-* the second comparison explicitly clears it, matching the previous code.
+* the second comparison explicitly clears it. The wide native path uses the
+* CoCo inclusive edge rule: skip only when one interval is strictly beyond the
+* other, so a one-pixel edge contact still counts as a collision.
 COLLISION_HORIZONTAL macro
                     ifne COLLISION_WIDE
                     clra
@@ -17,7 +19,7 @@ COLLISION_HORIZONTAL macro
                     clra
                     endc
                     cmpd      ,s++
-                    bhs       CollisionScanAdvance
+                    bhi       CollisionScanAdvance
                     else
                     addb      <$1C,\1
                     cmpb      3,\2

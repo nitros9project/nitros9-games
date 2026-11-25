@@ -42,7 +42,7 @@ def main():
         tmp = Path(name)
         if not args.sort_only: coco, cs = compile_module(ROOT/'objs/mnln.asm',tmp/'mnln')
         game = (ROOT/'objs/wbgame').read_bytes(); gs = symbols(ROOT/'objs/wbgame.map')
-        helper = (ROOT/'objs/wbui').read_bytes(); hs = symbols(ROOT/'objs/wbui.map')
+        helper = (ROOT/'objs/sierraui').read_bytes(); hs = symbols(ROOT/'objs/sierraui.map')
         d,proc = start_cpu(idle_rom(tmp/'idle.rom'),timeout=1800)
         try:
             d.write(0xffdf,b'\0'); d.write(0xff90,b'\x4c')
@@ -54,7 +54,7 @@ def main():
             for base in range(168):
                 d.write(0x7400,bytes([base])); d.write(0x05ed,b'G'+bytes(168)+b'H')
                 d.write(0x5f60,b'\x7e\0STACK')
-                d.regs(pc=0x8000+cs['SetPriBase'],s=0x5f60,x=0x05ee,y=0x7400,dp=0,cc=0x51)
+                d.regs(pc=0x8000+cs['SetPriBaseStub'],s=0x5f60,x=0x1234,y=0x7400,dp=0,cc=0x51)
                 d.call('c'); r=d.regs()
                 assert r['pc']==0x7e00 and r['s']==0x5f62
                 assert d.read(0x05ed,170)==b'G'+priorities(base)+b'H',('CoCo',base)

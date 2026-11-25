@@ -114,3 +114,10 @@ AGI_TRACE_KEY_ADVANCE macro
                     lda       #2
                     TRACE_MODE_STORE
                     endm
+
+* Logic zero requests one separator before the next trace event.
+AGI_TRACE_ROOT_ENTER macro
+                    TRACE_LOGIC_NUMBER_TEST
+                    bne       \1
+                    TRACE_SEPARATOR_MARK
+                    endm

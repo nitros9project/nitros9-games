@@ -13,7 +13,7 @@ WIDE = [256, 257, 999, 1000, 9999, 10000, 32767, 32768, 65534, 65535]
 
 def check_object_status(d, c, cs, tmp):
     """Compare the shared diagnostic's actual output before either modal backend."""
-    n, ns = compile_module(ROOT/'objs/wbui.asm', tmp/'wbui-status')
+    n, ns = compile_module(ROOT/'objs/sierraui.asm', tmp/'sierraui-status')
     d.breakpoint(0x7e00, False)
     d.write(0xffdf,b'\0');d.write(0xff90,b'\x4c');d.write(0xff91,b'\1');d.write(0xffa8,bytes(range(8)));d.write(0x7e00,b'\x39');d.write(0x7e04,b'\x5f\x39');d.breakpoint(0x7e02)
     results={};calls=0
@@ -94,7 +94,7 @@ def check_object_status(d, c, cs, tmp):
 
 def check_memory_info(d, coco, cs, tmp):
     """Verify actual reference formatting and native owned-memory categories."""
-    code, syms = compile_module(ROOT/'objs/wbui.asm', tmp/'wbui-memory')
+    code, syms = compile_module(ROOT/'objs/sierraui.asm', tmp/'sierraui-memory')
     d.breakpoint(0x7e00,False);d.breakpoint(0x7e02)
     d.write(0x7e00,b'\x39');d.write(0x7e04,b'\x5f\x39')
     for base in (0x8000,0x9000):

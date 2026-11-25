@@ -124,7 +124,7 @@ GameSoundPoll       ldx #1
                     stb <soundready
                     clr <soundchannel
 GameSoundChannel    lsr <soundready
-                    lbcc GameSoundNextChannel
+                    bcc GameSoundNextChannel
                     ldb <soundcache
                     jsr [soundcalls+8,u]
                     jsr [soundcalls+2,u]
@@ -206,6 +206,9 @@ SoundStatus         lda <soundpath
                     ldu <resourcebase
                     rts
 AudioBlobEnd        equ *
+                    ifgt AudioBlobEnd-AudioBlobStart-SOUND_PRIVATE_CODE_BYTES
+                    error Copied audio exceeds its private reservation
+                    endc
 AudioInstall        pshs u
                     leax AudioBlobStart,pcr
                     leau soundcode,u
@@ -235,7 +238,7 @@ AudioInstallCalls   ldd ,y
 GameSoundCommand    ldu <resourcebase
                     ldb <vmopcode
                     cmpb #100
-                    beq SoundStopBody
+                    beq GameSoundSuccess ; CoCo's stop.sound command is a no-op
                     tst soundinstalled,u
                     bne SoundCommandReady
                     tst vmflags+9,u

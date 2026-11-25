@@ -22,3 +22,4 @@ ExecScriptDone      LOGIC_SUCCESS
                     LOGIC_SKIP_HELPER
 ExecLogicScriptRet  leas      $02,s     ; release if-state local frame
                     rts
+                    LOGIC_TRACE_ROUTINE

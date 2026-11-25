@@ -3,7 +3,8 @@
 See the [Wild Bits / CoCo 3 parity checklist](WILDBITS-PARITY.md) for verified
 evidence, remaining work, and the acceptance criteria for completion.
 
-`wbgame` is the native 6809/NitrOS-9 game owner. King's Quest I now accepts
+`sierra` is the public Wild Bits command, matching the CoCo 3 launch name. It is
+the native 6809/NitrOS-9 game owner. King's Quest I now accepts
 typed commands, displays responses, moves the player between rooms, and opens
 inventory and menus. Its platform code and state are grouped by feature in
 `objs/platform/wildbits-*.asm`; common motion, object, formatter and decoder
@@ -11,13 +12,13 @@ algorithms live in `objs/shared`. See
 [the platform layout](objs/platform/README.md) for the feature map. The older `objs/wildbits_engine.asm` scaffold is not built.
 
 Build with `make -C sierra/objs -f wildbits.mk all` from the games repository. Install
-`wbgame`, `wbfont`, and the matching `wbui` and `wbstate` auxiliary helpers in the OS-9
+`sierra`, `sierrafont`, and the matching `sierraui` and `sierrastate` auxiliary helpers in the OS-9
 execution directory, with read/execute access. The current private helper ABI
 is version 11; install all three executable modules together when upgrading.
 Keep the original game resources together in a readable directory, then run:
 
 ```text
-wbgame /s0/game 0
+sierra /s0/game 0
 ```
 
 Press an arrow to move and press the same arrow again to stop. Type a command and press ENTER. `look room` requests
@@ -29,10 +30,10 @@ The game's Save and Restore commands ask for a filename (for example,
 `/s0/my-save`). Save creates a new file; choose a new name for each save rather
 than overwriting an existing file. Restore checks the complete file before
 replacing game resources. Files belong to this native port and must match the
-current game's ID. The `wbstate` helper supplies save/restore code, copied into the caller's private workspace for each state operation. The `wbui` helper supplies
+current game's ID. The `sierrastate` helper supplies save/restore code, copied into the caller's private workspace for each state operation. The `sierraui` helper supplies
 immutable text/UI code and the private audio adapter. It is required for text
 output. Its first text request retains a shared code mapping until exit; normal
-movement does not reload it. Install both helpers from the same build as `wbgame`. A pictured snapshot needs
+movement does not reload it. Install both helpers from the same build as `sierra`. A pictured snapshot needs
 five temporary 8 KiB blocks during validation, so available OS-9 memory matters
 when several games are running. A read/validation error leaves the game running;
 a resource reconstruction failure exits through cleanup.
@@ -454,7 +455,7 @@ survive picture refreshes. `display`/`display.v` support colors, wrapping and
 bounded `%v`, `%s`, `%w` and recursive `%m` message expansion. `print`/`print.v`
 show a modal response and restore the scene after dismissal.
 
-`wbgame` currently uses 23,584 code bytes and 24,460 private bytes. Three private
+The `sierra` module currently uses 23,584 code bytes and 24,460 private bytes. Three private
 blocks, the kernel block and one mapping window leave a conservative
 23,808-byte code budget.
 Physical memory also holds resource caches, two picture slabs and the terminal
@@ -509,8 +510,8 @@ audio playback support.
 
 ## Inventory and native font installation
 
-Install **both** `wbgame` and the generated `wbfont` in the target execution
-directory. Give `wbfont` read/execute attributes, including public attributes
+Install **both** `sierra` and the generated `sierrafont` in the target execution
+directory. Give `sierrafont` read/execute attributes, including public attributes
 when other users run games. The engine opens it with `READ.+EXEC.` and requires
 exactly 1,024 bytes. `make` exports those bytes directly from the canonical
 `objs/font-data.asm`. The CoCo font is unchanged; native glyph rendering reads
@@ -683,7 +684,7 @@ keyboard dismissal and automatic clearing after dismissal. Held messages and
 Pause retain their separate behavior. The optional public SOL counter supplies
 frame timing and rebases after terminal switching; the sleep-count fallback can
 run late under scheduling load. Both text storage and modal waiting execute
-through the matching immutable `wbstate` helper. Install it with `wbgame` from
+through the matching immutable `sierrastate` helper. Install it with `sierra` from
 the same build. The current resident is 23,584 bytes, the linked helper is 6,941 bytes, and
 its writable state prefix is 3,080 bytes. Private allocation remains 24,460 bytes. See [the engine notes](WILDBITS-ENGINE.md#timed-blocking-messages--2026-10-07)
 for the implementation and acceptance checks.

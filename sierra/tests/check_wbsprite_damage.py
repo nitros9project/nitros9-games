@@ -43,8 +43,8 @@ def main():
                 expected[8*320:176*320]=bytes([16])*(168*320)
                 assert not error and frame==expected, ('sprite trail',width,height,x,y,error)
                 assert spans and all(0<=left<right<=160 and not ((left|right)&1) for left,right in spans), spans
-                if width<160:
-                    assert any(right-left<160 for left,right in spans), ('no narrow paint',spans)
+                if width<160 and x<160 and y<168:
+                    assert any(right-left<160 for left,right in spans), ('no narrow paint',width,height,x,y,spans)
             # Independent control-priority reference: long 0/1/2 columns,
             # an intervening high-priority pixel, another low-priority pixel,
             # and a column with no non-control row before the picture bottom.

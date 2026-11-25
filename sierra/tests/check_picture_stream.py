@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Exercise owned picture input beyond the private 8-KiB staging window."""
 import argparse
+import shutil
 from pathlib import Path
 import subprocess
 import tempfile
@@ -38,6 +39,48 @@ def main():
                             b'\xf1'*8192,b'\xf1'*65535):
                 error,_,_=run(picture)
                 assert error,'truncated stream accepted'
+            base_picture=bytes([0xf0,2,0xf6,10,20,12,20,0xff])
+            overlay_picture=bytes([0xf0,3,0xf6,10,21,12,21,0xff])
+            script=bytes([3,0,1,24,0,25,0,3,1,2,24,1,28,1,26,12,200,134,1,0])
+            files=fixture(script,base_picture)
+            volume=bytearray(files['/game/vol.0'])
+            overlay_offset=len(volume)
+            volume.extend(b'\x12\x34\0'+len(overlay_picture).to_bytes(2,'little')*2+overlay_picture)
+            files['/game/vol.0']=bytes(volume)
+            files['/game/picDir']+=overlay_offset.to_bytes(3,'big')
+            native_picture=[]
+            def capture_picture(cpu,regs,syms):
+                first=int.from_bytes(cpu.read(syms['picturefirst'],2),'big')
+                for page in range(4):
+                    cpu.write(0xffac,bytes([first+page]))
+                    native_picture.append(cpu.read(0x8000,8192))
+                cpu.write(0xffac,b'\x04')
+                return False
+            error,frame,state=exercise(d,files,module='wbgame',module_root=a.module_root,base=0xa000,
+                database=0x0000,window=0x8000,blocks=None,multiple=True,firstblock=0x10,
+                frame_capture=True,capture=True,breakpoint_hooks={'GameShowPicture':capture_picture})
+            assert not error and state['vmflags'][200]==1,('overlay script did not complete',error)
+            assembler=shutil.which('lwasm.orig') or shutil.which('lwasm')
+            assert assembler,'LWASM assembler is required for the CoCo overlay reference'
+            coco_defs=ROOT.parent.parent/'nitros9/defs'
+            base_reference=render(ROOT/'kingsquest4',base_picture,assembler,coco_defs)
+            overlay_reference=render(ROOT/'kingsquest4',overlay_picture,assembler,coco_defs)
+            combined=bytearray(base_reference)
+            for offset,pixel in enumerate(overlay_reference):
+                if pixel&15 != 15:
+                    combined[offset]=pixel
+            assert len(native_picture)==4,('show.pic combined buffer capture count',len(native_picture))
+            actual_combined=b''.join(native_picture)[:26880]
+            assert actual_combined==combined,('overlay.pic combined visual/priority bytes differ from CoCo composition',
+                next((i for i,(actual,wanted) in enumerate(zip(actual_combined,combined)) if actual!=wanted),None))
+            expected=bytearray([1])*76800
+            for row in range(168):
+                expected[(row+8)*320:(row+9)*320]=bytes(
+                    value for pixel in combined[row*160:(row+1)*160]
+                    for value in [(pixel&15)+1]*2)
+            assert frame==expected,('overlay.pic does not match CoCo-rendered overlay composition',
+                next((i for i,(actual,wanted) in enumerate(zip(frame,expected)) if actual!=wanted),None))
+            count+=1
             for boundary,option in [('GameReadPictureChunk','map_failure'),('GamePictureChunkCopy','unmap_error')]:
                 armed=[False]
                 def arm(debugger,regs,symbols):armed[0]=True

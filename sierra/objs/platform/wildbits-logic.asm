@@ -439,7 +439,12 @@ VmClearState        sta       ,x+
                     cmpd      #2
                     bls       VmNativeInvalid
                     std       <vmend
-VmRunRoot           lbsr      ExecuteLogic
+VmRunRoot           ldu       <resourcebase
+                    ifne      GAME_PRESENTATION
+                    tst       gamequit,u
+                    bne       VmNativeReturn
+                    endc
+                    lbsr      ExecuteLogic
                     bcs       VmNativeReturn
                     tst       <vmroompending
                     beq       VmCompletedRootCycle
@@ -466,9 +471,6 @@ VmCompletedRootCycle equ      *
                     ifne      GAME_PRESENTATION
                     lbsr      GameNextCycle
                     bcs       VmNativeReturn
-                    ldu       <resourcebase
-                    tst       gamequit,u
-                    bne       VmNativeReturn
                     clr       <vmroomchanges
                     clr       <vmcurrent
                     clrb
@@ -597,21 +599,32 @@ VmPlatformInputTest
                     bra      VmPlatformUnsupported
 VmCommandLoadLogic  ldu       <resourcebase
                     ldb       vmarguments,u
+                    bra       VmCommandLoadLogicReady
+VmCommandLoadLogicVariable bsr VmResolveLogicArgument
+VmCommandLoadLogicReady pshs b
+* VmLoadLogic records misses as part of allocating the resource. CoCo's
+* public load.logics command also records a resident hit, so add that record
+* here only when the loader did not advance the replay write position.
+                    ldd       <replayused
+                    pshs      d
+                    ldb       2,s
                     lbsr      VmLoadLogic
-                    bcs       VmPlatformReturn
+                    bcs       VmCommandLoadLogicFailed
+                    ldd       <replayused
+                    cmpd      ,s
+                    bne       VmCommandLoadLogicRecorded
+                    ldb       2,s
+                    clra
+                    lbsr      ReplayPush
+                    bcs       VmCommandLoadLogicFailed
+VmCommandLoadLogicRecorded leas 3,s
 * Loading a resource changes loader fields; restore the executing context.
                     ldb       <vmcurrent
                     lbsr      VmSlotAddress
                     lbsr      VmRestoreAsset
                     clrb
                     rts
-VmCommandLoadLogicVariable bsr VmResolveLogicArgument
-                    lbsr      VmLoadLogic
-                    bcs       VmPlatformReturn
-                    ldb       <vmcurrent
-                    lbsr      VmSlotAddress
-                    lbsr      VmRestoreAsset
-                    clrb
+VmCommandLoadLogicFailed leas 3,s
                     rts
 VmResolveLogicArgument ldu    <resourcebase
                     leax      vmvariables,u
@@ -668,6 +681,8 @@ VmProgramControl    clr       <vmplayercontrol
                     rts
 VmSetPlayerControl     lda       #1
                     sta       <vmplayercontrol
+                    ldu       <resourcebase
+                    clr       vmobjects+$22,u ; CoCo clears ego motion when returning control
                     clrb
                     rts
 

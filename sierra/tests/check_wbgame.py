@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Execute native AGI picture commands through the integrated game owner."""
 from pathlib import Path
+import argparse
 import subprocess
 import tempfile
 import re
@@ -44,7 +45,7 @@ def check_object_status_commands(d):
         database=0,window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,
         module_root=ROOT/'objs',os_call_limit=30000)
     assert error==0 and state['messagebuffer'].startswith(b'Object 63:\n'),(error,out)
-    assert state['gamefont']==(ROOT/'objs/wbfont').read_bytes(),'deep diagnostic damaged private font'
+    assert state['gamefont']==(ROOT/'objs/sierrafont').read_bytes(),'deep diagnostic damaged private font'
     print('PASS: object status at 16 nested calls and a 127-byte directory, private font intact and owned cleanup')
     print('PASS: real loaded object-status dispatch, held text, variable255, object0/63, invalid64/255 cleanup')
 
@@ -66,11 +67,11 @@ def check_memory_info_commands(d):
             blocks=None,multiple=True,firstblock=0x10,capture=True,keyboard=keys,
             keyboard_by_sleep=future,module_root=root,os_call_limit=20000)
         expected=(f'room: 0\ncode bytes: {(root/"wbgame").stat().st_size}\n'
-                  f'private bytes: {symbols(root/"wbgame.map")["size"]}\nUI bytes: {(root/"wbui").stat().st_size}\n'
+                  f'private bytes: {symbols(root/"wbgame.map")["size"]}\nUI bytes: {(root/"sierraui").stat().st_size}\n'
                   f'owned 8K pages:\ncache: 1  picture: 4\nbackground: 0  bitmap: {bitmap}\nmax logic bytes: {len(logic)}').encode()
         assert error==0 and state['messagebuffer'].split(b'\0')[0]==expected,(label,error,state['messagebuffer'],expected)
         assert state['sleeps']==wanted_sleeps and state['vmvariables'][21]==0,(label,state['sleeps'])
-        assert state['vmflags'][15]==0 and state['gamefont']==(root/'wbfont').read_bytes()
+        assert state['vmflags'][15]==0 and state['gamefont']==(root/'sierrafont').read_bytes()
         print('PASS: loaded memory info:',label,flush=True)
     directory=b'/'+b'a'*126;volume=bytearray();entries=[b'\xff'*3]
     for number in range(1,18):
@@ -84,14 +85,14 @@ def check_memory_info_commands(d):
         module_root=root,os_call_limit=30000)
     assert error==0 and b'cache: 17  picture: 4' in state['messagebuffer'],(error,out,state['messagebuffer'])
     assert b'max logic bytes: 8\0' in state['messagebuffer']
-    assert state['gamefont']==(root/'wbfont').read_bytes()
+    assert state['gamefont']==(root/'sierrafont').read_bytes()
     print('PASS: memory info at 16 nested calls and a 127-byte directory; cache accounting, private font and cleanup')
 
 
 def check_state_transfers(d):
     """File counts must be checked independently of the service's Z flag."""
-    root=ROOT/'objs'; syms=symbols(root/'wbstate.map'); base=0x9000
-    d.write(base,(root/'wbstate').read_bytes())
+    root=ROOT/'objs'; syms=symbols(root/'sierrastate.map'); base=0x9000
+    d.write(base,(root/'sierrastate').read_bytes())
     labels=('StateTransferBad','StateTransferDone','StateReadMore')
     for label in labels: d.breakpoint(base+syms[label])
     try:
@@ -123,12 +124,14 @@ def check_provider_loaders(d):
         d.write(base,code);sites={base+offset:number for offset,number in offsets.items()}
         for address in [*sites,0x7e00]:d.breakpoint(address)
         try:
-            for role,entry_label in (('wbstate','StateLoadModule'),('wbui','UiLoadModule')):
+            for role,entry_label in (('sierrastate','StateLoadModule'),('sierraui','UiLoadModule')):
                 original=(root/role).read_bytes();entry=int.from_bytes(original[9:11],'big')
+                # Keep the largest malformed provider (sierraui) below the
+                # synthetic caller stack at $7FE0-$7FF7.
                 module_base=0x6000 if base==0x9000 else 0x8000
-                cases=common_cases+(('short prefix','large prefix','prefix past module','wrong state role') if role=='wbstate' else ('reserved UI word',))
+                cases=common_cases+(('short prefix','large prefix','prefix past module','wrong state role') if role=='sierrastate' else ('reserved UI word',))
                 for case in cases:
-                    image=bytearray((root/'wbui').read_bytes() if case=='wrong state role' else original)
+                    image=bytearray((root/'sierraui').read_bytes() if case=='wrong state role' else original)
                     image_entry=int.from_bytes(image[9:11],'big')
                     edits={'bad ABI':(entry+2,0),'short header':(2,entry+38),
                            'large module':(2,8193),'small entry':(9,12),'overflow entry':(9,65535),
@@ -141,8 +144,8 @@ def check_provider_loaders(d):
                     mapped=case in ('mapped valid','unmap failure')
                     d.write(gs['assetmapped'],bytes([mapped]))
                     d.write(gs['assetmapbase'],b'\x80\0')
-                    d.write(0x7ee0,b'L'*16+b'\x7e\0STACK')
-                    d.regs(pc=base+gs[entry_label],s=0x7ef0,u=0,x=0x5555,y=0x4444,dp=0,cc=0x50)
+                    d.write(0x7fe0,b'L'*16+b'\x7e\0STACK')
+                    d.regs(pc=base+gs[entry_label],s=0x7ff0,u=0,x=0x5555,y=0x4444,dp=0,cc=0x50)
                     loaded=0;loads=0;unlinks=0;unmaps=0
                     for _ in range(8):
                         d.call('c');r=d.regs()
@@ -169,9 +172,9 @@ def check_provider_loaders(d):
                         d.regs(**updates)
                     else:raise AssertionError(('loader did not return',role,case))
                     error=0 if case in ('valid','mapped valid','reserved UI word') else gs['E$MemFul'] if case=='unmap failure' else gs['E$PNNF'] if case=='load failure' else gs['E$BMode']
-                    assert r['s']==0x7ef2 and bool(r['cc']&1)==bool(error) and r['b']==error,(role,case,r)
+                    assert r['s']==0x7ff2 and bool(r['cc']&1)==bool(error) and r['b']==error,(role,case,r)
                     assert unmaps==int(mapped) and loads==int(case!='unmap failure')
-                    assert d.read(0x7ee0,8)==b'L'*8 and d.read(0x7ef2,5)==b'STACK'
+                    assert d.read(0x7fe0,8)==b'L'*8 and d.read(0x7ff2,5)==b'STACK'
                     assert d.read(gs['size'],7)==b'PRIVATE'
                     if not error:
                         assert r['u']==module_base and r['x']==module_base+entry+10
@@ -179,15 +182,15 @@ def check_provider_loaders(d):
                         assert loaded==1 and unlinks==0 # the caller owns the successful reference
                     else:
                         assert r['u']==0 and loaded==0
-                        assert unlinks==int(case not in ('unmap failure','load failure'))
+                    assert unlinks==int(bool(error) and case not in ('unmap failure','load failure'))
                     assert d.read(base,len(code))==code
                     count+=1
         finally:
             for address in [*sites,0x7e00]:d.breakpoint(address,False)
-    state=(root/'wbstate').read_bytes();state_entry=int.from_bytes(state[9:11],'big')
+    state=(root/'sierrastate').read_bytes();state_entry=int.from_bytes(state[9:11],'big')
     directory=[int.from_bytes(state[state_entry+10+n:state_entry+12+n],'big') for n in range(0,26,2)]
     assert all(value==0 for n,value in enumerate(directory) if n!=4), 'persistence module exported a UI entry'
-    ui=(root/'wbui').read_bytes();ui_entry=int.from_bytes(ui[9:11],'big')
+    ui=(root/'sierraui').read_bytes();ui_entry=int.from_bytes(ui[9:11],'big')
     assert int.from_bytes(ui[ui_entry+18:ui_entry+20],'big')==0, 'UI advertised copied code'
     d.write(0,bytes(gs['size']));copy=0x8000;d.write(copy,ui)
     private=d.read(0,gs['size']);d.breakpoint(0x7e00)
@@ -201,12 +204,50 @@ def check_provider_loaders(d):
             assert d.read(0x7ee0,16)==b'L'*16 and d.read(0x7ef2,5)==b'STACK'
     finally:d.breakpoint(0x7e00,False)
     from check_wbplay import fixture as logic_fixture
-    files=logic_fixture(bytes([154,0,0,24,39,0,134,1,0]));files['wbui']=state
+    files=logic_fixture(bytes([154,0,0,24,39,0,134,1,0]));files['sierraui']=state
     error,_,_=exercise(d,files,module='wbgame',base=0xa000,database=0,
         window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True)
     assert error==gs['E$BMode'],'persistence image accepted as UI code'
     print('PASS: wrong provider roles fail safely: state loader rejects a UI image; UI entry rejects persistence operations; state directory cannot execute UI callbacks; unchanged private state and ownership cleanup')
     print(f'PASS: {count} actual UI/state loader cases at two code/provider addresses; saved filename across unmap clobbers, ABI/header/prefix bounds, load/unmap failures, exact reference ownership, original U, balanced error stacks and immutable code')
+
+
+def check_native_trace(d):
+    """Run trace.info/on through real loaded logic and verify event/exit cleanup."""
+    cases=[(0,1,8,picturetop) for picturetop in range(5)]
+    cases.extend(((255,255,255,0),(0,0,0,0)))
+    for logic_no,line,rows,picturetop in cases:
+        body=bytes([111,picturetop,23,0,12,10,150,logic_no,line,rows,
+                    149,3,10,42,134,1,0])
+        logic=len(body).to_bytes(2,'little')+body
+        files={'/game/logDir':b'\0\0\0'+bytes(3),
+               '/game/vol.0':b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic}
+        presentation=[]
+        def capture_overlay(cpu,regs,syms):
+            if cpu.read(syms['traceowned'],1)==b'\x01':
+                presentation.append(cpu.read(syms['textcharacters'],2000))
+            return False
+        error,_,state=exercise(d,files,module='wbgame',base=0xa000,database=0,
+            window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,
+            module_root=ROOT/'objs',keyboard_by_sleep={1:b'  '},
+            cycle_limit=40,os_call_limit=30000,
+            breakpoint_hooks={'GameTextPresent':capture_overlay})
+        assert error==0, ('trace fixture failed',logic_no,line,rows,error)
+        assert len(presentation)==1, ('native trace event was not presented',len(presentation))
+        rows_text=[presentation[0][i:i+40] for i in range(0,1000,40)]
+        visible=b'\n'.join(rows_text)
+        assert b'1: 3(10,42)' in visible, visible
+        assert state['vmvariables'][10]==42, 'execution did not resume after a trace step'
+        assert state['traceowned']==b'\0', 'trace page survived process exit'
+        assert state['traceconfiglogic']==bytes([logic_no])
+        assert state['traceconfigline']==bytes([line])
+        assert state['traceconfigrows']==bytes([max(2,rows)])
+        expected_top=min((state['vmpicturetop'][0]+1+line)&255,23)
+        expected_rows=min(max(2,rows),25-expected_top)
+        assert state['tracetop']==bytes([expected_top]),(line,rows,state['tracetop'],expected_top)
+        assert state['tracelines']==bytes([expected_rows]),(line,rows,state['tracelines'],expected_rows)
+        assert expected_top+expected_rows<=25
+    print('PASS: loaded config.screen/trace.info/on variants display and step a real command, match tested CoCo trace rows for all five legal picture tops, clamp low/high geometry, resume execution and release the trace page')
 
 
 def check_reused_private_state(d):
@@ -230,15 +271,15 @@ def check_reused_private_state(d):
         assert error==228 and state['cycles']==10,(fill,long_path,error,state['cycles'])
         assert state['vmvariables'][0]==1
         assert state['vminputenabled']==b'\1'
-        assert state['gamefont']==(ROOT/'objs/wbfont').read_bytes()
+        assert state['gamefont']==(ROOT/'objs/sierrafont').read_bytes()
     print('PASS: original KQ1 starts in recycled nonzero private memory, preserves short/126-byte paths and font, enables input and cleans up on planned interrupt')
 
 
 def check_state_cache_bounds(d, helper_root=None):
     """Restoring code bounds must not write beyond a 12-byte cache entry."""
     root=Path(helper_root) if helper_root is not None else ROOT/'objs'
-    hs=symbols(root/'wbstate.map');gs=symbols(ROOT/'objs/wbgame.map')
-    base=0x9000;code=(root/'wbstate').read_bytes();d.write(base,code)
+    hs=symbols(root/'sierrastate.map');gs=symbols(ROOT/'objs/wbgame.map')
+    base=0x9000;code=(root/'sierrastate').read_bytes();d.write(base,code)
     labels=('StateCallWarm','StateMapSpan','StateUnmap','StateNextRecipe')
     for label in labels:d.breakpoint(base+hs[label])
     try:
@@ -280,12 +321,12 @@ def check_state_cache_bounds(d, helper_root=None):
 
 
 def check_state_validation(d):
-    root=ROOT/'objs'; syms=symbols(root/'wbstate.map'); base=0x9000
-    d.write(base,(root/'wbstate').read_bytes())
+    root=ROOT/'objs'; syms=symbols(root/'sierrastate.map'); base=0x9000
+    d.write(base,(root/'sierrastate').read_bytes())
     import re
     calls={base+int(m[1],16):int(m[2],16) for m in re.finditer(
         r'^([0-9A-F]{4}) 103F([0-9A-F]{2}).*os9',
-        (root/'wbstate.list').read_text(),re.M)}
+        (root/'sierrastate.list').read_text(),re.M)}
     for address in calls: d.breakpoint(address)
     d.breakpoint(0x5000)
     clean=bytearray(syms['StateCoreBytes']+160)
@@ -397,7 +438,7 @@ def check_positioned_messages(d):
         ('missing helper',151,2,2,10,b'bad',None),
         ('bad row',151,25,2,10,b'bad',None),
         ('bad column',151,2,40,10,b'bad',None),
-        ('default after positioned',151,3,7,12,b'alpha beta gamma delta',[(8,2,b'alpha beta gamma delta')]),
+        ('default after positioned',151,3,7,12,b'alpha beta gamma delta',[(10,10,b'alpha beta gamma '),(11,10,b'delta')]),
     ]
     for label,opcode,row,column,width,message,expected in cases:
         print('Checking positioned message:',label,flush=True)
@@ -415,12 +456,12 @@ def check_positioned_messages(d):
         if label in ('bad text entry','oversized text entry','CRC text entry'):
             # Mock F$Load has already accepted the module; exercise our own
             # executable-entry bounds independently of the kernel CRC check.
-            helper=bytearray((ROOT/'objs/wbui').read_bytes())
+            helper=bytearray((ROOT/'objs/sierraui').read_bytes())
             entry=int.from_bytes(helper[9:11],'big')
             offset=0 if label=='bad text entry' else len(helper)-(1 if label=='CRC text entry' else 0)
             helper[entry+14:entry+16]=offset.to_bytes(2,'big')
-            files['wbui']=bytes(helper)
-        elif label=='missing helper':files['wbui']=None
+            files['sierraui']=bytes(helper)
+        elif label=='missing helper':files['sierraui']=None
         captured=[]
         def capture(debug,registers,syms):
             captured.append(debug.read(0x0000+syms['textcharacters'],2000))
@@ -433,10 +474,15 @@ def check_positioned_messages(d):
             assert error==wanted_error and not captured,(label,error,captured)
         else:
             assert not error and len(captured)==1,(label,error,len(captured))
-            wanted=bytearray(b' '*1000)
+            wanted=bytearray(1000)
+            if label=='default after positioned':
+                for popup_row in range(9,16):
+                    wanted[popup_row*40+9:popup_row*40+30]=b' '*21
             for r,c,text in expected:wanted[r*40+c:r*40+c+len(text)]=text
             assert captured[0][:1000]==wanted,(label,[(i,a,b) for i,(a,b) in enumerate(zip(captured[0],wanted)) if a!=b][:12])
-            assert captured[0][1000:]==bytes([15])*1000,(label,'dialog colors')
+            for r,c,text in expected:
+                # Cell colors store foreground/background in high/low nibbles.
+                assert captured[0][1000+r*40+c:1000+r*40+c+len(text)]==bytes([0xF0])*len(text),(label,'message colors')
     print('PASS: native print.at/print.at.v positions, word/newline/hard wrapping, default width, clipped edges, safe invalid coordinates and normal-print reset')
 
 
@@ -452,7 +498,11 @@ def check_text_screen_key_wait(d):
         cpu.write(syms['vmvariables']+19,b'\r')
         cpu.write(syms['parserline'],b'abc\0');cpu.write(syms['parserlength'],b'\x03')
     def text_visible(cpu,r,syms):
-        seen['line']=cpu.read(syms['textcharacters']+8*40+2,len(message)-1)
+        seen['line']=cpu.read(syms['textcharacters']+2*40+4,len(message)-1)
+        seen['panel']=(cpu.read(syms['textcharacters']+40+3,1),
+                       cpu.read(syms['textcolors']+1000+40+3,1),
+                       cpu.read(syms['textcharacters']+3,1),
+                       cpu.read(syms['textcolors']+1000+3,1))
     def resumed(cpu,r,syms):
         seen['graphics']=cpu.read(syms['vmgraphics'],1)
         seen['parser']=cpu.read(syms['parserline'],4)
@@ -463,12 +513,13 @@ def check_text_screen_key_wait(d):
         breakpoint_hooks={'GameTextScreen':submitting_key,'InputHaveKeyTest':text_visible,'GameQuitCommand':resumed})
     assert not error,(error,state['cycles'])
     assert seen['line']==message[:-1],seen
+    assert seen['panel']==(b' ',b'\x0f',b' ',b'\0'),seen['panel']
     assert state['cycles']==5,('stale submitting key dismissed the king text screen',state['cycles'])
     assert state['vmvariables'][19]==ord('p') and seen['graphics']==b'\x01'
     assert seen['parser']==b'abc\0','dialog key changed the command line'
-    helper=bytearray((ROOT/'objs/wbui').read_bytes());entry=int.from_bytes(helper[9:11],'big')
+    helper=bytearray((ROOT/'objs/sierraui').read_bytes());entry=int.from_bytes(helper[9:11],'big')
     helper[entry+16:entry+18]=bytes(2)
-    error,output,state=exercise(d,{**files,'wbui':bytes(helper)},
+    error,output,state=exercise(d,{**files,'sierraui':bytes(helper)},
         arguments=b'/game 0\r',module='wbgame',base=0xa000,database=0,window=0x8000,blocks=None,
         multiple=True,firstblock=0x10,capture=True)
     assert error==203,'invalid have.key wait entry did not unwind safely'
@@ -511,6 +562,57 @@ def check_original_help(d):
     print('PASS: original KQ1 help logic, nested caller resume, fresh-key wait, restored input/graphics and cleanup')
 
 
+def check_nested_logic_calls(d):
+    """Run call/call.v at multiple levels and prove each caller resumes."""
+    game=ROOT/'kingsquest1'
+    files={'/game/'+path.name:path.read_bytes() for path in game.iterdir()
+           if path.is_file() and (path.name.startswith('vol.') or path.name in
+                                  ('logDir','picDir','viewDir','sndDir','words.tok','object'))}
+    scripts=(
+        # Root: preload literal logic 1 and variable logic 3, then call 1
+        # and call.v through v242=2. The load order is observed at the real
+        # resource-pointer service to prove later calls hit the cache.
+        bytes([3,249,3,20,1,21,249,3,240,1,22,1,3,241,42,
+               3,242,2,23,242,3,243,84,134,1,0]),
+        # Logic 1: call.v through v245=3, then resume and assign v246.
+        bytes([3,245,3,23,245,3,246,33,0]),
+        bytes([3,247,22,0]),
+        bytes([3,248,33,0]),
+    )
+    volume=bytearray(files['/game/vol.0'])
+    directory=bytearray(files['/game/logDir'])
+    for number,script in enumerate(scripts):
+        logic=len(script).to_bytes(2,'little')+script
+        offset=len(volume)
+        volume.extend(b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic)
+        directory[number*3:number*3+3]=offset.to_bytes(3,'big')
+    files['/game/vol.0']=bytes(volume)
+    files['/game/logDir']=bytes(directory)
+    call_depths=[];quit_depth=[];logic_resource_loads=[]
+    def entered(cpu,r,syms):
+        call_depths.append(cpu.read(syms['vmdepth'],1)[0])
+        return True
+    def quitting(cpu,r,syms):
+        quit_depth.append(cpu.read(syms['vmdepth'],1)[0])
+    def logic_cache_load(cpu,r,syms):
+        if cpu.read(syms['vmrequestedkind'],1)[0]==0:
+            logic_resource_loads.append(cpu.read(syms['vmrequested'],1)[0])
+        return True
+    error,output,state=exercise(d,files,arguments=b'/game 0\r',module='wbgame',
+        base=0xa000,database=0,window=0x8000,blocks=None,multiple=True,
+        firstblock=0x10,capture=True,
+        breakpoint_hooks={'VmCallLogic':entered,'GameQuitCommand':quitting,
+                          'VmCacheLoad':logic_cache_load})
+    assert error==0,(error,output)
+    expected={240:1,241:42,242:2,243:84,245:3,246:33,247:22,248:33}
+    actual={index:state['vmvariables'][index] for index in expected}
+    assert actual==expected,('nested logic state/caller continuation',actual)
+    assert call_depths==[0,1,0],('literal and variable nested call depth',call_depths)
+    assert quit_depth==[0],('call frame was not unwound before caller continuation',quit_depth)
+    assert logic_resource_loads==[1,3,2],('literal/variable logic preload and call cache-miss order',logic_resource_loads)
+    print('PASS: original loader with literal load.logics, variable load.logics.v, literal call, nested call.v and root call.v; preloaded logic cache hits, child effects, caller continuations, depth/frame cleanup')
+
+
 def check_original_death_messages(d):
     """Run original death-support logic 100 at three score thresholds."""
     game=ROOT/'kingsquest1'
@@ -523,15 +625,21 @@ def check_original_death_messages(d):
         volume=original['/game/vol.0'];offset=len(volume);files=dict(original)
         files['/game/vol.0']=volume+b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic
         directory=bytearray(files['/game/logDir']);directory[:3]=offset.to_bytes(3,'big')
-        files['/game/logDir']=bytes(directory);observed=[]
+        files['/game/logDir']=bytes(directory);observed=[];text_colors=[]
         def message(cpu,r,syms):observed.append(cpu.read(r['x'],512).split(b'\0')[0])
+        def popup_color(cpu,r,syms):
+            text_colors.append((cpu.read(syms['vmtextforeground'],1)[0],
+                                cpu.read(syms['vmtextbackground'],1)[0]))
+            return False
         error,output,state=exercise(d,files,arguments=b'/game 0\r',module='wbgame',
             base=0xa000,database=0,window=0x8000,blocks=None,multiple=True,firstblock=0x10,
-            capture=True,keyboard=b'\r',breakpoint_hooks={'GamePrintText':message})
+            capture=True,keyboard=b'\r',breakpoint_hooks={
+                'GamePrintText':message,'GamePrintPositionReady':popup_color})
         assert not error,(score,error)
         assert len(observed)==1 and phrase in observed[0],(score,observed)
+        assert text_colors==[(15,0)],('popup must render white text on black background',text_colors)
         assert state['vmvariables'][97]==0 and state['vmvariables'][3]==score
-    print('PASS: original KQ1 death-support score branches, message dismissal, nested caller resume and resource cleanup')
+    print('PASS: original KQ1 death-support score branches, white-on-black popup colors, message dismissal, nested caller resume and resource cleanup')
 
 
 def check_original_pickup_puzzles(d):
@@ -729,7 +837,8 @@ def original_quest_chain_files(prerequisites=False,all_acquisitions=False,snapsh
     if all_acquisitions:
         setup=bytes([3,250,9,3,251,0,3,0,3,3,1,0,3,7,158,12,5,
                      33,0,30,0,41,0,0,37,0,122,120,112])
-    if snapshot:setup+=bytes([143,5])  # Original root normally sets its game ID in room 0.
+    if snapshot:
+        setup+=bytes([143,5])  # Original root normally sets its game ID in room 0.
     body=when([1,250,0],setup)
     first=[253,7,5,1,251,0]
     if all_acquisitions:
@@ -778,7 +887,7 @@ def original_quest_chain_files(prerequisites=False,all_acquisitions=False,snapsh
     else:stage+=when([7,188],transfer(3,51))
     body+=when([1,250,2],stage)
     if snapshot:
-        checkpoint=bytes([3,251,1,125,3,3,200,3,74,0,13,188,93,21,3,251,2,126])
+        checkpoint=bytes([142,255,30,143,3,251,1,125,3,3,200,3,74,0,13,188,93,21,3,251,2,126])
         body+=when([1,250,13],when([1,251,0],checkpoint)+when([1,251,1],transfer(3,51)))
     stage=when(first,parse(2,80,140)+bytes([3,251,1]))
     stage+=when([1,251,2],parse(4,40,115)+bytes([3,251,3]))+bytes([22,105])
@@ -791,7 +900,14 @@ def original_quest_chain_files(prerequisites=False,all_acquisitions=False,snapsh
     stage+=when([7,104],transfer(5,53))
     body+=when([1,250,4],stage)
     finish=b''.join(bytes([3,240,item,97,240,variable]) for item,variable in
-                    ((19,200),(21,201),(2,202),(13,203),(14,204),(22,205),(26,206),(8,207),(11,208),(1,209),(9,210)))+bytes([134,1])
+                    ((19,200),(21,201),(2,202),(13,203),(14,204),(22,205),(26,206),(8,207),(11,208),(1,209),(9,210)))
+    if snapshot:
+        # Save the completed ending state to a second file before quitting.
+        # This lets the real-driver MAME test inspect private VM state after
+        # the root process has released its workspace.
+        finish+=bytes([3,250,14,125,3,250,15,134,1])
+    else:
+        finish+=bytes([134,1])
     body+=when([1,250,5],bytes([22,105])+when([7,195],finish))+b'\0'
     strings=b''.join(command+b'\0' for command in
                      (b'play fiddle',b'throw water',b'get shield',b'get mirror',b'use sling',b'get chest',
@@ -927,11 +1043,11 @@ def check_timed_messages(d):
         assert not error and state['cycles']==wanted_cycles,(label,error,state['cycles'])
         assert state['vmvariables'][21]==wanted_timer,(label,state['vmvariables'][21])
     for offset_name in ('zero','size','CRC'):
-        helper=bytearray((ROOT/'objs/wbui').read_bytes())
+        helper=bytearray((ROOT/'objs/sierraui').read_bytes())
         entry=int.from_bytes(helper[9:11],'big')
         offset=0 if offset_name=='zero' else len(helper)-(1 if offset_name=='CRC' else 0)
         helper[entry+16:entry+18]=offset.to_bytes(2,'big')
-        files['wbui']=bytes(helper)
+        files['sierraui']=bytes(helper)
         error,output,state=exercise(d,files,module='wbgame',base=0xa000,
             database=0x0000,window=0x8000,blocks=None,multiple=True,
             firstblock=0x10,capture=True,keyboard=b'\r',os_call_limit=20000)
@@ -939,76 +1055,181 @@ def check_timed_messages(d):
     print('PASS: timed blocking messages, keyboard interruption, held/pause exclusions, raster wrap/coarse/max samples, foreground rebase and invalid wait-entry cleanup')
 
 
-def check_screen_shakes(d):
-    """Compare full owned bitmaps, including reserved dialog storage."""
-    helper=symbols(ROOT/'objs/wbui.map')
-    original=bytes(1+((x*3+y*5)%16) for y in range(200) for x in range(320))+bytes([1])*12800+bytes(1+i%16 for i in range(5120))
-    shifted=bytes([1])*1280+b''.join(bytes([1])*8+original[y*320:y*320+312] for y in range(200))+bytes([1])*(76800-65280)+original[76800:]
-    def bitmap(cpu,syms,data=None):
-        block=int.from_bytes(cpu.read(syms['firstblock'],2),'big');old=cpu.read(0xffac,1);result=bytearray()
-        for page in range(10):
-            cpu.write(0xffac,bytes([block+page]))
-            if data is None:result.extend(cpu.read(0x8000,8192))
-            else:cpu.write(0x8000,data[page*8192:(page+1)*8192])
-        cpu.write(0xffac,old);return bytes(result)
-    def fixture(count,picture=True,depth=0,audio=False):
-        prefix=bytes([3,0,1,24,0,25,0,26]) if picture else b''
-        if audio:prefix+=bytes([98,0,99,0,200])
-        command=bytes([12,15,3,21,2,110,count])
-        body=prefix+(bytes([22,2]) if depth else command)+bytes([3,240,73,134,1,0])
-        def record(data):return b'\x12\x34\0'+len(data).to_bytes(2,'little')*2+data
-        volume=record(len(body).to_bytes(2,'little')+body);picture_offset=len(volume);volume+=record(b'\xff')
-        logs=[b'\xff'*3,bytes(3)]
-        for number in range(2,depth+2):
-            logs.append(len(volume).to_bytes(3,'big'))
-            script=bytes([22,number+1,0]) if number<depth+1 else command+b'\0'
-            volume+=record(len(script).to_bytes(2,'little')+script)
-        sound=len(volume);volume+=record(bytes([28,63,0,240,255,0,240]))
-        return {'/game/vol.0':volume,'/game/logDir':b''.join(logs),
-                '/game/picDir':b'\xff'*3+picture_offset.to_bytes(3,'big'),'/game/sndDir':sound.to_bytes(3,'big')}
-    for label,count,picture,raster,depth,abort in [
-        ('no bitmap',1,False,False,0,False),('zero',0,True,False,0,False),
-        ('one fallback',1,True,False,0,False),('two raster',2,True,True,0,False),
-        ('deep audio and long directory',1,True,True,16,False),
-        ('maximum repeat count interrupted',255,True,True,0,True)]:
-        print('Checking screen shake:',label,flush=True);seen=[]
-        def seed(cpu,r,syms):bitmap(cpu,syms,original)
-        def inspect(cpu,r,syms):
-            assert bitmap(cpu,syms)==shifted,(label,'shifted pixels or reserved storage changed')
-            assert int.from_bytes(cpu.read(syms['shakecycles'],2),'big')==count*8
-            seen.append(True)
-            if abort:cpu.write(syms['aborted'],b'\x01')
-        def restored(cpu,r,syms):assert bitmap(cpu,syms)==original,(label,'bitmap not restored')
-        hooks={'GameShakeCommand':seed,'GameQuitCommand':restored} if picture else {}
-        if count and picture:hooks[0x6000+helper['AuxShakeWait']]=inspect
-        files=fixture(count,picture,depth,bool(depth));arguments=b'/game 1\r'
-        if depth:
-            directory=b'/'+b'x'*126;files={directory.decode()+name[5:]:data for name,data in files.items()};arguments=directory+b' 1\r'
-        error,output,state=exercise(d,files,arguments=arguments,module='wbgame',base=0xa000,
-            database=0,window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,
-            os_call_limit=60000,breakpoint_hooks=hooks,sol={'start':250,'step':1} if raster else None,
-            psg={'version':4} if depth else None)
-        assert error==(228 if abort else 0),(label,error)
-        assert state['vmvariables'][240]==(0 if abort else 73)
-        assert state['gamefont']==(ROOT/'objs/wbfont').read_bytes(),(label,'font overwritten')
-        if not depth:assert state['vmflags'][15]==1 and state['vmvariables'][21]==2
-        if count and picture:assert seen
-    original_helper=(ROOT/'objs/wbui').read_bytes();entry=int.from_bytes(original_helper[9:11],'big')
-    for offset in (0,len(original_helper),len(original_helper)-1):
-        helper_data=bytearray(original_helper);helper_data[entry+34:entry+36]=offset.to_bytes(2,'big')
-        files=fixture(1);files['wbui']=bytes(helper_data)
-        error,output,state=exercise(d,files,module='wbgame',base=0xa000,database=0,
-            window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,os_call_limit=60000)
-        assert error==203,(offset,error)
-    print('PASS: exact shifted/restored pixels, reserved dialog bytes, repeats, raster/fallback waits, zero/no-screen cases, deep audio/long-path safety and interrupted/error cleanup')
+def check_coco_show_object(d):
+    """Run CoCo show.obj through its sprite MMU calls and message_box."""
+    from check_logic_executor import compile_module
+    with tempfile.TemporaryDirectory(prefix='sierra-coco-show-object-') as name:
+        code,syms=compile_module(ROOT/'objs/mnln.asm',Path(name)/'mnln')
+        node,data=0x4000,0x5000
+        from check_lzw import resources
+        actual_view=bytearray(next(payload for name,_,payload in resources()
+                                   if name=='viewDir/4'))
+        description=b'A fine treasure.\0'
+        description_offset=len(actual_view)
+        actual_view[3:5]=description_offset.to_bytes(2,'little')
+        actual_view.extend(description)
+        stop=0x7e00
+        d.write(stop,b'\x39');d.breakpoint(stop)
+        cases=[('literal','cmd_show_obj',bytes([4]),1,4),
+               ('variable','cmd_show_obj_v',bytes([200]),1,13)]
+        total=0;mmu_calls=[]
+        for base in (0x8000,0x9000):
+            d.write(0,bytes(0x6000));d.write(base,code)
+            d.write(0x0000,bytes.fromhex('7fff'))
+            for address in (0x004b,0x004d,0x004f,0x0051,0x0053,0x0055):
+                d.write(address,bytes.fromhex('6000'))
+            hooks={}
+            for label in ('message_box','SetLogicPage'):
+                address=base+syms[label]
+                d.breakpoint(address)
+                hooks[address]=label
+            d.write(0x0701,b'\x39');d.breakpoint(0x0701)
+            for label,entry,operands,count,viewnum in cases:
+                d.write(base+syms['list_struct'],node.to_bytes(2,'big'))
+                d.write(node,b'\0\0'+bytes([viewnum])+data.to_bytes(2,'big')+
+                        len(actual_view).to_bytes(2,'big'))
+                d.write(data,actual_view)
+                d.write(0x0431+200,bytes([viewnum]))
+                d.write(0x05b1,b'\0')
+                d.write(0x3000,operands+b'GUARD')
+                d.write(0x7ef0,b'\x7e\x00STACK')
+                captured=[]
+                d.regs(pc=base+syms[entry],s=0x7ef0,y=0x3000,dp=0,cc=0x50)
+                for _ in range(32):
+                    d.call('c');r=d.regs()
+                    if r['pc']==stop:break
+                    if r['pc']==0x0701:
+                        function19=d.read(0x0019,1)[0]
+                        function=function19 if function19==0x1b else d.read(0x0021,1)[0]
+                        d.write(0x0019,b'\0')
+                        argument=int.from_bytes(d.read(r['s']+2,2),'big')
+                        if function==0x15:
+                            view_node=argument
+                            object_ptr=int.from_bytes(d.read(view_node+4,2),'big')
+                            coords=d.read(object_ptr+3,2)
+                            dimensions=d.read(view_node+8,4)
+                            mmu_calls.append((entry,function,coords,dimensions))
+                        elif function in (0x0c,0x1b,0x12):
+                            mmu_calls.append((entry,function,b'',b''))
+                        else:raise AssertionError(('unexpected show.obj MMU function',entry,function))
+                        ret=int.from_bytes(d.read(r['s'],2),'big')
+                        d.regs(pc=ret,s=r['s']+2)
+                        continue
+                    assert r['pc'] in hooks,(label,entry,r)
+                    service=hooks[r['pc']]
+                    ret=int.from_bytes(d.read(r['s'],2),'big')
+                    update={'pc':ret,'s':r['s']+2}
+                    if service=='message_box':
+                        captured.append(d.read(r['u'],len(description)).split(b'\0',1)[0])
+                    d.regs(**update)
+                else:raise AssertionError((entry,'CoCo show.obj failed to return'))
+                assert r['pc']==stop and r['s']==0x7ef2,(entry,r)
+                assert r['y']==0x3000+count,(entry,r['y'])
+                assert captured==[description[:-1]],(label,captured,description)
+                assert d.read(0x05b1,1)==b'\1','CoCo full-screen redraw flag was not restored'
+                assert d.read(0x3000+count,5)==b'GUARD' and d.read(0x7ef2,5)==b'STACK'
+                loaded_code=d.read(base,len(code))
+                mutable={*range(syms['list_struct'],syms['list_struct']+7),
+                         *range(syms['ListLastNode'],syms['ListLastNode']+2)}
+                assert all(loaded_code[i]==code[i] for i in range(len(code))
+                           if i not in mutable),(entry,'CoCo module code modified',
+                    [(i,loaded_code[i],code[i]) for i in range(len(code))
+                     if loaded_code[i]!=code[i] and i not in mutable][:8])
+                assert d.read(base+syms['list_struct'],2)==node.to_bytes(2,'big')
+                assert d.read(base+syms['ListLastNode'],2)==(
+                    base+syms['list_struct']).to_bytes(2,'big')
+                total+=1
+            for address in hooks:d.breakpoint(address,False)
+            d.breakpoint(0x0701,False)
+        for entry in ('cmd_show_obj','cmd_show_obj_v'):
+            calls=[call for call in mmu_calls if call[0]==entry]
+            sequence=[0x15,0x0c,0x1b,0x12,0x1b]
+            assert [call[1] for call in calls]==sequence*2,(entry,calls)
+            for sprite in (calls[0],calls[len(sequence)]):
+                assert sprite[2]==bytes([69,167]) and sprite[3][:2]==bytes([22,22]),(entry,sprite)
+        # Exercise the real CoCo view selectors against an expanded KQ1 view,
+        # so the geometry above is not the only evidence from a synthetic cel.
+        from check_lzw import resources
+        actual_view=next(data for name,_,data in resources() if name=='viewDir/4')
+        view_node,view_data,object_record=0x4000,0x5000,0x6000
+        d.write(base+syms['list_struct'],view_node.to_bytes(2,'big'))
+        d.write(view_node,b'\0\0\x04'+view_data.to_bytes(2,'big')+
+                len(actual_view).to_bytes(2,'big'))
+        d.write(view_data,actual_view)
+        d.write(object_record,bytes(43))
+        d.write(0x7ef0,b'\x7e\x00STACK')
+        d.breakpoint(base+syms['SetLogicPage'])
+        d.regs(pc=base+syms['SetViewForObj'],s=0x7ef0,u=object_record,b=4,dp=0,cc=0x50)
+        for _ in range(32):
+            d.call('c');r=d.regs()
+            if r['pc']==stop:break
+            assert r['pc']==base+syms['SetLogicPage'],('real CoCo view selector service',r)
+            ret=int.from_bytes(d.read(r['s'],2),'big')
+            d.regs(pc=ret,s=r['s']+2)
+        else:raise AssertionError('real CoCo view selector did not return')
+        selected=d.read(object_record,43)
+        cel_pointer=int.from_bytes(selected[0x10:0x12],'big')
+        cel_dimensions=selected[0x1c:0x1e]
+        assert int.from_bytes(selected[6:8],'big')==view_data,(selected.hex())
+        assert cel_pointer==view_data+0x1a,(hex(cel_pointer),actual_view[:32].hex())
+        assert cel_dimensions==actual_view[0x1a:0x1c] and cel_dimensions!=b'\0\0',(
+            cel_dimensions.hex(),actual_view[0x1a:0x1c].hex())
+        assert r['s']==0x7ef2 and d.read(0x7ef2,5)==b'STACK'
+        d.breakpoint(base+syms['SetLogicPage'],False)
+        # Rasterize that same resource cel with CoCo's production ObjBlit,
+        # then compare every emitted pixel with an independent row-run decoder.
+        from check_logic_executor import compile_module
+        shdw,shdw_syms=compile_module(ROOT/'objs/shdw.asm',Path(name)/'shdw')
+        shdw=bytearray(shdw);shdw[shdw_syms['TwiddleMmu']]=0x39
+        render_base,cel_address,object_address=0xd000,0x4000,0x3000
+        d.write(0xffdf,b'\0');d.write(0xff90,b'\x4c');d.write(0xff91,b'\x01')
+        d.write(0xffa8,bytes(range(8)));d.write(render_base,shdw)
+        cel=actual_view[cel_pointer-view_data:]
+        width,height,transparent=cel[:3]
+        runs=cel[3:];cursor=0;decoded=[]
+        for row in range(height):
+            pixels=[]
+            while True:
+                run=runs[cursor];cursor+=1
+                if run==0:break
+                color=run&0xf0;length=run&0x0f
+                assert length and len(pixels)+length<=width,(row,run,len(pixels))
+                pixels.extend([None if color==((transparent<<4)&0xf0) else color>>4]*length)
+            assert len(pixels)<=width,(row,len(pixels),width)
+            pixels.extend([None]*(width-len(pixels)))
+            decoded.append(pixels)
+        render_x,render_y=50,70;top=render_y-height+1;background=0x4f
+        for row in range(top,top+height):
+            d.write(0x6040+row*160+render_x-1,bytes([background])*(width+2))
+        record=bytearray(0x30);record[3]=render_x;record[4]=render_y
+        record[8:10]=view_data.to_bytes(2,'big')
+        record[0x10:0x12]=cel_address.to_bytes(2,'big');record[0x24]=15
+        d.write(object_address,record);d.write(cel_address,cel)
+        stop=0x7e00;stack=0x7ef0
+        d.write(stop,b'\x39');d.breakpoint(stop)
+        d.write(stack,stop.to_bytes(2,'big')+object_address.to_bytes(2,'big')+b'STACK')
+        d.regs(pc=render_base+shdw_syms['ObjBlit'],s=stack,dp=0,cc=0x50)
+        d.call('c');r=d.regs()
+        assert r['pc']==stop and r['s']==stack+2 and d.read(stack+4,5)==b'STACK',r
+        for row,pixels in enumerate(decoded):
+            actual=d.read(0x6040+(top+row)*160+render_x,width)
+            expected=bytes(background if pixel is None else 0xf0|pixel for pixel in pixels)
+            assert actual==expected,('real KQ1 CoCo ObjBlit pixels',row,actual.hex(),expected.hex())
+            assert d.read(0x6040+(top+row)*160+render_x-1,1)==bytes([background])
+            assert d.read(0x6040+(top+row)*160+render_x+width,1)==bytes([background])
+        d.breakpoint(stop,False)
+        print(f'PASS: {total} CoCo show.obj/show.obj.v cases; real KQ1 view 4 selects cel offset $001A (21x22), and production ObjBlit matches an independent RLE pixel oracle with clipped-edge guards')
 
 
 def check_object_previews(d):
     """Check item pixels during dismissal and exact restoration afterwards."""
     default=bytearray([0,0,1,0,0,7,0,1,3,0,4,3,31,0x12,0xf1,0x21,0,0x31,0x43,0,0x51,0])
     default[3:5]=len(default).to_bytes(2,'little');default+=b'A fine treasure.\0'
-    def fixture(command,view=default,depth=0,audio=False):
-        start=bytes([3,0,1,24,0,25,0,26])
+    def fixture(command,view=default,depth=0,audio=False,viewnum=0):
+        config=b''
+        if command[:1]==bytes([111]):
+            config,command=command[:4],command[4:]
+        start=config+bytes([3,0,1,24,0,25,0,26])
         if audio:start+=bytes([98,0,99,0,200])
         script=start+(bytes([22,2]) if depth else command)+bytes([3,240,73,134,1,0])
         logic=len(script).to_bytes(2,'little')+script
@@ -1023,10 +1244,16 @@ def check_object_previews(d):
         sound=len(data);data.extend(record(bytes([28,63,0,240,255,0,240])))
         return {'/game/vol.0':bytes(data),'/game/logDir':b''.join(logs),
                 '/game/picDir':b'\xff'*3+offsets[1].to_bytes(3,'big'),
-                '/game/viewDir':offsets[2].to_bytes(3,'big'),'/game/sndDir':sound.to_bytes(3,'big')}
+                '/game/viewDir':b'\xff'*(3*viewnum)+offsets[2].to_bytes(3,'big'),
+                '/game/sndDir':sound.to_bytes(3,'big')}
     baseline=None
+    configured_baselines={}
     cases=[('baseline',b'',0,False),('literal',bytes([129,0]),0,False),
            ('variable',bytes([3,200,0,162,200]),0,False),
+           *((f'configured screen offset {offset}',bytes([111,offset,23,0,129,0]),0,False)
+             for offset in range(5)),
+           ('literal view 4',bytes([129,4]),0,False,4),
+           ('variable view 13',bytes([3,200,13,162,200]),0,False,13),
            ('already cached',bytes([30,0,129,0]),0,False),
            ('held/timer flags',bytes([12,15,3,21,2,129,0]),0,False),
            ('depth 16 and long directory',bytes([129,0]),16,True),
@@ -1035,7 +1262,19 @@ def check_object_previews(d):
            ('text-screen baseline',bytes([106]),0,False),
            ('text-screen preview',bytes([106,129,0]),0,False),
            ('text-screen held/timer flags',bytes([106,12,15,3,21,2,129,0]),0,False)]
-    for label,command,depth,audio in cases:
+    for case in cases:
+        label,command,depth,audio=case[:4]
+        viewnum=case[4] if len(case)>4 else 0
+        screen_offset=None
+        if label.startswith('configured screen offset '):
+            screen_offset=int(label.rsplit(' ',1)[1])
+            print('Checking object preview baseline: screen offset',screen_offset,flush=True)
+            error,configured_baselines[screen_offset],state=exercise(
+                d,fixture(bytes([111,screen_offset,23,0])),arguments=b'/game 1\r',
+                module='wbgame',base=0xa000,database=0,window=0x8000,blocks=None,
+                multiple=True,firstblock=0x10,capture=True,frame_capture=True,
+                os_call_limit=60000)
+            assert not error and state['vmvariables'][240]==73,(screen_offset,error)
         print('Checking object preview:',label,flush=True)
         modal={}
         def inspect(cpu,r,syms):
@@ -1049,7 +1288,7 @@ def check_object_previews(d):
         if label=='already cached':
             def unexpected_discard(*args):raise AssertionError('preview discarded an existing cached view')
             hooks['VmDiscardResource']=unexpected_discard
-        files=fixture(command,depth=depth,audio=audio);arguments=b'/game 1\r'
+        files=fixture(command,depth=depth,audio=audio,viewnum=viewnum);arguments=b'/game 1\r'
         if depth:
             directory=b'/'+b'x'*126
             files={directory.decode()+name[5:]:data for name,data in files.items()}
@@ -1061,13 +1300,80 @@ def check_object_previews(d):
             sol={'start':250,'step':1} if audio else None)
         assert not error,(label,error)
         assert state['vmvariables'][240]==73,(label,'caller not resumed')
-        assert state['gamefont']==(ROOT/'objs/wbfont').read_bytes(),(label,'font overwritten')
+        assert state['gamefont']==(ROOT/'objs/sierrafont').read_bytes(),(label,'font overwritten')
         if 'baseline' in label:baseline=frame
         else:
-            assert frame==baseline,(label,'scene not restored')
-            assert modal['text'][322:338]==b'A fine treasure.',(label,modal['text'][322:350])
-            assert modal['frame'][173*320+156:173*320+164]==bytes([2,2,2,2,16,16,3,3]),(label,'preview pixels missing')
+            expected_scene=configured_baselines[screen_offset] if screen_offset is not None else baseline
+            assert frame==expected_scene,(label,'scene not restored')
+            popup=bytearray(1000)
+            offset=screen_offset if screen_offset is not None else 0
+            for popup_row in range(9,16):
+                popup[popup_row*40+9+offset:popup_row*40+30+offset]=b' '*21
+            popup[10*40+10+offset:10*40+26+offset]=b'A fine treasure.'
+            assert modal['text']==popup,(label,modal['text'].find(b'A fine treasure.'))
+            preview_y=173+(screen_offset-1)*8 if screen_offset is not None else 173
+            pixels=bytes([2,2,2,2,16,16,3,3])
+            matches=[i for i in range(0,len(modal['frame'])-len(pixels)+1)
+                     if modal['frame'][i:i+len(pixels)]==pixels]
+            assert modal['frame'][preview_y*320+156:preview_y*320+164]==pixels,(label,'preview pixels missing',preview_y,matches[:10])
         if 'held/timer flags' in label:assert state['vmflags'][15]==1 and state['vmvariables'][21]==2
+    # Use the real expanded KQ1 view resource on Wild Bits as well. Add a
+    # bounded description at the resource's declared description offset; cel
+    # and loop tables stay byte-for-byte as shipped in the game.
+    from check_lzw import resources
+    actual_view=next(data for name,_,data in resources() if name=='viewDir/4')
+    description=b'A fine treasure.\0'
+    description_offset=len(actual_view)
+    actual_view=bytearray(actual_view)
+    actual_view[3:5]=description_offset.to_bytes(2,'little')
+    actual_view.extend(description)
+    _,actual_baseline,baseline_state=exercise(d,
+        fixture(b'',view=bytes(actual_view),viewnum=4),module='wbgame',base=0xa000,
+        database=0,window=0x8000,blocks=None,multiple=True,firstblock=0x10,
+        capture=True,frame_capture=True,os_call_limit=60000)
+    assert baseline_state['vmvariables'][240]==73,'real-view baseline script did not resume'
+    print('Checking object preview: real expanded KQ1 view 4',flush=True)
+    modal={}
+    def inspect_real_view(cpu,r,syms):
+        modal['text']=cpu.read(syms['textcharacters'],1000)
+        block=int.from_bytes(cpu.read(syms['firstblock'],2),'big')
+        old=cpu.read(0xffac,1);frame=bytearray()
+        for page in range(10):
+            cpu.write(0xffac,bytes([block+page]));frame.extend(cpu.read(0x8000,8192))
+        cpu.write(0xffac,old);modal['frame']=bytes(frame[:76800])
+    files=fixture(bytes([129,4]),view=bytes(actual_view),viewnum=4)
+    error,frame,state=exercise(d,files,module='wbgame',base=0xa000,database=0,
+        window=0x8000,blocks=None,multiple=True,firstblock=0x10,
+        capture=True,frame_capture=True,keyboard=b'\r',os_call_limit=60000,
+        breakpoint_hooks={'GamePrintWait':inspect_real_view})
+    assert not error and state['vmvariables'][240]==73,('real KQ1 view 4',error)
+    assert frame==actual_baseline,'real KQ1 view preview did not restore the original scene'
+    popup=bytearray(1000)
+    for popup_row in range(9,16):popup[popup_row*40+9:popup_row*40+30]=b' '*21
+    popup[10*40+10:10*40+10+len(description)-1]=description[:-1]
+    assert modal['text']==popup,'real KQ1 view description was not displayed'
+    cel=actual_view[0x1a:];width,height,transparent=cel[:3]
+    pixels=cel[3:];cursor=0;decoded=[]
+    for row in range(height):
+        decoded_row=[]
+        while True:
+            run=pixels[cursor];cursor+=1
+            if run==0:break
+            color=run&0xf0;length=run&0x0f
+            assert length and len(decoded_row)+length<=width,(row,run)
+            decoded_row.extend([None if color==((transparent<<4)&0xf0) else color>>4]*length)
+        decoded_row.extend([None]*(width-len(decoded_row)))
+        decoded.append(decoded_row)
+    origin_x=((160-width)//2)*2;origin_y=167-height+1+8
+    for row,decoded_row in enumerate(decoded):
+        at=(origin_y+row)*320+origin_x
+        expected_row=bytearray(actual_baseline[at:at+width*2])
+        for column,color in enumerate(decoded_row):
+            if color is not None:
+                expected_row[column*2:column*2+2]=bytes([color+1])*2
+        actual_row=modal['frame'][at:at+width*2]
+        assert actual_row==expected_row,('Wild Bits KQ1 view 4 pixels differ from independent cel RLE oracle',
+            row,actual_row.hex(),expected_row.hex())
     for label,view,expected_error in [('empty description',default[:3]+b'\0\0'+default[5:],0),
                        ('maximum description',default[:22]+b'X'*511+b'\0',0),
                        ('description outside slab',default[:3]+b'\xff\xff'+default[5:],203),
@@ -1078,19 +1384,41 @@ def check_object_previews(d):
             database=0,window=0x8000,blocks=None,multiple=True,firstblock=0x10,
             capture=True,keyboard=b'\r',os_call_limit=60000)
         assert error==expected_error,(label,error)
-    original=(ROOT/'objs/wbui').read_bytes();entry=int.from_bytes(original[9:11],'big')
+    original=(ROOT/'objs/sierraui').read_bytes();entry=int.from_bytes(original[9:11],'big')
     for offset in (0,len(original),len(original)-1):
         helper=bytearray(original);helper[entry+34:entry+36]=offset.to_bytes(2,'big')
-        files=fixture(bytes([129,0]));files['wbui']=bytes(helper)
+        files=fixture(bytes([129,0]));files['sierraui']=bytes(helper)
         error,output,state=exercise(d,files,module='wbgame',base=0xa000,database=0,
             window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,
             keyboard=b'\r',os_call_limit=60000)
         assert error==203,(offset,error)
-    print('PASS: literal/variable item pixels and descriptions, exact restoration, preserved cache/print flags, deep audio/long-path safety and bounded malformed-resource cleanup')
+    print('PASS: literal/variable synthetic and real KQ1 view 4 pixels/descriptions, exact restoration, preserved cache/print flags, deep audio/long-path safety and bounded malformed-resource cleanup')
+    check_coco_show_object(d)
 
 
 def check_interpreter_information(d):
     """A menu version request must dismiss, restore state and resume its caller."""
+    from check_logic_executor import compile_module
+    with tempfile.TemporaryDirectory(prefix='sierra-version-reference-') as name:
+        coco,cs=compile_module(ROOT/'objs/mnln.asm',Path(name)/'mnln')
+        stop=0x7e00
+        d.write(stop,b'\x39');d.breakpoint(stop)
+        for base in (0x8000,0x9000):
+            d.write(0,bytes(0x6000));d.write(base,coco)
+            entry=base+cs['message_box'];d.breakpoint(entry)
+            d.write(0x7ef0,b'\x7e\x00STACK')
+            d.regs(pc=base+cs['CmdShowAgiInfo'],s=0x7ef0,dp=0,cc=0x50)
+            d.call('c');r=d.regs()
+            assert r['pc']==entry,('CoCo message_box entry',r)
+            version=d.read(r['u'],64).split(b'\0',1)[0]
+            assert version==b'Adventure Game Interpreter\n      Version 2.072',version
+            ret=int.from_bytes(d.read(r['s'],2),'big')
+            d.regs(pc=ret,s=r['s']+2)
+            d.call('c');r=d.regs()
+            assert r['pc']==stop and r['s']==0x7ef2,r
+            assert d.read(0x7ef2,5)==b'STACK'
+            d.breakpoint(entry,False)
+        d.breakpoint(stop,False)
     for label,prefix,depth in [('ordinary',b'',0),('held print',bytes([12,15]),0),
                               ('timed print',bytes([3,21,2]),0),
                               ('deep caller',bytes([12,15,3,21,2]),16)]:
@@ -1114,8 +1442,9 @@ def check_interpreter_information(d):
             breakpoint_hooks={'GamePrintWait':inspect})
         assert not error,(label,error)
         assert state['vmvariables'][240]==73,(label,'caller did not resume')
-        assert b'Adventure Game Interpreter' in modal['text'],(label,modal)
-        assert b'Wild Bits NitrOS-9 engine' in modal['text'],(label,modal)
+        for line in (b'Adventure Game',b'Interpreter',b'Version 2.072'):
+            assert line in modal['text'],(label,line,modal)
+        assert b'Wild Bits' not in modal['text'],(label,modal)
         assert state['vmflags'][15]==(1 if 15 in prefix else 0),(label,'print flag changed')
         assert state['vmvariables'][21]==(2 if 21 in prefix else 0),(label,'print timer changed')
     print('PASS: interpreter information, blocking dismissal, preserved flags/timer and deep caller resume')
@@ -1143,7 +1472,7 @@ def check_simple_save_staging(d):
             window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,
             keyboard=keys,os_call_limit=30000,breakpoint_hooks={'GameStateInvoke':stage})
         assert error==0 and seen==wanted and state['vmvariables'][240]==73,(label,error,out,seen)
-        assert state['gamefont']==(ROOT/'objs/wbfont').read_bytes()
+        assert state['gamefont']==(ROOT/'objs/sierrafont').read_bytes()
         print('PASS: automatic filename staging:',label,flush=True)
     directory=b'/'+b'a'*126;volume=bytearray();entries=[b'\xff'*3]
     final=fixture(bytes([143,1,114,11,2,170,11,125,3,240,73,134,1,0]),
@@ -1160,7 +1489,7 @@ def check_simple_save_staging(d):
         database=0,window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,
         os_call_limit=30000,breakpoint_hooks={'GameStateInvoke':stage})
     assert error==0 and seen==[b'/alpha'] and state['vmvariables'][240]==73,(error,out,seen)
-    assert state['gamefont']==(ROOT/'objs/wbfont').read_bytes()
+    assert state['gamefont']==(ROOT/'objs/sierrafont').read_bytes()
     print('PASS: automatic name/provider staging at 16 nested calls and 127-byte directory, private font intact and ownership recovered')
 
 
@@ -1173,7 +1502,7 @@ def check_simple_save_restart(d):
         database=0,window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,
         os_call_limit=30000,breakpoint_hooks={'GameQuitCommand':observe})
     assert error==0 and seen==[b'/alpha'] and state['vmflags'][6]==1,(error,out,seen)
-    assert not any(state['vmstrings']) and state['gamefont']==(ROOT/'objs/wbfont').read_bytes()
+    assert not any(state['vmstrings']) and state['gamefont']==(ROOT/'objs/sierrafont').read_bytes()
     print('PASS: automatic name survives actual restart while its old source string table is cleared, with balanced ownership and private-font guards')
 
 
@@ -1182,7 +1511,7 @@ def check_save_replacement(d):
     from check_logic_executor import compile_module
     with tempfile.TemporaryDirectory(prefix='sierra-save-replace-') as name:
         coco,cs=compile_module(ROOT/'objs/mnln.asm',Path(name)/'mnln')
-        native=(ROOT/'objs/wbstate').read_bytes();ns=symbols(ROOT/'objs/wbstate.map')
+        native=(ROOT/'objs/sierrastate').read_bytes();ns=symbols(ROOT/'objs/sierrastate.map')
         count=0
         for owner,code,syms in [('CoCo',coco,cs),('native',native,ns)]:
             entry='CreateFile' if owner=='CoCo' else 'StateCreateFile'
@@ -1236,7 +1565,7 @@ def check_simple_save_reference(d):
     from check_logic_executor import compile_module
     with tempfile.TemporaryDirectory(prefix='sierra-simple-reference-') as name:
         coco,cs=compile_module(ROOT/'objs/mnln.asm',Path(name)/'mnln')
-        ui,ns=compile_module(ROOT/'objs/wbui.asm',Path(name)/'wbui')
+        ui,ns=compile_module(ROOT/'objs/sierraui.asm',Path(name)/'sierraui')
         d.breakpoint(0x7e00);calls=0
         for base in (0x8000,0x9000):
             for owner,code,syms in [('CoCo',coco,cs),('native',ui,ns)]:
@@ -1285,8 +1614,8 @@ def check_simple_save_reference(d):
 
 
 def check_ui_command_cache(d):
-    """Interleave diagnostic/shake/restart groups through one private cache."""
-    body=bytes([255,7,6,255,3,0,134,1,0,12,15,135,110,1,177,0,12,15,135,
+    """Interleave diagnostic/visibility/restart groups through one cache."""
+    body=bytes([255,7,6,255,3,0,134,1,0,12,15,135,177,0,12,15,135,
                 12,16,128,3,254,99,134,1,0])
     logic=len(body).to_bytes(2,'little')+body
     files={'/game/logDir':b'\xff'*3+bytes(3),
@@ -1300,10 +1629,10 @@ def check_ui_command_cache(d):
         window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,
         os_call_limit=30000,breakpoint_hooks={'GameUiCommand':entry})
     assert error==0 and state['vmflags'][6]==1 and state['vmvariables'][254]==0,(error,out)
-    assert [opcode for opcode,_ in calls]==[135,110,177,135,128],calls
+    assert [opcode for opcode,_ in calls]==[135,177,135,128],calls
     assert calls[0][1]==0 and len({pointer for _,pointer in calls[1:]})==1 and calls[1][1],calls
-    assert state['gamefont']==(ROOT/'objs/wbfont').read_bytes()
-    print('PASS: interleaved diagnostic/shake/visibility/restart use one stable private UI cache; restart apply survives unwind and preserves the private font')
+    assert state['gamefont']==(ROOT/'objs/sierrafont').read_bytes()
+    print('PASS: interleaved diagnostic/visibility/restart use one stable private UI cache; restart apply survives unwind and preserves the private font')
 
 
 def check_menu_request_order_reference(d):
@@ -1343,7 +1672,7 @@ def check_menu_visibility_reference(d):
     from check_logic_executor import compile_module
     with tempfile.TemporaryDirectory(prefix='sierra-menu-reference-') as name:
         coco,cs=compile_module(ROOT/'objs/mnln.asm',Path(name)/'mnln')
-        native,ns=compile_module(ROOT/'objs/wbui.asm',Path(name)/'wbui')
+        native,ns=compile_module(ROOT/'objs/sierraui.asm',Path(name)/'sierraui')
         d.breakpoint(0x7e02);d.write(0x7e00,b'\x39')
         calls=0
         for owner,code,syms,bases in [('CoCo',coco,cs,(0x8000,0x9000)),
@@ -1499,6 +1828,302 @@ def check_menu_visibility_reference(d):
         print(f'PASS: {calls} actual CoCo/native menu visibility/input calls; all literal bytes, opaque zero/nonzero behavior, default visibility, independent flag14, operand/stack/private/code guards')
 
 
+def check_menu_item_enable_reference(d):
+    """Compare actual CoCo and native item-enable command state changes."""
+    from check_logic_executor import compile_module
+    with tempfile.TemporaryDirectory(prefix='sierra-menu-item-enable-') as name:
+        coco,cs=compile_module(ROOT/'objs/mnln.asm',Path(name)/'mnln')
+        game=ROOT/'objs'
+        native=(game/'wbgame').read_bytes();ns=symbols(game/'wbgame.map')
+        calls=0
+        d.breakpoint(0x7e00)
+        menu1,menu2=0x7000,0x7020
+        item1,item2,item3=0x7100,0x7120,0x7140
+        for owner,code,syms,bases in [('CoCo',coco,cs,(0x8000,0x9000)),
+                                     ('Wild Bits',native,ns,(0x9000,0xa000))]:
+            for base in bases:
+                for sequence in (((160,10),(159,20)),((159,10),(160,20)),
+                                 ((160,99),),((160,10),(159,10))):
+                    d.write(base,code)
+                    enabled=[1,1,1]
+                    if owner=='CoCo':
+                        menus=bytearray(0x40)
+                        menus[0:2]=menu2.to_bytes(2,'big')
+                        menus[0x20:0x22]=menu1.to_bytes(2,'big')
+                        menus[0x0a]=menus[0x2a]=1
+                        menus[0x0b:0x0d]=item1.to_bytes(2,'big')
+                        menus[0x2b:0x2d]=item3.to_bytes(2,'big')
+                        d.write(menu1-1,b'G');d.write(menu1,menus);d.write(menu2+0x20,b'H')
+                        records=bytearray(0x60)
+                        for address,nxt,prev,action in ((item1,item2,item2,10),
+                            (item2,item1,item1,20),(item3,item3,item3,10)):
+                            off=address-item1
+                            records[off:off+2]=nxt.to_bytes(2,'big')
+                            records[off+2:off+4]=prev.to_bytes(2,'big')
+                            records[off+10]=1;records[off+11]=action
+                        d.write(item1-1,b'G');d.write(item1,records);d.write(item3+0x20,b'H')
+                        d.write(base+cs['MenuHead'],menu1.to_bytes(2,'big'))
+                    else:
+                        d.write(0,bytes(ns['size']))
+                        d.write(ns['resourcebase'],b'\0\0')
+                        d.write(ns['menuitems'],b'\x03')
+                        entries=bytearray(18)
+                        for i,(action,title) in enumerate(((10,0),(20,0),(10,1))):
+                            entries[i*6+2]=action;entries[i*6+3]=title
+                            entries[i*6+4]=1
+                        d.write(ns['menuentries'],entries)
+                    for opcode,action in sequence:
+                        if owner=='CoCo':
+                            operand=0x7400
+                            d.write(operand-1,b'G'+bytes([action])+b'ARGS')
+                            d.write(0x7ef0,b'\x7e\x00STACK')
+                            entry='cmd_enable_item' if opcode==159 else 'cmd_disable_item'
+                            d.regs(pc=base+syms[entry],s=0x7ef0,y=operand,dp=0,cc=0x50)
+                        else:
+                            d.write(ns['vmopcode'],bytes([opcode]))
+                            d.write(ns['vmarguments'],bytes([action]))
+                            d.write(0x7ef0,b'\x7e\x00STACK')
+                            d.regs(pc=base+ns['MenuCommand'],s=0x7ef0,u=0,
+                                   y=0x7400,dp=0,cc=0x50)
+                        d.call('c');regs=d.regs()
+                        assert regs['pc']==0x7e00 and regs['s']==0x7ef2,(owner,opcode,action,regs)
+                        assert d.read(0x7ef2,5)==b'STACK'
+                        if action in (10,20):
+                            value=1 if opcode==159 else 0
+                            for i,selected in enumerate((10,20,10)):
+                                if selected==action:enabled[i]=value
+                        if owner=='CoCo':
+                            assert regs['y']==0x7401 and d.read(0x7401,4)==b'ARGS'
+                            for i,address in enumerate((item1,item2,item3)):
+                                assert d.read(address+10,1)==bytes([enabled[i]]),(owner,base,sequence,action,address,enabled,d.read(address+10,1))
+                            actual=[d.read(address+10,1)[0] for address in (item1,item2,item3)]
+                        else:
+                            assert not(regs['cc']&1) and regs['b']==0
+                            actual=[d.read(ns['menuentries']+i*6+4,1)[0] for i in range(3)]
+                        assert actual==enabled,(owner,base,sequence,action,actual,enabled)
+                        calls+=1
+                    if owner=='CoCo':
+                        image=bytearray(d.read(base,len(code)))
+                        image[syms['MenuHead']:syms['MenuHead']+2]=code[syms['MenuHead']:syms['MenuHead']+2]
+                        assert image==code,'CoCo menu-item command modified code'
+                    else:assert d.read(base,len(code))==code
+        d.breakpoint(0x7e00,False)
+        print(f'PASS: {calls} actual CoCo/Wild Bits enable.item/disable.item calls at two code bases; duplicate actions, absent action, ordered toggles, operand/stack/record guards and immutable code')
+
+
+def check_menu_build_reference(d):
+    """Normalize actual CoCo menu lists against the loaded Wild Bits tables."""
+    from check_logic_executor import compile_module
+    from check_wbplay import fixture as menu_fixture
+    with tempfile.TemporaryDirectory(prefix='sierra-menu-build-') as name:
+        coco,cs=compile_module(ROOT/'objs/mnln.asm',Path(name)/'mnln')
+        messages=(b'File',b'Look',b'Open',b'Action',b'Talk')
+        message_pointers={index+1:0x6000+index*0x10
+                          for index in range(len(messages))}
+        expected=[('File', [('Look',21,1),('Open',22,1)]),
+                  ('Action',[('Talk',23,1)])]
+        d.breakpoint(0x7e00)
+        coco_results=[]
+        for base in (0x8000,0x9000):
+            d.write(base,coco)
+            for index,message in enumerate(messages):
+                d.write(message_pointers[index+1],message+b'\0')
+            d.write(0x0062,b'\x65\x00');d.write(0x6504,b'\x12\x34')
+            d.write(0x0055,b'\x70\x00')
+            next_block=[0x7000]
+            def get_message(cpu,registers,syms):
+                pointer=message_pointers[registers['b']]
+                ret=int.from_bytes(cpu.read(registers['s'],2),'big')
+                cpu.regs(pc=ret,s=registers['s']+2,u=pointer)
+            def allocate(cpu,registers,syms):
+                size=(registers['a']<<8)|registers['b']
+                pointer=next_block[0];next_block[0]+=size
+                cpu.write(pointer,bytes(size))
+                cpu.write(0x0055,next_block[0].to_bytes(2,'big'))
+                ret=int.from_bytes(cpu.read(registers['s'],2),'big')
+                cpu.regs(pc=ret,s=registers['s']+2,u=pointer)
+            for label in ('GetMsgPtr','AllocDataBlock'):
+                d.breakpoint(base+cs[label])
+            def invoke(entry,operands=b''):
+                operand=0x7400
+                d.write(operand,operands)
+                d.write(0x7ef0,b'\x7e\0STACK')
+                d.regs(pc=base+cs[entry],s=0x7ef0,y=operand,dp=0,cc=0x50)
+                for _ in range(12):
+                    d.call('c');regs=d.regs()
+                    if regs['pc']==0x7e00:break
+                    if regs['pc']==base+cs['GetMsgPtr']:
+                        get_message(d,regs,cs)
+                    elif regs['pc']==base+cs['AllocDataBlock']:
+                        allocate(d,regs,cs)
+                    else:raise AssertionError(('unexpected CoCo menu-build target',entry,regs))
+                else:raise AssertionError(('CoCo menu build did not return',entry))
+                assert regs['s']==0x7ef2 and d.read(0x7ef2,5)==b'STACK',(entry,regs)
+                assert regs['y']==operand+len(operands),(entry,regs['y'],len(operands))
+            invoke('cmd_set_menu',b'\x01')
+            invoke('cmd_set_menu_item',b'\x02\x15')
+            invoke('cmd_set_menu_item',b'\x03\x16')
+            invoke('cmd_set_menu',b'\x04')
+            invoke('cmd_set_menu_item',b'\x05\x17')
+            invoke('cmd_submit_menu')
+            assert d.read(base+cs['MenuSubmitted'],1)==b'\x01'
+            assert int.from_bytes(d.read(0x0053,2),'big')==next_block[0]
+            menus=[];menu=int.from_bytes(d.read(base+cs['MenuHead'],2),'big')
+            for _ in range(2):
+                title_node=d.read(menu,16)
+                title_ptr=int.from_bytes(title_node[4:6],'big')
+                title=bytes(d.read(title_ptr,32)).split(b'\0',1)[0].decode()
+                count=title_node[15]
+                item=int.from_bytes(title_node[11:13],'big')
+                items=[]
+                for _ in range(count):
+                    item_node=d.read(item,12)
+                    label_ptr=int.from_bytes(item_node[4:6],'big')
+                    label=bytes(d.read(label_ptr,32)).split(b'\0',1)[0].decode()
+                    items.append((label,item_node[11],item_node[10]))
+                    item=int.from_bytes(item_node[:2],'big')
+                menus.append((title,items))
+                menu=int.from_bytes(title_node[:2],'big')
+            assert menus==expected,(base,menus,expected)
+            assert int.from_bytes(d.read(base+cs['MenuCurrent'],2),'big')==int.from_bytes(d.read(base+cs['MenuHead'],2),'big')
+            assert int.from_bytes(d.read(base+cs['MenuItemCurrent'],2),'big')==int.from_bytes(d.read(int.from_bytes(d.read(base+cs['MenuHead'],2),'big')+11,2),'big')
+            coco_results.append(menus)
+            for label in ('GetMsgPtr','AllocDataBlock'):d.breakpoint(base+cs[label],False)
+        assert coco_results[0]==coco_results[1]
+        # Run CoCo's actual menu event loop with only drawing, event wait and
+        # event publication substituted. A right-arrow event followed by
+        # Enter must select the tail item in the next nonempty title group.
+        menu1,menu2=0x7000,0x7010
+        item1,item2,item3=0x7020,0x7030,0x7040
+        def menu_record(address,next_address,previous,title,item_head,item_tail,item_count):
+            record=bytearray(16)
+            record[:2]=next_address.to_bytes(2,'big')
+            record[2:4]=previous.to_bytes(2,'big')
+            record[4:6]=message_pointers[title].to_bytes(2,'big')
+            record[10]=1
+            record[11:13]=item_head.to_bytes(2,'big')
+            record[13:15]=item_tail.to_bytes(2,'big')
+            record[15]=item_count
+            d.write(address,record)
+        def item_record(address,next_address,previous,label,action):
+            record=bytearray(12)
+            record[:2]=next_address.to_bytes(2,'big')
+            record[2:4]=previous.to_bytes(2,'big')
+            record[4:6]=message_pointers[label].to_bytes(2,'big')
+            record[10]=1;record[11]=action
+            d.write(address,record)
+        menu_record(menu1,menu2,menu2,1,item1,item2,2)
+        menu_record(menu2,menu1,menu1,4,item3,item3,1)
+        item_record(item1,item2,item2,2,21)
+        item_record(item2,item1,item1,3,22)
+        item_record(item3,item3,item3,5,23)
+        draw_stubs=('PushRowCol','PushTextColor','ClearTextLine',
+                    'DrawMenuItemNormal','DrawMenuItemHighlight','DrawMenuItem','WaitForEvent',
+                    'EventPush','EraseMenuItem','PopTextColor','PopRowCol',
+                    'StatusLineWrite')
+        for base,navigation_events,initial_item,expected_menu,expected_item,expected_action in (
+                (0x8000,(b'\x02\x01',),item1,menu1,item2,22),
+                (0x9000,(b'\x02\x03',),item1,menu2,item3,23),
+                (0x8000,(b'\x02\x02',),item2,menu1,item1,21),
+                (0x8000,(b'\x01\x1b',),item1,menu1,item1,None)):
+            d.write(base,coco)
+            d.write(base+cs['MenuHead'],menu1.to_bytes(2,'big'))
+            d.write(base+cs['MenuCurrent'],menu1.to_bytes(2,'big'))
+            d.write(base+cs['MenuItemCurrent'],initial_item.to_bytes(2,'big'))
+            d.write(base+cs['MenuExtraFlag'],b'\x01')
+            d.write(0x0246,b'\0')
+            event_queue=[*navigation_events]
+            if expected_action is not None:event_queue.append(b'\x01\x0d')
+            event_index=[0];published=[]
+            def rts(cpu,registers,ss):
+                ret=int.from_bytes(cpu.read(registers['s'],2),'big')
+                cpu.regs(pc=ret,s=registers['s']+2)
+            def wait_event(cpu,registers,ss):
+                assert event_index[0]<len(event_queue),event_index
+                ptr=0x7500+2*event_index[0]
+                cpu.write(ptr,event_queue[event_index[0]])
+                event_index[0]+=1
+                ret=int.from_bytes(cpu.read(registers['s'],2),'big')
+                cpu.regs(pc=ret,s=registers['s']+2,x=ptr)
+            def push_event(cpu,registers,ss):
+                published.append((registers['a'],registers['b']))
+                rts(cpu,registers,ss)
+            callbacks={base+cs[label]:(wait_event if label=='WaitForEvent'
+                         else push_event if label=='EventPush' else rts)
+                       for label in draw_stubs}
+            d.write(0x7ef0,b'\x7e\0STACK')
+            d.regs(pc=base+cs['DrawMenuBar'],s=0x7ef0,dp=0,cc=0x50)
+            for address in callbacks:d.breakpoint(address)
+            try:
+                for _ in range(100):
+                    d.call('c');regs=d.regs()
+                    if regs['pc']==0x7e00:break
+                    callback=callbacks.get(regs['pc'])
+                    assert callback is not None,('unexpected CoCo menu event target',regs)
+                    callback(d,regs,cs)
+                else:raise AssertionError('CoCo menu event loop did not exit')
+                expected_events=[] if expected_action is None else [(expected_action,3)]
+                assert event_index==[len(event_queue)] and published==expected_events,(base,event_index,published)
+                assert int.from_bytes(d.read(base+cs['MenuCurrent'],2),'big')==expected_menu
+                assert int.from_bytes(d.read(base+cs['MenuItemCurrent'],2),'big')==expected_item
+                assert regs['s']==0x7ef2 and d.read(0x7ef2,5)==b'STACK'
+            finally:
+                for address in callbacks:d.breakpoint(address,False)
+        # Run the real VM through the same five commands and inspect its
+        # process-owned menu tables at the actual input boundary.
+        request=(bytes([12,14,156,1,157,2,21,157,3,22,156,4,
+                        157,5,23,158,161]))
+        script=queued_menu_script(request,bytes([3,240,73,134,1,0]))
+        files=menu_fixture(script,message=list(messages))
+        native_snapshots=[]
+        def capture_native_menu(cpu,registers,syms):
+            titles=cpu.read(syms['menutitles'],8*4)
+            items=cpu.read(syms['menuentries'],32*6)
+            text=cpu.read(syms['menutext'],768)
+            count=cpu.read(syms['menucount'],1)[0]
+            item_count=cpu.read(syms['menuitems'],1)[0]
+            normalized=[]
+            for title_index in range(count):
+                off=title_index*4
+                title_offset=int.from_bytes(titles[off:off+2],'big')
+                start=titles[off+2];length=titles[off+3]
+                title=text[title_offset:].split(b'\0',1)[0].decode()
+                group=[]
+                for item_index in range(start,start+length):
+                    item_offset=item_index*6
+                    label_offset=int.from_bytes(items[item_offset:item_offset+2],'big')
+                    label=text[label_offset:].split(b'\0',1)[0].decode()
+                    group.append((label,items[item_offset+2],items[item_offset+4]))
+                normalized.append((title,group))
+            native_snapshots.append((normalized,count,item_count,
+                cpu.read(syms['menuready'],1)[0],cpu.read(syms['menutextused'],2)))
+            return True
+        native_cases=[]
+        ui_symbols=symbols(ROOT/'objs/sierraui.map')
+        ui_right_found=(0x6000+ui_symbols['GameMenuRightFound'],
+                        0x8000+ui_symbols['GameMenuRightFound'])
+        ui_right_found=(0x6000+ui_symbols['GameMenuRightFound'],
+                        0x8000+ui_symbols['GameMenuRightFound'])
+        for keys,selected_action,hook_keys in (
+                (b'\r',21,{}),(b'\x08\r',22,{}),(b'\t\r',23,{}),
+                (b'\x0c\r',22,{}),(b'\x0a\r',21,{}),
+                (b'\t',23,{address:{1:b'\x08\r'} for address in ui_right_found})):
+            native_snapshots.clear()
+            hooks={'GameMenuInput':capture_native_menu}
+            error,output,state=exercise(d,files,module='wbgame',module_root=ROOT/'objs',
+                base=0xa000,database=0,window=0x8000,blocks=None,multiple=True,
+                firstblock=0x10,capture=True,keyboard=keys,os_call_limit=30000,
+                keyboard_by_hook=hook_keys,
+                breakpoint_hooks=hooks)
+            assert error==0 and state['vmvariables'][240]==73,(keys,error,output)
+            assert native_snapshots==[(expected,2,3,1,b'\x00\x1b')],native_snapshots
+            assert state['vmcontrollers'][selected_action//8] & (1<<(selected_action%8)),(
+                keys,selected_action,state['vmcontrollers'])
+            native_cases.append((keys,selected_action))
+        d.breakpoint(0x7e00,False)
+        print('PASS: CoCo menu loop Up/Down, Right and Escape; loaded Wild Bits Enter, cancel, Up/Down/Left/Right and one-item left wrap',native_cases)
+
+
 def check_menu_visibility_commands(d):
     """Exercise menu input gates through actual loaded AGI commands."""
     def record(code,messages=False):
@@ -1538,7 +2163,7 @@ def check_menu_visibility_commands(d):
         assert seen==[visibility],(label,seen,visibility)
         expected_requests=[] if label.startswith('flag14 disabled') else [(b'I',visibility)]
         assert requests==expected_requests,(label,'request consumed before script completion',requests,expected_requests)
-        assert state['gamefont']==(ROOT/'objs/wbfont').read_bytes()
+        assert state['gamefont']==(ROOT/'objs/sierrafont').read_bytes()
         print('PASS: menu visibility:',label,flush=True)
     # The room changes resource ownership, not the module-lifetime visibility.
     def when(test,code):return bytes([255,*test,255])+len(code).to_bytes(2,'little')+code
@@ -1554,7 +2179,7 @@ def check_menu_visibility_commands(d):
         blocks=None,multiple=True,firstblock=0x10,capture=True,os_call_limit=30000,
         breakpoint_hooks={'GameQuitCommand':lambda cpu,regs,syms:seen.append(cpu.read(syms['menuvisibility'],2))})
     assert error==0 and state['vmvariables'][240]==73 and seen==[b'\0\1'],(error,out,seen)
-    assert not any(state['vmcontrollers']) and state['gamefont']==(ROOT/'objs/wbfont').read_bytes()
+    assert not any(state['vmcontrollers']) and state['gamefont']==(ROOT/'objs/sierrafont').read_bytes()
     print('PASS: hidden menu survives room/resource transition without taking input or changing the private font')
     directory=b'/'+b'a'*126;volume=bytearray();entries=[b'\xff'*3]
     for number in range(1,18):
@@ -1565,8 +2190,48 @@ def check_menu_visibility_commands(d):
         database=0,window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,
         keyboard=b'\r',os_call_limit=30000)
     assert error==0 and state['vmvariables'][240]==73 and state['vmcontrollers'][31]==128,(error,out)
-    assert state['gamefont']==(ROOT/'objs/wbfont').read_bytes(),'deep menu damaged the private font'
+    assert state['gamefont']==(ROOT/'objs/sierrafont').read_bytes(),'deep menu damaged the private font'
     print('PASS: menu visibility/selection at 16 nested calls and a 127-byte directory, private font intact and owned cleanup')
+
+
+def check_menu_render_overlay(d):
+    """Capture the first submitted-menu frame before platform cleanup runs."""
+    command=bytes([156,1,157,2,255,158,161])
+    script=queued_menu_script(bytes([12,14])+command+bytes([3,240,73]),bytes([134,1,0]))
+    plain=b'Title\0Item\0';key=b'Avis Durgan'
+    messages=bytes([2,17,0,6,0,12,0])+bytes(v^key[i%11] for i,v in enumerate(plain))
+    logic=len(script).to_bytes(2,'little')+script+messages
+    volume=b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic
+    picture=len(volume);volume+=b'\x12\x34\0\x01\0\x01\0\xff'
+    files={'/game/logDir':b'\xff'*3+bytes(3),'/game/vol.0':volume,
+           '/game/picDir':b'\xff'*3+picture.to_bytes(3,'big')}
+    ui_symbols=symbols(ROOT/'objs/sierraui.map')
+    addresses=tuple(base+ui_symbols['GameMenuPresent'] for base in (0x6000,0x8000))
+    captured=[]
+    class MenuFrameReached(Exception):
+        pass
+    def capture(cpu,regs,syms):
+        captured.append((cpu.read(syms['textcharacters'],1000),
+                         cpu.read(syms['textcolors'],1000),
+                         cpu.read(syms['resourcecommands'],2000)))
+        raise MenuFrameReached
+    try:
+        exercise(d,files,module='wbgame',base=0xa000,database=0,window=0x8000,
+            blocks=None,multiple=True,firstblock=0x10,capture=True,keyboard=b'\r',
+            os_call_limit=30000,breakpoint_hooks={address:capture for address in addresses})
+    except MenuFrameReached:
+        pass
+    assert len(captured)==1,len(captured)
+    chars,colors,saved=captured[0]
+    assert chars[1*40+2:1*40+11]==b'Game menu'
+    assert chars[3*40+2:3*40+13]==b'Title: Item'
+    assert colors[1*40+2:1*40+38]==bytes([0x0F])*36
+    assert colors[3*40+2:3*40+38]==bytes([0xF0])*36
+    for index,(character,color) in enumerate(zip(chars,colors)):
+        row,column=divmod(index,40)
+        if not ((row in (1,3) and 2<=column<38) or (row==24 and 1<=column<39)):
+            assert character==saved[index] and color==saved[1000+index],(row,column)
+    print('PASS: submitted menu draws a bounded title/item overlay and preserves every outside text/color cell')
 
 
 def check_cold_menus(d):
@@ -1583,25 +2248,66 @@ def check_cold_menus(d):
     cases=[('before picture',bytes([156,1,157,2,255,158,161]),b'\r',255,0),
            ('select',bytes([156,1,157,2,255,158,161]),b'\r',255,0),
            ('cancel',bytes([156,1,157,2,255,158,161]),b'\x1b',None,0),
-           ('disabled then next',bytes([156,1,157,2,1,157,2,255,160,1,158,161]),b'\r\n\r',255,0),
-           ('paged',bytes([156,1])+b''.join(bytes([157,2,n]) for n in range(32))+bytes([158,161]),b'\n'*22+b'\r',22,0),
+           ('disabled then next',bytes([156,1,157,2,1,157,2,255,160,1,158,161]),b'\r\x0c\r',255,0),
+           ('disabled then enabled',bytes([156,1,157,2,1,157,2,2,160,1,159,1,158,161]),b'\r',1,0),
+           ('paged',bytes([156,1])+b''.join(bytes([157,2,n]) for n in range(32))+bytes([158,161]),b'\n'*22+b'\r',0,0),
            ('unsubmitted',bytes([161]),b'\r',None,203)]
+    menu_frames=[]
+    ui_symbols=symbols(ROOT/'objs/sierraui.map')
+    ui_present=tuple(0x6000+ui_symbols['GameMenuPresent']+delta
+                     for delta in (0,0x2000))
+    def capture_menu(cpu,regs,syms):
+        menu_frames.append((cpu.read(syms['textcharacters'],1000),
+                            cpu.read(syms['textcolors'],1000),
+                            cpu.read(syms['resourcecommands'],2000)))
+        return True
     for label,command,keyboard,controller,expected in cases:
         print('Checking cold menu:',label,flush=True)
+        hooks={address:capture_menu for address in ui_present} if label=='select' else None
         error,output,state=exercise(d,fixture(command,picture=label!='before picture'),module='wbgame',base=0xa000,
             database=0,window=0x8000,blocks=None,multiple=True,firstblock=0x10,
-            capture=True,keyboard=keyboard,os_call_limit=60000)
+            capture=True,keyboard=keyboard,os_call_limit=60000,
+            breakpoint_hooks=hooks)
         assert error==expected,(label,error)
         if not error:
             assert state['vmvariables'][240]==73,(label,'caller did not resume')
             wanted=bytearray(32)
             if controller is not None:wanted[controller//8]=1<<(controller%8)
             assert state['vmcontrollers']==wanted,(label,state['vmcontrollers'],wanted)
-        assert state['gamefont']==(ROOT/'objs/wbfont').read_bytes(),(label,'font overwritten')
-    original=(ROOT/'objs/wbui').read_bytes();entry=int.from_bytes(original[9:11],'big')
+        assert state['gamefont']==(ROOT/'objs/sierrafont').read_bytes(),(label,'font overwritten')
+    assert len(menu_frames)==1,len(menu_frames)
+    chars,colors,saved=menu_frames[0]
+    assert chars[1*40+2:1*40+11]==b'Game menu',chars[1*40+2:1*40+11]
+    assert chars[3*40+2:3*40+13]==b'Title: Item',chars[3*40+2:3*40+13]
+    assert colors[1*40+2:1*40+38]==bytes([0x0F])*36
+    assert colors[3*40+2:3*40+38]==bytes([0xF0])*36
+    for index,(character,color) in enumerate(zip(chars,colors)):
+        row,column=divmod(index,40)
+        if not ((row in (1,3) and 2<=column<38) or (row==24 and 1<=column<39)):
+            assert character==saved[index] and color==saved[1000+index],(
+                'menu changed a cell outside its popup',row,column)
+    print('PASS: submitted menu is a bounded text overlay; title/item colors and all outside cells are preserved')
+    # CoCo locks construction after submit.menu. The actual loaded native
+    # command path must consume later title/item opcodes without adding them.
+    observed=[]
+    def capture_submitted_menu(cpu,regs,syms):
+        observed.append((cpu.read(syms['menucount'],1)[0],
+                         cpu.read(syms['menuitems'],1)[0],
+                         cpu.read(syms['menuready'],1)[0]))
+        return False
+    late_build=bytes([156,1,157,2,1,158,156,1,157,2,2,158,161])
+    files=fixture(late_build,picture=False)
+    error,out,state=exercise(d,files,module='wbgame',base=0xa000,database=0,
+        window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,
+        keyboard=b'\r',os_call_limit=60000,
+        breakpoint_hooks={'GameMenuInput':capture_submitted_menu})
+    assert error==0 and state['vmvariables'][240]==73,(error,state['vmvariables'][240])
+    assert observed==[(1,1,1)],observed
+    print('PASS: loaded native menu ignores set.menu/set.menu.item after submit.menu')
+    original=(ROOT/'objs/sierraui').read_bytes();entry=int.from_bytes(original[9:11],'big')
     for offset in (0,len(original),len(original)-1):
         files=fixture(bytes([156,1,157,2,1,158,161]));helper=bytearray(original)
-        helper[entry+30:entry+32]=offset.to_bytes(2,'big');files['wbui']=bytes(helper)
+        helper[entry+30:entry+32]=offset.to_bytes(2,'big');files['sierraui']=bytes(helper)
         error,output,state=exercise(d,files,module='wbgame',base=0xa000,database=0,
             window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,keyboard=b'\r',os_call_limit=30000)
         assert error==203,(offset,error)
@@ -1727,7 +2433,7 @@ def check_joystick_input(d):
             assert state['vmvariables'][220:226]==bytes([1,0,0,2,0,0]),(label,state['vmvariables'][220:226])
         if label in ('toggle off','unavailable service','poll service fails'):
             assert state['joystickenabled']==b'\0',(label,state)
-        assert state['gamefont']==(ROOT/'objs/wbfont').read_bytes(),(label,'font overwritten')
+        assert state['gamefont']==(ROOT/'objs/sierrafont').read_bytes(),(label,'font overwritten')
     print('PASS: all nine joystick directions, release ownership, program control, toggle, unavailable/error fallback and edge-only Enter/Escape controllers')
 
 
@@ -1748,7 +2454,7 @@ def check_joystick_instances(d):
             select(owner);state=bytearray(syms['size'])
             state[syms['vmplayercontrol']]=1;state[syms['joystickenabled']]=1
             state[syms['vmvariables']+250]=40+owner
-            state[syms['gamefont']:syms['gamefont']+1024]=(root/'wbfont').read_bytes()
+            state[syms['gamefont']:syms['gamefont']+1024]=(root/'sierrafont').read_bytes()
             if owner:
                 state[syms['joysticklast']]=3;state[syms['vmvariables']+6]=3
             d.write(0,state);expected[owner]=state
@@ -1806,14 +2512,14 @@ def check_monitor_profiles(d):
         if label=='baseline':baseline=frame
         else:assert frame==baseline,(label,'picture indices changed')
         if not error:assert state['vmvariables'][240]==73,(label,'caller did not resume')
-        assert state['gamefont']==(root/'wbfont').read_bytes(),(label,'font overwritten')
+        assert state['gamefont']==(root/'sierrafont').read_bytes(),(label,'font overwritten')
     print('PASS: exact CoCo RGB conversion, owned palette writes, toggle back, early selection, unchanged picture indices and driver-error cleanup')
 
 
 def check_monitor_instances(d):
     """The shared cold configuration body keeps each palette preference private."""
-    root=ROOT/'objs';syms=symbols(root/'wbgame.map');hs=symbols(root/'wbui.map')
-    base=0xa000;helperbase=0x6000;code=(root/'wbgame').read_bytes();helper=(root/'wbui').read_bytes()
+    root=ROOT/'objs';syms=symbols(root/'wbgame.map');hs=symbols(root/'sierraui.map')
+    base=0xa000;helperbase=0x6000;code=(root/'wbgame').read_bytes();helper=(root/'sierraui').read_bytes()
     d.write(base,code);d.write(helperbase,helper)
     saved=d.read(0xffa8,3);banks={0:bytes([0x20,0x21,0x22]),1:bytes([0x23,0x24,0x25])};expected={}
     stop=helperbase+hs['ScreenReturn'];callback=base+syms['ScreenCallbacks']
@@ -1823,7 +2529,7 @@ def check_monitor_instances(d):
         for owner in banks:
             select(owner);state=bytearray(syms['size']);state[syms['vmopcode']]=140
             state[syms['monitorprofile']]=owner;state[syms['vmvariables']+250]=40+owner
-            state[syms['gamefont']:syms['gamefont']+1024]=(root/'wbfont').read_bytes()
+            state[syms['gamefont']:syms['gamefont']+1024]=(root/'sierrafont').read_bytes()
             d.write(0,state);expected[owner]=state
         for owner in (0,1,0):
             select(owner);d.regs(pc=helperbase+hs['AuxScreenCommand'],s=0x5ff0,u=0,y=callback,dp=0,cc=0x50)
@@ -1844,7 +2550,7 @@ def check_screen_backend(d):
     key=b'Avis Durgan'
     cases=[('cursor',bytes([108,1]),0,{'vmcursor':ord('!')}),
            ('colors',bytes([109,2,3]),0,{'vmtextforeground':2,'vmtextbackground':3}),
-           ('configure',bytes([111,4,22,24]),0,{'vmpicturetop':4,'vminputrow':22,'vmstatusrow':24}),
+           ('configure',bytes([111,4,22,24]),0,{'vmpicturetop':4,'vminputrow':22,'vmstatusrow':24,'vmstatusenabled':32}),
            ('status on',bytes([112]),0,{'vmstatusenabled':1}),
            ('status off',bytes([112,113]),0,{'vmstatusenabled':0}),
            ('input off',bytes([119]),0,{'vminputenabled':0}),
@@ -1854,7 +2560,7 @@ def check_screen_backend(d):
            ('bad input row',bytes([111,1,25,0]),187,{}),
            ('bad status row',bytes([111,1,23,25]),187,{}),
            ('bad cursor message',bytes([108,2]),203,{})]
-    original=(ROOT/'objs/wbui').read_bytes();entry=int.from_bytes(original[9:11],'big')
+    original=(ROOT/'objs/sierraui').read_bytes();entry=int.from_bytes(original[9:11],'big')
     for label,command,error_expected,expected in cases:
         print('Checking screen backend:',label,flush=True)
         script=command+bytes([134,1,0])
@@ -1865,7 +2571,7 @@ def check_screen_backend(d):
         for name,value in expected.items():assert state[name]==bytes([value]),(label,name,state[name])
     for offset in (0,len(original),len(original)-1):
         helper=bytearray(original);helper[entry+24:entry+26]=offset.to_bytes(2,'big')
-        files['wbui']=bytes(helper)
+        files['sierraui']=bytes(helper)
         script=bytes([112,134,1,0]);logic=len(script).to_bytes(2,'little')+script
         files['/game/vol.0']=b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic
         error,output,state=exercise(d,files,module='wbgame',base=0xa000,database=0,window=0x8000,blocks=None,multiple=True,firstblock=0x10,capture=True,os_call_limit=20000)
@@ -1896,7 +2602,7 @@ def check_cycle_input_error(d):
 
 def check_status_line(d):
     """Check actual status cells and every output pixel against the font."""
-    font=(ROOT/'objs/wbfont').read_bytes()
+    font=(ROOT/'objs/sierrafont').read_bytes()
     cases=[(score,255,True,0,False,False,b'') for score in (0,9,10,99,100,255)]
     cases += [(24,158,False,24,False,False,b''),(24,158,True,0,True,False,b''),
               (24,158,True,0,False,True,b''),
@@ -1946,7 +2652,7 @@ def check_status_line(d):
 
 def check_cold_prefix_bounds(d):
     """Validate the immutable UI directory and linked-code entry bounds."""
-    original=(ROOT/'objs/wbui').read_bytes()
+    original=(ROOT/'objs/sierraui').read_bytes()
     entry=int.from_bytes(original[9:11],'big')
     script=bytes([154,0,0,24,39,0,134,1,0])
     logic=len(script).to_bytes(2,'little')+script
@@ -1962,7 +2668,7 @@ def check_cold_prefix_bounds(d):
         print('Checking UI directory:',label,flush=True)
         helper=bytearray(original)
         if offset is not None:helper[offset:offset+2]=value.to_bytes(2,'big')
-        files={'wbui':bytes(helper),'/game/logDir':b'\xff'*3+bytes(3),
+        files={'sierraui':bytes(helper),'/game/logDir':b'\xff'*3+bytes(3),
                '/game/vol.0':b'\x12\x34\0'+len(logic).to_bytes(2,'little')*2+logic}
         error,output,state=exercise(d,files,module='wbgame',base=0xa000,
             database=0x0000,window=0x8000,blocks=None,multiple=True,
@@ -1990,6 +2696,187 @@ def restart_fixture(automatic=False,depth=0):
     return {'/game/logDir':b''.join(entries),'/game/sndDir':sound_offset.to_bytes(3,'big'),'/game/vol.0':volume}
 
 
+def check_coco_restart_cancel(d,coco,cs):
+    """The real CoCo restart prompt's cancel branch must not reset a game."""
+    stop,stack=0x7e00,0x7ef0
+    prompt=b'Press ENTER to start a new\ngame.\n\nPress CTRL-BREAK to continue\nwith this game.'
+    forbidden=('ResetHeap','LoadObjectData','VolumesClose','EnableItemLoop')
+    calls=0
+    for base in (0x8000,0x9000):
+        d.write(base,coco)
+        d.write(0,bytes(0x6000))
+        d.write(0x1ae,b'\xa5');d.write(0x1af,b'\xc3');d.write(0x1b0,b'\0')
+        d.write(0x05b9,b'\0');d.write(0x01ad,b'\0')
+        d.write(0x0531,b'\xff'*16)
+        d.write(base+cs['MenuExtraFlag'],b'\xa5')
+        d.write(base+cs['state_name_auto'],b'/alpha\0')
+        original_flags=d.read(0x1ae,3)
+        original_name=d.read(base+cs['state_name_auto'],7)
+        original_menu=d.read(base+cs['MenuExtraFlag'],1)
+        original_code=d.read(base,len(coco))
+        d.write(stack,stop.to_bytes(2,'big')+b'STACK')
+        d.breakpoint(stop)
+        d.breakpoint(base+cs['message_box'])
+        for name in forbidden:d.breakpoint(base+cs[name])
+        d.regs(pc=base+cs['cmd_restart_game'],s=stack,dp=0,cc=0x50)
+        try:
+            d.call('c');regs=d.regs()
+            assert regs['pc']==base+cs['message_box'],('restart did not ask for confirmation',regs)
+            assert d.read(regs['u'],len(prompt)+1)==prompt+b'\0'
+            # Stub the displayed prompt's negative result. Return through the
+            # real caller, preserving the 6809 call stack exactly.
+            ret=int.from_bytes(d.read(regs['s'],2),'big')
+            d.regs(pc=ret,s=regs['s']+2,a=0,cc=(regs['cc']|0x04)&~0x0a)
+            d.call('c');regs=d.regs()
+            assert regs['pc']==stop and regs['s']==stack+2,('restart cancel did not return',regs)
+            assert regs['a']==0 and regs['cc']&0x04,('cancel result was not preserved',regs)
+            assert d.read(stack+2,5)==b'STACK'
+            assert d.read(0x1ae,3)==original_flags
+            assert d.read(base+cs['MenuExtraFlag'],1)==original_menu
+            assert d.read(base+cs['state_name_auto'],7)==original_name
+            assert d.read(base,len(coco))==original_code
+            assert d.read(0x0531,16)==b'\xff'*16
+            calls+=1
+        finally:
+            d.breakpoint(stop,False)
+            d.breakpoint(base+cs['message_box'],False)
+            for name in forbidden:d.breakpoint(base+cs[name],False)
+    # Exercise the affirmative branch too. Keep the restart policy and state
+    # changes in CoCo code, while replacing only the external reset/load
+    # routines with counted RTS stubs.
+    base=0x8000
+    services=('cmd_cancel_line','ResetHeap','LoadObjectData','VolumesClose',
+              'EnableItemLoop','InputCursorBlink')
+    image=bytearray(coco)
+    for index,name in enumerate(services):
+        counter=0x7000+index
+        image[cs[name]:cs[name]+6]=bytes((0x7c,counter>>8,counter&255,
+                                          0x1c,0xfe,0x39))
+    d.write(base,image)
+    d.write(0,bytes(0x6000))
+    d.write(0x1ae,b'\xa5');d.write(0x1af,b'\xc3');d.write(0x1b0,b'\0')
+    d.write(0x05b9,b'\0');d.write(0x01ad,b'\0');d.write(0x006a,b'\0')
+    d.write(0x0531,b'\xff'*16)
+    d.write(base+cs['MenuExtraFlag'],b'\xa5')
+    d.write(base+cs['state_name_auto'],b'/alpha\0')
+    d.write(0x7000,bytes(len(services)))
+    d.write(stack,stop.to_bytes(2,'big')+b'STACK')
+    d.breakpoint(stop);d.breakpoint(base+cs['message_box'])
+    try:
+        d.regs(pc=base+cs['cmd_restart_game'],s=stack,dp=0,cc=0x50)
+        d.call('c');regs=d.regs()
+        assert regs['pc']==base+cs['message_box'],('restart did not ask for confirmation',regs)
+        assert d.read(regs['u'],len(prompt)+1)==prompt+b'\0'
+        ret=int.from_bytes(d.read(regs['s'],2),'big')
+        d.regs(pc=ret,s=regs['s']+2,a=1,cc=regs['cc']&~0x04)
+        d.call('c');regs=d.regs()
+        assert regs['pc']==stop and regs['s']==stack+2,('confirmed restart did not return',regs)
+        assert d.read(0x7000,len(services))==bytes((1,))*len(services)
+        assert d.read(0x01ae,1)==b'\xa7'
+        assert d.read(0x01af,1)==b'\xc3'
+        assert d.read(0x0248,4)==bytes(4)
+        assert d.read(stack+2,5)==b'STACK'
+        assert d.read(base+cs['MenuExtraFlag'],1)==b'\xa5'
+        assert d.read(base+cs['state_name_auto'],7)==b'/alpha\0'
+    finally:
+        d.breakpoint(stop,False);d.breakpoint(base+cs['message_box'],False)
+    # The actual automatic-restart flag bypasses the prompt but follows the
+    # same synchronous reset path. Keep every reset service instrumented.
+    base=0x9000
+    d.write(base,image)
+    d.write(0,bytes(0x6000))
+    d.write(0x01ae,b'\xa5');d.write(0x01af,b'\xc3');d.write(0x01b0,b'\x80')
+    d.write(0x05b9,b'\0');d.write(0x01ad,b'\0');d.write(0x006a,b'\0')
+    d.write(0x0531,b'\xff'*16)
+    d.write(base+cs['MenuExtraFlag'],b'\xa5')
+    d.write(base+cs['state_name_auto'],b'/alpha\0')
+    d.write(0x7000,bytes(len(services)))
+    d.write(0x0248,b'\x12\x34\x56\x78')
+    d.write(stack,stop.to_bytes(2,'big')+b'STACK')
+    d.breakpoint(stop);d.breakpoint(base+cs['message_box'])
+    try:
+        d.regs(pc=base+cs['cmd_restart_game'],s=stack,dp=0,cc=0x50)
+        d.call('c');regs=d.regs()
+        assert regs['pc']==stop and regs['s']==stack+2,('automatic restart did not bypass prompt/return',regs)
+        assert regs['y']==0,('automatic restart did not reset script IP',regs)
+        assert d.read(0x7000,len(services))==bytes((1,))*len(services)
+        assert d.read(0x01ae,3)==b'\xa7\xc3\x80'
+        assert d.read(0x0248,4)==bytes(4)
+        assert d.read(stack+2,5)==b'STACK'
+        assert d.read(base+cs['MenuExtraFlag'],1)==b'\xa5'
+        assert d.read(base+cs['state_name_auto'],7)==b'/alpha\0'
+    finally:
+        d.breakpoint(stop,False);d.breakpoint(base+cs['message_box'],False)
+    print(f'PASS: {calls} actual CoCo cmd_restart_game cancellations at two code bases plus confirmed/manual and automatic reset paths; prompt policy, reset dispatch, flags, handles, module fields, root IP and stack guards verified')
+
+
+def check_nested_coco_restart(d,coco,cs):
+    """Run restart from a real child logic through the CoCo executor."""
+    base,stop,stack=0x8000,0x7e00,0x7ef0
+    services=('cmd_cancel_line','ResetHeap','LoadObjectData','VolumesClose',
+              'EnableItemLoop','InputCursorBlink')
+    image=bytearray(coco)
+    for index,name in enumerate(services):
+        counter=0x7000+index
+        image[cs[name]:cs[name]+6]=bytes((0x7c,counter>>8,counter&255,
+                                          0x1c,0xfe,0x39))
+    d.write(base,image)
+    d.write(0,bytes(0x6000))
+    d.write(0x002e,base.to_bytes(2,'big'))
+    d.run(base+cs['PatchCmdTable']);d.run(base+cs['FixupEvalTbl'])
+    d.write(0x01ae,b'\xa5');d.write(0x01af,b'\xc3');d.write(0x01b0,b'\0')
+    d.write(0x05b9,b'\0');d.write(0x01ad,b'\0');d.write(0x006a,b'\0')
+    d.write(0x0531,b'\xff'*16);d.write(0x7000,bytes(len(services)))
+    root,child,root_code,child_code=0x3000,0x3100,0x4000,0x4100
+    table=base+cs['LogicTableData']
+    d.write(table,root.to_bytes(2,'big'))
+    d.write(root,(child.to_bytes(2,'big')+b'\0\0\0\0'+
+                  root_code.to_bytes(2,'big')*2+bytes(2)))
+    d.write(child,(bytes(2)+b'\x01\0\0\0'+
+                   child_code.to_bytes(2,'big')*2+bytes(2)))
+    d.write(0x0062,root.to_bytes(2,'big'))
+    # Root calls logic 1, then would write v250. Restart must zero Y in the
+    # child and propagate that return through both ExecLogic frames.
+    d.write(root_code,bytes([22,1,3,250,77,0])+b'GUARD')
+    d.write(child_code,bytes([128,0])+b'GUARD')
+    d.write(stack,stop.to_bytes(2,'big')+b'STACK')
+    d.breakpoint(stop);d.breakpoint(base+cs['SetLogicPage'])
+    d.breakpoint(base+cs['message_box'])
+    prompted=False
+    prompt=b'Press ENTER to start a new\ngame.\n\nPress CTRL-BREAK to continue\nwith this game.'
+    try:
+        d.regs(pc=base+cs['ExecLogicScript'],s=stack,y=0,dp=0,cc=0x50)
+        for _ in range(64):
+            d.call('c');regs=d.regs()
+            if regs['pc']==stop:break
+            if regs['pc']==base+cs['SetLogicPage']:
+                ret=int.from_bytes(d.read(regs['s'],2),'big')
+                d.regs(pc=ret,s=regs['s']+2)
+                continue
+            if regs['pc']==base+cs['message_box']:
+                assert not prompted,'nested restart displayed the prompt twice'
+                assert d.read(regs['u'],len(prompt)+1)==prompt+b'\0'
+                prompted=True
+                ret=int.from_bytes(d.read(regs['s'],2),'big')
+                d.regs(pc=ret,s=regs['s']+2,a=1,cc=regs['cc']&~0x04)
+                continue
+            raise AssertionError(('unexpected nested restart stop',regs))
+        else:raise AssertionError('nested CoCo restart did not unwind')
+        assert prompted,'nested CoCo restart skipped its manual prompt'
+        assert regs['s']==stack+2 and regs['y']==0,regs
+        assert d.read(0x7000,len(services))==bytes((1,))*len(services)
+        assert d.read(0x01ae,1)==b'\xa7' and d.read(0x01af,1)==b'\xc3'
+        assert d.read(0x0248,4)==bytes(4)
+        assert d.read(0x0431+250,1)==b'\0','nested caller resumed after restart'
+        assert d.read(0x0062,2)==root.to_bytes(2,'big')
+        assert d.read(stack+2,5)==b'STACK'
+        assert d.read(root_code+6,5)==b'GUARD' and d.read(child_code+2,5)==b'GUARD'
+    finally:
+        d.breakpoint(stop,False);d.breakpoint(base+cs['SetLogicPage'],False)
+        d.breakpoint(base+cs['message_box'],False)
+    print('PASS: actual CoCo root->call logic 1->restart.game execution; affirmative prompt unwinds nested logic frames, suppresses caller continuation, runs reset services once and preserves stack/code guards')
+
+
 def check_restarts(d):
     cases=[('confirmation',False,b'\r',0,False),
            ('cancellation',False,b'x',0,False),
@@ -1997,8 +2884,22 @@ def check_restarts(d):
            ('automatic at depth 16',True,b'',15,False),
            ('manual at depth 16',False,b'\r',15,False),
            ('long path at depth 16',False,b'\r',15,True)]
+    # The restart implementation and its prompt live in the cold sierraui module.
+    image=(ROOT/'objs/sierraui').read_bytes()
+    assert b'ENTER restarts; ESC cancels.\0' in image, 'restart prompt is missing from the production sierraui image'
     for label,automatic,key,depth,long_path in cases:
         print('Checking restart:',label,flush=True)
+        prompt_seen=[]
+        dialog_seen=[]
+        def observe_prompt(cpu,regs,syms):
+            prompt_seen.append(cpu.read(regs['x'],64).split(b'\0',1)[0])
+            return False
+        def observe_dialog(cpu,regs,syms):
+            cells=cpu.read(regs['u']+syms['textcharacters'],1000)
+            dialog_seen.append([(row,cells[row*40:(row+1)*40].strip(b'\0 '))
+                                for row in range(10,17)
+                                if cells[row*40:(row+1)*40].strip(b'\0 ')])
+            return False
         files=restart_fixture(automatic,depth);arguments=b'/game 1\r'
         if long_path:
             directory=b'/'+b'x'*126
@@ -2007,9 +2908,20 @@ def check_restarts(d):
         error,output,state=exercise(d,files,arguments=arguments,module='wbgame',
             base=0xa000,database=0x0000,window=0x8000,blocks=None,multiple=True,
             firstblock=0x10,capture=True,keyboard=key,psg={'version':4},
-            sol={'start':250,'step':1},os_call_limit=20000)
+            sol={'start':250,'step':1},os_call_limit=20000,
+            keyboard_by_sleep=({1:b'\x05'} if key==b'x' else None),
+            cold_hooks=({'sierraui':{'AuxRestartCall':observe_prompt,
+                                'AuxPrintWait':observe_dialog}}
+                        if not automatic else None))
         assert not error,(label,error,output)
-        assert state['gamefont']==(ROOT/'objs/wbfont').read_bytes(),(label,'font changed')
+        assert state['gamefont']==(ROOT/'objs/sierrafont').read_bytes(),(label,'font changed')
+        assert state['dialoginputmode']==b'\0',(label,'restart leaked modal input mode')
+        if not automatic:
+            assert prompt_seen==[b'ENTER restarts; ESC cancels.'],(label,prompt_seen)
+            assert dialog_seen and dialog_seen[0],(label,dialog_seen)
+            rendered=b''.join(line.replace(b' ',b'')
+                              for _,line in dialog_seen[0])
+            assert rendered==b'ENTERrestarts;ESCcancels.',(label,dialog_seen)
         if key in (b'x',b'\x1b'):
             assert state['vmflags'][6]==0 and state['vmflags'][20]==1
             assert state['vmvariables'][40:43]==bytes([99,77,88])
@@ -2021,18 +2933,26 @@ def check_restarts(d):
             assert not any(state['vmstrings']) and state['vmobjects'][3:5]==bytes(2)
         assert state['audio_packets'],(label,'active sound was not exercised')
     for name in ('zero','size','CRC'):
-        helper=bytearray((ROOT/'objs/wbui').read_bytes());entry=int.from_bytes(helper[9:11],'big')
+        helper=bytearray((ROOT/'objs/sierraui').read_bytes());entry=int.from_bytes(helper[9:11],'big')
         offset=0 if name=='zero' else len(helper)-(1 if name=='CRC' else 0)
         helper[entry+34:entry+36]=offset.to_bytes(2,'big')
-        files=restart_fixture();files['wbui']=bytes(helper)
+        files=restart_fixture();files['sierraui']=bytes(helper)
         error,output,state=exercise(d,files,module='wbgame',base=0xa000,
             database=0x0000,window=0x8000,blocks=None,multiple=True,
             firstblock=0x10,capture=True,keyboard=b'\r',os_call_limit=20000)
         assert error==203,(name,error)
-    print('PASS: restart confirmation/cancellation/automatic mode, 16-call unwind, long-path private-code/font protection, logical reset, active sound/clock cleanup and invalid entries')
+    print('PASS: restart prompt text-plane capture, Enter/Escape filtering, ordinary-key rejection, confirmation/cancellation/automatic mode, 16-call unwind, long-path protection, logical reset, active sound/clock cleanup and invalid entries')
 
 
 def main():
+    parser=argparse.ArgumentParser()
+    parser.add_argument('--object-previews-only',action='store_true',
+                        help='run the focused object preview and CoCo reference checks')
+    parser.add_argument('--menu-only',action='store_true',
+                        help='run focused submitted-menu construction, rendering and cleanup checks')
+    parser.add_argument('--menu-render-only',action='store_true',
+                        help='capture the submitted menu overlay before cleanup checks')
+    args=parser.parse_args()
     game = ROOT / 'kingsquest1'
     commands, volume, offset = resource(game, 1)
     expected = render(game, commands, 'lwasm.orig', ROOT.parent.parent / 'nitros9/defs')
@@ -2052,6 +2972,18 @@ def main():
             d.write(0xff90, b'\x4c')
             d.write(0xff91, b'\x01')
             d.write(0xffa8, bytes(range(8)))
+            if args.object_previews_only:
+                check_object_previews(d)
+                return
+            if args.menu_render_only:
+                check_menu_render_overlay(d)
+                return
+            if args.menu_only:
+                check_menu_build_reference(d)
+                check_menu_visibility_commands(d)
+                check_cold_menus(d)
+                return
+            check_native_trace(d)
             check_reused_private_state(d)
             check_compatibility_noops(d)
             check_object_status_commands(d)
@@ -2059,6 +2991,7 @@ def main():
             check_positioned_messages(d)
             check_text_screen_key_wait(d)
             check_original_help(d)
+            check_nested_logic_calls(d)
             check_original_death_messages(d)
             check_original_pickup_puzzles(d)
             check_original_coronation(d)
@@ -2071,11 +3004,12 @@ def main():
             check_original_rock_death(d)
             check_original_rock_death(d,restart=True)
             check_timed_messages(d)
-            check_screen_shakes(d)
             check_object_previews(d)
             check_interpreter_information(d)
             check_menu_request_order_reference(d)
             check_menu_visibility_reference(d)
+            check_menu_item_enable_reference(d)
+            check_menu_build_reference(d)
             check_menu_visibility_commands(d)
             check_cold_menus(d)
             check_room_controls(d)
@@ -2099,6 +3033,10 @@ def main():
             check_simple_save_staging(d)
             check_simple_save_restart(d)
             check_save_replacement(d)
+            from check_logic_executor import compile_module
+            coco,cs=compile_module(ROOT/'objs/mnln.asm',Path(temp)/'mnln')
+            check_coco_restart_cancel(d,coco,cs)
+            check_nested_coco_restart(d,coco,cs)
             error, frame = exercise(d, files, module='wbgame', base=0xa000,
                 database=0x0000, window=0x8000, blocks=None, multiple=True,
                 firstblock=0x10, frame_capture=True)
@@ -2328,15 +3266,6 @@ def main():
             message = b'Ab!\0'
             key = b'Avis Durgan'
             encrypted = bytes(value ^ key[i % len(key)] for i,value in enumerate(message))
-            script = bytes([109,14,1,103,3,39,1,26,134,1,0])
-            logic = len(script).to_bytes(2, 'little') + script
-            logic += bytes([1]) + (4+len(message)).to_bytes(2,'little') + bytes([4,0]) + encrypted
-            files = {'/game/logDir': b'\xff' * 3 + bytes(3),
-                '/game/vol.0': b'\x12\x34\0' + len(logic).to_bytes(2,'little') * 2 + logic}
-            error, frame = exercise(d, files, module='wbgame', base=0xa000,
-                database=0x0000, window=0x8000, blocks=None, multiple=True,
-                firstblock=0x10, frame_capture=True)
-            assert not error, error
             expected_frame = bytearray([1]) * 76800
             row, column = 3, 39
             for character in message[:-1]:
@@ -2347,7 +3276,20 @@ def main():
                 column += 1
                 if column == 40:
                     column, row = 0, row+1
-            assert frame == expected_frame, 'native text glyphs/colors/wrapping differ or were erased by show.pic'
+            for label,display in (
+                    ('literal',bytes([103,3,39,1])),
+                    ('variable',bytes([3,200,3,3,201,39,3,202,1,104,200,201,202]))):
+                print('Checking display command:',label,flush=True)
+                script = bytes([109,14,1]) + display + bytes([26,134,1,0])
+                logic = len(script).to_bytes(2, 'little') + script
+                logic += bytes([1]) + (4+len(message)).to_bytes(2,'little') + bytes([4,0]) + encrypted
+                files = {'/game/logDir': b'\xff' * 3 + bytes(3),
+                    '/game/vol.0': b'\x12\x34\0' + len(logic).to_bytes(2,'little') * 2 + logic}
+                error, frame = exercise(d, files, module='wbgame', base=0xa000,
+                    database=0x0000, window=0x8000, blocks=None, multiple=True,
+                    firstblock=0x10, frame_capture=True)
+                assert not error, (label,error)
+                assert frame == expected_frame, ('native text glyphs/colors/wrapping differ or were erased by show.pic',label)
             for clearcolor in (0,1):
                 script = bytes([109,14,1,103,3,39,1,105,3,3,clearcolor,26,134,1,0])
                 logic = len(script).to_bytes(2,'little') + script
@@ -2365,11 +3307,13 @@ def main():
             # geometry before changing cells. Expected pixels are independent of
             # the renderer's row/cell addressing.
             rectangles = [(3,39,4,39,0), (3,0,4,0,1), (0,0,24,39,0),
-                          (24,39,24,39,15), (3,38,4,39,1)]
+                          (23,0,24,0,1), (23,0,255,0,1),
+                          (24,39,24,39,15), (25,0,25,0,0), (3,38,4,39,1),
+                          (3,39,3,40,7), (3,40,3,40,15)]
             rectangles += [(25,0,25,0,0), (0,40,0,40,0),
                            (4,0,3,1,0), (3,2,4,1,0)]
             for top,left,bottom,right,color in rectangles:
-                invalid = top > bottom or left > right or bottom >= 25 or right >= 40
+                invalid = top > bottom or left > right or right >= 41
                 script = bytes([109,14,1,103,3,39,1,154,top,left,bottom,right,color,
                                 26,134,1,0])
                 logic = len(script).to_bytes(2,'little') + script
@@ -2382,13 +3326,22 @@ def main():
                 assert error == (187 if invalid else 0), ('clear.text.rect', error)
                 cleared = bytearray(expected_frame)
                 if not invalid:
-                    for pixelrow in range(top*8,(bottom+1)*8):
-                        start = pixelrow*320 + left*8
-                        cleared[start:pixelrow*320+(right+1)*8] = bytes([16 if color else 1]) * ((right-left+1)*8)
+                    for textrow in range(top,min(bottom,23)+1):
+                        for textcolumn in range(left,right+1):
+                            cell=textrow*40+textcolumn
+                            cellrow,cellcolumn=divmod(cell,40)
+                            for pixelrow in range(cellrow*8,(cellrow+1)*8):
+                                start=pixelrow*320+cellcolumn*8
+                                cleared[start:start+8]=bytes([color+1])*8
                 assert frame == cleared, ('clear.text.rect pixels', (top,left,bottom,right,color))
-            # Text/graphics mode preserves the combined game picture, clears
-            # text beyond the picture area on return, and remains stable over
-            # multiple logic cycles with input disabled.
+            # text.screen selects the CoCo-style transparent text overlay;
+            # only explicit text cells/clear operations change the picture.
+            # graphics clears the overlay and restores the same game picture.
+            screen_picture = bytearray([1]) * 76800
+            for row in range(168):
+                pixels = bytes(value for pixel in expected[row*160:(row+1)*160]
+                               for value in [(pixel&15)+1]*2)
+                screen_picture[(row+8)*320:(row+9)*320] = pixels
             for background in (0,1,7,15):
                 for mode in ('text', 'graphics', 'cycles', 'rectangle', 'discard'):
                     print('Checking text/graphics mode:', mode, background, flush=True)
@@ -2414,14 +3367,10 @@ def main():
                         base=0xa000,database=0x0000,window=0x8000,blocks=None,
                         multiple=True,firstblock=0x10,frame_capture=True,capture=True)
                     assert not error, (mode, background, error)
-                    if mode in ('graphics','discard'):
-                        wanted = bytearray([1])*76800
-                        for row in range(168):
-                            pixels = bytes(value for pixel in expected[row*160:(row+1)*160]
-                                           for value in [(pixel&15)+1]*2)
-                            wanted[(row+8)*320:(row+9)*320] = pixels
-                    else:
-                        wanted = bytearray([background+1])*64000 + bytearray([1])*12800
+                    assert state['vmgraphics']==bytes([1 if mode in ('graphics','discard') else 0]), \
+                        ('text/graphics mode state',mode,state['vmgraphics'])
+                    wanted = bytearray(screen_picture)
+                    if mode in ('text','cycles','rectangle'):
                         for column, character in enumerate(message[:-1]):
                             for row in range(8):
                                 bits = font[character*8+row]
@@ -2429,8 +3378,9 @@ def main():
                                     wanted[(24*8+row)*320+column*8+pixel] = (
                                         15 if bits&(128>>pixel) else background+1)
                     if mode == 'rectangle':
-                        for row in range(192,200):
-                            wanted[row*320:row*320+8] = bytes([1])*8
+                        # Row 24 is below CoCo's text rectangle bottom (23),
+                        # so the command is a successful no-op there.
+                        pass
                     assert frame == wanted, ('text/graphics mode pixels', mode, background)
                     assert state['vmvariables'][250] == (3 if mode == 'cycles' else 1)
                     replay = bytes([2,1]) + bytes([4,1]) * (3 if mode == 'cycles' else 1)
@@ -2478,7 +3428,7 @@ def main():
             assert not error and state['vmvariables'][25] == 22, 'inventory scrolling lost item identity'
             assert output == bytes([1])*76800, 'scrolled inventory left an overlay'
             for bad_font in (b'', bytes(1023), bytes(1025)):
-                failed_files = {**files, 'wbfont': bad_font}
+                failed_files = {**files, 'sierrafont': bad_font}
                 error, output, state = exercise(d, failed_files, module='wbgame', base=0xa000,
                     database=0x0000, window=0x8000, blocks=None, multiple=True,
                     firstblock=0x10, capture=True)

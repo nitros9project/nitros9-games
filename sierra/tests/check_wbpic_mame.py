@@ -7,6 +7,7 @@ Level 2 image, and FEU booter/f0.dsk. No game assets are required.
 import argparse
 import json
 from pathlib import Path
+import re
 import shutil
 import struct
 import subprocess
@@ -67,14 +68,20 @@ def main():
     parser.add_argument('--picture', type=Path, help='optional 26880-byte real reference picture for /vt1')
     parser.add_argument('--native-game', type=Path, help='test integrated native loading/decoding/presentation using this game directory')
     parser.add_argument('--module-file', type=Path, help='optional diagnostic build of the selected module')
+    parser.add_argument('--ui-module-file', type=Path, help='optional diagnostic build of sierraui')
     parser.add_argument('--interpreter', action='store_true', help='exercise wbgame repeated logic cycles and keyboard-controller exit on both terminals')
     parser.add_argument('--picture-number', type=int, default=1)
     parser.add_argument('--text-modes', action='store_true', help='Switch the second game terminal through text and graphics modes')
     parser.add_argument('--overlay', action='store_true', help='overlay a visual/priority edge on the second game terminal')
     parser.add_argument('--persistence', action='store_true', help='save, change and restore the second terminal through the native file dialog')
+    parser.add_argument('--full-disk', action='store_true', help='verify native save failure and recovery on a nearly full disk')
     args = parser.parse_args()
+    if args.persistence and args.full_disk:
+        parser.error('--persistence and --full-disk use separate timelines')
     if args.persistence and (not args.interpreter or args.text_modes):
         parser.error('--persistence requires --interpreter and its own timeline')
+    if args.full_disk and (not args.interpreter or not args.native_game or args.text_modes):
+        parser.error('--full-disk requires --native-game and --interpreter')
     if args.overlay and not args.interpreter:
         parser.error('--overlay requires --interpreter')
     if args.text_modes and not args.interpreter:
@@ -105,12 +112,12 @@ def main():
     install(module, (args.module_file or (VIEWER / module)).read_bytes(), 'CMDS/' + module)
     os9('attr', f'{disk},CMDS/{module}', '-e', '-pe')
     if args.interpreter:
-        install('wbfont', (VIEWER / 'wbfont').read_bytes(), 'CMDS/wbfont')
-        os9('attr', f'{disk},CMDS/wbfont', '-e', '-pe')
-        install('wbstate',(VIEWER/'wbstate').read_bytes(),'CMDS/wbstate')
-        os9('attr',f'{disk},CMDS/wbstate','-e','-pe')
-        install('wbui',(VIEWER/'wbui').read_bytes(),'CMDS/wbui')
-        os9('attr',f'{disk},CMDS/wbui','-e','-pe')
+        install('sierrafont', (VIEWER / 'sierrafont').read_bytes(), 'CMDS/sierrafont')
+        os9('attr', f'{disk},CMDS/sierrafont', '-e', '-pe')
+        install('sierrastate',(VIEWER/'sierrastate').read_bytes(),'CMDS/sierrastate')
+        os9('attr',f'{disk},CMDS/sierrastate','-e','-pe')
+        install('sierraui',(args.ui_module_file or (VIEWER/'sierraui')).read_bytes(),'CMDS/sierraui')
+        os9('attr',f'{disk},CMDS/sierraui','-e','-pe')
     bars = bytes((((4 + y // 14) & 15) << 4) | (x // 10) for y in range(168) for x in range(160))
     picture = args.picture.read_bytes() if args.picture else bytes(
         ((y // 14) << 4) | ((x // 10 + y // 7) & 15) for y in range(168) for x in range(160))
@@ -144,9 +151,11 @@ def main():
             assert volume != 0, 'diagnostic logic occupies volume zero'
             for directory, number in [('bars-game', 1), ('game', args.picture_number)]:
                 body = bytes([111,0,23,0,3,0,number,24,0,25,0,26])
-                if args.persistence and directory == 'game':
+                if (args.persistence or args.full_disk) and directory == 'game':
                     body += bytes([143,1,119,3,40,42,109,15,0,
-                        121,ord('s'),0,8,121,ord('c'),0,9,121,ord('r'),0,10])
+                        121,ord('s'),0,8])
+                    if args.persistence:
+                        body += bytes([121,ord('c'),0,9,121,ord('r'),0,10])
                 if args.overlay and directory == 'game':
                     body += bytes([3,0,0,24,0,28,0,26,27,0])
                 if args.text_modes:
@@ -157,8 +166,11 @@ def main():
                     graphics_body = bytes([109,15,0,107,119])
                     for controller, part in ((8,text_body),(9,graphics_body)):
                         script += bytes([255,12,controller,255,len(part),0]) + part
-                if args.persistence and directory == 'game':
-                    for controller,part in ((8,bytes([125])),(9,bytes([3,40,77])),(10,bytes([126]))):
+                if (args.persistence or args.full_disk) and directory == 'game':
+                    state_controllers = [(8,bytes([125]))]
+                    if args.persistence:
+                        state_controllers += [(9,bytes([3,40,77])),(10,bytes([126]))]
+                    for controller,part in state_controllers:
                         script += bytes([255,12,controller,255,len(part),0])+part
                     script += bytes([103,24,0,2])
                 script += bytes([255,12,7,255,2,0,134,1,0])
@@ -169,7 +181,7 @@ def main():
                     encrypted = bytes(v ^ cipher[i%len(cipher)] for i,v in enumerate(text))
                     payload += bytes([1]) + (4+len(text)).to_bytes(2,'little') + bytes([4,0]) + encrypted
                 install(directory + '-logDir', bytes(3), directory + '/logDir')
-                if args.persistence and directory == 'game':
+                if (args.persistence or args.full_disk) and directory == 'game':
                     messages=[b'WBTST\0',b'Value: %v40\0']
                     cursor=2+2*len(messages);offsets=bytearray()
                     for text in messages:
@@ -192,10 +204,10 @@ def main():
         install('picture.bin', picture)
         first_command, second_command = 'wbpic /s0/bars.bin', 'wbpic /s0/picture.bin'
     if args.persistence:
-        # A complete, correctly checksummed file with an invalid key count
-        # reaches field validation; a short copy independently checks EOF.
+        # Exercise header, payload-field and exact-stream-length validation
+        # with real files consumed by the interpreter's restore command.
         from check_instances import symbols
-        syms=symbols(VIEWER/'wbstate.map')
+        syms=symbols(VIEWER/'sierrastate.map')
         payload=bytearray(syms['StateCoreBytes']+160)
         payload[syms['SavedKeyCount']]=51
         payload[syms['StateCoreBytes']:syms['StateCoreBytes']+5]=b'\x01\0\0\x02\0'
@@ -207,11 +219,45 @@ def main():
         header=b'WS\x01\0'+len(payload).to_bytes(2,'big')+crc.to_bytes(2,'big')+b'WBTST'+bytes(5)
         install('badstate',header+payload)
         install('shortstate',header+payload[:10])
+        install('wronggame',header[:8]+b'OTHER'+bytes(3)+payload)
+        badcrc=bytearray(header);badcrc[6]^=1
+        install('badcrc',bytes(badcrc)+payload)
+        badversion=bytearray(header);badversion[2]=2
+        install('badversion',bytes(badversion)+payload)
+        badlength=bytearray(header);badlength[5]=(badlength[5]+1)&255
+        install('badlength',bytes(badlength)+payload)
+        install('trailing',header+payload+b'\0')
     install('startup', f'load utilpak1\nload vt\nlink shell\nload {module}\nload grfdrv256\n'.encode(), text=True)
     install('feu.startup', b'bootos9 /s0/OS9Boot\n', 'FEU/startup', text=True)
     # Asset installation may extend a sparse disk: pad after all copies.
     with disk.open('ab') as stream:
         stream.truncate(1 << (disk.stat().st_size - 1).bit_length())
+    if args.full_disk:
+        from check_instances import symbols
+        snapshot_size = 18 + symbols(VIEWER / 'sierrastate.map')['StateCoreBytes'] + 160
+        free_output = os9('free', disk).decode()
+        free_match = re.search(r'\((\d+) bytes\)', free_output)
+        assert free_match, f'cannot read initial disk free space: {free_output}'
+        filler_size = int(free_match.group(1)) - 8192
+        assert filler_size > 0, f'disk unexpectedly has little free space: {free_output}'
+        # OS-9 directory segment tables cap one file below the whole device;
+        # split the filler so every component remains a valid file.
+        chunk_limit = 20 * 1024 * 1024
+        chunk_number = 0
+        while filler_size:
+            chunk_size = min(chunk_limit, filler_size)
+            filler = out / f'disk-fill-{chunk_number:02d}.bin'
+            with filler.open('wb') as stream:
+                stream.truncate(chunk_size)
+            os9('copy', '-r', filler, f'{disk},diskfill{chunk_number:02d}')
+            filler_size -= chunk_size
+            chunk_number += 1
+        free_output = os9('free', disk).decode()
+        free_match = re.search(r'\((\d+) bytes\)', free_output)
+        assert free_match and int(free_match.group(1)) < snapshot_size, (
+            f'disk still has room for the expected {snapshot_size:,}-byte snapshot: {free_output}')
+        with disk.open('ab') as stream:
+            stream.truncate(1 << (disk.stat().st_size - 1).bit_length())
     commands = {600: 'iniz /vt1\n', 720: 'shell i=/vt1&\n', 800: 'mfree >/s0/free-before\n',
                 900: first_command + '\n', 1500: second_command + '\n',
                 2600: 'x\n', 3300: 'x\n', 4000: first_command + '\n',
@@ -228,24 +274,46 @@ def main():
     if args.persistence:
         commands={600:'iniz /vt1\n',720:'shell i=/vt1&\n',800:'mfree >/s0/free-before\n',
             900:first_command+'\n',1500:second_command+'\n',
-            2550:'s',2650:'/s0/state1\n',2950:'c',3050:'r',3150:'/s0/state1\n',
-            3450:'r',3550:'/s0/badstate\n',3850:' ',
-            4050:'r',4150:'/s0/shortstate\n',4550:' ',
-            4750:'s',4850:'/s0/state1\n',5150:' ',5350:'x\n',5600:'x\n',
-            6000:first_command+'\n',6500:second_command+'\n',6900:'x\n',7700:'x\n',
-            8000:'mfree >/s0/free-after\n',8200:'echo WBTEST-DONE >/s0/wbtest-done\n'}
-        switches={1200:'Right',1950:'Left',2300:'Right',5450:'Left',6300:'Right',7200:'Left'}
+            2550:'s',3150:'s',3250:'/s0/state1\n',3500:' ',
+            3700:'r',4050:'c',4300:'r',4400:'/s0/state1\n',
+            5200:'r',5300:'/s0/badstate\n',5700:' ',
+            5850:'r',5950:'/s0/wronggame\n',6350:' ',
+            6750:'r',6850:'/s0/shortstate\n',7250:' ',
+            7550:'r',7650:'/s0/badcrc\n',8050:' ',
+            8450:'r',8550:'/s0/badversion\n',8950:' ',
+            9100:'r',9200:'/s0/badlength\n',9600:' ',
+            9750:'r',9850:'/s0/trailing\n',10250:' ',
+            10500:'x\n',10800:'x\n',
+            11200:first_command+'\n',11700:second_command+'\n',12100:'x\n',13000:'x\n',
+            13500:'mfree >/s0/free-after\n',13700:'echo WBTEST-DONE >/s0/wbtest-done\n'}
+        switches={1200:'Right',1950:'Left',2300:'Right',10650:'Left',11650:'Right',12850:'Left'}
         shots={1150:'bars-initial',1800:'picture-initial',2200:'bars-restored',2500:'picture-restored',
-            2900:'picture-saved',3000:'picture-changed',3400:'picture-loaded',
-            3750:'invalid-error',3950:'invalid-restored',4450:'short-error',4650:'short-restored',
-            5050:'existing-error',5250:'existing-restored',5400:'picture-closed',
-            5500:'bars-survives',5750:'both-closed',6200:'bars-relaunch',6800:'picture-relaunch',
-            7500:'bars-survives-again'}
+            2800:'save-cancelled',2900:'cancel-resumed',3500:'existing-save',3650:'existing-restored',
+            3900:'restore-cancelled',
+            4150:'picture-changed',4750:'picture-loaded',
+            5600:'invalid-error',5800:'invalid-restored',6250:'wronggame-error',6550:'wronggame-restored',
+            7150:'short-error',7450:'short-restored',7950:'badcrc-error',8250:'badcrc-restored',
+            8850:'badversion-error',9050:'badversion-restored',9500:'badlength-error',9700:'badlength-restored',
+            10150:'trailing-error',10350:'trailing-restored',
+            10700:'bars-survives',10900:'picture-closed',11150:'both-closed',
+            11600:'bars-relaunch',12000:'picture-relaunch',12900:'bars-survives-again'}
+    if args.full_disk:
+        commands={600:'iniz /vt1\n',720:'shell i=/vt1&\n',
+            900:first_command+'\n',1500:second_command+'\n',
+            2550:'s',3250:'/s0/fullfail\n',4500:' ',
+            5200:'x\n',5700:'x\n',6200:'echo WBTEST-DONE >/s0/wbtest-done\n'}
+        switches={1200:'Right',1950:'Left',2300:'Right'}
+        shots={1150:'bars-initial',1800:'picture-initial',
+            3800:'full-disk-error',4600:'full-disk-resumed'}
     factor = 2 if args.native_game else 1
     commands = {frame * factor: command for frame, command in commands.items()}
     switches = {frame * factor: direction for frame, direction in switches.items()}
     shots = {frame * factor: name for frame, name in shots.items()}
     table = lambda values: '{' + ','.join(f'[{key}]={json.dumps(value)}' for key, value in values.items()) + '}'
+    cancel_event = (''.join(
+        f' if frames == {frame * factor} then manager.machine.ioport.ports[":KEY2"].fields["Escape"]:set_value(1) end\n'
+        f' if frames == {(frame + 10) * factor} then manager.machine.ioport.ports[":KEY2"].fields["Escape"]:clear_value() end\n'
+        for frame in (2650, 3800)) if args.persistence else '')
     script = f'''frames = 0
 local keys = manager.machine.ioport.ports[":KEY3"].fields
 local commands = {table(commands)}
@@ -255,7 +323,7 @@ local held
 sub = emu.add_machine_frame_notifier(function()
  frames = frames + 1
  if commands[frames] then manager.machine.natkeyboard:post(commands[frames]) end
- if switches[frames] then
+{cancel_event} if switches[frames] then
    held = switches[frames]; keys["Alt"]:set_value(1); keys[held]:set_value(1)
  end
  if held and switches[frames-5] then
@@ -264,20 +332,36 @@ sub = emu.add_machine_frame_notifier(function()
  if shots[frames] then
    manager.machine.screens[":screen"]:snapshot({json.dumps(str(out) + '/')} .. shots[frames] .. ".png")
  end
- if frames == {(8500 if args.persistence else 6500) * factor} then manager.machine:exit() end
+ if frames == {(14000 if args.persistence else 6500) * factor} then manager.machine:exit() end
 end)
 '''
     lua = out / 'drive.lua'
     lua.write_text(script)
     command = [str(mame), 'wbjr2', '-bios', 'turbo', '-rompath', str(roms.parent),
                '-hard', str(disk), '-skip_gameinfo', '-noui_mouse', '-mouseprovider', 'none', '-video', 'none', '-sound', 'none',
-               '-nothrottle', '-autoboot_script', str(lua), '-seconds_to_run', str((150 if args.persistence else 120) * factor),
+               '-nothrottle', '-autoboot_script', str(lua), '-seconds_to_run', str((260 if args.persistence else 120) * factor),
                '-nvram_directory', str(out / 'nvram'), '-cfg_directory', str(out / 'cfg')]
     (out / 'command.json').write_text(json.dumps(command, indent=2) + '\n')
     with (out / 'mame.log').open('w') as log:
         subprocess.run(command, cwd=out, stdout=log, stderr=subprocess.STDOUT, check=True, timeout=180)
-    assert 'WBTEST-DONE' in os9('list', f'{disk},wbtest-done').decode(), 'shell did not resume after both viewers'
+    if args.full_disk:
+        log_text = (out / 'mame.log').read_text(errors='replace')
+        assert 'echo WBTEST-DONE >/s0/wbtest-done' in log_text, 'shell did not resume after the save failure'
+        assert 'ERROR #248' in log_text, 'full disk was not preserved through the end of the run'
+    else:
+        assert 'WBTEST-DONE' in os9('list', f'{disk},wbtest-done').decode(), 'shell did not resume after both viewers'
     images = {name: png_rgb(out / (name + '.png')) for name in shots.values()}
+    if args.full_disk:
+        assert images['full-disk-error'] != images['picture-initial'], 'full-disk save error dialog missing'
+        assert images['full-disk-resumed'] == images['picture-initial'], 'dismissing the full-disk error did not restore the scene'
+        listing = os9('dir', f'{disk},').decode()
+        assert 'fullfail' not in listing, 'failed full-disk save left a partial snapshot'
+        free_output = os9('free', disk).decode()
+        free_match = re.search(r'\((\d+) bytes\)', free_output)
+        assert free_match and int(free_match.group(1)) < snapshot_size, f'test disk unexpectedly has room: {free_output}'
+        print('PASS: actual Wild Bits full-disk save fails visibly, dismisses cleanly, preserves the scene and creates no partial file')
+        print(f'Artifacts: {out}')
+        return
     assert images['bars-initial'] == images['bars-restored'] == images['bars-survives']
     assert images['picture-initial'] == images['picture-restored']
     assert images['bars-initial'] == images['bars-relaunch'] == images['bars-survives-again']
@@ -296,7 +380,7 @@ end)
         expected = b''.join(expected[y * 1920:(y + 1) * 1920] * 2 for y in range(168))
         expected += colors[0] * (640 * (480 - 336))
         if args.persistence and name == 'picture-initial':
-            expected=bytearray(expected);font=(VIEWER/'wbfont').read_bytes()
+            expected=bytearray(expected);font=(VIEWER/'sierrafont').read_bytes()
             for column,char in enumerate(b'Value: 42'):
                 for row in range(8):
                     for x in range(8):
@@ -309,8 +393,11 @@ end)
     if args.text_modes:
         assert images['picture-graphics-mode'] == images['picture-initial'], 'graphics did not restore the game picture'
         width,height,pixels = images['picture-text-mode']
-        wanted = bytearray(colors[7] * (width*400) + colors[0] * (width*(height-400)))
-        font = (VIEWER/'wbfont').read_bytes()
+        # CoCo text.screen switches to its text plane without erasing the
+        # existing graphics page. The text row is opaque; the rest of the
+        # saved picture must remain visible underneath and around it.
+        wanted = bytearray(images['picture-initial'][2])
+        font = (VIEWER/'sierrafont').read_bytes()
         for column,char in enumerate(b'Text mode on this terminal.'):
             for row in range(8):
                 for x in range(8):
@@ -321,12 +408,22 @@ end)
                             wanted[offset:offset+3] = color
         assert pixels == wanted, 'text mode colors/glyphs differ on the second terminal'
     if args.persistence:
-        assert images['picture-saved']==images['picture-initial'], 'save altered the scene'
-        assert images['picture-changed']!=images['picture-initial'], 'change controller did not change the variable'
-        assert images['picture-loaded']==images['picture-initial'], 'restore did not recover the variable and pixels'
-        for name in ('invalid','short','existing'):
-            assert images[name+'-restored']==images['picture-initial'], name+' failure altered the game'
-            assert images[name+'-error']!=images['picture-initial'], name+' error dialog missing'
+        assert images['save-cancelled']==images['cancel-resumed'], 'Escape did not cancel the save-name dialog cleanly'
+        assert images['cancel-resumed']==images['picture-initial'], 'canceled save altered the scene'
+        assert images['restore-cancelled']==images['picture-initial'], 'Escape did not cancel the restore-name dialog cleanly'
+        assert images['picture-changed']!=images['save-cancelled'], 'change controller did not change the variable'
+        assert images['picture-loaded']==images['save-cancelled'], 'restore did not recover the variable and pixels'
+        for name in ('invalid','wronggame','short','badcrc','badversion','badlength','trailing'):
+            assert images[name+'-restored']==images['save-cancelled'], name+' failure altered the game'
+            assert images[name+'-error']!=images['save-cancelled'], name+' error dialog missing'
+        assert images['existing-save']==images['save-cancelled'], 'saving over an existing snapshot changed the scene or showed an error'
+        assert images['existing-restored']==images['save-cancelled'], 'existing snapshot replacement did not leave the scene intact'
+        try:
+            os9('list', f'{disk},cancelled')
+        except subprocess.CalledProcessError:
+            pass
+        else:
+            raise AssertionError('cancelled save unexpectedly created a file')
         saved=out/'state1.bin'
         os9('copy',f'{disk},state1',saved)
         data=saved.read_bytes()

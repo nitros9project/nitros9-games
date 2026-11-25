@@ -60,7 +60,8 @@ def main():
                             d.write(syms['parsercount'],bytes([len(actual)]))
                             d.write(syms['vmflags']+2,bytes([enabled]))
                             d.write(syms['vmflags']+4,bytes([accepted]))
-                            entry=base+syms['ParserSaid']
+                            d.write(syms['vmopcode'],b'\x0e')
+                            entry=base+syms['InputTest']
                             result=d.run(entry,u=0)
                             assert not result['cc']&1
                             got=result['b'];flag=bool(d.read(syms['vmflags']+4,1)[0])

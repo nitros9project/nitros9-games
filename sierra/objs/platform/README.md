@@ -49,10 +49,39 @@ The old per-operation selector files have been removed. Their compile-time
 CoCo/Wild Bits selection and unsupported-backend checks now appear at the
 owner's inclusion site.
 
+## Interface and ownership contracts
+
+Platform bindings are assembly-time interfaces, not runtime function tables.
+The shared body is expanded at its existing owner location; its binding macros
+name the live registers, stack slots, process/object fields, result flags and
+platform-specific branch targets. A binding must state any non-obvious register
+or stack assumptions beside the macro. Adding a shared body must not introduce
+hidden mutable state: scratch belongs to the owner or to an explicitly described
+private frame. This keeps nested calls independent where the shared algorithm
+can recurse and avoids changing the per-cycle cost with a platform dispatch.
+
+| Boundary | Call and state contract | Errors and ownership |
+| --- | --- | --- |
+| Shared VM and predicates | `logic-executor.asm` owns a two-byte activation frame per invocation. `coco-logic-bindings.asm` and `wildbits-logic-bindings.asm` bind byte reads, command/predicate calls, branch application and scan starts to their existing owner state. | CoCo keeps its original contiguous-stream/table contract. Wild Bits bounds every stream read and unwinds the two-byte frame on success and error; the owning resource/cache layer retains and releases mapped logic. |
+| Resource and codec services | The Wild Bits `LoadAsset` ABI returns `X=first owned block`, `B=block count`, `Y=expanded length`, `U=private base`, carry clear. Shared codec bodies obtain bytes through owner read/write bindings; codec scratch is reused only when the formats cannot overlap. | A failed Wild Bits load returns the OS-9/validation error in `B`, carry set, closes an opened path and releases partial allocation. A successful slab transfers to the caller, which must adopt or release it. CoCo keeps MMU/resource ownership in its existing module contract. |
+| Object algorithms | Shared object/motion bodies expand in the caller's original code region. The object binding files define record base, candidate coordinates, horizon/terrain reads, collision identity, ego state and arrival/error branches. Wild Bits motion scratch is rooted at the current process-private base; CoCo operands retain the legacy stack frame and fixed engine fields. | Shared bodies do not retain mapped pointers across OS calls. Wild Bits error paths return through the owner cleanup path; CoCo keeps the original status/flag and room-edge policy. Intentional rule differences, including zero-width and horizon policies, are explicit in `*-objects-bindings.asm`. |
+| Picture and sprite services | Shared picture command/coordinate/line/pen code calls the bound plotting and bounded-input operations at the same assembly site. View and cel code obtains storage, dimensions, priority and palette through each owner's layout. | CoCo uses contiguous/MMU-backed buffers; Wild Bits maps bounded windows and releases them before yielding to OS, input, clock or sound services. Each platform owns its frame buffer and restores it through its presentation contract. |
+| Text, parser and modal UI | Shared tokenization, dictionary, said matching, formatting, string and inventory rules receive owner-selected buffers, input readers, output writers and flag/item storage. Recursive formatting callers own their saved registers and source frames as described in `shared/README.md`. | Resource pointers and output bounds are validated by their owner. Native cold UI runs from the matching immutable `sierraui` provider; callback tables are read-only, while dialog/menu/cache/timer state remains per game process. Provider entry layouts and cleanup are documented in `WILDBITS-ENGINE.md` under ABIs 8–14. |
+| Input, clock and sound | Shared code requests logical key, cycle, timer and sound operations; platform code performs device access. The CoCo timer intercept and hardware routines remain in the CoCo backend. Wild Bits uses OS-9 terminal status, process clocks and the owned PSG driver. | No shared algorithm writes device registers. Wild Bits backgrounds mute that process's clock entries and terminate its current sound request, closing the owned audio path; foreground return unmutes and rebases its clock. Per-terminal movement and audio state are not stored in shared writable data. |
+| Module and helper lifecycle | Owners select and include named layout sections to preserve code/data placement. Wild Bits resident-to-helper callbacks use the documented callback-table ABI, and helper linked code is read-only. | The resident owns linked-module references and releases them on all exits; `sierrastate` owns the bounded save-state copy, and game-private data remains with each process. CoCo's MMU allocator and four-module loader retain their independent OS contract. |
+
+These contracts are backed by the local binding comments and the focused ABI
+records in [`WILDBITS-ENGINE.md`](../../WILDBITS-ENGINE.md). In particular,
+the logic executor tests compare both owners at two load addresses, resource
+and picture tests inject bounded-read/map failures, object tests guard registers
+and stack frames, and provider tests check callback layout, ownership and
+cleanup. A platform change that moves a register, stack slot, state field or
+error target must update the corresponding binding and its focused comparison.
+
 Verification: all 56 CoCo engine modules (four modules for 14 titles) and native
 `wbgame` match the preceding binaries byte for byte. Native probes also build.
 
-The native text-store loop assembles into the existing `wbstate` auxiliary
+The native text-store loop assembles into the existing `sierrastate` auxiliary
 module and executes read-only while linked. Its variables and text cells remain
 private to the caller. The frontend caches the validated entry and releases the
 module during cleanup; clearing a text screen preserves that reference. Install
@@ -60,7 +89,7 @@ the matching helper for text output. Source grouping stays in
 `wildbits-text-ui.asm`; no additional platform file is needed.
 
 The same grouped text UI source supplies the immutable modal wait/key loop to
-`wbstate`. The resident passes a read-only callback table, and each game keeps
+`sierrastate`. The resident passes a read-only callback table, and each game keeps
 its own timer and cached entry. Both cold entry points share one validated,
 retained helper link. Timed blocking prints use variable 21 in half-seconds;
 SOL counter sampling handles frame wrap and foreground rebasing, with a
@@ -88,9 +117,10 @@ Resident callbacks select/render the view, present text and restore the scene.
 Their temporary record occupies idle private renderer-list storage, while
 cached entries and callback state stay private to each game.
 
-Screen shake lives in the grouped Wild Bits graphics source and uses the existing
-immutable helper, private callbacks and idle fill scratch. It maps one bank at
-a time and releases mappings before clock, sound and foreground calls.
+Opcode 110 follows the CoCo `cmd_shake_screen` stub: it consumes its literal
+operand and returns without changing the framebuffer. The old shake code was
+removed; the immutable helper directory retains a tiny compatibility stub at
+the former vector slot.
 
 The menu frontend stays in grouped text UI, with display/navigation in that
 same source's cold section. Its callback table reuses resident presentation
@@ -103,9 +133,9 @@ movement ownership and button edges stay separate from shared code and saves.
 
 ## Separate UI and persistence providers (ABI 8)
 
-The current package is `wbgame`, `wbui`, `wbstate` and `wbfont`. Install the
+The current package is `sierra`, `sierraui`, `sierrastate` and `sierrafont`. Install the
 three executable modules from the same ABI-14 build. UI/audio code now belongs
-to the immutable `wbui` provider; `wbstate` supplies the bounded private copy
+to the immutable `sierraui` provider; `sierrastate` supplies the bounded private copy
 used for save/restore. Existing source feature groups are unchanged.
 See [provider ownership, loader contracts, budgets and verification](../../WILDBITS-ENGINE.md#separate-ui-and-persistence-providers-abi-8).
 Earlier combined-helper descriptions above document preceding revisions.
@@ -129,8 +159,7 @@ No additional platform files or per-frame dispatch are introduced.
 
 Menu input is now deferred until the next event stage, with a shared request
 policy and private pending byte. Diagnostic/shake/restart commands share a cold
-UI loader/cache; screen calls retain their distinct interface. A cached shake
-releases engine mappings before borrowing the framebuffer window. See the
+UI loader/cache; screen calls retain their distinct interface. See the
 [ABI-12 ownership and verification record](../../WILDBITS-ENGINE.md#deferred-menu-requests-and-shared-ui-entry-abi-12).
 
 
@@ -139,3 +168,11 @@ native backend maps that name to its filename interface; empty names restore
 manual input. Filename staging is cold UI code, and the state provider matches
 CoCo's existing-file replacement policy. See the
 [ABI-13 contracts, bounds and verification](../../WILDBITS-ENGINE.md#shared-automatic-save-naming-and-replacement-abi-13).
+
+
+Trace commands and event formatting are grouped in the existing Wild Bits
+text-UI backend. Shared VM hooks select command/predicate events, while trace
+history, configured geometry, and temporary page ownership live in each game
+instance. The CoCo build expands the hooks to nothing. ABI-14 builds include
+the backend, but live active-trace MAME acceptance is still pending; see the
+[current trace status](../../WILDBITS-ENGINE.md#native-trace-backend-integration-abi-14-in-progress).

@@ -73,8 +73,48 @@ def main():
                                 expected = bytearray(before); expected[syms['motioncollision']] = counter
                                 assert d.read(private,syms['size']) == expected
                         calls += 1
+                    # Two live movers start with a one-pixel gap. Each step is
+                    # then compared against the other's current occupied span,
+                    # including CoCo's inclusive edge-contact rule.
+                    for actor, positions, wanted in (
+                            (0,(20,31),False), (1,(20,31),False),
+                            (0,(21,31),True), (1,(20,30),True)):
+                        records=bytearray(64*43)
+                        for index in (0,1):
+                            offset=index*43
+                            records[offset+2]=index
+                            records[offset+3]=positions[index]
+                            records[offset+4]=80
+                            records[offset+0x1c]=10
+                            records[offset+0x21]=3 if index==0 else 7
+                            records[offset+0x22]=3
+                            records[offset+0x26]=0x41
+                        d.write(objects-1,b'G'+records+b'H')
+                        if private:
+                            d.write(private+syms['motionobject'],(objects+actor*43).to_bytes(2,'big'))
+                            d.write(private+syms['motioncollision'],b'\0')
+                            d.write(private+syms['motionoldposition'],bytes([positions[actor],80]))
+                            entry=base+syms['MotionObjectCollision']
+                            registers={'x':private,'u':objects+actor*43}
+                        else:
+                            d.write(0x30,objects.to_bytes(2,'big'))
+                            d.write(0x32,(objects+64*43).to_bytes(2,'big'))
+                            entry=base+syms['CheckObjCollision']
+                            registers={'u':objects+actor*43}
+                        d.write(0x7ef0,b'\x7e\x00STACK')
+                        d.regs(pc=entry,s=0x7ef0,y=0x7777,dp=private>>8,cc=0x50,**registers)
+                        d.call('c'); regs=d.regs()
+                        collided=bool(regs['b' if private else 'a'])
+                        assert collided==wanted,(owner,actor,positions,collided,wanted,regs)
+                        if private:
+                            scans=(1 if actor==0 else 0) if wanted else 64
+                            assert d.read(private+syms['motioncollision'],1)==bytes([scans]),(owner,actor,positions,d.read(private+syms['motioncollision'],1),scans)
+                        assert d.read(objects-1,len(records)+2)==b'G'+records+b'H'
+                        assert regs['s']==0x7ef2 and d.read(0x7ef2,5)==b'STACK'
+                        calls+=1
                     assert d.read(base,len(code)) == code
-            print(f'PASS: {calls} actual CoCo/native collision calls at two addresses; every '
+            print(f'PASS: {calls} actual CoCo/native collision calls at two addresses, including '
+                  'two active movers and collision at their shared edge after one-pixel steps; every '
                   'actor/candidate ignore byte and candidate control byte, active-bit combinations, '
                   'self exclusion, duplicate-ID/pointer policy, record/private-state preservation, '
                   'scan bounds, guards/stack and immutable code')

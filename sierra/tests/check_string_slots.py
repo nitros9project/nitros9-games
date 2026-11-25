@@ -31,7 +31,8 @@ def main():
                         d.write(private+syms['resourcebase'],private.to_bytes(2,'big'))
                     callback=base+syms['GetMsgPtr' if not private else 'ReadLogicMessage']
                     d.breakpoint(callback);d.breakpoint(0x7e00)
-                    commands=['cmd_set_string','cmd_word_to_string'] if not private else ['SetStringCommand']
+                    commands=['cmd_set_string','cmd_word_to_string'] if not private else [
+                        'SetStringCommand','GameWordToString']
                     for command in commands:
                         for slot in (0,11):
                             for length in (0,1,38,39,40,80):
@@ -43,10 +44,14 @@ def main():
                                 d.write(args,bytes([slot,1])+b'ARGS')
                                 d.write(0x77ff,b'S'+source+b'T')
                                 if command=='cmd_word_to_string':d.write(0x0182,b'\x78\0')
+                                if command=='GameWordToString':
+                                    d.write(private+syms['parsercount'],b'\x01')
+                                    d.write(private+syms['parserlastline'],b'A'*40)
+                                    d.write(private+syms['parseroffsets'],bytes(20)+bytes([length])+bytes(19))
                                 d.write(0x7ef0,b'\x7e\x00STACK')
                                 d.regs(pc=base+syms[command],s=0x7ef0,y=args,u=private,dp=private>>8,cc=0x50)
                                 d.call('c');r=d.regs()
-                                if command!='cmd_word_to_string':
+                                if command not in ('cmd_word_to_string','GameWordToString'):
                                     assert r['pc']==callback
                                     ret=int.from_bytes(d.read(r['s'],2),'big')
                                     updates=dict(pc=ret,s=r['s']+2,cc=r['cc']&~1)
@@ -54,7 +59,11 @@ def main():
                                     d.regs(**updates);d.call('c');r=d.regs()
                                 assert r['pc']==0x7e00 and r['s']==0x7ef2
                                 assert d.read(0x7ef2,5)==b'STACK'
-                                assert d.read(table,480)==wanted,(owner,command,slot,length,'slot overflow')
+                                actual=d.read(table,480)
+                                assert actual==wanted,(owner,command,slot,length,
+                                    'slot overflow',hex(table),hex(r['y']),actual[:(slot+1)*40].hex(),
+                                    wanted[:(slot+1)*40].hex(),
+                                    d.read(private+syms['parserlastline'],90).hex() if private else b'')
                                 assert d.read(variables,256)==b'\x77'*256,(owner,command,slot,length,'variable overwrite')
                                 assert d.read(args+2,4)==b'ARGS'
                                 assert d.read(0x77ff,len(source)+2)==b'S'+source+b'T'
@@ -70,7 +79,7 @@ def main():
                             assert d.read(table,480)==before
                     assert d.read(base,len(code))==code
                     d.breakpoint(callback,False);d.breakpoint(0x7e00,False)
-            print('PASS: actual CoCo set.string/word.to.string and native set.string at two load addresses; slots 0/11, empty/boundary/long text, in-slot termination, adjacent slot/variable preservation, source/argument/stack guards and bounded native slot errors')
+            print('PASS: actual CoCo set.string/word.to.string and native set.string/word.to.string at two load addresses; slots 0/11, operand order, empty/boundary/long text through 80 bytes, 39-byte cap, in-slot termination, adjacent slot/variable preservation, source/argument/stack guards and bounded native slot errors')
         finally:
             d.s.close();emulator.terminate()
             try:emulator.wait(timeout=5)

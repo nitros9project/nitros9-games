@@ -26,7 +26,7 @@ def main():
     def install(name,data,target=None,text=False):
         p=out/name;p.write_bytes(data);os9('copy','-r',*(['-l'] if text else []),p,f'{disk},{target or name}')
     os9('makdir',f'{disk},timed')
-    for name in ('wbgame','wbstate','wbui','wbfont'):
+    for name in ('wbgame','sierrastate','sierraui','sierrafont'):
         install(name,(root/'objs'/name).read_bytes(),'CMDS/'+name);os9('attr',f'{disk},CMDS/{name}','-e','-pe')
     install('startup',b'load utilpak1\nlink shell\nload wbgame\nload grfdrv256\n',text=True)
     install('feu.startup',b'bootos9 /s0/OS9Boot\n','FEU/startup',text=True)
@@ -65,7 +65,7 @@ def main():
         assert target.is_file(),f'missing shell output: {name}'
     assert (out/'free-before.txt').read_bytes()==(out/'free-after.txt').read_bytes()
     assert b'DONE' in (out/'done.txt').read_bytes()
-    w,h,pixels=png_rgb(out/'timers-complete.png');font=(root/'objs/wbfont').read_bytes();assert (w,h)==(640,480)
+    w,h,pixels=png_rgb(out/'timers-complete.png');font=(root/'objs/sierrafont').read_bytes();assert (w,h)==(640,480)
     for col,char in enumerate('TIMERS COMPLETE'):
         for y in range(8):
             for x in range(8):

@@ -109,7 +109,8 @@ GameCycleRoomReset  AGI_CYCLE_ROOM_RESET
                     clr       vmflags+11,u
                     clr       vmflags+12,u
                     clr       vmvariables+9,u
-                    clr       vmvariables+19,u
+* AGI v19 remains script-owned until the logic clears it. In particular,
+* TestHaveKey reuses the last key across cycles, matching the CoCo engine.
                     clr       <vmhavekey
                     leax      vmcontrollers,u
                     ldy       #32
@@ -320,9 +321,9 @@ GameQuitNeedsDialog clr       dialoginputmode,u
                     sta       gamequit,u
                     clrb
                     rts
-GameQuitPrompt      fcc       /Quit the game?/
+GameQuitPrompt      fcc       /Press ENTER to quit./
                     fcb       10
-                    fcc       /ENTER quits; ESC cancels./
+                    fcc       /ESC keeps playing./
                     fcb       0
 
 * Remove any renderer mapping before freeing cache slabs. A transient error
@@ -503,7 +504,7 @@ MotionCheckTerrain  lbsr      GameCheckBlock
                     tstb
                     bne      MotionBlocked
                     lbsr      MotionTerrain
-                    lbcs      MotionReturn
+                    bcs       MotionReturn
                     tstb
                     bne      MotionBlocked
 MotionAccept        equ PositionAccepted
@@ -511,15 +512,10 @@ MotionOtherEdge     equ PositionOtherBoundary
                     MOTION_EMIT_COMMIT
 MotionCheckDestination MOTION_CHECK_DESTINATION MotionNextObject,1,MotionArrived
                     bra       MotionNextObject
-MotionBlocked       ldu       motionobject,x
-                    lda       $22,u
-                    cmpa      #1
-                    beq       MotionMarkBlocked
-                    cmpa      #2
-                    bne       MotionNextObject
-MotionMarkBlocked   lda       $25,u
-                    ora       #$40
-                    sta       $25,u
+* A rejected step does not change the object's animation flags. In
+* particular, $25 bit 6 is the AGI random-animation property consumed by
+* shared follow/wander logic; collision recovery must not synthesize it.
+MotionBlocked       bra       MotionNextObject
 MotionNextObject    ldx       <resourcebase
                     inc       motionid,x
                     lda       motionid,x
@@ -1183,16 +1179,17 @@ ObjectPositionTest  lbsr      ObjectAddress
                     cmpb      #11
                     beq       ObjectPositionBounds
                     lda       $1C,x
-                    cmpb      #16
-                    bne       ObjectPositionEdge
-                    lsra
-                    adda      3,x
-                    bra       ObjectPositionPoint
+                    cmpb      #17
+                    beq       ObjectPositionCenter
 ObjectPositionEdge  adda      3,x
                     deca
-                    cmpb      #18
+                    cmpb      #16
                     beq       ObjectPositionRight
-ObjectPositionPoint sta       <vmtemp
+                    sta       <vmtemp
+                    bra       ObjectPositionRight
+ObjectPositionCenter lsra
+                    adda      3,x
+                    sta       <vmtemp
 ObjectPositionRight sta       <vmright
 ObjectPositionBounds leay    vmarguments+1,u
                     bsr      TestPosnX

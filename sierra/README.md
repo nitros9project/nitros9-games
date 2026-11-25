@@ -37,6 +37,14 @@ the number of instances. The interpreter's byte-sized MMU fields require its
 RAM allocation to stay within the first 2MB. Exit through the game's Quit
 command to run its screen and timer cleanup.
 
+## CoCo disk images
+
+Title makefiles compile interpreter modules only. Build production disks with
+`make -C ../nitros9/recipes/coco3/games GAME=kingsquest1` from the games root.
+Add `run` for MAME or `check` for the shared startup smoke test. Multi-volume
+images and their table of contents are packaged in NitrOS-9's recipe tree.
+Specialized CPU/MMU tests and disposable fixtures remain here.
+
 ## Verification
 
 From the parent shelf directory, with its `bin` and Toolshed `os9` on `PATH`:
@@ -44,6 +52,7 @@ From the parent shelf directory, with its `bin` and Toolshed `os9` on `PATH`:
 ```sh
 make -C nitros9-games/sierra NITROS9DIR="$PWD/nitros9" all
 python3 nitros9-games/sierra/tests/check_instances.py
+make -C nitros9/recipes/coco3/games GAME=kingsquest1
 python3 nitros9-games/sierra/tests/check_instances.py --boot
 python3 nitros9-games/sierra/tests/make_boot_fixture.py /tmp/sierra-two
 python3 nitros9-games/sierra/tests/check_instances.py --boot \
@@ -68,7 +77,7 @@ Wild Bits native presentation work and target-side testing are documented in
 [WILDBITS-README.md](WILDBITS-README.md). The interactive King’s Quest I port supports
 typed commands, movement, inventory, menus, save/restore, owned queued sound and
 positioned messages on the tested Wild Bits drivers. Install the matching
-`wbgame`, `wbui`, `wbstate` and `wbfont` build together. The matching ABI-11
+`sierra`, `sierraui`, `sierrastate` and `sierrafont` build together. The matching ABI-11
 UI helper supplies text/audio code; the state helper supplies save/restore code.
 Build it with `make -C sierra/objs -f wildbits.mk all` from the games repository.
 Full AGI compatibility and common-engine consolidation remain unfinished.

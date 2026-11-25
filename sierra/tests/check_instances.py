@@ -185,8 +185,8 @@ def check_transport():
 def check(d):
     game = ROOT / 'sierra/kingsquest1'
     syms = symbols(game / 'sierra.map')
-    driver = SHELF / 'nitros9/level2/coco3/modules/co3hires.sb'
-    hs = symbols(SHELF / 'nitros9/recipes/coco3/floppy/co3hires.sb.map')
+    driver = SHELF / 'nitros9/recipes/coco3/games/.build/kingsquest1/6809/floppy/.mods/co3hires.sb'
+    hs = symbols(Path(str(driver) + '.map'))
     assert hs['H6309'] == 0, 'rebuild the 6809 driver: its symbol map was replaced by a 6309 build'
     code = (game / 'sierra').read_bytes()
     # Enable all-RAM, task 1, and the MMU, with a known 0..7 mapping.
@@ -409,7 +409,7 @@ def main():
         command.append('-no-ratelimit')
     if args.boot:
         command += ['-rompath', str(args.rompath), '-cart', 'rsdos',
-            '-cart-rom', 'disk11.rom', '-load-fd0', str(args.disk or ROOT / 'sierra/kingsquest1/KingsQuestI.dsk'),
+            '-cart-rom', 'disk11.rom', '-load-fd0', str(args.disk or SHELF / 'nitros9/recipes/coco3/games/.build/kingsquest1/6809/floppy/KingsQuestI.dsk'),
             '-no-disk-write-back', '-type', 'DOS\r']
     else:
         command += ['-no-bas', '-no-extbas', '-no-altbas']

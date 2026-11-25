@@ -170,7 +170,7 @@ LzwWriteByte        pshs      x,y,u
                     ldd       <assetoutoffset
                     cmpd      <resourcelength
                     bhs       AssetReadInvalid
-                    lbsr      AssetPointer
+                    bsr       AssetPointer
                     tst       <asseterror
                     bne       AssetReadFailure
                     ldb       <assetbyte
@@ -998,9 +998,21 @@ ResourceDirSlash    sty       resourcenameend,u
                     lda       ,x
                     cmpa      #$FF
                     bne       DecodePictureEntry
-                    ldd       1,x
-                    cmpd      #$FFFF
-                    lbeq      ResourceInvalid
+* $FF cannot be a valid volume number; the directory marks absent resources
+* with this byte. Keep the cold UI callback outside the resident-size budget.
+                    ifne      AGI_ASSET
+                    tst       <resourcekind
+                    lbne      ResourceInvalid
+                    ifne      GAME_PRESENTATION
+                    lda       #VM_EVENT_MISSING_LOGIC
+                    sta       <vmopcode
+                    lbsr      GameUiCommand
+                    endc
+                    ldb       #E$PNNF
+                    lbra      ResourceFailed
+                    else
+                    lbra      ResourceInvalid
+                    endc
 DecodePictureEntry  RESOURCE_DIRECTORY_VOLUME x
                     sta       resourcevolume,u
                     clr       resourceoffset,u
@@ -1025,7 +1037,11 @@ ResourceVolumeDigit adda      #'0
                     sta       ,y+
                     lda       #C$CR
                     sta       ,y
+                    ifne      GAME_PRESENTATION
+                    bsr       OpenPicturePath
+                    else
                     lbsr      OpenPicturePath
+                    endc
                     bcs      ResourceFailed
                     ldx       resourceoffset,u
                     ldu       resourceoffset+2,u
@@ -1035,7 +1051,11 @@ ResourceVolumeDigit adda      #'0
                     ldu       <resourcebase
                     leax      resourceheader,u
                     ldy       #7
+                    ifne      GAME_PRESENTATION
+                    bsr       ResourceReadExact
+                    else
                     lbsr      ResourceReadExact
+                    endc
                     bcs      ResourceFailed
                     ldu       <resourcebase
                     leax      resourceheader,u
@@ -1228,14 +1248,20 @@ ApplyRoomChange     tst       <vmdepth
                     cmpa      #64
                     lbhs      VmInvalid
                     lbsr      AssetUnmap
-                    lbcs      RoomReturn
+                    bcc       RoomAssetUnmapped
+                    rts
+RoomAssetUnmapped   equ       *
                     ifne      GAME_PRESENTATION
 * Release foreign mappings before owned audio I/O and cancel only the
 * software command line. SCF's queued keys remain available to the player.
                     lbsr      PictureUnmap
-                    lbcs      RoomReturn
+                    bcc       RoomPictureUnmapped
+                    rts
+RoomPictureUnmapped equ       *
                     lbsr      GameSoundStop
-                    lbcs      RoomReturn
+                    bcc       RoomSoundStopped
+                    rts
+RoomSoundStopped    equ       *
                     lbsr      GameCancelLine
                     endc
                     lda       #1
@@ -1289,7 +1315,16 @@ RoomEnterBottom     equ RoomEntryBottom
                     clr       <replaycheckpoint+1
                     ldb       <vmnewroom
                     lbsr      VmLoadLogic
+                    bcc       RoomLogicLoaded
+                    ifne      GAME_PRESENTATION
+                    lda       #VM_EVENT_ROOM_LOAD_ERROR
+                    sta       <vmopcode
+                    lbsr      GameUiCommand
                     bcs       RoomReturn
+                    else
+                    lbra      RoomReturn
+                    endc
+RoomLogicLoaded     equ       *
                     clr       <vmcurrent
                     clrb
                     lbsr      VmSlotAddress

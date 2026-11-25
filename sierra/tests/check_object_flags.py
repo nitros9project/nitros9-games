@@ -168,6 +168,44 @@ def main():
                                 assert d.read(flagbase,flagbytes)==flags,(owner,opcode,index,step,distance,flag,'flags')
                                 assert d.read(variables,256)==b'\x77'*256
                                 assert d.read(control,1)==bytes([0 if opcode==84 and index==0 else 0x5a])
+                # Global room-block commands have no object index; compare
+                # their complete rectangle state separately from object flags.
+                for left,top,right,bottom in ((1,2,3,4),(0,0,159,167),(255,255,0,0)):
+                    operands=bytes((left,top,right,bottom))
+                    if owner=='CoCo':
+                        d.write(0x2000,operands+b'ARGS')
+                        result=d.run(base+cs['CmdSetBlock'],y=0x2000)
+                        assert result['y']==0x2004 and d.read(result['y'],4)==b'ARGS'
+                        wanted=bytes((1,left,top,right,bottom))
+                        assert d.read(0x01ac,1)+d.read(0x024e,2)+d.read(0x023c,2)==wanted
+                        result=d.run(base+cs['CmdClearBlock'])
+                        assert d.read(0x01ac,1)+d.read(0x024e,2)+d.read(0x023c,2)==bytes((0,left,top,right,bottom))
+                    else:
+                        state=bytearray(ns['size'])
+                        state[ns['resourcebase']:ns['resourcebase']+2]=b'\0\0'
+                        d.write(0,state+b'GUARD')
+                        d.write(ns['vmarguments'],operands+b'ARGS')
+                        d.write(ns['vmopcode'],b'Z')
+                        result=d.run(base+ns['GameBlockCommand'],u=0)
+                        assert not result['cc']&1 and result['b']==0 and result['s']==0x1df2
+                        assert d.read(ns['vmarguments']+4,4)==b'ARGS'
+                        expected=bytearray(d.read(0,ns['size']))
+                        stack_slice=slice(0x1dec,0x1df4)
+                        for field,value in zip(('gameblockenabled','BlockLeft','BlockTop','BlockRight','BlockBottom'),(1,left,top,right,bottom)):
+                            expected[ns[field]]=value
+                        actual=d.read(0,ns['size'])
+                        actual=bytearray(actual);actual[stack_slice]=expected[stack_slice]
+                        assert actual==expected, (owner,'set block',left,top,right,bottom,
+                            [(i,a,b) for i,(a,b) in enumerate(zip(actual,expected)) if a!=b][:16],
+                            [(name,ns[name]) for name in ('gameblockenabled','BlockLeft','BlockTop','BlockRight','BlockBottom')])
+                        assert d.read(ns['size'],5)==b'GUARD'
+                        d.write(ns['vmopcode'],b'[')
+                        result=d.run(base+ns['GameBlockCommand'],u=0)
+                        assert not result['cc']&1 and result['b']==0 and result['s']==0x1df2
+                        expected[ns['vmopcode']]=ord('[')
+                        expected[ns['gameblockenabled']]=0
+                        actual=bytearray(d.read(0,ns['size']));actual[stack_slice]=expected[stack_slice]
+                        assert actual==expected and d.read(ns['size'],5)==b'GUARD'
                 if owner == 'native':
                     for handler in ('GameFollowCommand','GameWanderCommand'):
                         before=d.read(objects,64*43);flags=d.read(flagbase,flagbytes)
@@ -180,7 +218,7 @@ def main():
                     assert d.run(base+ns['ObjectFlagCommand'],u=0)['cc']&1
                     d.write(ns['vmopcode'],b'\xfc')
                     assert d.run(base+ns['ObjectFlagCommand'],u=0)['cc']&1
-            print('PASS: 14 CoCo/native object flag commands, first/last records, bit preservation, record guards, cycle/motion transitions, completion/input effects, rate/countdown values, follow/wander setup and bounded native errors')
+            print('PASS: actual CoCo/native object flag, cycle, follow/wander and block commands; bit and field preservation, first/last records, completion/input effects, rate/countdown values, three global block/unblock rectangles, stack/state guards and bounded native errors')
         finally:
             d.s.close(); emulator.terminate()
             try:

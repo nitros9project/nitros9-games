@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 from check_instances import symbols
+from check_logic_executor import compile_module
 from check_wbres import idle_rom,start_cpu
 
 def main():
@@ -13,10 +14,12 @@ def main():
     code=(root/'wbgame').read_bytes();syms=symbols(root/'wbgame.map')
     private=0x1000;stack=0x7ef0;finish=0x7e00
     with tempfile.TemporaryDirectory(prefix='sierra-cancel-line-') as name:
-        d,proc=start_cpu(idle_rom(Path(name)/'idle.rom'),timeout=900)
+        temp=Path(name)
+        coco_code,coco_syms=compile_module(Path(__file__).resolve().parents[1]/'objs/mnln.asm',temp/'mnln')
+        d,proc=start_cpu(idle_rom(temp/'idle.rom'),timeout=900)
         try:
             d.write(0xffdf,b'\0');d.write(0xff90,b'\x4c');d.write(0xff91,b'\x01');d.write(0xffa8,bytes(range(8)))
-            d.breakpoint(finish);count=0
+            d.breakpoint(finish);count=0;native_lines={}
             for base in (0x9000,0xa000):
                 d.write(base,code)
                 cases = [('GameCancelLine', enabled, row, length, 0)
@@ -59,6 +62,11 @@ def main():
                     assert regs['pc']==finish and regs['s']==stack+2 and regs['dp']==private>>8 and not regs['b'] and not regs['cc']&1,regs
                     assert d.read(private,len(data)+5)==expected+b'GUARD',(base,entry,enabled,row,length,history)
                     assert d.read(stack+2,5)==b'STACK'
+                    line=d.read(private+syms['parserline'],39).split(b'\0',1)[0]
+                    result=(d.read(private+syms['parserlength'],1)[0],line)
+                    key=(entry,enabled,length,history)
+                    assert key not in native_lines or native_lines[key]==result,(key,native_lines.get(key),result)
+                    native_lines[key]=result
                     count+=1
                 # ParserDrawInput owns a platform refresh before row work.
                 # Mock that service only; row snapshot/damage code runs real.
@@ -108,7 +116,48 @@ def main():
                     count+=1
                 d.breakpoint(screen,False)
                 assert d.read(base,len(code))==code,'code changed'
-            print(f'PASS: {count} actual cancel.line/echo.line calls; cancellation, history suffix/prefix preservation, 38-byte bounds, prompt redraw, refresh success/error propagation and disabled/history/flags/private guards preserved, relocated immutable code')
+            # Compare the CoCo command bodies with Wild Bits' matching core
+            # input-buffer transformations. Only the MMU character-output
+            # service is stubbed; both engines execute their command/input code.
+            d.breakpoint(0x0701)
+            for base in (0x8000,0x9000):
+                d.write(base,coco_code)
+                for entry in ('cmd_cancel_line','cmd_echo_line'):
+                    enabled_values=(0,1)
+                    for enabled in enabled_values:
+                        lengths=(0,1,38) if entry=='cmd_cancel_line' else (0,1,7,38)
+                        for length in lengths:
+                            histories=(0,) if entry=='cmd_cancel_line' else (0,1,7,38)
+                            for history in histories:
+                                shown=b'x'*length
+                                raw=b'h'*history
+                                d.write(0x012b,shown+b'\0'+bytes(40-len(shown)-1))
+                                d.write(0x01d5,bytes([enabled]));d.write(0x01d7,b'\x0a')
+                                d.write(0x05b9,b'\0');d.write(0x01ad,b'\0')
+                                d.write(0x0449,b'\x26')
+                                d.write(base+coco_syms['InputBufLen'],bytes([length]))
+                                d.write(base+coco_syms['InputBuf'],raw+b'\0'+bytes(49-len(raw)))
+                                d.write(stack,finish.to_bytes(2,'big')+b'STACK')
+                                d.regs(pc=base+coco_syms[entry],s=stack,y=0x2000,u=0x3000,dp=0,cc=0x50)
+                                for _ in range(160):
+                                    d.call('c');regs=d.regs()
+                                    if regs['pc']==finish:break
+                                    assert regs['pc']==0x0701,(entry,enabled,length,history,regs)
+                                    ret=int.from_bytes(d.read(regs['s'],2),'big')
+                                    d.regs(pc=ret,s=regs['s']+2)
+                                else:raise AssertionError(('CoCo command did not return',entry,enabled,length,history))
+                                actual=(d.read(base+coco_syms['InputBufLen'],1)[0],d.read(0x012b,40).split(b'\0',1)[0])
+                                key=('GameCancelLine' if entry=='cmd_cancel_line' else 'GameEchoLine',enabled,length,history)
+                                expected=native_lines[key]
+                                assert actual==expected,('CoCo/native input command result',base,key,actual,expected)
+                                assert regs['s']==stack+2 and d.read(stack+2,5)==b'STACK'
+                                count+=1
+                image=bytearray(coco_code)
+                for label,size in (('InputBufLen',1),('InputBuf',50)):
+                    offset=coco_syms[label]
+                    image[offset:offset+size]=d.read(base+offset,size)
+                assert d.read(base,len(coco_code))==image
+            print(f'PASS: {count} native cancel/echo and paired CoCo/native command cases; input enable state, cancel-to-empty, typed-prefix/history suffix merge, lengths through 38, service-boundary return, stack and relocated-code guards')
         finally:
             d.s.close();proc.terminate()
             try:proc.wait(timeout=5)

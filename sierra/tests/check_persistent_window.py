@@ -5,9 +5,54 @@ from pathlib import Path
 import subprocess
 import tempfile
 from check_instances import symbols
+from check_logic_executor import compile_module
 from check_lzw import resources
 from check_wbplay import fixture
 from check_wbres import exercise,idle_rom,start_cpu
+
+
+def check_coco_close_window(debugger, code, syms):
+    """Check the actual CoCo close.window callback contract and state change."""
+    debugger.write(0x0701, b'\x39')  # isolated MMU erase callback: RTS
+    debugger.breakpoint(0x0701)
+    debugger.breakpoint(0x7e00)
+    calls = 0
+    for base in (0x8000, 0x9000):
+        debugger.write(base, code)
+        for opened in (False, True):
+            width, left = 0x1234, 0x9abc
+            debugger.write(0x017f, bytes([int(opened)]))
+            debugger.write(0x017b, width.to_bytes(2, 'big'))
+            debugger.write(0x017d, left.to_bytes(2, 'big'))
+            debugger.write(0x0019, b'\xa5')
+            debugger.write(0x0026, b'\x34\x56')
+            debugger.write(0x7ef0, b'\x7e\x00STACK')
+            debugger.regs(pc=base+syms['cmd_close_window'], s=0x7ef0,
+                          dp=0, cc=0x50)
+            debugger.call('c')
+            regs=debugger.regs()
+            if opened:
+                assert regs['pc']==0x0701 and regs['s']==0x7eea, regs
+                assert regs['a']==3 and regs['x']==0x3456, regs
+                assert debugger.read(0x7eec, 4)==bytes([left>>8,left&255,width>>8,width&255])
+                assert debugger.read(0x017f, 1)==b'\x01'
+                ret=int.from_bytes(debugger.read(regs['s'], 2), 'big')
+                debugger.regs(pc=ret, s=regs['s']+2)
+                debugger.call('c')
+                calls+=1
+            else:
+                assert regs['pc']==0x7e00 and regs['s']==0x7ef2, regs
+                assert debugger.read(0x017f, 1)==b'\0'
+            regs=debugger.regs()
+            assert regs['pc']==0x7e00 and regs['s']==0x7ef2, regs
+            assert debugger.read(0x7ef2, 5)==b'STACK'
+            assert debugger.read(0x017b, 4)==bytes([width>>8,width&255,left>>8,left&255])
+            assert debugger.read(0x0019, 1)==(b'\x03' if opened else b'\xa5')
+            assert debugger.read(base, len(code))==code
+    debugger.breakpoint(0x0701, False)
+    debugger.breakpoint(0x7e00, False)
+    assert calls==2, calls
+    print('PASS: actual CoCo close.window open/closed paths at two code bases; erase callback page, routine and rectangle arguments, window flag, stack guards and code image')
 
 def main():
     ap=argparse.ArgumentParser();ap.add_argument('--module-root',type=Path)
@@ -16,9 +61,11 @@ def main():
     messages=[b'Original text',b'A persistent question',b'A second modal']
     prefix=bytes([103,5,4,1])
     with tempfile.TemporaryDirectory(prefix='sierra-window-') as name:
+        coco,coco_symbols=compile_module(Path(__file__).resolve().parents[1]/'objs/mnln.asm',Path(name)/'mnln')
         d,proc=start_cpu(idle_rom(Path(name)/'idle.rom'),timeout=900)
         try:
             d.write(0xffdf,b'\0');d.write(0xff90,b'\x4c');d.write(0xff91,b'\x01');d.write(0xffa8,bytes(range(8)))
+            check_coco_close_window(d,coco,coco_symbols)
             def run(body,keys=b'',extra=False,**options):
                 files=fixture(body,message=messages)
                 if extra:

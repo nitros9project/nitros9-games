@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # Unsupported opcodes must retain the explicit error handler.
 GAME = {
     'GameShowPriorityCommand': (29,),
+    'GameTraceOnCommand': (149,), 'GameTraceInfoCommand': (150,),
     'GamePriorityBaseCommand': (174,),
     'GameStateCommand': (125,126),
     'GameForceUpdate': (60,), 'GameCloseWindow': (169,), 'GameAddToPicture': (122,123), 'GameCancelLine': (138,), 'GameEchoLine': (137,),
@@ -22,7 +23,7 @@ GAME = {
     'GameSoundCommand': (99,100), 'GameBlockCommand': (90,91),
     'GameMoveCommand': (81,82), 'GameClearLines': (105,), 'GameClearTextRect': (154,),
     'GameDisplayCommand': (103,104), 'GameQuitCommand': (134,),
-    'GameMonitorCommand': (140,), 'GameJoystickCommand': (139,), 'GameVersionCommand': (141,), 'GameShakeCommand': (110,), 'GameShowObjectCommand': (129,133,135,161,162,170,177), 'GameRestartCommand': (128,), 'GamePauseCommand': (136,), 'GameObjectVisibility': (35,36),
+    'GameMonitorCommand': (140,), 'GameJoystickCommand': (139,), 'GameVersionCommand': (141,), 'GameShowObjectCommand': (129,133,135,161,162,170,177), 'GameRestartCommand': (128,), 'GamePauseCommand': (136,), 'GameObjectVisibility': (35,36),
     'GameTextScreen': (106,), 'GameGraphicsMode': (107,),
     'GameLoadPicture': (24,), 'GameDrawPicture': (25,28),
     'GameShowPicture': (26,), 'GameDiscardPicture': (27,),
@@ -30,7 +31,7 @@ GAME = {
     'GamePrintCommand': (101,102,151,152), 'ParserCommand': (117,),
 }
 COMMON = {
-    'VmSuccess': (127,144,155,163,164,173,175,176,178,179,180,181),
+    'VmSuccess': (110,127,144,155,163,164,173,175,176,178,179,180,181),
     'ScreenCommand': (108,109,111,112,113,119,120), 'SetKeyCommand': (121,),
     'SetStringCommand': (114,), 'VmCommandNewRoom': (18,),
     'VmCommandNewRoomVariable': (19,), 'MenuCommand': tuple(range(156,161)),
@@ -67,7 +68,7 @@ def main():
         for field in direct:
             assert field in gs and gs[field]<=255, ('forced direct-page field',field,gs.get(field))
         probe, ps = compile_module(ROOT/'tests/probes/wbexec.asm', tmp/'wbexec')
-        ui, us = compile_module(ROOT/'objs/wbui.asm', tmp/'wbui')
+        ui, us = compile_module(ROOT/'objs/sierraui.asm', tmp/'sierraui')
         counts = [int(value[1:],16)//256 for value in re.findall(
             r'^\s*AGI_COMMAND\s+[^,]+,(\$[0-9A-Fa-f]+),',
             (ROOT/'objs/shared/agi-command-table.asm').read_text(),re.M)]
@@ -124,8 +125,9 @@ def main():
                     assert d.read(base,len(code)) == code
             # Independent UI-group contract: execute the packed selector up
             # to each actual backend entry, without substituting its decoder.
-            expected = {110:1,128:2,125:3,126:3}
-            labels = ('AuxShowObject','AuxShakeScreen','AuxRestart','AuxStateName')
+            expected = {128:2,125:3,126:3,149:4,150:5}
+            labels = ('AuxShowObject','AuxShakeScreen','AuxRestart','AuxStateName',
+                      'AuxTraceOn','AuxTraceInfo')
             classes = bytes(expected.get(opcode,0) for opcode in range(182))
             packed = ui[us['UiCommandClasses']:us['UiCommandClasses']+91]
             assert bytes((packed[i//2] >> (4 if i%2==0 else 0)) & 15
@@ -136,7 +138,7 @@ def main():
                 state = bytearray(us['size'])
                 state[us['resourcebase']:us['resourcebase']+2] = b'\x10\0'
                 d.write(0x1000,state+b'GUARD')
-                offsets = (0x20,0x40,0x60,0x80)
+                offsets = (0x20,0x40,0x60,0x80,0,0)
                 d.write(0x7000,b''.join(v.to_bytes(2,'big') for v in offsets))
                 destinations = [base+us[label] for label in labels]
                 for address in destinations: d.breakpoint(address)
@@ -148,11 +150,14 @@ def main():
                            u=0x1000,dp=0x10,cc=0x50)
                     d.call('c');regs=d.regs()
                     assert regs['pc']==destinations[group],(opcode,group,regs)
-                    assert regs['a']==group and regs['y']==0x7000+offsets[group]
+                    assert regs['a']==group
+                    assert regs['y']==0x7000+offsets[group],(opcode,group,regs)
                     assert regs['u']==0x1000 and regs['s']==0x7ef0
                     assert d.read(0x7ee0,5)==b'GUARD'
                     assert d.read(0x7ef0,7)==b'\x7e\0STACK'
                     state[us['vmopcode']]=opcode
+                    if group>=4:
+                        state[us['coldapi']:us['coldapi']+2]=b'\x70\x20'
                     assert d.read(0x1000,len(state))==state
                     assert d.read(0x1000+len(state),5)==b'GUARD'
                     ui_calls += 1

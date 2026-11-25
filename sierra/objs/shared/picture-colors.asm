@@ -6,7 +6,11 @@ EnablePicDraw       ldd       <DrawColor pulls in color and sbuff_drawmask
                     anda      #$f0      and color with $F0
                     ifne      PICTURE_BOUNDED_READ
                     pshs      d
+                    ifne      WILDBITS
+                    bsr       ReadColor
+                    else
                     lbsr      ReadColor
+                    endc
                     sta       <decodevalue
                     puls      d
                     ora       <decodevalue
@@ -16,7 +20,11 @@ EnablePicDraw       ldd       <DrawColor pulls in color and sbuff_drawmask
                     orb       #$0f      or the sbuff_drawmask with $0F
                     std       <DrawColor store the updated values
                     ifne      PICTURE_BOUNDED_READ
+                    ifne      WILDBITS
+                    bsr       ReadNext
+                    else
                     lbsr      ReadNext       return value ignored so this just bumps to next pic_byte
+                    endc
                     else
                     lda       ,x+
                     endc
@@ -39,7 +47,11 @@ DisablePicDraw      ldd       <DrawColor pulls in color and sbuff_drawmask
                     andb      #$f0      ands draw mask with $F0
                     std       <DrawColor store the updated values
                     ifne      PICTURE_BOUNDED_READ
+                    ifne      WILDBITS
+                    bsr       ReadNext
+                    else
                     lbsr      ReadNext       return value ignored so this just bumps to next pic_byte
+                    endc
                     else
                     lda       ,x+
                     endc
@@ -60,7 +72,11 @@ EnablePriDraw       ldd       <DrawColor pulls in color and sbuff_drawmask
                     anda      #$0f      ands color with $0F
                     sta       <DrawColor save color
                     ifne      PICTURE_BOUNDED_READ
+                    ifne      WILDBITS
+                    bsr       ReadColor
+                    else
                     lbsr      ReadColor
+                    endc
                     else
                     lda       ,x+
                     endc

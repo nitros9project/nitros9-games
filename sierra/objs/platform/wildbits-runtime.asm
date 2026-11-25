@@ -1,4 +1,44 @@
                     use shared/game-cycle.asm
+SOUND_PRIVATE_CODE_BYTES equ 448
+TRACE_MODE_READ macro
+                    ld\1      <tracemode
+                    endm
+TRACE_MODE_COMPARE macro
+                    dec\1
+                    endm
+TRACE_MODE_STORE macro
+                    sta       <tracemode
+                    endm
+TRACE_PERMISSION macro
+                    ldu       <resourcebase
+                    tst       vmflags+10,u
+                    endm
+TRACE_CONFIG_FETCH macro
+                    lda       ,y+
+                    endm
+TRACE_CONFIG_LOGIC macro
+                    sta       traceconfiglogic,u
+                    endm
+TRACE_CONFIG_LINE macro
+                    sta       traceconfigline,u
+                    endm
+TRACE_CONFIG_ROWS macro
+                    sta       traceconfigrows,u
+                    endm
+TRACE_SUCCESS macro
+                    clrb
+                    endm
+* ExecuteLogic callers supply X=the active cache slot (root and nested).
+TRACE_LOGIC_NUMBER_TEST macro
+                    tst       ,x
+                    endm
+TRACE_SEPARATOR_MARK macro
+                    lda       #$80
+                    sta       tracecol,u
+                    endm
+TRACE_KEY_READ macro
+                    lda       parsercharacter,u
+                    endm
 * Native game owner: shared AGI logic with Wild Bits platform components.
                     nam       wbgame
                     use       platform/wildbits-defsfile
@@ -8,6 +48,8 @@ DECODE_PICTURE      equ       1
 PICTURE_BOUNDED_READ equ       1
 PRESENT_PICTURE     equ       1
 GAME_PRESENTATION   equ       1
+VM_EVENT_MISSING_LOGIC equ    183
+VM_EVENT_ROOM_LOAD_ERROR equ  184
                     use       platform/wildbits-presentation.d
 cmd_start           equ       $F0
 x_max               equ       159
@@ -112,10 +154,7 @@ showview            rmb       1
 showcached          rmb       1
 showactive          rmb       1
 showposition        rmb       2
-shakeentry          equ       uicommandentry
-shakemap            rmb       2
-shakecycles         rmb       2
-shakeshifted        rmb       1
+tracewidth          rmb       1
 menuentry           rmb       2
 formatentry         rmb       2
 joystickenabled     rmb       1
@@ -131,9 +170,20 @@ copywordentry       rmb       2
 menuvisibility      rmb       1
 menuvisibilityset   rmb       1
 statesimplename     rmb       32
+traceconfiglogic    rmb       1
+traceconfigline     rmb       1
+traceconfigrows     rmb       1
+traceconfigured     rmb       1
+tracetop            rmb       1
+tracelines          rmb       1
+tracefirst          rmb       2
+traceowned          rmb       1
+tracemapped         rmb       1
+tracemapbase        rmb       2
+tracecol            rmb       1
+tracesaved          rmb       1
 gamefont            rmb       1024
 soundcalls          rmb       20
-SOUND_PRIVATE_CODE_BYTES equ 448
 soundcode           rmb       SOUND_PRIVATE_CODE_BYTES
                     rmb       197
 size                equ       .
@@ -161,7 +211,7 @@ STATE_HASH_FIELD    macro
                     endm
                     STATE_SCHEMA STATE_HASH_FIELD
 * Immutable field expressions avoid ambiguous forward references to SET symbols.
-StateLayoutHash     equ       (SavedVariablesLayoutHash+SavedStringsLayoutHash+SavedObjectsLayoutHash+SavedInventoryLayoutHash+SavedInventoryControlLayoutHash+SavedKeysLayoutHash+SavedKeyCountLayoutHash+SavedMenusLayoutHash+SavedMenuControlLayoutHash+SavedScreenLayoutHash+SavedPlayerLayoutHash+SavedBlockLayoutHash+SavedRandomLayoutHash+SavedReplayLayoutHash+SavedReplayBufferLayoutHash+SavedTextLayoutHash+resourcebase+assetfirst*3+picturefirst*5+gamebackgroundfirst*7+vmip*11+vmcache*13+textpointer*17+soundcalls*19+soundcode*23+SOUND_PRIVATE_CODE_BYTES*29+4*31+textstoremodule*37+textstoreentry*41+dialogleft*43+dialogright*47+textwaitentry*53+dialogticks*59+dialogseen*61+dialogtimed*67+dialogepoch*71+textrectentry*73+11*79+screenentry*103+showentry*107+coldapi*109+showactive*113+shakeentry*127+shakemap*131+shakecycles*137+menuentry*139+joystickenabled*149+joystickpressed*151+monitorprofile*157+restartentry*83+restartapi*89+restartcall*97+VM_CACHE_ENTRY_BYTES*101+formatentry*163+prioritybase*167+priorityscale*173+gamepriorityview*179+copywordentry*181+menuvisibility*191+menuvisibilityset*193+uicommandentry*197+menupending*199+statesimplename*211)&$FFFFFFFF
+StateLayoutHash     equ       (SavedVariablesLayoutHash+SavedStringsLayoutHash+SavedObjectsLayoutHash+SavedInventoryLayoutHash+SavedInventoryControlLayoutHash+SavedKeysLayoutHash+SavedKeyCountLayoutHash+SavedMenusLayoutHash+SavedMenuControlLayoutHash+SavedScreenLayoutHash+SavedPlayerLayoutHash+SavedBlockLayoutHash+SavedRandomLayoutHash+SavedReplayLayoutHash+SavedReplayBufferLayoutHash+SavedTextLayoutHash+resourcebase+assetfirst*3+picturefirst*5+gamebackgroundfirst*7+vmip*11+vmcache*13+textpointer*17+soundcalls*19+soundcode*23+SOUND_PRIVATE_CODE_BYTES*29+4*31+textstoremodule*37+textstoreentry*41+dialogleft*43+dialogright*47+textwaitentry*53+dialogticks*59+dialogseen*61+dialogtimed*67+dialogepoch*71+textrectentry*73+11*79+screenentry*103+showentry*107+coldapi*109+showactive*113+menuentry*139+joystickenabled*149+joystickpressed*151+monitorprofile*157+restartentry*83+restartapi*89+restartcall*97+VM_CACHE_ENTRY_BYTES*101+formatentry*163+prioritybase*167+priorityscale*173+gamepriorityview*179+copywordentry*181+menuvisibility*191+menuvisibilityset*193+uicommandentry*197+menupending*199+statesimplename*211+tracemode*223+traceconfiglogic*227+traceconfigline*229+traceconfigrows*233+traceconfigured*239+tracetop*241+tracelines*251+tracefirst*257+traceowned*263+tracemapped*269+tracemapbase*271+tracecol*277+tracesaved*281)&$FFFFFFFF
 STATE_ABI           macro
                     fdb       14,size,StateLayoutHash>>16,StateLayoutHash&$FFFF
                     endm
@@ -287,7 +337,7 @@ PLATFORM_SECTION    set PLATFORM_WILDBITS_PRESENTATION_PALETTE
 PLATFORM_SECTION    set PLATFORM_WILDBITS_GAME_TRACE_CODE
                     use platform/wildbits-logic.asm
                     endc
-help                fcc       /Usage: wbgame game-directory logic-number/
+help                fcc       /wbgame dir ID/
                     fcb       C$CR
                     emod
 eom                 equ       *

@@ -101,11 +101,45 @@ def main():
                                 assert regs['cc'] & 1 and regs['b'] == syms['E$IllArg']
                                 assert d.read(private, syms['size']) == before
                                 calls += 1
+                    # set.horizon is a global platform value rather than an
+                    # object field; compare its public command handler directly.
+                    for value in (0, 1, 166, 167):
+                        d.write(args, bytes([value])+b'ARGS')
+                        d.write(0x01d6 if not private else private+syms['vmhorizon'], b'\xa5')
+                        if private:
+                            d.write(private+syms['vmopcode'], b'\x3f')
+                        d.write(0x7ef0, b'\x7e\x00STACK')
+                        d.regs(pc=base+(syms['ObjectFlagCommand'] if private else cs['cmd_set_horizon']),
+                               s=0x7ef0, y=args, u=private, dp=private >> 8, cc=0x50)
+                        d.call('c'); regs=d.regs()
+                        assert regs['pc']==0x7e00 and regs['s']==0x7ef2
+                        if private:
+                            assert not regs['cc']&1 and regs['b']==0
+                            assert d.read(private+syms['vmhorizon'],1)==bytes([value])
+                            assert d.read(private+syms['vmarguments'],5)==bytes([value])+b'ARGS'
+                        else:
+                            assert regs['y']==args+1 and d.read(0x01d6,1)==bytes([value])
+                        assert d.read(0x7ef2,5)==b'STACK'
+                        calls += 1
+                    if private:
+                        for value in (168,255):
+                            d.write(args,bytes([value])+b'ARGS')
+                            d.write(private+syms['vmhorizon'],b'\xa5')
+                            d.write(private+syms['vmopcode'],b'\x3f')
+                            before=d.read(private,syms['size'])
+                            d.write(0x7ef0,b'\x7e\x00STACK')
+                            d.regs(pc=base+syms['ObjectFlagCommand'],s=0x7ef0,
+                                   y=args,u=private,dp=private>>8,cc=0x50)
+                            d.call('c'); regs=d.regs()
+                            assert regs['pc']==0x7e00 and regs['s']==0x7ef2
+                            assert regs['cc']&1 and regs['b']==syms['E$IllArg']
+                            assert d.read(private,syms['size'])==before
+                            calls += 1
                     assert d.read(base, len(code)) == code
             print(f'PASS: {calls} actual CoCo/native priority/direction calls at two addresses; '
                   'all field/value bytes and priority flags, first/last objects/variables, '
                   'native range/index rejection, ego direction policy and variable-six alias, '
-                  'unrelated record/private-state preservation, guards/stack and immutable code')
+                  'set.horizon boundaries, unrelated record/private-state preservation, guards/stack and immutable code')
         finally:
             d.s.close(); emulator.terminate()
             try: emulator.wait(timeout=5)

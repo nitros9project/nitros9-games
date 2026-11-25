@@ -79,7 +79,11 @@ AbsoluteLine        equ       *
 AbsLineLoop         bsr       ReadXyPos call read_xy_pos
                     bcs       CmdReturn prior subs return
                     std       <PosFinalX save at pos_final_x/y and passed draw_line in d
+                    ifne      WILDBITS
+                    bsr       DrawLine
+                    else
                     lbsr      DrawLine  call draw_line()
+                    endc
                     bra       AbsLineLoop go again
 
 
@@ -148,7 +152,11 @@ AddYStep            addb      <PosInitY  add calced value to pos_init_y
 StorePosY           stb       <PosFinalY pos_final_y
 
 *                      passes pos_final_x/y in d
+                    ifne      WILDBITS
+                    bsr       DrawLine
+                    else
                     lbsr      DrawLine  call draw_line()
+                    endc
 
                     bra       RelLineLoop go again exit is conditinals inside loop
 

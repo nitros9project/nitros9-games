@@ -1,6 +1,7 @@
 * Shared CoCo follow-ego direction, blocked wander and completion semantics.
 CalcFollowDir       leas      -$05,s    allocate 5-byte local frame on stack
                     ldb       <$27,u    load follow-object's step size
+                    clra                zero-extend the byte threshold for CalcMoveDir
                     pshs      b,a       save step size and A
                     ifne      FOLLOW_PRIVATE_STATE
                     ldx       <resourcebase
@@ -28,7 +29,11 @@ CalcFollowDir       leas      -$05,s    allocate 5-byte local frame on stack
                     sta       <$22,u    clear motion type (no special motion)
                     lda       <$28,u    load "follow complete" flag number
                     ifne      FOLLOW_PRIVATE_STATE
+                    ifne      WILDBITS
+                    bsr       GameFollowSetFlag
+                    else
                     lbsr      GameFollowSetFlag
+                    endc
                     else
                     lbsr      SetFlag   set the follow-complete flag
                     endc
