@@ -6,7 +6,11 @@ ObjAnimStep         lda       <$27,u    ; cel animation delay counter
                     lda       <$25,u    ; object flags
                     bita      #$40      ; random animation flag set?
                     beq       AnimStepRet ; skip random if not set
-AnimStepRoll        lbsr      InitRandSeed ; seed/advance random generator
+AnimStepRoll        ifne      WILDBITS
+                    bsr       InitRandSeed ; seed/advance random generator
+                    else
+                    lbsr      InitRandSeed ; seed/advance random generator
+                    endc
                     lda       #$09      ; range: 0-8 (9 possible values)
                     lbsr      Div8      ; random modulo: B = random % 9
                     sta       <$21,u    ; store random direction in object

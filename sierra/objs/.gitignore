@@ -1,8 +1,11 @@
 
 # Wild Bits module build products
-/wbgame
+/sierra
 /sierraui
 /sierrastate
+/wbgame
+/wbui
+/wbstate
 /wbexec
 /wbdecode
 /wbrun

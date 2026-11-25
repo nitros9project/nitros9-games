@@ -40,7 +40,7 @@ TRACE_KEY_READ macro
                     lda       parsercharacter,u
                     endm
 * Native game owner: shared AGI logic with Wild Bits platform components.
-                    nam       wbgame
+                    nam       sierra
                     use       platform/wildbits-defsfile
 AGI_ASSET           equ       1
 AGI_VM              equ       1
@@ -218,7 +218,7 @@ STATE_ABI           macro
 * A cold state module reuses this exact private layout without emitting the game.
                     ifeq      WILDBITS_LAYOUT_ONLY
                     mod       eom,name,Prgrm+Objct,ReEnt+1,start,size
-name                fcs       /wbgame/
+name                fcs       /sierra/
                     fcb       1
 PLATFORM_SECTION    set PLATFORM_WILDBITS_RESOURCE_CLI
                     use platform/wildbits-memory-resources.asm
@@ -337,7 +337,7 @@ PLATFORM_SECTION    set PLATFORM_WILDBITS_PRESENTATION_PALETTE
 PLATFORM_SECTION    set PLATFORM_WILDBITS_GAME_TRACE_CODE
                     use platform/wildbits-logic.asm
                     endc
-help                fcc       /wbgame dir ID/
+help                fcc       /sierra/
                     fcb       C$CR
                     emod
 eom                 equ       *

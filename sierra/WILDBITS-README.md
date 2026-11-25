@@ -21,6 +21,27 @@ Keep the original game resources together in a readable directory, then run:
 sierra /s0/game 0
 ```
 
+## Build a Wild Bits game disk
+
+From the games repository, build the default King's Quest I image with:
+
+```sh
+make -C sierra -f wildbits-game.mk GAME=kingsquest1 \
+  NITROS9DIR="$PWD/../nitros9"
+```
+
+This builds the four matching production files and copies them with the game's
+AGI resources onto a copy of
+`nitros9/recipes/wildbits/l2/l2_wildbitsjr2.dsk`. The result is
+`sierra/build/wildbits/kingsquest1-jr2.dsk`; the base OS image is left intact.
+Choose another converted game directory with `GAME=leisuresuitlarry`,
+`GAME=kingsquest4`, or another title directory. Override `BASE_DISK` for a
+different boot image and `OUTPUT` to choose a different result path. The disk
+boots to NitrOS-9; at the shell, start the game with `sierra /s0/game 0`.
+When the Level 2 build has `PSGdrv` and `fPSG` in its `.mods` directory, the
+recipe includes both; load them at the shell before the game for sound. This
+recipe packages one game per disk and targets the Jr2 Level 2 MAME image.
+
 Press an arrow to move and press the same arrow again to stop. Type a command and press ENTER. `look room` requests
 the castle description. CTRL-I opens inventory on the tested Wild Bits keyboard;
 Escape/Break opens the menu. ENTER selects; Escape/Break cancels. CTRL-C exits.
