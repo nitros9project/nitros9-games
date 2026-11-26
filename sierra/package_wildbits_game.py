@@ -35,6 +35,8 @@ def main():
     parser.add_argument('--game', required=True, type=Path)
     parser.add_argument('--modules', required=True, type=Path)
     parser.add_argument('--output', required=True, type=Path)
+    parser.add_argument('--bootfile', type=Path)
+    parser.add_argument('--graphics-driver', type=Path)
     parser.add_argument('--psg-driver', type=Path)
     parser.add_argument('--psg-device', type=Path)
     args = parser.parse_args()
@@ -60,6 +62,12 @@ def main():
         parser.error('PSGdrv and fPSG must both be available; set --psg-driver '
                      'and --psg-device together or build both in recipes/wildbits/l2/.mods')
     have_psg = psg_driver.is_file() and psg_device.is_file()
+    if bool(args.bootfile) != bool(args.graphics_driver):
+        parser.error('--bootfile and --graphics-driver must be supplied together')
+    firmware = []
+    if args.bootfile:
+        firmware = [('OS9Boot', args.bootfile.resolve(strict=True)),
+                    ('CMDS/grfdrv256', args.graphics_driver.resolve(strict=True))]
 
     output.parent.mkdir(parents=True, exist_ok=True)
     fd, temp_name = tempfile.mkstemp(prefix=output.name + '.', suffix='.tmp',
@@ -77,6 +85,10 @@ def main():
             run_os9(args.os9, 'copy', '-r', modules / name,
                     f'{temp_disk},CMDS/{name}')
             run_os9(args.os9, 'attr', f'{temp_disk},CMDS/{name}', '-e', '-pe')
+        for target, source in firmware:
+            run_os9(args.os9, 'copy', '-r', source, f'{temp_disk},{target}')
+            if target.startswith('CMDS/'):
+                run_os9(args.os9, 'attr', f'{temp_disk},{target}', '-e', '-pe')
         if have_psg:
             for name, source in (('PSGdrv', psg_driver), ('fPSG', psg_device)):
                 run_os9(args.os9, 'copy', '-r', source, f'{temp_disk},CMDS/{name}')
@@ -90,6 +102,8 @@ def main():
     print(f'SDHC image size: {output.stat().st_size // (1024 * 1024)} MiB')
     if have_psg:
         print('For sound, load PSGdrv and fPSG at the shell before the game.')
+    if firmware:
+        print('Installed the selected OS9Boot and grfdrv256 pair.')
     print('Launch from the Wild Bits shell with: sierra /s0/game 0')
 
 

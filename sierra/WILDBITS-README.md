@@ -36,6 +36,11 @@ AGI resources onto a copy of
 `sierra/build/wildbits/kingsquest1-jr2.dsk`; the base OS image is left intact.
 The recipe rounds the copied raw image up to an SDHC-supported sector count
 without changing the NitrOS-9 filesystem geometry.
+When the sibling `.wildbits-test/nitros9` build cache is present, it also
+installs that MAME-verified `OS9Boot` and `grfdrv256` pair; otherwise provide
+both `BOOTFILE=/path/to/bootfile` and
+`GRAPHICS_DRIVER=/path/to/grfdrv256`. The base L2 disk's unmodified pair is
+known to produce a pink screen in the documented MAME build.
 Choose another converted game directory with `GAME=leisuresuitlarry`,
 `GAME=kingsquest4`, or another title directory. Override `BASE_DISK` for a
 different boot image and `OUTPUT` to choose a different result path. The disk
