@@ -34,6 +34,8 @@ This builds the four matching production files and copies them with the game's
 AGI resources onto a copy of
 `nitros9/recipes/wildbits/l2/l2_wildbitsjr2.dsk`. The result is
 `sierra/build/wildbits/kingsquest1-jr2.dsk`; the base OS image is left intact.
+The recipe rounds the copied raw image up to an SDHC-supported sector count
+without changing the NitrOS-9 filesystem geometry.
 Choose another converted game directory with `GAME=leisuresuitlarry`,
 `GAME=kingsquest4`, or another title directory. Override `BASE_DISK` for a
 different boot image and `OUTPUT` to choose a different result path. The disk

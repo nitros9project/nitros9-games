@@ -16,6 +16,18 @@ def run_os9(os9, *args):
     subprocess.run([os9, *map(str, args)], check=True)
 
 
+def pad_sd_image(path):
+    """Round a raw image up to the next SDHC-representable sector count."""
+    sector_size = 512
+    size = path.stat().st_size
+    if size % sector_size:
+        raise ValueError(f'disk image size is not sector aligned: {size} bytes')
+    blocks = size // sector_size
+    capacity_blocks = 1 << (blocks - 1).bit_length()
+    with path.open('r+b') as image:
+        image.truncate(capacity_blocks * sector_size)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--os9', default='os9')
@@ -69,11 +81,13 @@ def main():
             for name, source in (('PSGdrv', psg_driver), ('fPSG', psg_device)):
                 run_os9(args.os9, 'copy', '-r', source, f'{temp_disk},CMDS/{name}')
                 run_os9(args.os9, 'attr', f'{temp_disk},CMDS/{name}', '-e', '-pe')
+        pad_sd_image(temp_disk)
         temp_disk.replace(output)
     except BaseException:
         temp_disk.unlink(missing_ok=True)
         raise
     print(f'Created {output}')
+    print(f'SDHC image size: {output.stat().st_size // (1024 * 1024)} MiB')
     if have_psg:
         print('For sound, load PSGdrv and fPSG at the shell before the game.')
     print('Launch from the Wild Bits shell with: sierra /s0/game 0')
